@@ -40,15 +40,15 @@
       var all = idx.filter(function (m) { return matches(q, m.t, m.code); }), st = stateFor(raw);
       if (st) all.sort(function (a, b) { return (b.code === st) - (a.code === st); });
       var out = all.slice(0, 12);
-      if (!all.length) { hits.appendChild(el('li', 'none', 'No member of Congress matches that. Try a last name or a state.')); return; }
+      if (!all.length) { hits.appendChild(el('li', 'none', 'No member of Congress or candidate matches that. Try a last name or a state.')); return; }
       if (st) {
-        var sl = el('li'), sa = el('a', 'allhits', 'See the whole ' + sp.querySelector('option[value="' + st + '"]').text + ' page');
-        sa.href = root + 'states/' + st + '/'; sl.appendChild(sa); hits.appendChild(sl);
+        var sl = el('li'), sa = el('a', 'allhits', 'See who is on the ballot in ' + sp.querySelector('option[value="' + st + '"]').text);
+        sa.href = root + 'states/' + st + '/#ballot'; sl.appendChild(sa); hits.appendChild(sl);
       }
       out.forEach(function (m) {
         var li = el('li'), a = el('a');
-        a.href = root + 'scorecard/' + m.u + '/';
-        var g = el('span', 'g g-sm g-' + (m.g ? m.g[0].toLowerCase() : 'n'), m.g || '?');
+        a.href = root + (m.h || 'scorecard/' + m.u + '/');
+        var g = el('span', 'g g-sm g-' + (m.g ? m.g[0].toLowerCase() : 'n'), m.g || (m.h ? '–' : '?'));
         var who = el('span', 'who');
         who.appendChild(el('strong', null, m.n)); who.appendChild(el('span', 'dim', ' ' + m.p + ' · ' + m.s + ' · ' + m.c));
         a.appendChild(g); a.appendChild(who); li.appendChild(a); hits.appendChild(li);
@@ -77,19 +77,48 @@
   if (list) {
     var q = document.getElementById('q'), fc = document.getElementById('f-chamber'), fp = document.getElementById('f-party'),
       fs = document.getElementById('f-state'), so = document.getElementById('f-sort'), fb0 = document.getElementById('f-ballot'), fg = document.getElementById('f-grade'),
-      count = document.getElementById('count'), items = Array.prototype.slice.call(list.children);
+      count = document.getElementById('count'), items = Array.prototype.slice.call(list.children),
+      clist = document.getElementById('cands'), ccount = document.getElementById('ccount'), hint = document.getElementById('racehint'),
+      citems = clist ? Array.prototype.slice.call(clist.children) : [], hint0 = hint ? hint.innerHTML : '';
     items.forEach(function (li, i) { li._i = i; li._t = li.dataset.k.split(' '); });
+    citems.forEach(function (li) { li._t = li.dataset.k.split(' '); });
+    /* The state a reader is looking at: the State filter, or a search that is a state's name or code. */
+    function stateNow() {
+      if (fs.value) return fs.value;
+      var raw = norm(q.value.trim()), o = fs.options, i;
+      for (i = 0; i < o.length; i++) if (o[i].value && raw && (o[i].value === raw || norm(o[i].text) === raw)) return o[i].value;
+      return '';
+    }
+    function pass(li, qq) {
+      var d = li.dataset;
+      return (!qq.length || matches(qq, li._t, d.s)) && (!fc.value || d.c === fc.value) && (!fp.value || d.p === fp.value) &&
+        (!fs.value || d.s === fs.value) && (!fg.value || d.g === fg.value) && (!fb0.value || d.b === fb0.value);
+    }
     var params = new URLSearchParams(location.search);
     if (params.get('q')) q.value = params.get('q');
     function apply() {
       var qq = words(q.value), n = 0;
-      items.forEach(function (li) {
-        var d = li.dataset, ok = (!qq.length || matches(qq, li._t, d.s)) && (!fc.value || d.c === fc.value) && (!fp.value || d.p === fp.value) &&
-          (!fs.value || d.s === fs.value) && (!fg.value || d.g === fg.value) && (!fb0.checked || (d.b === '1' && d.c === 'Senate'));
-        li.hidden = !ok; if (ok) n++;
-      });
+      items.forEach(function (li) { var ok = pass(li, qq); li.hidden = !ok; if (ok) n++; });
+      var cn = 0;
+      citems.forEach(function (li) { var ok = pass(li, qq); li.hidden = !ok; if (ok) cn++; });
       count.textContent = n === items.length ? 'Showing all ' + n + ' members.' :
         n ? 'Showing ' + n + ' of ' + items.length + ' members.' : 'No member matches. Clear the search, or set the filters back to all.';
+      if (cn && n !== items.length) {
+        count.appendChild(document.createTextNode(' And '));
+        var jump = el('a', null, cn + (cn === 1 ? ' candidate who is' : ' candidates who are') + ' not in Congress');
+        jump.href = '#cands-h'; count.appendChild(jump); count.appendChild(document.createTextNode(', further down.'));
+      }
+      if (ccount) ccount.textContent = cn === citems.length ? 'Showing all ' + cn + ' candidates.' :
+        cn ? 'Showing ' + cn + ' of ' + citems.length + ' candidates.' : 'No candidate matches.';
+      if (hint) {
+        var st = stateNow();
+        if (st) {
+          var name = fs.querySelector('option[value="' + st + '"]').text;
+          hint.textContent = 'Voting in ' + name + '? ';
+          var go = el('a', null, 'See every race in ' + name + ' on November 3, with the candidates side by side');
+          go.href = root + 'states/' + st + '/#ballot'; hint.appendChild(go);
+        } else hint.innerHTML = hint0;
+      }
     }
     function sort() {
       var v = so.value;
@@ -106,6 +135,13 @@
     so.addEventListener('change', function () { sort(); apply(); });
     apply();
   }
+
+  /* ---- a state picker that opens that state's page ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('select[data-go]'), function (sel) {
+    sel.addEventListener('change', function () {
+      if (sel.value) location.href = root + sel.getAttribute('data-go') + sel.value + '/' + (sel.getAttribute('data-hash') || '');
+    });
+  });
 
   /* ---- member page: narrow the vote list ---- */
   var votes = document.getElementById('votes');
