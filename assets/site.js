@@ -6,39 +6,69 @@
   function norm(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
+  /* ---- matching, shared by the home search and the scorecard search ----
+     Each word typed must be the two-letter code of the member's state, or the START of a word in the
+     member's name or state. Whole-string matching failed on "susan collins" (her listed name carries a
+     middle initial), and substring matching made "ny" find Cornyn and "house" find Whitehouse. */
+  function words(s) { return norm(s).split(/[^a-z0-9]+/).filter(Boolean); }
+  function matches(q, toks, code) {
+    return q.every(function (w) { return w === code || toks.some(function (t) { return t.indexOf(w) === 0; }); });
+  }
+
   /* ---- home: find a member by name or state ---- */
   var find = document.getElementById('find');
   if (find) {
-    var hits = document.getElementById('hits'), idx = null, loading = false;
+    var hits = document.getElementById('hits'), idx = null, loading = false, sp = document.getElementById('statepick');
     function load(cb) {
       if (idx) return cb();
       if (loading) return; loading = true;
-      fetch(root + 'data/index.json').then(function (r) { return r.json(); }).then(function (d) { idx = d; cb(); })
-        .catch(function () { loading = false; });
+      fetch(root + 'data/index.json').then(function (r) { return r.json(); }).then(function (d) {
+        d.forEach(function (m) { m.t = words(m.n + ' ' + (m.f || '') + ' ' + m.s); m.code = m.a.toLowerCase(); });
+        idx = d; cb();
+      }).catch(function () { loading = false; });
+    }
+    function stateFor(q) {
+      if (!sp || !q) return '';
+      var opts = sp.options, i;
+      for (i = 0; i < opts.length; i++) if (opts[i].value && (opts[i].value === q || norm(opts[i].text) === q)) return opts[i].value;
+      return '';
     }
     function show() {
-      var q = norm(find.value.trim());
+      var raw = norm(find.value.trim()), q = words(raw);
       hits.textContent = '';
-      if (q.length < 2 || !idx) return;
-      var out = idx.filter(function (m) { return norm(m.n + ' ' + m.s + ' ' + m.a).indexOf(q) >= 0; }).slice(0, 12);
-      if (!out.length) { var li = el('li', 'none', 'No member of Congress matches that. Try a last name or a state.'); hits.appendChild(li); return; }
+      if (raw.length < 2 || !idx) return;
+      var all = idx.filter(function (m) { return matches(q, m.t, m.code); }), st = stateFor(raw);
+      if (st) all.sort(function (a, b) { return (b.code === st) - (a.code === st); });
+      var out = all.slice(0, 12);
+      if (!all.length) { hits.appendChild(el('li', 'none', 'No member of Congress matches that. Try a last name or a state.')); return; }
+      if (st) {
+        var sl = el('li'), sa = el('a', 'allhits', 'See the whole ' + sp.querySelector('option[value="' + st + '"]').text + ' page');
+        sa.href = root + 'states/' + st + '/'; sl.appendChild(sa); hits.appendChild(sl);
+      }
       out.forEach(function (m) {
         var li = el('li'), a = el('a');
         a.href = root + 'scorecard/' + m.u + '/';
         var g = el('span', 'g g-sm g-' + (m.g ? m.g[0].toLowerCase() : 'n'), m.g || '?');
         var who = el('span', 'who');
-        var st = el('strong', null, m.n);
-        who.appendChild(st); who.appendChild(el('span', 'dim', ' ' + m.p + ' · ' + m.s + ' · ' + m.c));
+        who.appendChild(el('strong', null, m.n)); who.appendChild(el('span', 'dim', ' ' + m.p + ' · ' + m.s + ' · ' + m.c));
         a.appendChild(g); a.appendChild(who); li.appendChild(a); hits.appendChild(li);
       });
+      if (all.length > out.length) {
+        var ml = el('li'), ma = el('a', 'allhits', 'See all ' + all.length + ' on the scorecard');
+        ma.href = root + 'scorecard/?q=' + encodeURIComponent(find.value.trim()); ml.appendChild(ma); hits.appendChild(ml);
+      }
     }
+    function shut() { hits.textContent = ''; }
     find.addEventListener('focus', function () { load(show); });
     find.addEventListener('input', function () { load(show); });
+    find.addEventListener('keydown', function (e) { if (e.key === 'Escape') shut(); });
+    document.addEventListener('click', function (e) { if (!find.form.contains(e.target)) shut(); });
+    find.form.addEventListener('focusout', function () { setTimeout(function () { if (!find.form.contains(document.activeElement)) shut(); }, 150); });
     find.form.addEventListener('submit', function (e) {
-      var first = hits.querySelector('a');
-      if (first) { e.preventDefault(); location.href = first.href; }
+      var st = stateFor(norm(find.value.trim())), first = hits.querySelector('a');
+      if (st) { e.preventDefault(); location.href = root + 'states/' + st + '/'; }
+      else if (first) { e.preventDefault(); location.href = first.href; }
     });
-    var sp = document.getElementById('statepick');
     if (sp) sp.addEventListener('change', function () { if (sp.value) location.href = root + 'states/' + sp.value + '/'; });
   }
 
@@ -46,31 +76,33 @@
   var list = document.getElementById('all');
   if (list) {
     var q = document.getElementById('q'), fc = document.getElementById('f-chamber'), fp = document.getElementById('f-party'),
-      fs = document.getElementById('f-state'), so = document.getElementById('f-sort'), fb = document.getElementById('f-ballot'),
+      fs = document.getElementById('f-state'), so = document.getElementById('f-sort'), fb0 = document.getElementById('f-ballot'),
       count = document.getElementById('count'), items = Array.prototype.slice.call(list.children);
+    items.forEach(function (li, i) { li._i = i; li._t = li.dataset.k.split(' '); });
     var params = new URLSearchParams(location.search);
     if (params.get('q')) q.value = params.get('q');
     function apply() {
-      var qq = norm(q.value.trim()), n = 0;
+      var qq = words(q.value), n = 0;
       items.forEach(function (li) {
-        var d = li.dataset, ok = (!qq || d.k.indexOf(qq) >= 0) && (!fc.value || d.c === fc.value) && (!fp.value || d.p === fp.value) &&
-          (!fs.value || d.s === fs.value) && (!fb.checked || d.b === '1');
+        var d = li.dataset, ok = (!qq.length || matches(qq, li._t, d.s)) && (!fc.value || d.c === fc.value) && (!fp.value || d.p === fp.value) &&
+          (!fs.value || d.s === fs.value) && (!fb0.checked || d.b === '1');
         li.hidden = !ok; if (ok) n++;
       });
-      count.textContent = n === items.length ? 'Showing all ' + n + ' members.' : 'Showing ' + n + ' of ' + items.length + ' members.';
+      count.textContent = n === items.length ? 'Showing all ' + n + ' members.' :
+        n ? 'Showing ' + n + ' of ' + items.length + ' members.' : 'No member matches. Clear the search, or set the filters back to all.';
     }
     function sort() {
       var v = so.value;
       items.sort(function (a, b) {
         var x = a.dataset, y = b.dataset;
-        if (v === 'best') return (+y.v) - (+x.v) || x.n.localeCompare(y.n);
-        if (v === 'worst') return (x.v === '-1') - (y.v === '-1') || (+x.v) - (+y.v) || x.n.localeCompare(y.n);
-        if (v === 'state') return x.s.localeCompare(y.s) || x.n.localeCompare(y.n);
+        if (v === 'best') return a._i - b._i;
+        if (v === 'worst') return (x.v === '-1') - (y.v === '-1') || (+x.v) - (+y.v) || b._i - a._i;
+        if (v === 'state') return x.t.localeCompare(y.t) || x.n.localeCompare(y.n);
         return x.n.localeCompare(y.n);
       });
       items.forEach(function (li) { list.appendChild(li); });
     }
-    [q, fc, fp, fs, fb].forEach(function (c) { c.addEventListener('input', apply); c.addEventListener('change', apply); });
+    [q, fc, fp, fs, fb0].forEach(function (c) { c.addEventListener('input', apply); c.addEventListener('change', apply); });
     so.addEventListener('change', function () { sort(); apply(); });
     apply();
   }
@@ -86,7 +118,8 @@
         var ok = (!cur.m || li.dataset.m === cur.m) && (!cur.o || li.dataset.o === cur.o);
         li.hidden = !ok; if (ok) n++;
       });
-      vc.textContent = n === rows.length ? rows.length + ' actions on the record.' : n + ' of ' + rows.length + ' actions shown.';
+      vc.textContent = n === rows.length ? rows.length + (rows.length === 1 ? ' vote or bill' : ' votes and bills') + ' on the record.' :
+        n ? n + ' of ' + rows.length + ' shown.' : 'Nothing matches both choices. Tap a chip again to clear it.';
     }
     chips.forEach(function (c) {
       c.addEventListener('click', function () {
@@ -99,11 +132,57 @@
     vapply();
   }
 
+  /* ---- days until the election, counted from the reader's own date ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-until]'), function (s) {
+    var p = s.getAttribute('data-until').split('-'), now = new Date();
+    var days = Math.round((Date.UTC(+p[0], +p[1] - 1, +p[2]) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+    if (days > 1) s.textContent = ' That is ' + days + ' days from today.';
+    else if (days === 1) s.textContent = ' That is tomorrow.';
+    else if (days === 0) s.textContent = ' That is today.';
+  });
+
+  /* ---- reader notes. The form posts by itself without this file; this keeps the reader on the page. ---- */
+  var fb = document.getElementById('fbform');
+  if (fb && window.fetch && window.URLSearchParams && window.FormData) {
+    var note = document.getElementById('fbnote'), ctx = document.getElementById('fbctx'), about = document.getElementById('fbabout'),
+      msg = document.getElementById('fbmsg'), hp = document.getElementById('fbhp'), send = fb.querySelector('button[type=submit]');
+    document.getElementById('fbpage').value = location.origin + location.pathname;
+    function say(text, bad) { note.textContent = text; note.className = 'fbnote' + (bad ? ' bad' : ''); }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-about]'), function (a) {
+      a.addEventListener('click', function () {
+        ctx.value = a.getAttribute('data-about') + ' [' + (a.getAttribute('data-id') || '') + ']';
+        about.textContent = 'About: ' + a.getAttribute('data-about');
+        about.hidden = false;
+        var r = fb.querySelector('input[type=radio][value=fact]');
+        if (r) r.checked = true;
+        setTimeout(function () { msg.focus({ preventScroll: true }); }, 60);
+      });
+    });
+    fb.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      if (hp.value) { say('Sent. Thank you.'); return; }
+      if (msg.value.trim().length < 8) { say('Write a few words about what is wrong.', true); msg.focus(); return; }
+      var now = Date.now(), log = [];
+      try { log = JSON.parse(localStorage.getItem('ls-notes') || '[]').filter(function (t) { return now - t < 3600000; }); } catch (x) { log = []; }
+      if (log.length >= 6) { say('That is a lot of notes in one hour. Try again a little later.', true); return; }
+      send.disabled = true;
+      say('Sending.');
+      fetch(fb.action, { method: 'POST', mode: 'no-cors', body: new URLSearchParams(new FormData(fb)) }).then(function () {
+        try { log.push(now); localStorage.setItem('ls-notes', JSON.stringify(log)); } catch (x) { }
+        msg.value = ''; ctx.value = ''; about.hidden = true; send.disabled = false;
+        say('Sent. Thank you. We read every note, and fixes that come from readers are listed on the Help build it page.');
+      }, function () {
+        send.disabled = false;
+        say('That did not send. Check your connection and try again.', true);
+      });
+    });
+  }
+
   /* ---- copy the link ---- */
   Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (b) {
     b.addEventListener('click', function () {
       var url = b.getAttribute('data-copy'), old = b.textContent;
-      function done(ok) { b.textContent = ok ? 'Link copied' : 'Copy failed, press and hold the address bar'; setTimeout(function () { b.textContent = old; }, 2200); }
+      function done(ok) { b.textContent = ok ? 'Link copied' : 'Could not copy. Copy the address from the address bar.'; setTimeout(function () { b.textContent = old; }, 2200); }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
       else done(false);
     });
