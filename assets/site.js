@@ -6,6 +6,13 @@
   function norm(s) { return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
+  /* ---- the invitation to the daily call: a reader can put it away for this visit ---- */
+  var calls = document.getElementById('calls'), callsX = document.getElementById('calls-x');
+  if (calls && callsX) {
+    try { if (sessionStorage.getItem('lp-calls') === 'off') calls.className += ' off'; } catch (x) {}
+    callsX.addEventListener('click', function () { calls.className += ' off'; try { sessionStorage.setItem('lp-calls', 'off'); } catch (x) {} });
+  }
+
   /* ---- matching, shared by the home search and the scorecard search ----
      Each word typed must be the two-letter code of the member's state, or the START of a word in the
      member's name or state. Whole-string matching failed on "susan collins" (her listed name carries a

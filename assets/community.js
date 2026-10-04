@@ -122,7 +122,7 @@ function niceDate(ms) { return new Date(ms).toLocaleDateString('en-US', { month:
 /* The page a discussion belongs to, from its key. null when the key is not one of ours: the front page is
    the empty address, so '' is an answer. render.py works it out the same way (subject_of), and
    build/phone-test.html checks the two agree. The same keys are the only ones the rules take. */
-const KEY_OK = /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|build))$/;
+const KEY_OK = /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build))$/;
 const DIR = { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
 function pathOf(about) {
@@ -1237,12 +1237,12 @@ function drawTalk() {
   } else if (T.state === 'off') L.append(stateRow('Reader posts are not switched on in this preview.'));
   else if (T.state === 'err') L.append(stateRow('Could not load what readers said. Try again.', btn('btn btn-line', 'Try again', () => (T.retry ? T.retry() : loadTalk()))));
   else {
-    const every = ordered(), rows = T.only ? every.filter(p => ONLY[T.only][1](p)) : every;
+    const every = ordered(), rows = every.filter(p => (!T.only || ONLY[T.only][1](p)) && (!T.where || keyKind(p.about) === T.where));
     /* The number on the way to the whole discussion counts every post a reader would find there, replies too. */
     n = T.feed ? every.length : every.reduce((sum, p) => sum + 1 + repliesTo(p.id).length, 0);
     const best = T.sort === 'top' && rows.find(p => p.status === 'live' && p.score > 0 && !p.fresh);
     if (!every.length) L.append(stateRow(T.feed ? (T.full && T.empty) || 'Nobody has posted yet. Pick a race or a member and be the first.' : T.empty || 'Nobody has said anything about ' + T.what + ' yet. Be the first.'));
-    else if (!rows.length) L.append(stateRow('Nothing of that kind here yet.', btn('btn btn-line', 'Show everything', () => { T.only = ''; drawTalk(); })));
+    else if (!rows.length) L.append(stateRow('Nothing of that kind here yet.', btn('btn btn-line', 'Show everything', () => { T.only = ''; T.where = ''; drawTalk(); })));
     else (T.all ? rows : rows.slice(0, 3)).forEach(p => L.append(row(p, p === best)));
     if (T.full) { drawCtl(every); setCount(n); }
   }
@@ -1264,6 +1264,17 @@ const ONLY = {
   fix: ['Corrections', p => p.tag === 'wrong' || p.tag === 'source'],
   site: ['Bugs and ideas', p => p.tag === 'bug' || p.tag === 'idea']
 };
+/* Where a post was made, for the list of all discussions. */
+const WHERE = { race: 'Races', member: 'Politicians', state: 'States', vote: 'Votes', page: 'The site' };
+let NAMES = null, namesAsked = false;
+/* What a page is called: from the build's own list once it has loaded, until then from the post. */
+function nameOf(about, fallback) { return (NAMES && typeof NAMES[about] === 'string' && NAMES[about]) || fallback || 'Open the page'; }
+/* The discussions with the most posts among the newest ones loaded, the front page's own left out. */
+function busiest(every) {
+  const by = new Map();
+  every.forEach(p => { if (p.about === 'page:home' || pathOf(p.about) == null) return; const b = by.get(p.about) || { about: p.about, n: 0, subject: '' }; b.n++; if (!b.subject && !p.parent) b.subject = p.subject; by.set(p.about, b); });
+  return [...by.values()].filter(b => b.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
+}
 /* The order and the kinds, above the list. Not drawn until there are three posts: with fewer there is
    nothing to sort, and a row of switches over one post is noise. */
 function drawCtl(every) {
@@ -1276,8 +1287,28 @@ function drawCtl(every) {
   const chip = (text, on, fn) => { const c = btn('chip', text, () => { fn(); drawTalk(); }); c.setAttribute('aria-pressed', String(on)); chips.append(c); };
   if (!T.feed) [['top', 'Most liked'], ['new', 'Newest']].forEach(([s, t]) => chip(t, T.sort === s, () => { T.sort = s; }));
   if (!T.feed) chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
-  chip('Everything', !T.only, () => { T.only = ''; });
+  chip('Everything', !T.only && !T.where, () => { T.only = ''; T.where = ''; });
   Object.keys(ONLY).forEach(k => { if (every.some(ONLY[k][1])) chip(ONLY[k][0], T.only === k, () => { T.only = k; }); });
+  /* All discussions (the front page): every page's posts are in one list, so a reader can also narrow it by
+     WHERE a post was made, and see which discussions are busiest. Armin, 5 October 2026: "all of the
+     discussions happening in all of the other areas brought into one place in a way that makes sense". */
+  if (T.feed) {
+    const kinds = Object.keys(WHERE).filter(k => every.some(p => keyKind(p.about) === k));
+    if (kinds.length > 1) {
+      chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
+      kinds.forEach(k => chip(WHERE[k], T.where === k, () => { T.where = T.where === k ? '' : k; }));
+    }
+    const busy = busiest(every);
+    if (busy.length) {
+      const box = el('div', 'busy');
+      box.append(el('p', 'busy-h', 'Busiest discussions'));
+      const ul = el('ul', 'busy-l');
+      busy.forEach(b => { const li = el('li'), a = el('a', 'busy-a', null, { href: root + pathOf(b.about) + '#discussion' }); a.append(el('span', null, nameOf(b.about, b.subject)), el('b', 'num', String(b.n))); li.append(a); ul.append(li); });
+      box.append(ul);
+      C.append(box);
+    }
+    if (!NAMES && !namesAsked) { namesAsked = true; within(15000, fetch(root + 'data/talk.json').then(r => (r.ok ? r.json() : null))).then(j => { if (j) { NAMES = j; drawTalk(); } }).catch(() => {}); }
+  }
   C.append(chips);
 }
 /* The number on the switch, and at the end of the record. Shown only when there is something to count:
@@ -1361,7 +1392,7 @@ function row(p, best) {
   if (p.mine) meta.append(el('span', 'tag', 'Made it'));
   if (best) meta.append(el('span', 'tag best', 'Most liked'));
   li.append(meta);
-  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#p-' + p.id }));
+  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', 'In: ' + nameOf(p.about, p.subject), { href: root + pathOf(p.about) + '#p-' + p.id }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
   else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) li.append(el('p', 'said-about', 'About: ' + p.subject));
   const emb = p.kind === 'video' && URL_OK.test(p.url) ? embedOf(p.url) : null;
