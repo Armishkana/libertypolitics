@@ -559,4 +559,63 @@ span.face-lg{font-size:1.7rem}
 .mod-go{max-width:48rem}
 .mod-go-sum{margin-top:10px;overflow-wrap:anywhere}
 .mod-go-t td{font-size:.9rem}
+
+/* ---- the record, or the discussion. One switch under the header on every page that has both; it stays
+   on screen while the reader scrolls, so the discussion is always one tap away. The Discussion side is
+   yellow whichever mode is on: it is the one thing a page asks of a reader. ---- */
+.modes{position:sticky;top:61px;z-index:19;background:var(--sunk);border-bottom:1px solid var(--line)}
+.modes .wrap{display:flex;align-items:stretch;padding:0 4px}
+.mode{flex:1 1 0;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 8px;font:700 1rem/1 var(--body);text-decoration:none;color:var(--dim);border-bottom:3px solid transparent;white-space:nowrap}
+.mode:hover{color:var(--ink)}
+.mode[aria-current="page"]{color:var(--ink);border-bottom-color:var(--ink)}
+.mode-d,.mode-d:hover{color:var(--field)}
+.mode-d[aria-current="page"]{color:var(--field);border-bottom-color:var(--field)}
+.mode svg{flex:none}
+.mode-n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;background:var(--field);color:var(--on-field);border-radius:999px;font-size:.8rem;font-weight:800}
+.mode-n[hidden]{display:none}
+.mode-share{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:52px;min-height:52px;padding:0 12px;background:none;border:0;border-left:1px solid var(--line);color:var(--dim);font:600 .92rem/1 var(--body);cursor:pointer;white-space:nowrap}
+.mode-share:hover{color:var(--ink)}
+.mode-share span{display:none}
+.mode-share.said span{display:inline;color:var(--ga)}
+@media(min-width:760px){.modes .wrap{padding:0 var(--gutter)}.mode{flex:0 1 14rem}.mode-share{margin-left:auto;border-left:0}.mode-share span{display:inline}}
+.modes-on[data-mode="record"] #discussion,.modes-on[data-mode="discussion"] #record{display:none}
+html.modes-on{scroll-padding-top:128px}
+.modes-on .said,.modes-on .talk{scroll-margin-top:128px}
+
+/* the discussion of a page: what it is about, the box, then the posts */
+.disc{padding-top:28px}
+.disc-col{max-width:46rem}
+.disc-head{display:flex;align-items:center;gap:12px}
+.disc-head>div{min-width:0}
+.disc-eye{font:800 .8rem/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--field)}
+.disc-head h2{margin-top:6px;font-size:clamp(1.9rem,7vw,2.8rem);overflow-wrap:anywhere}
+.disc .talk-lede{margin-top:12px;font-size:1rem}
+.disc-col>.fb{margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:8px}
+.disc-col>.fb:focus-within{border-color:var(--field-edge)}
+.disc-col .fbform{margin-top:0;max-width:none}
+.fbform>label#fbmsglab{margin-top:0;font-size:1.1rem;line-height:1.3}
+.disc-col .fbform textarea{min-height:5.5rem}
+.fb .picks{gap:6px;margin-top:4px}
+.fb .pick{position:relative;min-height:40px;padding:0 12px;font-size:.88rem}
+.fb .pick input{position:absolute;opacity:0;width:1px;height:1px}
+.fb .pick.on,.fb .pick:has(input:checked){background:var(--field);border-color:var(--field);color:var(--on-field)}
+.fb .pick:focus-within{outline:3px solid var(--field);outline-offset:2px}
+.disc-col .fbnote:empty{min-height:0}
+.disc-col .fbabout{display:flex;align-items:center;gap:10px;margin-top:0}
+.fbabout-x{flex:none;margin-left:auto;min-height:44px;padding:0 6px;background:none;border:0;color:var(--dim);font:600 .9rem/1 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.fbabout-x:hover{color:var(--ink)}
+.fbsend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:10px}
+.fbsend .fbhint{flex:1 1 14rem}
+.disc .talk{margin-top:24px}
+.talk-ctl .chips{margin-top:0}
+.chips-gap{flex:none;width:1px;margin:8px 4px;background:var(--line)}
+
+/* the end of the record: the one thing the record asks for */
+.band-top{margin-top:16px;max-width:44rem;padding:12px 14px;background:rgba(22,20,10,.1);border-left:4px solid var(--on-field);border-radius:var(--r)}
+.band-top[hidden]{display:none}
+.band-top blockquote{margin:0;font-size:1.1rem;font-weight:600;line-height:1.4;overflow-wrap:anywhere;white-space:pre-line}
+.call .band-top p{margin-top:6px;font-size:.9rem;font-weight:700}
+/* nothing to show yet: no height and no line, and still there for the script to watch (a part that is
+   not drawn at all never tells the script it has come near the screen) */
+.latest:not(.on){padding:0;border:0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+
 <title>Help build Liberty Score</title>
 <meta name="description" content="Liberty Score is a group project. Say what you think of a race, share a video, report a bug, tell us what is wrong on any page, and see every fix that came from a reader.">
 
@@ -23,17 +24,19 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Public+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../assets/site.css">
+<script>(function(d,h){d.className+=" modes-on";d.setAttribute("data-mode",(h==="#discussion"||h==="#feedback"||h==="#talk"||h.indexOf("#p-")===0)?"discussion":"record")})(document.documentElement,location.hash)</script>
 </head>
 <body>
 <a class="vh" href="#main">Skip to the content</a>
 
-<a class="beta" href="#feedback">New, and not finished. See something wrong? <b>Help us fix it</b></a>
 <header class="top"><div class="wrap">
 <a class="mark" href="../"><img src="../assets/seal.png" alt="" width="40" height="40"><span>Liberty <b>Politics</b></span></a>
-<nav aria-label="Main"><a href="../races/">November 3</a><a href="../scorecard/">Scorecard</a><a href="../states/">By state</a><a href="../methodology/">How we score</a><a href="../about/">About</a><a href="../talk/">Discussion</a><a href="../build/" aria-current=page>Help build it</a><a class="acct" id="acct" href="../build/#account">Sign in</a><a class="join" href="../join/?from=site" target="_blank" rel="noopener">Join</a></nav>
+<nav aria-label="Main"><a href="../races/">November 3</a><a href="../scorecard/">Scorecard</a><a href="../states/">By state</a><a href="../methodology/">How we score</a><a href="../about/">About</a><a class="acct" id="acct" href="../build/#account" data-clarity-mask="true">Sign in</a><a class="join" href="../join/?from=site" target="_blank" rel="noopener">Join</a></nav>
 </div></header>
-<nav class="subnav" aria-label="Sections"><a href="../races/">November 3</a><a href="../scorecard/">Scorecard</a><a href="../states/">By state</a><a href="../methodology/">How we score</a><a href="../about/">About</a><a href="../talk/">Discussion</a><a href="../build/" aria-current=page>Help build it</a></nav>
+<nav class="subnav" aria-label="Sections"><a href="../races/">November 3</a><a href="../scorecard/">Scorecard</a><a href="../states/">By state</a><a href="../methodology/">How we score</a><a href="../about/">About</a></nav>
+<nav class="modes" id="modes" aria-label="The record, or the discussion"><div class="wrap"><a class="mode" id="mode-record" href="#record">How it works</a><a class="mode mode-d" id="mode-discussion" href="#discussion"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span>Discussion</span><b class="mode-n num" id="disc-n" hidden></b></a><button class="mode-share" id="share" type="button" data-url="https://libertypolitics.com/build/" data-title="Help build Liberty Score" aria-label="Share this page"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg><span>Share</span></button></div></nav>
 <main id="main">
+<div class="pane" id="record">
 <section class="sec"><div class="wrap"><div class="prose">
 <h1 style="font-size:clamp(2.6rem,10vw,4.5rem);font-weight:900">Help build it</h1>
 <p class="big" style="margin-top:16px">Liberty Score is a group project. We built the first version in October 2026. Making it right is a job for everyone who uses it.</p>
@@ -56,7 +59,7 @@
 
 <h2>What happens to it</h2>
 <ol>
-<li>You write it in the box at the bottom of any page. The yellow button in the corner takes you there.</li>
+<li>Every page has two parts: the record, and its discussion. Tap Discussion at the top of the page and write in the box there.</li>
 <li>To send it you need an account: a name, an email and a password. What you wrote is kept while you make one, and it is sent the moment you are in.</li>
 <li>We send one email to check that the address is yours. Until you open the link in it, only you can see what you posted. Once you have, it shows on the page it is about: a race, a politician, a state, a vote, or this page.</li>
 <li>Other readers can like it, unlike it or answer it. The posts with the most likes over unlikes are shown first.</li>
@@ -83,24 +86,29 @@
 <h2>Changed so far</h2>
 <p class="dim">Nothing from readers yet. The first fix could be yours.</p>
 </div></div></section>
-<section class="sec talk-sec"><div class="wrap"><section class="talk" id="talk" data-on="page:build" data-name="Help build it" data-what="this site" data-empty="Nothing reported yet. If something on this site broke for you, say so here." aria-labelledby="talk-h"><h2 id="talk-h">Bugs, fixes and ideas, in the open</h2><p class="talk-lede">Something broke, or the site should do something it does not? Post it here, where other readers can see it, like it and add to it.</p><div class="row talk-go"><a class="btn btn-key" href="#feedback" data-kind="bug" data-about="Help build it" data-id="build" data-on="page:build">Report a bug</a><a class="btn btn-line" href="#feedback" data-kind="idea" data-about="Help build it" data-id="build" data-on="page:build">Give an idea</a><a class="btn btn-line" href="#feedback" data-kind="opinion" data-about="Help build it" data-id="build" data-on="page:build">Say what you think</a></div></section></div></section>
-<section class="field call"><div class="wrap">
-<h2>Want a bigger say?</h2>
-<p>Members of the community argue these grades with the hosts on a group call every day.</p>
-<div class="row"><a class="btn btn-ink" href="../join/?from=site" target="_blank" rel="noopener">Join the community</a></div>
+
+
+<section class="field call band" id="band"><div class="wrap">
+<h2>What broke, or what should this site do?</h2>
+<p id="band-p">Say it where other readers can answer you. Opinions, videos and corrections about this site are all in one place.</p>
+<div class="band-top" id="band-top" data-clarity-mask="true" hidden></div>
+<div class="row"><a class="btn btn-ink" href="#discussion" id="band-go">Open the discussion</a></div>
 </div></section>
-<section class="sec fb" id="feedback"><div class="wrap">
-<h2>Have your say</h2>
-<p>Say what you think, share a video, or tell us what we got wrong. Write it first. Sending it takes a free account, and what you wrote is kept while you make one. It goes on the page it is about, under the name you choose, where other readers can like it and answer it.</p>
-<form class="fbform" id="fbform" action="https://docs.google.com/forms/d/e/1FAIpQLSeiEyMHXzFDYlQ87ZXKE5fahMQx9p3KwCI6DwTBbos533TQqg/formResponse" method="post" target="_blank" accept-charset="utf-8" data-panel="../panel/?from=site" data-on="" data-subject="">
-<fieldset><legend>What do you want to do?</legend><div class="picks"><label class="pick"><input type="radio" name="entry.2089714307" value="opinion" checked><span>Say what you think</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="video"><span>Share a video</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="wrong"><span>Something is wrong</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="bug"><span>Report a bug</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="source"><span>Something we missed</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="idea"><span>An idea for the site</span></label></div></fieldset>
+</div>
+<div class="pane" id="discussion">
+<section class="sec disc"><div class="wrap"><div class="disc-col">
+<div class="disc-head"><div><p class="disc-eye">Discussion</p><h2 id="talk-h">Help build it</h2></div></div>
+<p class="talk-lede">Bugs, fixes and ideas for the site itself, in the open, where other readers can like them and add to them.</p>
+<section class="fb" id="feedback" data-clarity-mask="true">
+<form class="fbform" id="fbform" action="https://docs.google.com/forms/d/e/1FAIpQLSeiEyMHXzFDYlQ87ZXKE5fahMQx9p3KwCI6DwTBbos533TQqg/formResponse" method="post" target="_blank" accept-charset="utf-8" data-panel="../panel/?from=site" data-on="" data-subject="" data-ask="What broke, or what should this site do?">
 <p class="fbabout" id="fbabout" hidden></p>
+<label for="fbmsg" id="fbmsglab">What broke, or what should this site do?</label>
+<textarea id="fbmsg" name="entry.1565174556" rows="3" maxlength="3000" required placeholder="Write it in your own words."></textarea>
+<p class="fbcount" id="fbcount" hidden></p>
+<fieldset><legend class="vh">What kind of post is it?</legend><div class="picks"><label class="pick"><input type="radio" name="entry.2089714307" value="opinion" checked><span>Opinion</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="video"><span>Video</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="wrong"><span>Correction</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="bug"><span>Bug</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="source"><span>Something we missed</span></label><label class="pick"><input type="radio" name="entry.2089714307" value="idea"><span>Idea</span></label></div></fieldset>
 <div class="fbrow" id="fblinkrow" hidden><label for="fblink" id="fblinklab">Link to the video</label>
 <input id="fblink" type="url" inputmode="url" maxlength="400" autocomplete="off" placeholder="https://">
 <p class="fbhint" id="fblinkhint">A video from YouTube, X or Instagram plays right on the page. From anywhere else, it is shown as a link.</p></div>
-<label for="fbmsg" id="fbmsglab">Your note</label>
-<textarea id="fbmsg" name="entry.1565174556" rows="5" maxlength="3000" required placeholder="Write it in your own words."></textarea>
-<p class="fbcount" id="fbcount" hidden></p>
 <div class="fbrow" id="fbminerow" hidden><label class="fbcheck"><input type="checkbox" id="fbmine"><span>I made this video</span></label>
 <p class="fbhint" id="fbminehint" hidden>We mark it as yours. Panelists on our live show speak to a live audience and can point viewers to their own channel. After you send this, we show you how to apply.</p></div>
 <noscript><p class="fbhint">Scripts are off in your browser, so there is no account here. Your note goes to us and is read, and it is not shown on a page. Have a link? Paste it into the note.</p></noscript>
@@ -108,20 +116,30 @@
 <input type="hidden" id="fbpage" name="entry.1016392495" value="https://libertypolitics.com/build/">
 <input type="hidden" id="fbctx" name="entry.1464937497" value="">
 <input type="text" id="fbhp" tabindex="-1" autocomplete="off" hidden>
-<div class="row"><button class="btn btn-key" type="submit">Send it</button></div>
+<div class="fbsend"><button class="btn btn-key" type="submit">Post it</button>
+<p class="fbhint">Posting takes a free account. What you wrote is kept while you make one.</p></div>
 <p class="fbwho" id="fbwho" hidden></p>
 <p class="fbnote" id="fbnote" role="status" aria-live="polite"></p>
 <div class="fbdone" id="fbdone" hidden></div>
 </form>
+</section>
+<section class="talk" id="talk" data-clarity-mask="true" data-full="1" data-on="page:build" data-name="Help build it" data-what="this site" data-empty="Nothing reported yet. If something on this site broke for you, say so here." aria-labelledby="talk-h">
+<noscript><p class="talk-state">Posts need scripts switched on to show. The grades and the votes do not.</p></noscript>
+</section>
 <p class="fbfine">Leave out anything private about anyone. <a href="../build/#rules">The rules, and what your account keeps</a></p>
+</div></div></section>
+<section class="field call"><div class="wrap">
+<h2>Want a bigger say?</h2>
+<p>Members of the community argue these grades with the hosts on a group call every day.</p>
+<div class="row"><a class="btn btn-ink" href="../join/?from=site" target="_blank" rel="noopener">Join the community</a></div>
 </div></section>
+</div>
 </main>
-<a class="fab" id="fab" href="#feedback">Your turn: <b>have your say</b></a>
 <footer><div class="wrap">
 <div class="cols">
 <div><p><strong style="color:var(--ink)">Liberty Score</strong> is made by Liberty Politics, a daily live show and a community.</p>
 <p style="margin-top:10px">Grades come from recorded votes and cosponsored bills in the 117th, 118th and 119th Congress, counted through September 30, 2026. Last updated October 4, 2026.</p></div>
-<ul><li><a href="../races/">Every race on November 3</a></li><li><a href="../scorecard/">Every grade</a></li><li><a href="../votes/">Every vote</a></li><li><a href="../states/">Grades by state</a></li><li><a href="../methodology/">How we score</a></li><li><a href="../about/">About us</a></li><li><a href="../talk/">What readers say</a></li><li><a href="../build/">Help build this site</a></li><li><a href="../privacy/">Privacy: what we keep</a></li><li><a href="../photos/">Photo credits</a></li></ul>
+<ul><li><a href="../races/">Every race on November 3</a></li><li><a href="../scorecard/">Every grade</a></li><li><a href="../votes/">Every vote</a></li><li><a href="../states/">Grades by state</a></li><li><a href="../methodology/">How we score</a></li><li><a href="../about/">About us</a></li><li><a href="../#discussion">Every discussion</a></li><li><a href="../build/">Help build this site</a></li><li><a href="../privacy/">Privacy: what we keep</a></li><li><a href="../photos/">Photo credits</a></li></ul>
 <ul><li><a href="../join/?from=site" target="_blank" rel="noopener">Join the community</a></li><li><a href="https://www.youtube.com/@Liberty-Politics" target="_blank" rel="noopener">Watch live on YouTube</a></li><li><a href="../panel/?from=site" target="_blank" rel="noopener">Apply for the panel</a></li><li><a href="../about/#support">Support the show</a></li></ul>
 </div>
 <p class="fine">Liberty Score grades voting records. It does not endorse or oppose any candidate for office, and it is not connected to any party, campaign or committee. Portraits of members of Congress are official congressional photographs. Photographs of other candidates are from Wikimedia Commons, cropped, and each is credited on the <a href="../photos/" style="display:inline;min-height:0">photo credits</a> page. Vote data: Voteview, the Clerk of the House, the Secretary of the Senate and Congress.gov. Candidate lists: the state election offices, as compiled on Wikipedia, checked against the Federal Election Commission.</p>

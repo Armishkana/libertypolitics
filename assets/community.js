@@ -383,7 +383,9 @@ function initHeader() {
    it was. On a phone it sits at the bottom of the screen; on a computer, in the middle. */
 let sheet = null, sheetBody = null, sheetTitle = null, sheetOpener = null, sheetView = '', sheetStop = [];
 function buildSheet() {
-  sheet = el('dialog', 'sheet', null, { id: 'lp-sheet', 'aria-labelledby': 'lp-sheet-h' });
+  /* data-clarity-mask: the heat-map service (Microsoft Clarity, render.py analytics_tags) gets nothing that is
+     in this panel. It shows the reader's email address, and it is where a password is typed. */
+  sheet = el('dialog', 'sheet', null, { id: 'lp-sheet', 'aria-labelledby': 'lp-sheet-h', 'data-clarity-mask': 'true' });
   const inner = el('div', 'sheet-in'), top = el('div', 'sheet-top');
   sheetTitle = el('h2', null, '', { id: 'lp-sheet-h', tabindex: '-1' });
   const x = btn('sheet-x', null, closeSheet); x.setAttribute('aria-label', 'Close'); x.innerHTML = ICON.x;
@@ -892,6 +894,8 @@ function initBox() {
   if (d && d.path === location.pathname && Date.now() - (d.at || 0) < 14 * 86400000 && !b.msg.value && !b.link.value) {
     putDraft(d);
     b.B.say('What you wrote earlier is back in the box.');
+    /* The box is in the discussion. A reader who comes back to a note they never sent is shown it. */
+    if (window.LPMode) window.LPMode.go('discussion');
   }
   let t = 0;
   const later = () => { clearTimeout(t); t = setTimeout(saveDraft, 300); };
@@ -1032,15 +1036,17 @@ async function formIt(b, kind, text, url, postId) {
   tail.push('uid: ' + user.uid);
   if (postId) tail.push('post: ' + postId);      // it is also a post on the page: this is its id (mod/ and the Firebase console find it by this)
   data.set(kindField, kind);
+  /* What it is about: the line of the record a reader opened the box from, or else the page itself. */
+  if (!b.ctx.value && pageOn()) data.set(b.ctx.name, pageName() + ' [' + pageOn().split(':')[1] + ']');
   data.set(b.msg.name, text + '\n\n-----\n' + tail.join('\n'));
   data.set($('fbname').name, me.name);
   try { await fetch(b.f.action, { method: 'POST', mode: 'no-cors', body: data }); } catch (x) { throw { code: 'lp/offline' }; }
   log.push(now); store.set('ls-notes', log);
 }
 function sentPost(b, post, made) {
-  const here = T && T.key === post.about && !T.feed;
+  const here = T && T.key === post.about && (!T.feed || T.full);
   const see = el('a', null, 'See it');
-  see.href = (here ? '' : root + 'talk/?on=' + encodeURIComponent(post.about)) + '#p-' + post.id;
+  see.href = (here || pathOf(post.about) == null ? '' : root + pathOf(post.about)) + '#p-' + post.id;
   const box = b.done; box.textContent = '';
   if (post.status === 'live') sayIn(b, post.tag ? 'Sent. It is on the page now, and it has reached us too.' : 'Sent. It is on the page now.', false, see);
   else if (post.status === 'pending') b.B.say('Sent. We are looking at new posts before they show, so it will be on the page once we have.');
@@ -1079,12 +1085,21 @@ let T = null;
 function initTalk() {
   const sec = $('talk');
   if (!sec) return;
-  T = { el: sec, feed: sec.hasAttribute('data-feed'), all: sec.classList.contains('talk-all'), key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
-    what: sec.getAttribute('data-what') || 'this page', empty: sec.getAttribute('data-empty') || '', sort: 'top', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null };
+  /* full: the discussion of a page, on that page (the Discussion mode). Everything is shown there, replies
+     under the post they answer, with the order and the kinds to pick from once there is enough to sort. */
+  const full = sec.hasAttribute('data-full'), page = sec.classList.contains('talk-all');
+  T = { el: sec, feed: sec.hasAttribute('data-feed'), all: page || full, full, key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
+    what: sec.getAttribute('data-what') || 'this page', empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null };
   T.list = el('ul', 'votes talk-list');
   const go = sec.querySelector('.talk-go');
   if (go) sec.insertBefore(T.list, go); else sec.append(T.list);
-  if (T.all) { initTalkPage(); return; }
+  if (page) { initTalkPage(); return; }
+  if (full) {
+    if (T.feed) T.sort = 'new';
+    T.ctl = el('div', 'talk-ctl'); T.ctl.hidden = true;
+    sec.insertBefore(T.ctl, T.list);
+    initPeek();
+  }
   drawTalk();
   /* Fetched when the section comes near the screen, so a reader who never scrolls that far costs nothing. */
   if ('IntersectionObserver' in window) {
@@ -1096,7 +1111,7 @@ function initTalk() {
 }
 async function initTalkPage() {
   const on = new URLSearchParams(location.search).get('on');
-  const h = $('talk-h'), intro = $('talk-intro'), pick = $('talk-pick'), back = $('talk-back');
+  const h = $('talk-h'), intro = $('talk-intro'), pick = $('talk-pick'), back = $('talk-back'), box = $('talk-box');
   if (on == null) { T.sort = 'new'; loadTalk(); return; }
   T.feed = false;
   T.state = 'wait'; drawTalk();
@@ -1119,13 +1134,9 @@ async function initTalkPage() {
   D.title = T.name + ': what readers say | Liberty Score';
   intro.textContent = 'What readers have said and shared about ' + what + '. Their words and their videos, not ours.';
   back.textContent = '← ' + T.name; back.href = root + path;
-  /* The strip that opens the box, filed under this page. */
-  const id = on.split(':')[1], strip = el('div', 'ask'), row = el('div', 'row');
-  strip.append(el('p', null, 'Add yours. Say what you think, or share a video about ' + what + '.'));
-  [['opinion', 'Say what you think', 'btn-key'], ['video', 'Share a video', 'btn-line'], ['wrong', 'Something is wrong', 'btn-line']].forEach(([k, t, c]) => {
-    row.append(el('a', 'btn ' + c, t, { href: '#feedback', 'data-kind': k, 'data-about': T.name, 'data-id': id, 'data-on': on }));
-  });
-  strip.append(row); pick.replaceWith(strip);
+  /* The box, filed under this page (send() reads data-on from the section when the box names no other). */
+  pick.remove();
+  if (box) box.hidden = false;
   const chips = el('div', 'chips talk-sort', null, { role: 'group', 'aria-label': 'Order' });
   [['top', 'Most liked'], ['new', 'Newest']].forEach(([s, t]) => {
     const c = btn('chip', t, () => { T.sort = s; [...chips.children].forEach(o => o.setAttribute('aria-pressed', String(o === c))); drawTalk(); });
@@ -1193,7 +1204,8 @@ async function fetchPosts() {
   return [...out.values()];
 }
 function talkAdd(post) {
-  if (!T || T.feed || T.key !== post.about) return;
+  /* On the front page the discussion is the newest posts from every page, and a post made there belongs in it. */
+  if (!T || T.key !== post.about || (T.feed && !T.full)) return;
   T.rev++;
   if (T.state !== 'ok') { if (T.state === 'idle' || T.state === 'err') loadTalk(); return; }
   T.posts = T.posts.filter(p => p.id !== post.id).concat([post]);
@@ -1225,12 +1237,14 @@ function drawTalk() {
   } else if (T.state === 'off') L.append(stateRow('Reader posts are not switched on in this preview.'));
   else if (T.state === 'err') L.append(stateRow('Could not load what readers said. Try again.', btn('btn btn-line', 'Try again', () => (T.retry ? T.retry() : loadTalk()))));
   else {
-    const rows = ordered();
+    const every = ordered(), rows = T.only ? every.filter(p => ONLY[T.only][1](p)) : every;
     /* The number on the way to the whole discussion counts every post a reader would find there, replies too. */
-    n = T.feed ? rows.length : rows.reduce((sum, p) => sum + 1 + repliesTo(p.id).length, 0);
+    n = T.feed ? every.length : every.reduce((sum, p) => sum + 1 + repliesTo(p.id).length, 0);
     const best = T.sort === 'top' && rows.find(p => p.status === 'live' && p.score > 0 && !p.fresh);
-    if (!rows.length) L.append(stateRow(T.feed ? 'Nobody has posted yet. Pick a race or a member and be the first.' : T.empty || 'Nobody has said anything about ' + T.what + ' yet. Be the first.'));
+    if (!every.length) L.append(stateRow(T.feed ? (T.full && T.empty) || 'Nobody has posted yet. Pick a race or a member and be the first.' : T.empty || 'Nobody has said anything about ' + T.what + ' yet. Be the first.'));
+    else if (!rows.length) L.append(stateRow('Nothing of that kind here yet.', btn('btn btn-line', 'Show everything', () => { T.only = ''; drawTalk(); })));
     else (T.all ? rows : rows.slice(0, 3)).forEach(p => L.append(row(p, p === best)));
+    if (T.full) { drawCtl(every); setCount(n); }
   }
   /* The way to the whole discussion, once there is one. */
   if (!T.all) {
@@ -1243,6 +1257,82 @@ function drawTalk() {
     } else if (more) more.remove();
   }
 }
+/* The kinds a reader can narrow a discussion to. Opinions, videos, corrections and bugs sit in one list,
+   each with its tag; these let a reader who came for one kind see only that. */
+const ONLY = {
+  video: ['Videos', p => p.kind === 'video' || p.kind === 'link'],
+  fix: ['Corrections', p => p.tag === 'wrong' || p.tag === 'source'],
+  site: ['Bugs and ideas', p => p.tag === 'bug' || p.tag === 'idea']
+};
+/* The order and the kinds, above the list. Not drawn until there are three posts: with fewer there is
+   nothing to sort, and a row of switches over one post is noise. */
+function drawCtl(every) {
+  const C = T.ctl;
+  if (!C) return;
+  C.textContent = '';
+  C.hidden = every.length < 3;
+  if (C.hidden) return;
+  const chips = el('div', 'chips talk-sort', null, { role: 'group', 'aria-label': 'Order, and what to show' });
+  const chip = (text, on, fn) => { const c = btn('chip', text, () => { fn(); drawTalk(); }); c.setAttribute('aria-pressed', String(on)); chips.append(c); };
+  if (!T.feed) [['top', 'Most liked'], ['new', 'Newest']].forEach(([s, t]) => chip(t, T.sort === s, () => { T.sort = s; }));
+  if (!T.feed) chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
+  chip('Everything', !T.only, () => { T.only = ''; });
+  Object.keys(ONLY).forEach(k => { if (every.some(ONLY[k][1])) chip(ONLY[k][0], T.only === k, () => { T.only = k; }); });
+  C.append(chips);
+}
+/* The number on the switch, and at the end of the record. Shown only when there is something to count:
+   a new place that shows a zero looks abandoned. */
+function setCount(n) {
+  const b = $('disc-n'), p = $('band-p'), go = $('band-go');
+  if (b) { b.hidden = !(n > 0); b.textContent = n > 99 ? '99+' : String(n); }
+  const tab = $('mode-discussion');
+  if (tab) tab.setAttribute('aria-label', n > 0 ? 'Discussion, ' + n + (n === 1 ? ' post' : ' posts') : 'Discussion');
+  if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = (n === 1 ? '1 post so far.' : n + ' posts so far.') + ' Read ' + (n === 1 ? 'it' : 'them') + ', and say where you stand.'; }
+  if (n > 0 && go) go.textContent = 'Open the discussion (' + (n > 99 ? '99+' : n) + ')';
+}
+/* Before a reader has opened the discussion: how many posts it holds, asked for with one small request and
+   without Firebase's own code (one read, whatever the number), and, once the end of the record is near the
+   screen, the post readers liked most. The discussion itself loads only when a reader opens it. */
+function restBase(what) { return (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents:' + what + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)); }
+function restWhere() {
+  const live = { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } };
+  return T.feed ? live : { compositeFilter: { op: 'AND', filters: [{ fieldFilter: { field: { fieldPath: 'about' }, op: 'EQUAL', value: { stringValue: T.key } } }, live] } };
+}
+function initPeek() {
+  if (OFF || hook('lpbreak')) return;
+  const count = async () => {
+    if (T.state !== 'idle') return;
+    /* The limit is what the rules ask of every list of posts; a count under it still costs one read. */
+    const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 300 }, aggregations: [{ alias: 'n', count: {} }] } };
+    const res = await within(15000, fetch(restBase('runAggregationQuery'), { method: 'POST', body: JSON.stringify(q) }));
+    if (!res.ok) return;
+    const got = await res.json(), n = Number((((Array.isArray(got) ? got[0] : got) || {}).result || { aggregateFields: { n: {} } }).aggregateFields.n.integerValue || 0);
+    if (T.state === 'idle' || T.state === 'wait') { T.peeked = n; setCount(n); }
+  };
+  const idle = window.requestIdleCallback || (f => setTimeout(f, 1200));
+  idle(() => { count().catch(() => { }); });
+  const band = $('band'), top = $('band-top');
+  if (!band || !top || T.feed || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(es => {
+    if (!es.some(e => e.isIntersecting)) return;
+    io.disconnect();
+    (async () => {
+      if (!(T.peeked > 0)) return;
+      const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 8 } };
+      const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
+      if (!res.ok) return;
+      const got = await res.json();
+      const best = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && p.text)
+        .sort((a, b) => (b.score - a.score) || (b.ms - a.ms))[0];
+      if (!best) return;
+      const text = best.text.length > 180 ? best.text.slice(0, 177).replace(/\s+\S*$/, '') + '...' : best.text;
+      top.textContent = '';
+      top.append(el('blockquote', null, text), el('p', null, best.name + ' · ' + niceDate(best.ms)));
+      top.hidden = false;
+    })().catch(() => { });
+  }, { rootMargin: '500px 0px' });
+  io.observe(band);
+}
 /* One post. A reply (it has a parent) is drawn the same way, smaller, inside the post it answers; it has
    no tag and nobody can answer it, so a discussion stays one level deep. */
 function row(p, best) {
@@ -1254,9 +1344,9 @@ function row(p, best) {
   if (p.mine) meta.append(el('span', 'tag', 'Made it'));
   if (best) meta.append(el('span', 'tag best', 'Most liked'));
   li.append(meta);
-  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#talk' }));
-  /* A correction or a bug opened from one line of a page (one vote on a member's page) says which line. */
-  else if (!T.feed && p.tag && p.subject && p.subject !== T.name) li.append(el('p', 'said-about', 'About: ' + p.subject));
+  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#p-' + p.id }));
+  /* A post opened from one line of a page (one vote on a member's page) says which line. */
+  else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) li.append(el('p', 'said-about', 'About: ' + p.subject));
   const emb = p.kind === 'video' && URL_OK.test(p.url) ? embedOf(p.url) : null;
   if (emb) {
     const box = el('div', 'tv tv-' + emb[0].toLowerCase(), null, { 'data-embed': emb[1], 'data-plat': emb[0] });
@@ -1735,14 +1825,14 @@ async function latest(sec) {
     const li = el('li', 'vote said'), meta = el('div', 'meta'), who = el('span');
     who.append(el('b', null, p.name), ' · ' + niceDate(p.ms));
     meta.append(who, el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
-    li.append(meta, el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#talk' }));
+    li.append(meta, el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#p-' + p.id }));
     const text = p.text.length > 200 ? p.text.slice(0, 197).replace(/\s+\S*$/, '') + '...' : p.text;
     if (text) li.append(el('blockquote', null, text));
     else if (p.kind !== 'opinion') li.append(el('p', 'said-note', p.kind === 'video' ? 'A video. Watch it on the page.' : 'A link. Open it on the page.'));
     list.append(li);
   });
   const more = el('div', 'row latest-go');
-  more.append(el('a', 'btn btn-line', 'Everything readers have said', { href: root + 'talk/' }), el('a', 'btn btn-line', 'Pick a race and add yours', { href: root + 'races/' }));
+  more.append(el('a', 'btn btn-line', 'Every discussion', { href: '#discussion' }));
   if (none) none.remove();
   wrap.append(el('h2', null, 'Latest from readers'), list, more);
   sec.classList.add('on');

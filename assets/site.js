@@ -217,7 +217,9 @@
     }
     function shape() {
       var k = K[kind()];
-      msglab.textContent = k.lab; msg.placeholder = k.ph; msg.required = k.min > 0;
+      /* While the reader is giving an opinion the box asks the page's own question ("What do you make of this race?"). */
+      msglab.textContent = (kind() === 'opinion' && !ctx.value && fb.getAttribute('data-ask')) || k.lab; msg.placeholder = k.ph; msg.required = k.min > 0;
+      radios.forEach(function (r) { var l = r.closest('label'); if (l) l.classList.toggle('on', r.checked); });
       linkrow.hidden = !k.link;
       if (k.link) { linklab.textContent = k.linklab; linkhint.textContent = k.linkhint; }
       minerow.hidden = kind() !== 'video';
@@ -231,8 +233,15 @@
       fb.setAttribute('data-on', on || ''); fb.setAttribute('data-subject', on ? label : '');
       about.textContent = 'About: ' + label;
       about.hidden = !label;
+      /* A reader who came from one line of the record and wants to talk about the whole page can drop the line. */
+      if (label) {
+        var x = document.createElement('button');
+        x.type = 'button'; x.className = 'fbabout-x'; x.textContent = 'Remove'; x.setAttribute('aria-label', 'Remove what this post is about');
+        x.addEventListener('click', function () { subject('', '', ''); shape(); msg.focus(); });
+        about.appendChild(x);
+      }
     }
-    function pick(want) { radios.forEach(function (r) { if (r.value === want) r.checked = true; }); say(''); shape(); }
+    function pick(want) { radios.forEach(function (r) { r.checked = r.value === want; }); say(''); shape(); }
     radios.forEach(function (r) { r.addEventListener('change', function () { say(''); shape(); }); });
     mine.addEventListener('change', shape);
     msg.addEventListener('input', tally);
@@ -280,11 +289,60 @@
     });
   });
 
-  /* ---- the button in the corner leads to the note box, so it steps aside while the box is on screen ---- */
-  var fab = document.getElementById('fab'), box = document.getElementById('feedback');
-  if (fab && box && 'IntersectionObserver' in window) {
-    new IntersectionObserver(function (es) { fab.classList.toggle('off', es[0].isIntersecting); }).observe(box);
+  /* ---- the record, or the discussion. One page, two modes, one switch (Armin, 5 October 2026: "the
+     transition between a politician's page and the discussion page should be seamless, like maybe a
+     different tab"). The mode is in the address (#discussion), so a link can open either one and the
+     back button undoes a switch. The script in the head has already set the mode before the page drew;
+     with scripts off both parts are on the page and the switch is two plain links. ---- */
+  var modes = document.getElementById('modes'), H = document.documentElement;
+  if (modes && H.getAttribute('data-mode')) {
+    var tabR = document.getElementById('mode-record'), tabD = document.getElementById('mode-discussion'), keepY = 0;
+    var isDisc = function (h) { return h === '#discussion' || h === '#feedback' || h === '#talk' || h.indexOf('#p-') === 0; };
+    var paint = function (m) {
+      H.setAttribute('data-mode', m);
+      if (m === 'record') { tabR.setAttribute('aria-current', 'page'); tabD.removeAttribute('aria-current'); }
+      else { tabD.setAttribute('aria-current', 'page'); tabR.removeAttribute('aria-current'); }
+    };
+    /* The top of the discussion sits right under the switch. A reader who is already near the top of the
+       page stays where they are; one who was far down the record is brought up to it. */
+    var head = document.querySelector('header.top'), main = document.getElementById('main');
+    var toTop = function () {
+      var y = main.getBoundingClientRect().top + window.pageYOffset - modes.offsetHeight - (head ? head.offsetHeight : 0);
+      if (window.pageYOffset > y) window.scrollTo(0, Math.max(0, y));
+    };
+    var setMode = function (m) {
+      var was = H.getAttribute('data-mode');
+      if (was === m) { if (m === 'discussion') toTop(); return; }
+      if (m === 'discussion') keepY = window.pageYOffset;
+      paint(m);
+      if (m === 'discussion') toTop(); else window.scrollTo(0, keepY);      /* back to the line of the record they left */
+      try { document.dispatchEvent(new CustomEvent('lp:mode', { detail: m })); } catch (x) { }
+    };
+    var sync = function () { var h = location.hash; if (isDisc(h)) { if (H.getAttribute('data-mode') !== 'discussion') setMode('discussion'); } else if (H.getAttribute('data-mode') !== 'record') setMode('record'); };
+    var put = function (hash) { try { history.pushState(null, '', hash || (location.pathname + location.search)); } catch (x) { location.hash = hash; } };
+    paint(H.getAttribute('data-mode'));
+    document.addEventListener('click', function (ev) {
+      var a = ev.target.closest && ev.target.closest('a[href="#discussion"],a[href="#feedback"],a[href="#record"]');
+      if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+      ev.preventDefault();
+      var want = a.getAttribute('href') === '#record' ? 'record' : 'discussion';
+      if (H.getAttribute('data-mode') !== want) put(want === 'record' ? '' : '#discussion');
+      setMode(want);
+    });
+    window.addEventListener('popstate', sync);
+    window.addEventListener('hashchange', sync);
+    window.LPMode = { go: function (m) { if (H.getAttribute('data-mode') !== m) put(m === 'record' ? '' : '#discussion'); setMode(m); }, is: function () { return H.getAttribute('data-mode'); } };
   }
+
+  /* ---- share this page: the phone's own share sheet where there is one, the link copied where there is not ---- */
+  var sh = document.getElementById('share');
+  if (sh) sh.addEventListener('click', function () {
+    var url = sh.getAttribute('data-url') + (H.getAttribute('data-mode') === 'discussion' ? '#discussion' : ''), lab = sh.querySelector('span'), old = lab.textContent;
+    var done = function (text) { lab.textContent = text; sh.classList.add('said'); setTimeout(function () { lab.textContent = old; sh.classList.remove('said'); }, 2200); };
+    if (navigator.share) { navigator.share({ title: sh.getAttribute('data-title'), url: url }).catch(function () { }); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done('Link copied'); }, function () { done('Copy the address bar'); });
+    else done('Copy the address bar');
+  });
 
   /* ---- copy the link ---- */
   Array.prototype.forEach.call(document.querySelectorAll('[data-copy]'), function (b) {
