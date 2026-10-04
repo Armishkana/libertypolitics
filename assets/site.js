@@ -178,34 +178,41 @@
     else if (days === 0) s.textContent = ' That is today.';
   });
 
-  /* ---- reader notes. The form posts by itself without this file; this keeps the reader on the page. ---- */
+  /* ---- the "Have your say" box. This file shapes it: what it asks for by what the reader picked, and
+     what it is about when a button on the page opened it. Sending is the job of community.js, because
+     sending needs an account. With scripts off the form posts by itself, with no account. ---- */
   var fb = document.getElementById('fbform');
   if (fb && window.fetch && window.URLSearchParams && window.FormData) {
     var note = document.getElementById('fbnote'), ctx = document.getElementById('fbctx'), about = document.getElementById('fbabout'),
-      msg = document.getElementById('fbmsg'), hp = document.getElementById('fbhp'), send = fb.querySelector('button[type=submit]'),
+      msg = document.getElementById('fbmsg'), fbcount = document.getElementById('fbcount'),      // not "count": the scorecard list above owns that name
       msglab = document.getElementById('fbmsglab'), linkrow = document.getElementById('fblinkrow'), link = document.getElementById('fblink'),
       linklab = document.getElementById('fblinklab'), linkhint = document.getElementById('fblinkhint'), minerow = document.getElementById('fbminerow'),
-      mine = document.getElementById('fbmine'), minehint = document.getElementById('fbminehint'), mail = document.getElementById('fbmail'),
+      mine = document.getElementById('fbmine'), minehint = document.getElementById('fbminehint'),
       radios = Array.prototype.slice.call(fb.querySelectorAll('input[type=radio]'));
     document.getElementById('fbpage').value = location.origin + location.pathname;
-    document.getElementById('fbmailrow').hidden = false;
-    /* What the box asks for, by what the reader picked. link: 0 no link field, 1 a link is welcome, 2 a link is the point. */
+    /* What the box asks for, by what the reader picked. link: 0 no link field, 1 a link is welcome, 2 a link
+       is the point. max: what a reader says or shares is printed on a page, so it is kept short. */
     var K = {
-      opinion: { lab: 'What do you think?', ph: 'Did we get this right? Who has it wrong, and why? Say it in your own words.', link: 0, min: 8, short: 'Write a few words first.',
-        done: 'Sent. Thank you. It goes on the page once we have looked at it.' },
-      video: { lab: 'What is in the video? (optional)', ph: 'One line: who is speaking, and about what.', link: 2, min: 0, short: '',
-        linklab: 'Link to the video', linkhint: 'A video from YouTube, X or Instagram plays right on the page. From anywhere else, it is shown as a link.',
-        done: 'Sent. Thank you. It goes on the page once we have looked at it.' },
-      wrong: { lab: 'What is wrong, and where?', ph: 'A wrong vote, a broken link, a page that looks odd on your phone, a sentence that reads badly.', link: 0, min: 8, short: 'Write a few words about what is wrong.',
+      opinion: { lab: 'What do you think?', ph: 'Did we get this right? Who has it wrong, and why? Say it in your own words.', link: 0, min: 8, max: 600, short: 'Write a few words first.' },
+      video: { lab: 'What is in the video? (optional)', ph: 'One line: who is speaking, and about what.', link: 2, min: 0, max: 600, short: '',
+        linklab: 'Link to the video', linkhint: 'A video from YouTube, X or Instagram plays right on the page. From anywhere else, it is shown as a link.' },
+      wrong: { lab: 'What is wrong, and where?', ph: 'A wrong vote, a broken link, a page that looks odd on your phone, a sentence that reads badly.', link: 0, min: 8, max: 3000, short: 'Write a few words about what is wrong.',
         done: 'Sent. Thank you. We check it, and we fix what holds up.' },
-      source: { lab: 'What did we miss?', ph: 'Something a candidate said or did, or a vote we should be counting.', link: 1, min: 8, short: 'Write a few words about what we missed.',
+      source: { lab: 'What did we miss?', ph: 'Something a candidate said or did, or a vote we should be counting.', link: 1, min: 8, max: 3000, short: 'Write a few words about what we missed.',
         linklab: 'Link, if you have one', linkhint: 'No link? Say in your note where you saw it, and we will look for it.',
         done: 'Sent. Thank you. Once we have found the words ourselves, it goes on the page.' },
-      idea: { lab: 'What should this site do?', ph: 'Something you looked for and did not find, or something that would make you come back.', link: 0, min: 8, short: 'Write a few words first.',
+      idea: { lab: 'What should this site do?', ph: 'Something you looked for and did not find, or something that would make you come back.', link: 0, min: 8, max: 3000, short: 'Write a few words first.',
         done: 'Sent. Thank you. We read every one.' }
     };
     function kind() { var r = radios.filter(function (x) { return x.checked; })[0]; return r && K[r.value] ? r.value : 'opinion'; }
     function say(text, bad) { note.textContent = text; note.className = 'fbnote' + (bad ? ' bad' : ''); }
+    function tally() {
+      var k = K[kind()], n = msg.value.length;
+      if (!fbcount) return;
+      fbcount.hidden = k.max > 600 || n < 400;
+      fbcount.textContent = n + ' of ' + k.max + ' characters';
+      fbcount.className = 'fbcount' + (n > k.max ? ' bad' : '');
+    }
     function shape() {
       var k = K[kind()];
       msglab.textContent = k.lab; msg.placeholder = k.ph; msg.required = k.min > 0;
@@ -213,74 +220,53 @@
       if (k.link) { linklab.textContent = k.linklab; linkhint.textContent = k.linkhint; }
       minerow.hidden = kind() !== 'video';
       minehint.hidden = !mine.checked;
+      tally();
     }
+    /* What the box is about. label is what the reader sees; id goes to the notes sheet in square brackets;
+       on is the race or member a post is filed under ("race:mi-senate"), empty when a button did not say. */
+    function subject(label, id, on) {
+      ctx.value = label ? label + ' [' + (id || '') + ']' : '';
+      fb.setAttribute('data-on', on || ''); fb.setAttribute('data-subject', on ? label : '');
+      about.textContent = 'About: ' + label;
+      about.hidden = !label;
+    }
+    function pick(want) { radios.forEach(function (r) { if (r.value === want) r.checked = true; }); say(''); shape(); }
     radios.forEach(function (r) { r.addEventListener('change', function () { say(''); shape(); }); });
     mine.addEventListener('change', shape);
+    msg.addEventListener('input', tally);
     shape();
-    Array.prototype.forEach.call(document.querySelectorAll('a[href="#feedback"][data-kind], a[href="#feedback"][data-about]'), function (a) {
-      a.addEventListener('click', function () {
-        var what = a.getAttribute('data-about') || '', want = a.getAttribute('data-kind') || 'wrong';
-        ctx.value = what ? what + ' [' + (a.getAttribute('data-id') || '') + ']' : '';
-        about.textContent = 'About: ' + what;
-        about.hidden = !what;
-        radios.forEach(function (r) { if (r.value === want) r.checked = true; });
-        say(''); shape();
-        var first = K[kind()].link === 2 ? link : msg;
-        setTimeout(function () { first.focus({ preventScroll: true }); }, 60);
-      });
+    /* Buttons that open the box are found when they are tapped, so the ones community.js draws later work too. */
+    document.addEventListener('click', function (ev) {
+      var a = ev.target.closest && ev.target.closest('a[href="#feedback"]');
+      if (!a || !(a.hasAttribute('data-kind') || a.hasAttribute('data-about'))) return;
+      subject(a.getAttribute('data-about') || '', a.getAttribute('data-id') || '', a.getAttribute('data-on') || '');
+      pick(a.getAttribute('data-kind') || 'wrong');
+      var first = K[kind()].link === 2 ? link : msg;
+      setTimeout(function () { first.focus({ preventScroll: true }); }, 60);
     });
+    window.LPBox = { K: K, kind: kind, say: say, shape: shape, subject: subject, pick: pick };
     fb.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      if (hp.value) { say('Sent. Thank you.'); return; }
-      var kd = kind(), k = K[kd], text = msg.value.trim(), url = k.link ? link.value.trim() : '', em = mail.value.trim();
-      if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
-      if (k.link === 2 && !url) { say('Paste the link to the video first.', true); link.focus(); return; }
-      if (url && !/^https?:\/\/[^\s\/]+\.[^\s]+$/i.test(url)) { say('That link does not look right. Copy it again from the address bar or the Share button.', true); link.focus(); return; }
-      if (text.length < k.min) { say(k.short, true); msg.focus(); return; }
-      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { say('That email does not look right. Fix it, or leave it empty.', true); mail.focus(); return; }
-      var now = Date.now(), log = [];
-      try { log = JSON.parse(localStorage.getItem('ls-notes') || '[]').filter(function (t) { return now - t < 3600000; }); } catch (x) { log = []; }
-      if (log.length >= 6) { say('That is a lot in one hour. Try again a little later.', true); return; }
-      /* The form has no field for a link, "I made this" or an email, so they travel at the end of the
-         note under a line of five dashes. FEEDBACK.md says how that tail is read. */
-      var data = new URLSearchParams(new FormData(fb)), tail = [], made = kd === 'video' && mine.checked;
-      if (url) tail.push('link: ' + url);
-      if (made) tail.push('mine: yes');
-      if (em) tail.push('email: ' + em);
-      data.set(msg.name, text + (tail.length ? '\n\n-----\n' + tail.join('\n') : ''));
-      send.disabled = true;
-      say('Sending.');
-      fetch(fb.action, { method: 'POST', mode: 'no-cors', body: data }).then(function () {
-        try { log.push(now); localStorage.setItem('ls-notes', JSON.stringify(log)); } catch (x) { }
-        msg.value = ''; link.value = ''; mine.checked = false; ctx.value = ''; about.hidden = true; send.disabled = false;
-        shape();
-        say(k.done);
-        if (made && fb.getAttribute('data-panel')) {
-          var p = el('a', null, 'Apply for the panel');
-          p.href = fb.getAttribute('data-panel'); p.target = '_blank'; p.rel = 'noopener';
-          note.appendChild(document.createTextNode(' You make videos? Our live show is looking for panelists. ')); note.appendChild(p);
-        }
-      }, function () {
-        send.disabled = false;
-        say('That did not send. Check your connection and try again.', true);
-      });
+      if (window.LP && window.LP.send) { window.LP.send(); return; }
+      say('Accounts did not load, so this cannot be sent yet. Check your connection and reload the page. What you wrote stays in the box.', true);
     });
   }
 
   /* ---- a video a reader shared. It is a plain link to where the video lives; a tap puts the player
-     on the page instead. Nothing from another site loads until the reader asks for it. ---- */
-  Array.prototype.forEach.call(document.querySelectorAll('.tv[data-embed]'), function (box) {
-    var a = box.querySelector('a.tv-play');
+     on the page instead. Nothing from another site loads until the reader asks for it. The tap is caught
+     on the page, because community.js draws these after the page has loaded. ---- */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest && ev.target.closest('.tv[data-embed] a.tv-play');
     if (!a) return;
-    a.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      var fr = document.createElement('iframe'), src = box.getAttribute('data-embed'), b = a.querySelector('b');
-      if (box.getAttribute('data-plat') === 'YouTube') src += '?autoplay=1&rel=0';
-      fr.src = src; fr.title = b ? b.textContent : 'Video';
-      fr.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; fr.allowFullscreen = true;
-      fr.referrerPolicy = 'strict-origin-when-cross-origin';
-      box.textContent = ''; box.appendChild(fr); box.classList.add('on');
-    });
+    var box = a.closest('.tv'), src = box.getAttribute('data-embed'), b = a.querySelector('b');
+    if (!/^https:\/\/(www\.youtube-nocookie\.com\/embed\/|platform\.twitter\.com\/embed\/Tweet\.html\?id=|www\.instagram\.com\/(p|reel|tv)\/)/.test(src)) return;
+    ev.preventDefault();
+    var fr = document.createElement('iframe');
+    if (box.getAttribute('data-plat') === 'YouTube') src += '?autoplay=1&rel=0';
+    fr.src = src; fr.title = b ? b.textContent : 'Video';
+    fr.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; fr.allowFullscreen = true;
+    fr.referrerPolicy = 'strict-origin-when-cross-origin';
+    box.textContent = ''; box.appendChild(fr); box.classList.add('on');
   });
   /* A post from X says how tall it is once it has drawn itself. */
   window.addEventListener('message', function (ev) {

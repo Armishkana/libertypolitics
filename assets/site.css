@@ -334,19 +334,14 @@ footer ul{list-style:none;margin:0;padding:0}
 footer .fine{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);max-width:80ch}
 
 
-/* faces everywhere a candidate is named, and the mark for a candidate with no votes: an outline with a
-   count in it, never a filled letter, so it cannot be taken for a grade made of votes */
+/* faces everywhere a candidate is named, and the mark for a candidate with no votes: the same letter in
+   the same box as a grade made of votes, drawn as an outline instead of filled, so the two can be compared
+   and never mistaken for each other */
 .face-lg{width:76px;height:76px}
 span.face-lg{font-size:1.7rem}
-.g-r{background:transparent;border:2px solid currentColor;font-size:1.9rem;gap:1px}
-.g-r i{font-style:normal;font-size:.5em;align-self:flex-end;margin-bottom:.62em}
-.g-sm.g-r{width:auto;min-width:40px;padding:0 5px;font-size:1.3rem}
-.g-sm.g-r i{font-size:.75rem;margin-bottom:.72em}
-.cand-grade .g-r{font-size:2.6rem}
-.cand-grade .g-r i{font-size:1.1rem}
+.g-r{background:transparent;border:3px solid currentColor}
+.g-sm.g-r{border-width:2px}
 .r-a{color:var(--ga)}.r-b{color:var(--gb)}.r-c{color:var(--gc)}.r-d{color:var(--gd)}.r-f{color:var(--gf)}
-.person>.g-r{font-size:1.6rem}
-.person>.g-r i{font-size:.8rem}
 .key{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px;max-width:64ch}
 .key li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;color:var(--dim);font-size:.92rem;line-height:1.35}
 .key .g{justify-self:start}
@@ -360,12 +355,147 @@ span.face-lg{font-size:1.7rem}
 .ask p{font-weight:600;max-width:60ch}
 .ask p a{color:var(--field)}
 
-/* what readers say: their words, and the videos they shared */
-@media(min-width:900px){.talk{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+/* what readers say: their words, the videos they shared, and what other readers made of them.
+   The build prints the heading, one line and the buttons; community.js draws the posts between them. */
+.talk{margin-top:44px;scroll-margin-top:84px}
+.talk>h2{font-size:2rem}
+.talk-lede{margin-top:10px;max-width:62ch;color:var(--dim)}
+.talk-h1{font-size:clamp(2.2rem,8vw,3.6rem);font-weight:900;overflow-wrap:anywhere}
+.talk-all{margin-top:26px}
+.talk-list,.mod-list{max-width:48rem}
+.tv-youtube .tv-play{aspect-ratio:16/9;min-height:0}      /* no minimum height: with a fixed shape, a minimum height forces a width wider than a phone */
+.talk-sort{margin-top:0}
+.talk-go{margin-top:14px}
+.said{scroll-margin-top:84px}
 .said .meta b{color:var(--ink)}
-.said .meta .tag{color:var(--field)}
+.said .meta .tag{color:var(--dim)}
+.said .meta .tag.best{color:var(--field)}
+.tag.ok{color:var(--ga)}
 .said blockquote{font-size:1.05rem;line-height:1.5;overflow-wrap:anywhere;white-space:pre-line}
-.said h3{overflow-wrap:anywhere}
+.said-on,.said-link{display:inline-flex;align-items:center;min-height:44px;font-weight:700;color:var(--field);overflow-wrap:anywhere}
+.said-link{font-weight:600;margin-top:4px}
+/* a post only its author can see yet: a dashed edge, and the reason in a line of its own */
+.said.own{border-style:dashed;border-color:var(--field-edge)}
+.vote .said-note{margin-top:12px;color:var(--ink);font-size:.95rem;font-weight:600}
+.vote .said-msg{margin-top:8px;font-size:.92rem;font-weight:600;color:var(--dim)}
+.vote .said-msg.bad{color:var(--gd)}
+/* like, unlike, report */
+.said-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+.vt{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:0 13px;background:var(--bg);border:1px solid var(--line);border-radius:999px;color:var(--ink);font:600 .92rem/1 var(--body);cursor:pointer;transition:border-color .15s,background-color .15s,color .15s,transform .15s cubic-bezier(.16,1,.3,1)}
+.vt svg{flex:none}
+.vt b{font-weight:700;font-variant-numeric:tabular-nums lining-nums;min-width:1ch;text-align:right}
+.vt:hover{border-color:var(--dim)}
+.vt:active{transform:translateY(1px)}
+.vt-up[aria-pressed="true"]{background:var(--ga);border-color:var(--ga);color:var(--on-grade)}
+.vt-down[aria-pressed="true"]{background:var(--gf);border-color:var(--gf);color:var(--on-grade)}
+.vt[disabled]{color:var(--dim);cursor:default}
+.vt[disabled]:hover{border-color:var(--line)}
+.rp{position:relative;margin-left:auto}
+.rp-b{min-height:44px;padding:0 6px;background:none;border:0;color:var(--dim);font:600 .9rem/1 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.rp-b:hover,.rp-b[aria-expanded="true"]{color:var(--ink)}
+.rp-m{position:absolute;right:0;top:calc(100% + 2px);z-index:12;display:grid;width:max-content;min-width:13rem;max-width:calc(100vw - 64px);padding:4px;background:var(--raise);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 14px 30px -10px rgba(0,0,0,.75)}
+.rp-m button{min-height:46px;padding:0 12px;text-align:left;background:none;border:0;border-radius:2px;color:var(--ink);font:600 .95rem/1.2 var(--body);cursor:pointer}
+.rp-m button:hover,.rp-m button:focus-visible{background:var(--panel)}
+.rp-done{display:inline-flex;align-items:center;min-height:44px;color:var(--dim);font-size:.9rem;font-weight:600}
+/* waiting, nothing yet, could not load: the same box, so the page does not jump between them */
+.talk-list{margin-top:16px}
+.vote.sk{min-height:92px}
+.vote.sk::before,.vote.sk::after{content:"";display:block;height:12px;border-radius:2px;background:var(--raise)}
+.vote.sk::before{width:36%}
+.vote.sk::after{width:84%;margin-top:16px;box-shadow:0 24px 0 var(--raise)}
+.talk-state{display:grid;gap:12px;align-content:center;justify-items:start;min-height:194px;padding:20px 16px;border:1px dashed var(--line);border-radius:var(--r)}
+.talk-state p{max-width:44ch;font-weight:600;font-size:1.05rem}
+.mod-list .talk-state{min-height:0}
+
+/* the account control in the header */
+.top nav a.acct{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--line);font-weight:700;white-space:nowrap}
+.top nav a.acct:hover{background:var(--raise);border-color:var(--dim)}
+.top nav a.acct.in{padding:0 12px 0 6px;border-color:transparent}
+.acct-i{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;border-radius:50%;background:var(--field);color:var(--on-field);font:800 1.15rem/1 var(--display)}
+.acct-n{max-width:9rem;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:559px){.acct-n{display:none}.top nav a.acct.in{padding:0 6px}}
+.mark{min-height:44px}
+@media(max-width:419px){.top .wrap{gap:8px}.mark{font-size:1.15rem;gap:8px}.mark img{width:34px;height:34px}.top nav a.acct{padding:0 9px}.top nav a.join{padding:0 12px}}
+
+/* the panel: create an account, sign in, check your email, your account. A real dialog; it sits at the
+   bottom of a phone screen and in the middle of a computer screen. */
+.sheet{width:100%;max-width:100%;max-height:100%;margin:auto 0 0;padding:0;border:0;background:transparent;color:var(--ink);overflow:visible}
+.sheet::backdrop{background:rgba(6,6,4,.74)}
+.sheet-in{display:flex;flex-direction:column;max-height:92vh;max-height:92dvh;background:var(--panel);border-radius:var(--r) var(--r) 0 0;box-shadow:0 -18px 44px -12px rgba(0,0,0,.8)}
+.sheet-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 6px 6px 16px;background:var(--field);color:var(--on-field);border-radius:var(--r) var(--r) 0 0}
+.sheet-top h2{font-size:1.9rem;font-weight:900}
+.sheet-top h2:focus{outline:0}
+.sheet-x{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;flex:none;background:none;border:0;border-radius:var(--r);color:var(--on-field);cursor:pointer}
+.sheet-x:hover{background:rgba(22,20,10,.12)}
+.sheet-top :focus-visible{outline-color:var(--on-field)}
+.sheet-body{display:grid;gap:14px;align-content:start;padding:16px 16px 24px;overflow-y:auto;overscroll-behavior:contain}
+@media(min-width:640px){.sheet{width:min(30rem,calc(100% - 32px));margin:auto}.sheet-in{max-height:min(52rem,94vh);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 30px 70px -20px rgba(0,0,0,.9)}.sheet-body{padding:20px 20px 24px}}
+@media(prefers-reduced-motion:no-preference){.sheet[open] .sheet-in{animation:sheet-up .24s cubic-bezier(.16,1,.3,1)}}
+@keyframes sheet-up{from{transform:translateY(18px)}}
+/* Google's own button: white, with its mark, as Google asks for it to be drawn */
+.gbtn{width:100%;min-height:52px;gap:12px;background:#fff;border-color:#fff;color:#1F1F1F;font-size:1.05rem}
+.gbtn:hover{background:#F1F1EC;border-color:#F1F1EC}
+.gbtn svg{flex:none}
+.sheet-or{display:flex;align-items:center;gap:12px;color:var(--dim);font-size:.9rem;font-weight:600}
+.sheet-or::before,.sheet-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.sheet-msg.gmsg:empty{display:none}
+.sheet-why{padding:10px 12px;background:var(--bg);border:1px solid var(--field-edge);border-radius:var(--r);font-weight:600}
+.sheet-lead{font-size:1.15rem;line-height:1.4;font-weight:600}
+.sheet-lead b{color:var(--field);overflow-wrap:anywhere}
+.sheet-hint{color:var(--dim);font-size:.92rem}
+.sheet-form{display:grid;gap:14px}
+.sheet-f{display:grid;gap:6px}
+.sheet-f label{font-weight:700}
+.sheet input[type=text],.sheet input[type=email],.sheet input[type=password],.sheet input[type=url]{display:block;width:100%;min-height:52px;padding:0 14px;font:500 1rem/1.5 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r)}
+.sheet input:focus-visible,.fbform input:focus-visible,.fbform textarea:focus-visible{border-color:var(--field)}
+.sheet input,.fbform input,.fbform textarea,.mod-csv{caret-color:var(--field)}
+.pw{position:relative}
+.sheet .pw input{padding-right:78px}
+.pw-eye{position:absolute;right:3px;top:3px;bottom:3px;min-width:66px;background:var(--raise);border:0;border-radius:2px;color:var(--ink);font:700 .9rem/1 var(--body);cursor:pointer}
+.pw-eye:hover{background:var(--line)}
+.seg{display:grid;grid-template-columns:1fr 1fr;padding:3px;gap:3px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r)}
+.seg button{min-height:46px;background:none;border:0;border-radius:2px;color:var(--dim);font:700 .98rem/1 var(--body);cursor:pointer;transition:background-color .15s,color .15s}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--sunk)}
+.sheet-check{display:flex;align-items:center;gap:12px;min-height:44px;font-weight:600;cursor:pointer}
+.sheet-check input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--field)}
+/* a switch is a checkbox drawn as a track and a knob */
+.sw input{appearance:none;-webkit-appearance:none;position:relative;width:48px;height:28px;border-radius:999px;background:var(--line);cursor:pointer;transition:background-color .15s}
+.sw input::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--ink);transition:transform .18s cubic-bezier(.16,1,.3,1),background-color .15s}
+.sw input:checked{background:var(--field)}
+.sw input:checked::after{transform:translateX(20px);background:var(--on-field)}
+.sw input:disabled{opacity:.6}
+.sheet-msg{font-weight:600;color:var(--ga)}
+.sheet-msg:empty{display:none}
+.sheet-msg.bad{color:var(--gd)}
+.sheet-go{width:100%;min-height:52px;font-size:1.05rem}
+.sheet .btn[disabled],.mod-list .btn[disabled],.vt[disabled]{opacity:.6;cursor:default}
+.sheet-acts{display:grid;gap:10px}
+.sheet-text{display:flex;align-items:center;justify-self:start;min-height:44px;padding:0;background:none;border:0;color:var(--ink);font:600 .95rem/1.3 var(--body);text-align:left;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.sheet-text:hover{color:var(--field)}
+.sheet-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;min-height:44px}
+.sheet-k{font-weight:700}
+.sheet-v{color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 18px;margin-top:8px;padding-top:16px;border-top:1px solid var(--line)}
+.danger{color:var(--gf)}
+.armed,.btn.armed:hover{padding:0 14px;background:var(--gf);border-color:var(--gf);border-radius:var(--r);color:var(--on-grade);text-decoration:none}
+
+/* the box: how long, who is sending, and what to do after a video is sent */
+.fbcount{color:var(--dim);font-size:.88rem;text-align:right;font-variant-numeric:tabular-nums}
+.fbcount.bad{color:var(--gd);font-weight:700}
+.fbwho{color:var(--dim);font-size:.92rem}
+.fbdone{display:grid;gap:10px;justify-items:start;margin-top:4px;padding:14px 16px;background:var(--bg);border:1px solid var(--field-edge);border-radius:var(--r)}
+.fbdone .fbrow{width:100%;justify-items:start}
+.fbdone a{color:var(--field);font-weight:700}
+
+/* mod/: for the people who run the site */
+.mod-h{font-size:1.9rem;margin-top:40px}
+.mod-hold{margin-top:20px}
+.mod-top{margin-top:6px}
+.mod-mail{overflow-wrap:anywhere}
+.vote .mod-mail{color:var(--ink)}
+.mod-list .row{margin-top:12px}
+.mod-csv{display:block;width:100%;max-width:48rem;margin-top:12px;padding:12px 14px;font:500 .9rem/1.5 ui-monospace,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r)}
 .tv{margin-top:12px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .tv-play{position:relative;display:grid;align-content:end;min-height:190px;text-decoration:none;color:var(--ink)}
 .tv-play img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}
@@ -392,4 +522,4 @@ span.face-lg{font-size:1.7rem}
 .fab:hover{background:#FFD52E}
 .fab b{font-weight:800;text-decoration:underline;text-underline-offset:3px}
 .fab.off{visibility:hidden}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
