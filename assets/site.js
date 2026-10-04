@@ -196,12 +196,14 @@
       opinion: { lab: 'What do you think?', ph: 'Did we get this right? Who has it wrong, and why? Say it in your own words.', link: 0, min: 8, max: 600, short: 'Write a few words first.' },
       video: { lab: 'What is in the video? (optional)', ph: 'One line: who is speaking, and about what.', link: 2, min: 0, max: 600, short: '',
         linklab: 'Link to the video', linkhint: 'A video from YouTube, X or Instagram plays right on the page. From anywhere else, it is shown as a link.' },
-      wrong: { lab: 'What is wrong, and where?', ph: 'A wrong vote, a broken link, a page that looks odd on your phone, a sentence that reads badly.', link: 0, min: 8, max: 3000, short: 'Write a few words about what is wrong.',
+      wrong: { lab: 'What is wrong, and where?', ph: 'A wrong vote, an unfair summary, a name that is missing, a sentence that reads badly.', link: 0, min: 8, max: 600, short: 'Write a few words about what is wrong.',
         done: 'Sent. Thank you. We check it, and we fix what holds up.' },
-      source: { lab: 'What did we miss?', ph: 'Something a candidate said or did, or a vote we should be counting.', link: 1, min: 8, max: 3000, short: 'Write a few words about what we missed.',
+      bug: { lab: 'What broke, and where?', ph: 'A button that does nothing, a link that goes nowhere, a page that looks odd on your phone. Say which phone or browser if you can.', link: 0, min: 8, max: 600, short: 'Write a few words about what broke.',
+        done: 'Sent. Thank you. We try it ourselves, and we fix what we can make happen.' },
+      source: { lab: 'What did we miss?', ph: 'Something a candidate said or did, or a vote we should be counting.', link: 1, min: 8, max: 600, short: 'Write a few words about what we missed.',
         linklab: 'Link, if you have one', linkhint: 'No link? Say in your note where you saw it, and we will look for it.',
         done: 'Sent. Thank you. Once we have found the words ourselves, it goes on the page.' },
-      idea: { lab: 'What should this site do?', ph: 'Something you looked for and did not find, or something that would make you come back.', link: 0, min: 8, max: 3000, short: 'Write a few words first.',
+      idea: { lab: 'What should this site do?', ph: 'Something you looked for and did not find, or something that would make you come back.', link: 0, min: 8, max: 600, short: 'Write a few words first.',
         done: 'Sent. Thank you. We read every one.' }
     };
     function kind() { var r = radios.filter(function (x) { return x.checked; })[0]; return r && K[r.value] ? r.value : 'opinion'; }
@@ -209,7 +211,7 @@
     function tally() {
       var k = K[kind()], n = msg.value.length;
       if (!fbcount) return;
-      fbcount.hidden = k.max > 600 || n < 400;
+      fbcount.hidden = n < 400;
       fbcount.textContent = n + ' of ' + k.max + ' characters';
       fbcount.className = 'fbcount' + (n > k.max ? ' bad' : '');
     }

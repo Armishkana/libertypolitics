@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Liberty Politics community</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0C0C09">
+<link rel="icon" href="../assets/seal.png" type="image/png">
+<script>(function(){
+var C={"p":"liberty-politics","k":"AIzaSyD88gZij12imkx9IFaNOvx57HXLX7ujL_M","l":"join","t":"https://www.skool.com/libertypolitics/about","tags":["yt","pin","qr","x","site","mail"],"ref":true},q;try{q=new URLSearchParams(location.search)}catch(x){q={get:function(){return null}}}
+var t=C.t,ref=q.get('ref')||'',from=(q.get('from')||'').toLowerCase();
+if(C.ref&&/^[A-Za-z0-9_-]{1,64}$/.test(ref))t+=(t.indexOf('?')<0?'?':'&')+'ref='+encodeURIComponent(ref);
+var local=location.hostname==='127.0.0.1'||location.hostname==='localhost',emu=local&&q.get('lpemu')==='1';
+try{
+if(emu||!/^demo-/.test(C.p)){
+var f=[{fieldPath:C.l,increment:{integerValue:'1'}}];
+if(from)f.push({fieldPath:C.l+'_'+(C.tags.indexOf(from)<0?'other':from),increment:{integerValue:'1'}});
+var db='projects/'+(emu?'demo-lp':C.p)+'/databases/(default)/documents';
+var body=JSON.stringify({writes:[{transform:{document:db+'/stats/'+Math.floor(Date.now()/86400000),fieldTransforms:f}}]});
+var url=(emu?'http://127.0.0.1:8080/v1/':'https://firestore.googleapis.com/v1/')+db+':commit'+(emu?'':'?key='+encodeURIComponent(C.k));
+if(!(navigator.sendBeacon&&navigator.sendBeacon(url,body)))fetch(url,{method:'POST',body:body,keepalive:true,mode:'no-cors'});
+}
+}catch(x){}
+if(local&&q.get('lpstay')==='1'){document.documentElement.setAttribute('data-go',t);return}
+location.replace(t);
+})();</script>
+<noscript><meta http-equiv="refresh" content="0; url=https://www.skool.com/libertypolitics/about"></noscript>
+<style>html{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#12120E;color:#F2F1E6;font:600 1.15rem/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;text-align:center}
+main{padding:24px;display:grid;gap:14px;justify-items:center}a{display:inline-flex;align-items:center;min-height:48px;color:#F5C400;text-underline-offset:3px}</style>
+</head>
+<body>
+<main><img src="../assets/seal.png" alt="" width="64" height="64"><p>Taking you to the Liberty Politics community.</p><a id="go" href="https://www.skool.com/libertypolitics/about" rel="noopener">Not moving? Open the community</a></main>
+</body>
+</html>

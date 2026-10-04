@@ -44,11 +44,13 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 .top nav a[aria-current="page"]{color:var(--field)}
 .top nav a.join{display:inline-flex;align-items:center;min-height:44px;background:var(--field);color:var(--on-field);padding:0 16px;font-weight:700}
 .top nav a.join:hover{background:#FFD52E}
-@media(min-width:760px){.top nav a{display:inline-flex;align-items:center;min-height:44px}}
+/* The links sit in the bar only where all of them fit on one line beside the mark (seven of them since
+   4 October 2026; at 900px they ran over the mark). Narrower than that, the strip under the bar carries them. */
+@media(min-width:1140px){.top nav a{display:inline-flex;align-items:center;min-height:44px;white-space:nowrap}}
 .subnav{display:flex;gap:4px;overflow-x:auto;background:var(--sunk);border-bottom:1px solid var(--line);padding:0 8px;scrollbar-width:none}
 .subnav a{flex:none;padding:12px 10px;min-height:44px;text-decoration:none;font-weight:600;font-size:.92rem;color:var(--dim)}
 .subnav a[aria-current="page"]{color:var(--field)}
-@media(min-width:760px){.subnav{display:none}}
+@media(min-width:1140px){.subnav{display:none}}
 
 /* the yellow field */
 .field{background:var(--field);color:var(--on-field)}
@@ -522,4 +524,39 @@ span.face-lg{font-size:1.7rem}
 .fab:hover{background:#FFD52E}
 .fab b{font-weight:800;text-decoration:underline;text-underline-offset:3px}
 .fab.off{visibility:hidden}
+
+/* a discussion on every page, replies, the tag on a post, and the newest posts on the front page */
+.talk-sec .talk{margin-top:0}
+.said .meta .tag.kind{letter-spacing:.03em}
+.said .meta .tag.kind-wrong,.said .meta .tag.kind-bug{color:var(--gd)}
+.said .meta .tag.kind-idea,.said .meta .tag.kind-source{color:var(--seal)}
+.vote .said-about{margin-top:8px;font-size:.92rem;color:var(--dim);overflow-wrap:anywhere}
+.reply-b{min-height:44px;padding:0 12px;background:none;border:0;border-radius:999px;color:var(--ink);font:700 .92rem/1 var(--body);cursor:pointer}
+.reply-b:hover{background:var(--raise)}
+.reply-b[aria-expanded="true"]{color:var(--field)}
+.said-acts{display:flex;align-items:center;gap:8px;margin-left:auto}
+.said-acts .rp{margin-left:auto}
+@media(max-width:520px){.said-acts{flex-basis:100%;margin-left:0}.said-acts .reply-b{margin-left:-12px}}
+.replies .said-acts{flex-basis:100%;margin-left:0}
+.reply-f{display:grid;gap:10px;margin-top:14px}
+.reply-f textarea{width:100%;min-height:5.5rem;padding:12px 14px;font:500 1rem/1.5 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);resize:vertical;caret-color:var(--field)}
+.reply-f textarea::placeholder{color:var(--dim)}
+.reply-f .btn{min-height:44px;padding:0 16px}
+.reply-f .btn[disabled]{opacity:.6;cursor:default}
+.replies{list-style:none;margin:14px 0 0;padding:0 0 0 12px;border-left:3px solid var(--line);display:grid;gap:8px}
+.replies .vote{padding:12px;background:var(--bg)}
+.replies .said blockquote{font-size:1rem;border-left:0;padding-left:0}
+.said-more{display:inline-flex;align-items:center;min-height:44px;margin-top:6px;font-weight:700;color:var(--field)}
+.latest{padding:26px 0}
+.latest-none{max-width:62ch;font-size:1.05rem}
+.latest-none a{display:inline-flex;align-items:center;min-height:44px;color:var(--field);font-weight:700}
+.latest.on{padding:44px 0}
+.latest-list{max-width:none}
+@media(min-width:900px){.latest-list{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start}}
+.latest-list blockquote{font-size:1rem}
+.latest-go{margin-top:16px}
+.news-hint{margin-top:-4px}
+.mod-go{max-width:48rem}
+.mod-go-sum{margin-top:10px;overflow-wrap:anywhere}
+.mod-go-t td{font-size:.9rem}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

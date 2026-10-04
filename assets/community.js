@@ -2,8 +2,14 @@
 
    Every page works with this file missing. The build prints the pages; this file adds the parts that
    need an account: the sign-in panel, sending from the "Have your say" box, the posts readers made
-   about a race or a member with their likes, unlikes and reports, the discussion page (talk/) and the
+   on a page (a race, a member, a state, a vote, or one of the site's own pages) with their replies,
+   likes, unlikes and reports, the newest posts on the front page, the discussion page (talk/) and the
    page for the people who run the site (mod/).
+
+   The rules in ../firebase/firestore.rules are published by hand, after the pages. So this file works
+   under both versions of them (isV2 below): under the first, what it writes keeps the first shape, and
+   the things only the second allows (a post on a state, vote or site page, a tagged post, a reply) fall
+   back to the form or are not offered. Nothing has to be published again when the rules change.
 
    Accounts and posts are kept in Firebase. Its code is fetched only when it is needed: when this device
    has signed in before, when a reader taps Sign in, Send, Like, Unlike or Report, or when a discussion
@@ -38,6 +44,8 @@ const NAME_OK = /^[A-Za-z0-9 ._'@-]{1,40}$/, URL_OK = /^https:\/\/[^\s<>"']{4,40
 const hookVal = k => { try { return EMU ? sessionStorage.getItem(k) || '' : ''; } catch (x) { return ''; } };
 /* Names that would let a reader pass as the site or its owner are kept for the people who run it.
    The rules refuse them too (reserved() in firestore.rules, the same two patterns). */
+/* What a yes to the news box gets a reader, said next to the box wherever it is offered. */
+const NEWS_HINT = 'One email a week at most: the grades that moved, the votes that moved them, and one clip from the show. Untick it whenever you like.';
 function reservedName(n) {
   const l = String(n).toLowerCase();
   return /(libertypolitics|iranuncensored|arminnavabi)/.test(l.replace(/[ ._'@-]/g, '')) || /(^|[^a-z0-9])(armin|navabi|admin[a-z]*|moderator[a-z]*|official)([^a-z0-9]|$)/.test(l);
@@ -111,10 +119,24 @@ function channelOf(url) {
 }
 function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (x) { return 'the site'; } }
 function niceDate(ms) { return new Date(ms).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+/* The page a discussion belongs to, from its key. null when the key is not one of ours: the front page is
+   the empty address, so '' is an answer. render.py works it out the same way (subject_of), and
+   build/phone-test.html checks the two agree. The same keys are the only ones the rules take. */
+const KEY_OK = /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|build))$/;
+const DIR = { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
+function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
 function pathOf(about) {
-  const m = /^(race|member):([a-z0-9-]{2,60})$/.exec(about || '');
-  return m ? (m[1] === 'race' ? 'races/' : 'scorecard/') + m[2] + '/' : '';
+  const m = KEY_OK.exec(about || '');
+  if (!m) return null;
+  if (m[5]) return m[6] === 'home' ? '' : m[6] + '/';
+  return DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
 }
+/* How a page is named inside a sentence when all we have is its key (the discussion page, the report menu). */
+function whatOf(about) { return { race: 'this race', member: 'this politician', vote: 'this vote', state: 'this state' }[keyKind(about)] || 'this page'; }
+/* The tag on a post. The first three say what a plain post is; the other four are the kinds a reader picks
+   in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
+const TAGS = { wrong: 'Something is wrong', source: 'Something we missed', bug: 'Bug', idea: 'Idea' };
+const PLAIN = { opinion: 'Opinion', video: 'Video', link: 'Link' };
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
 function words(e) {
@@ -166,6 +188,20 @@ const subs = [];
 /* Two switches for the tests, read only in emulator mode: lpbreak makes Firebase unreachable, lpnoindex
    makes the ordered question for the site-wide list fail the way a missing index does. */
 const hook = k => { try { return EMU && sessionStorage.getItem(k) === '1'; } catch (x) { return false; } };
+/* Which version of the rules is live. Under the second anyone may ask for config/rules (there is no such
+   document; being allowed to ask is the answer), under the first the question is refused. A yes is kept on
+   this device, because rules do not go back; a no is asked again on the next page. "lpv1" makes a test
+   run as if the first version were live. */
+let v2 = null;
+async function isV2() {
+  if (hook('lpv1')) return false;
+  if (v2 !== null) return v2;
+  if (!EMU && store.get('lp-v2') === 1) return (v2 = true);
+  const { F, db } = await fb();
+  try { await F.getDoc(F.doc(db, 'config', 'rules')); v2 = true; if (!EMU) store.set('lp-v2', 1); }
+  catch (e) { if (e && e.code === 'permission-denied') v2 = false; else throw e; }
+  return v2;
+}
 function fb() {
   if (OFF) return Promise.reject({ code: 'lp/off' });
   if (hook('lpbreak')) return Promise.reject({ code: 'lp/offline' });
@@ -460,7 +496,7 @@ function viewAuth(opts) {
     form.append(field(mode === 'new' ? 'Password, at least 8 characters' : 'Password', pw));
     if (mode === 'new') {
       const lab = el('label', 'sheet-check'); lab.append(news, el('span', null, 'Email me news from Liberty Politics'));
-      form.append(lab);
+      form.append(lab, el('p', 'sheet-hint news-hint', NEWS_HINT));
     } else {
       form.append(btn('sheet-text', 'Forgot your password?', async () => {
         const em = email.value.trim();
@@ -538,7 +574,7 @@ function viewName(opts) {
   name.value = opts.suggest || '';
   lab.append(news, el('span', null, 'Email me news from Liberty Politics'));
   const go = el('button', 'btn btn-key sheet-go', 'Continue', { type: 'submit' });
-  form.append(field('Name shown with your posts', name, 'Your own name or a handle. Your Google name and photo are not shown to anyone.'), lab, go, line);
+  form.append(field('Name shown with your posts', name, 'Your own name or a handle. Your Google name and photo are not shown to anyone.'), lab, el('p', 'sheet-hint news-hint', NEWS_HINT), go, line);
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     const nm = name.value.trim().replace(/\s+/g, ' ');
@@ -559,9 +595,11 @@ function viewName(opts) {
 }
 /* Signed in a moment ago: do what the reader was in the middle of, then show the right thing. */
 async function afterSignIn() {
-  const sendNow = pending && pending.type === 'send';
+  const sendNow = pending && pending.type === 'send', replyNow = pending && pending.type === 'reply' ? pending : null;
   let sent = false;
   if (sendNow) { pending = null; sent = await send({ auto: true }); }
+  /* A reply typed signed out goes the same way a note does: at once, and only its author sees it until the email is confirmed. */
+  if (replyNow) { pending = null; sent = await sendReply(replyNow.id, replyNow.text) && 'reply'; }
   if (user && user.emailVerified) {
     try { await settle(false); } catch (x) { }
     await runPending();
@@ -589,7 +627,7 @@ function viewCheck(opts) {
   const email = (me && me.email) || 'your address', line = msgLine();
   const p = el('p', 'sheet-lead'); p.append('We sent a link to ', el('b', null, email), '. Open it to confirm the address is yours.');
   sheetBody.append(p);
-  if (opts.sent) sheetBody.append(el('p', 'sheet-why', 'Your note is sent. Only you can see it until you confirm.'));
+  if (opts.sent) sheetBody.append(el('p', 'sheet-why', (opts.sent === 'reply' ? 'Your reply is sent.' : 'Your note is sent.') + ' Only you can see it until you confirm.'));
   sheetBody.append(el('p', 'sheet-hint', opts.note || 'Until you confirm, only you can see what you post, and you cannot like, unlike or report. No email after a few minutes? Check your spam folder.'));
   const ok = btn('btn btn-key sheet-go', 'I have confirmed', async () => {
     ok.disabled = true; tell(line, 'Checking.');
@@ -633,13 +671,13 @@ async function changeEmail(line) {
     try {
       const snap = await F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', u.uid), F.limit(50)));
       const docs = snap.docs.slice().sort((a, b) => ((b.data().createdAt || {}).seconds || 0) - ((a.data().createdAt || {}).seconds || 0));
-      if (docs.length) back = docs[0].data();
+      back = (docs.map(d => d.data()).find(d => !d.parent)) || null;      // a reply has no place in the box: it answered a post
       for (const d of docs) await F.deleteDoc(d.ref);
     } catch (x) { }
     await dropUserDoc(u.uid, t => tell(line, t));
     try { await A.deleteUser(u); } catch (x) { await A.signOut(auth); }
     if (back && window.LPBox && !$('fbmsg').value) {
-      putDraft({ kind: back.kind === 'opinion' ? 'opinion' : 'video', text: back.text || '', url: back.url || '', mine: !!back.mine, label: back.subject, id: (back.about || '').split(':')[1] || '', on: back.about });
+      putDraft({ kind: TAGS[back.tag] ? back.tag : back.kind === 'opinion' ? 'opinion' : 'video', text: back.text || '', url: back.url || '', mine: !!back.mine, label: back.subject, id: (back.about || '').split(':')[1] || '', on: back.about });
       pending = { type: 'send' };
     }
     show('auth', { mode: 'new', name, why: back ? 'Type the right email. Your note is saved and will be sent again.' : 'Type the right email.' });
@@ -649,7 +687,7 @@ function viewDone() {
   sheetTitle.textContent = 'You are in';
   const n = lastSettle.n;
   sheetBody.append(el('p', 'sheet-lead', 'Your email is confirmed.' + (!n ? '' : lastSettle.hold ? ' What you posted will show once we have looked at it.' : ' What you posted is on the page now.')));
-  sheetBody.append(el('p', 'sheet-hint', 'You can post, like, unlike and report on every race and every member.'));
+  sheetBody.append(el('p', 'sheet-hint', 'You can post, answer other readers, like, unlike and report on every page.'));
   const b = btn('btn btn-key sheet-go', 'Done', closeSheet);
   sheetBody.append(b);
   setTimeout(() => { try { b.focus({ preventScroll: true }); } catch (x) { } }, 30);
@@ -695,7 +733,7 @@ function viewAccount() {
     const news = el('input', null, null, { type: 'checkbox' }); news.checked = !!p.news;
     const nl = el('label', 'sheet-check'); nl.append(news, el('span', null, 'Email me news from Liberty Politics'));
     const save = el('button', 'btn btn-key sheet-go', 'Save changes', { type: 'submit' });
-    form.append(cl, cf, nl, save, line);
+    form.append(cl, cf, nl, el('p', 'sheet-hint news-hint', NEWS_HINT), save, line);
     form.addEventListener('submit', async ev => {
       ev.preventDefault();
       const nm = name.value.trim().replace(/\s+/g, ' ');
@@ -903,18 +941,29 @@ async function send(opts) {
       openSheet('name', { opener: b.go });
       return false;
     }
-    const on = b.f.getAttribute('data-on') || pageOn(), social = (kd === 'opinion' || kd === 'video') && /^(race|member):[a-z0-9-]{2,60}$/.test(on);
+    /* Where it goes. Everything a reader sends from a page that has a discussion is a post on that page:
+       an opinion and a video as before, and now a correction, a bug, something we missed and an idea too,
+       each with its tag. Those four also go to the form, which is where we read what needs acting on
+       (FEEDBACK.md). Two things still go to the form alone: anything sent from a page with no discussion,
+       and, while the first version of the rules is the live one, whatever only the second allows. */
+    const on = b.f.getAttribute('data-on') || pageOn(), kk = keyKind(on), plain = kd === 'opinion' || kd === 'video';
+    const first = plain && (kk === 'race' || kk === 'member');      // what the first version of the rules takes
+    const social = !!kk && (first || await within(20000, isV2()));
     if (social) {
-      const subject = (b.f.getAttribute('data-on') ? b.f.getAttribute('data-subject') : pageName()) || pageName() || on;
+      const lab = /^(.*) \[([^\]]*)\]$/.exec(b.ctx.value);
+      const subject = (plain ? (b.f.getAttribute('data-on') ? b.f.getAttribute('data-subject') : pageName()) : (lab && lab[1])) || pageName() || on;
       const made = kd === 'video' && b.mine.checked;
-      const post = await within(30000, postIt({ kd, text, url: url ? cleanUrl(url) : '', made, on, subject }));
+      const post = await within(30000, postIt({ text, url: url ? cleanUrl(url) : '', made, on, subject, tag: plain ? '' : kd, v2: !first }));
+      /* The copy for us. It must not undo a post that is already on the page, so a failure here is let go. */
+      if (!plain) { try { await within(15000, formIt(b, kd, text, url, post.id)); } catch (x) { } }
       clearBox(b);
       sentPost(b, post, made);
     } else {
-      const kind = kd === 'opinion' || kd === 'video' ? 'idea' : kd;
+      const kind = plain ? 'idea' : kd;
       await within(30000, formIt(b, kind, text, url));
       clearBox(b);
-      b.B.say(kind !== kd ? 'Sent. Thank you. We read every one. To put it on a page, open the race or the politician it is about and say it there.' : k.done);
+      b.B.say(!plain ? k.done : kk ? 'Sent. Thank you. The discussion on this page opens shortly. Until it does, only we can read this.'
+        : 'Sent. Thank you. We read every one. To put it on a page, open the race or the politician it is about and say it there.');
     }
     b.go.disabled = false;
     return true;
@@ -931,18 +980,21 @@ function clearBox(b) {
   b.B.subject('', '', ''); b.B.shape();
   store.set(KEY.draft, null);
 }
-/* A post about a race or a member: one document in Firebase, written together with the time of the
-   author's newest post (the rules allow one each 30 seconds). */
+/* A post on a page: one document in Firebase, written together with the time of the author's newest post
+   (the rules allow one each 30 seconds). tag and parent (the post a reply answers) came with the second
+   version of the rules; a plain post on a race or a member is still written without them, which both
+   versions take, so that one needs no question about which version is live. */
 async function postIt(d) {
   const { A, F, db } = S;
-  const kind = d.kd === 'opinion' ? 'opinion' : (embedOf(d.url) ? 'video' : 'link');
+  const kind = !d.url ? 'opinion' : (embedOf(d.url) ? 'video' : 'link');
   const commit = async () => {
     const p = await loadProfile();
     const lastAt = Math.max(me.last || 0, p.lastPostAt && p.lastPostAt.toMillis ? p.lastPostAt.toMillis() : 0), wait = Math.ceil((lastAt + 31000 - Date.now()) / 1000);
     if (wait > 0) throw { code: 'lp/pace', wait };
     const status = user.emailVerified ? ((await holdOn()) ? 'pending' : 'live') : 'held';
     const ref = F.doc(F.collection(db, 'posts'));
-    const data = { about: d.on, subject: String(d.subject).slice(0, 80), kind, text: d.text, url: kind === 'opinion' ? '' : d.url, mine: kind === 'video' && d.made, uid: user.uid, name: p.name, createdAt: F.serverTimestamp(), status, ups: 0, downs: 0, score: 0, nrep: 0 };
+    const data = { about: d.on, subject: String(d.subject).slice(0, 80), kind, text: d.text, url: kind === 'opinion' ? '' : d.url, mine: kind === 'video' && !!d.made, uid: user.uid, name: p.name, createdAt: F.serverTimestamp(), status, ups: 0, downs: 0, score: 0, nrep: 0 };
+    if (d.v2) { data.tag = d.tag || ''; data.parent = d.parent || ''; }
     const mark = { lastPostAt: F.serverTimestamp(), lastPost: ref.id, confirmed: !!user.emailVerified, email: user.email };
     const channel = d.made ? channelOf(d.url) : '';
     if (d.made) { mark.creator = true; if (channel && !p.channel) mark.channel = channel; }
@@ -950,7 +1002,7 @@ async function postIt(d) {
     batch.set(ref, data); batch.update(F.doc(db, 'users', user.uid), mark);
     await batch.commit();
     Object.assign(profile, mark, { lastPostAt: { toMillis: () => Date.now() } });
-    return Object.assign({}, data, { id: ref.id, ms: Date.now(), fresh: true, my: 0, reported: false });
+    return Object.assign({ tag: '', parent: '' }, data, { id: ref.id, ms: Date.now(), fresh: true, my: 0, reported: false });
   };
   let post;
   try { post = await commit(); }
@@ -969,7 +1021,7 @@ async function postIt(d) {
 /* A correction, something we missed, or an idea: to the Google Form, as before, now with who sent it.
    The form has no fields for a link, an email or an account, so they travel under a line of five dashes
    at the end of the note. FEEDBACK.md says how that tail is read; build/notes.py sends the same shape. */
-async function formIt(b, kind, text, url) {
+async function formIt(b, kind, text, url, postId) {
   const now = Date.now();
   let log = (store.get('ls-notes') || []);
   log = Array.isArray(log) ? log.filter(t => now - t < 3600000) : [];
@@ -978,6 +1030,7 @@ async function formIt(b, kind, text, url) {
   if (url) tail.push('link: ' + url);
   tail.push('email: ' + (user.email || ''));
   tail.push('uid: ' + user.uid);
+  if (postId) tail.push('post: ' + postId);      // it is also a post on the page: this is its id (mod/ and the Firebase console find it by this)
   data.set(kindField, kind);
   data.set(b.msg.name, text + '\n\n-----\n' + tail.join('\n'));
   data.set($('fbname').name, me.name);
@@ -989,7 +1042,7 @@ function sentPost(b, post, made) {
   const see = el('a', null, 'See it');
   see.href = (here ? '' : root + 'talk/?on=' + encodeURIComponent(post.about)) + '#p-' + post.id;
   const box = b.done; box.textContent = '';
-  if (post.status === 'live') sayIn(b, 'Sent. It is on the page now.', false, see);
+  if (post.status === 'live') sayIn(b, post.tag ? 'Sent. It is on the page now, and it has reached us too.' : 'Sent. It is on the page now.', false, see);
   else if (post.status === 'pending') b.B.say('Sent. We are looking at new posts before they show, so it will be on the page once we have.');
   else {
     sayIn(b, 'Sent. Only you can see it until you confirm your email.', false, see);
@@ -1019,15 +1072,15 @@ function sentPost(b, post, made) {
 }
 
 /* ------------------------------------------------------------------ what readers say
-   One section with id "talk". On a race or a member page it shows the three most liked posts and the
-   way to the rest. On talk/ it shows everything about one race or member (?on=<key>), or the newest
-   across the site. */
+   One section with id "talk". On a page (a race, a member, a state, a vote, one of the site's own pages)
+   it shows the three most liked posts and the way to the rest. On talk/ it shows everything said on one
+   page (?on=<key>), replies under the post they answer, or the newest across the site. */
 let T = null;
 function initTalk() {
   const sec = $('talk');
   if (!sec) return;
   T = { el: sec, feed: sec.hasAttribute('data-feed'), all: sec.classList.contains('talk-all'), key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
-    kind: sec.getAttribute('data-this') || 'race', sort: 'top', posts: [], state: 'idle', seq: 0, rev: 0 };
+    what: sec.getAttribute('data-what') || 'this page', empty: sec.getAttribute('data-empty') || '', sort: 'top', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null };
   T.list = el('ul', 'votes talk-list');
   const go = sec.querySelector('.talk-go');
   if (go) sec.insertBefore(T.list, go); else sec.append(T.list);
@@ -1051,23 +1104,24 @@ async function initTalkPage() {
   try { names = await within(15000, fetch(root + 'data/talk.json').then(r => { if (!r.ok) throw 0; return r.json(); })); } catch (x) { names = null; }
   const path = pathOf(on);
   if (!names) { T.state = 'err'; T.retry = () => location.reload(); drawTalk(); return; }
-  if (!path || typeof names[on] !== 'string') {
-    h.textContent = 'That race or member is not on this site';
+  if (path == null || typeof names[on] !== 'string') {
+    h.textContent = 'That page is not on this site';
     intro.textContent = 'The address may be old or mistyped. Pick a race or a member to see what readers said about it.';
     D.title = 'Not on this site | Liberty Score';
     T.list.remove();
     return;
   }
-  T.key = on; T.name = names[on]; T.kind = on.indexOf('race:') === 0 ? 'race' : 'member';
+  T.key = on; T.name = names[on];
+  const what = T.what = whatOf(on);
+  T.empty = 'Nobody has said anything about ' + what + ' yet. Be the first.';
   T.el.setAttribute('data-on', on); T.el.setAttribute('data-name', T.name);
-  const what = T.kind === 'race' ? 'race' : 'politician';
   h.textContent = T.name + ': what readers say';
   D.title = T.name + ': what readers say | Liberty Score';
-  intro.textContent = 'What readers have said and shared about this ' + what + '. Their words and their videos, not ours.';
+  intro.textContent = 'What readers have said and shared about ' + what + '. Their words and their videos, not ours.';
   back.textContent = '← ' + T.name; back.href = root + path;
-  /* The strip that opens the box, filed under this race or member. */
+  /* The strip that opens the box, filed under this page. */
   const id = on.split(':')[1], strip = el('div', 'ask'), row = el('div', 'row');
-  strip.append(el('p', null, 'Add yours. Say what you think, or share a video about this ' + what + '.'));
+  strip.append(el('p', null, 'Add yours. Say what you think, or share a video about ' + what + '.'));
   [['opinion', 'Say what you think', 'btn-key'], ['video', 'Share a video', 'btn-line'], ['wrong', 'Something is wrong', 'btn-line']].forEach(([k, t, c]) => {
     row.append(el('a', 'btn ' + c, t, { href: '#feedback', 'data-kind': k, 'data-about': T.name, 'data-id': id, 'data-on': on }));
   });
@@ -1090,6 +1144,9 @@ async function loadTalk(quiet) {
        ask again rather than draw over what they just did. */
     let got, rev;
     do { rev = T.rev; got = await within(15000, fetchPosts()); if (seq !== T.seq) return; } while (rev !== T.rev);
+    /* Reply is offered only once the rules that take a reply are live. Not knowing is treated as no. */
+    try { T.v2 = await within(8000, isV2()); } catch (x) { T.v2 = false; }
+    if (seq !== T.seq) return;
     T.posts = got; T.state = 'ok';
   } catch (e) {
     if (seq !== T.seq) return;
@@ -1104,6 +1161,7 @@ function shape(id, d) {
   const num = v => (typeof v === 'number' && v > 0 ? Math.floor(v) : 0), str = v => typeof v === 'string' ? v : '';
   const ups = num(d.ups), downs = num(d.downs);
   return { id, about: str(d.about), subject: str(d.subject), kind: ['opinion', 'video', 'link'].includes(d.kind) ? d.kind : 'opinion', text: str(d.text).slice(0, MAX), url: str(d.url),
+    tag: TAGS[d.tag] ? d.tag : '', parent: /^[A-Za-z0-9]{1,40}$/.test(str(d.parent)) ? d.parent : '',
     mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : 'A reader', status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), my: 0, reported: false,
     ms: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : Date.now() };
 }
@@ -1141,11 +1199,15 @@ function talkAdd(post) {
   T.posts = T.posts.filter(p => p.id !== post.id).concat([post]);
   drawTalk();
 }
+/* The posts in the order they are shown. On the site-wide list that is every post, newest first, replies
+   among them. Everywhere else it is the posts that answer nobody; their replies hang under them (repliesTo). */
 function ordered() {
   const mineFirst = p => (p.fresh || (me && p.uid === me.uid && p.status !== 'live')) ? 1 : 0;
   const by = T.sort === 'new' ? (a, b) => b.ms - a.ms : (a, b) => (b.score - a.score) || (b.ms - a.ms);
-  return T.posts.filter(p => !p.gone).sort((a, b) => (mineFirst(b) - mineFirst(a)) || by(a, b));
+  return T.posts.filter(p => !p.gone && (T.feed || !p.parent)).sort((a, b) => (mineFirst(b) - mineFirst(a)) || by(a, b));
 }
+/* The replies to one post, oldest first, the way a conversation reads. */
+function repliesTo(id) { return T.posts.filter(p => !p.gone && p.parent === id).sort((a, b) => a.ms - b.ms); }
 function stateRow(text, more) {
   const li = el('li', 'talk-state'); li.append(el('p', null, text));
   if (more) li.append(more);
@@ -1156,7 +1218,6 @@ function drawTalk() {
   L.textContent = '';
   L.classList.toggle('is-wait', T.state === 'wait' || T.state === 'idle');
   L.setAttribute('aria-busy', String(T.state === 'wait'));
-  const what = T.kind === 'race' ? 'this race' : 'this politician';
   let n = 0;
   if (T.state === 'wait' || T.state === 'idle') {
     for (let i = 0; i < (T.all ? 3 : 2); i++) L.append(el('li', 'vote sk', null, { 'aria-hidden': 'true' }));
@@ -1165,9 +1226,10 @@ function drawTalk() {
   else if (T.state === 'err') L.append(stateRow('Could not load what readers said. Try again.', btn('btn btn-line', 'Try again', () => (T.retry ? T.retry() : loadTalk()))));
   else {
     const rows = ordered();
-    n = rows.length;
+    /* The number on the way to the whole discussion counts every post a reader would find there, replies too. */
+    n = T.feed ? rows.length : rows.reduce((sum, p) => sum + 1 + repliesTo(p.id).length, 0);
     const best = T.sort === 'top' && rows.find(p => p.status === 'live' && p.score > 0 && !p.fresh);
-    if (!n) L.append(stateRow(T.feed ? 'Nobody has posted yet. Pick a race or a member and be the first.' : 'Nobody has said anything about ' + what + ' yet. Be the first.'));
+    if (!rows.length) L.append(stateRow(T.feed ? 'Nobody has posted yet. Pick a race or a member and be the first.' : T.empty || 'Nobody has said anything about ' + T.what + ' yet. Be the first.'));
     else (T.all ? rows : rows.slice(0, 3)).forEach(p => L.append(row(p, p === best)));
   }
   /* The way to the whole discussion, once there is one. */
@@ -1181,15 +1243,20 @@ function drawTalk() {
     } else if (more) more.remove();
   }
 }
+/* One post. A reply (it has a parent) is drawn the same way, smaller, inside the post it answers; it has
+   no tag and nobody can answer it, so a discussion stays one level deep. */
 function row(p, best) {
-  const li = el('li', 'vote said' + (p.status !== 'live' ? ' own' : ''), null, { id: 'p-' + p.id });
-  const meta = el('div', 'meta'), who = el('span'), what = { opinion: 'said', video: 'shared a video', link: 'shared a link' }[p.kind];
-  who.append(el('b', null, p.name), ' ' + what + ' · ' + niceDate(p.ms));
+  const li = el('li', 'vote said' + (p.status !== 'live' ? ' own' : '') + (p.parent ? ' reply' : ''), null, { id: 'p-' + p.id });
+  const meta = el('div', 'meta'), who = el('span');
+  who.append(el('b', null, p.name), (p.parent ? ' replied · ' : ' · ') + niceDate(p.ms));
   meta.append(who);
+  if (!p.parent) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
   if (p.mine) meta.append(el('span', 'tag', 'Made it'));
   if (best) meta.append(el('span', 'tag best', 'Most liked'));
   li.append(meta);
-  if (T.feed && pathOf(p.about)) li.append(el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#talk' }));
+  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#talk' }));
+  /* A correction or a bug opened from one line of a page (one vote on a member's page) says which line. */
+  else if (!T.feed && p.tag && p.subject && p.subject !== T.name) li.append(el('p', 'said-about', 'About: ' + p.subject));
   const emb = p.kind === 'video' && URL_OK.test(p.url) ? embedOf(p.url) : null;
   if (emb) {
     const box = el('div', 'tv tv-' + emb[0].toLowerCase(), null, { 'data-embed': emb[1], 'data-plat': emb[0] });
@@ -1208,6 +1275,7 @@ function row(p, best) {
       : p.status === 'hidden' ? 'Readers reported this, so it is off the page until we have looked at it. Only you can see it.' : 'We removed this because it broke the rules. Only you can see it.';
     li.append(note);
     if (p.status === 'held') li.append(btn('sheet-text', 'Send the confirmation link again', ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
+    if (!p.parent && !T.feed) hang(li, p);
     return li;
   }
   const bar = el('div', 'said-bar'), own = me && p.uid === me.uid;
@@ -1221,10 +1289,84 @@ function row(p, best) {
     if (own) { b.disabled = true; b.title = 'You cannot like or unlike your own post'; }
     bar.append(b);
   });
-  if (!own) bar.append(reportCtl(p));
+  /* Reply: on a post that answers nobody, where the whole discussion is or on the page itself, and only
+     once the rules that take a reply are live. */
+  /* Reply and Report share the end of the bar: beside the likes where there is room, on a line of their own on a phone. */
+  const acts = el('div', 'said-acts');
+  if (!p.parent && !T.feed && T.v2) {
+    const open = !!(T.replying && T.replying.id === p.id);
+    const rb = btn('reply-b', 'Reply', () => { T.replying = open ? null : { id: p.id, text: '' }; redraw(p, open ? 'reply-b' : 'reply-in'); });
+    rb.setAttribute('aria-expanded', String(open));
+    acts.append(rb);
+  }
+  if (!own) acts.append(reportCtl(p));
+  if (acts.firstChild) bar.append(acts);
   li.append(bar);
   if (p.msg) li.append(el('p', 'said-msg' + (p.msgBad ? ' bad' : ''), p.msg, { role: 'status' }));
+  if (!p.parent && !T.feed) hang(li, p);
   return li;
+}
+/* What hangs under a post: the box for a reply while it is open, and the replies. On a page that shows only
+   the top three posts the replies are one line that leads to them; on the discussion page they are all there. */
+function hang(li, p) {
+  if (T.replying && T.replying.id === p.id) li.append(replyBox(p));
+  const rs = repliesTo(p.id);
+  if (!rs.length) return;
+  if (T.all) { const ul = el('ul', 'replies'); rs.forEach(r => ul.append(row(r, false))); li.append(ul); return; }
+  const mine = rs.filter(r => r.fresh || r.status !== 'live');
+  if (mine.length) { const ul = el('ul', 'replies'); mine.forEach(r => ul.append(row(r, false))); li.append(ul); }
+  const rest = rs.length - mine.length;
+  if (rest) li.append(el('a', 'said-more', (mine.length ? 'And ' : 'Read ') + (rest === 1 ? '1 ' + (mine.length ? 'more ' : '') + 'reply' : rest + ' ' + (mine.length ? 'more ' : '') + 'replies'), { href: root + 'talk/?on=' + encodeURIComponent(p.about) + '#p-' + p.id }));
+}
+function replyBox(p) {
+  const f = el('form', 'reply-f', null, { novalidate: '' }), id = 're-' + p.id;
+  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: 'Answer ' + p.name + ' in your own words.' });
+  const line = el('p', 'said-msg', '', { role: 'status', 'aria-live': 'polite' });
+  const go = el('button', 'btn btn-key', 'Send reply', { type: 'submit' });
+  const no = btn('btn btn-line', 'Cancel', () => { T.replying = null; redraw(p, 'reply-b'); });
+  const acts = el('div', 'row'); acts.append(go, no);
+  ta.value = T.replying.text || '';
+  ta.addEventListener('input', () => { if (T.replying && T.replying.id === p.id) T.replying.text = ta.value; });
+  f.append(el('label', 'vh', 'Your reply to ' + p.name, { for: id }), ta, acts, line);
+  if (T.replying.msg) { line.textContent = T.replying.msg; line.className = 'said-msg' + (T.replying.bad ? ' bad' : ''); }
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    go.disabled = true; line.textContent = 'Sending.'; line.className = 'said-msg';
+    await sendReply(p.id, ta.value);
+    go.disabled = false;
+  });
+  return f;
+}
+/* Send a reply. Answers true when it went. What was typed is kept in T.replying until it has gone, so
+   signing in or a refusal in between loses nothing. */
+async function sendReply(id, raw) {
+  let p = find(id);
+  const text = String(raw || '').trim();
+  const say = (msg, bad) => { T.replying = { id, text: raw, msg, bad }; const q = find(id); if (q) redraw(q, 'reply-in'); return false; };
+  if (!p || p.status !== 'live') return false;
+  if (text.length < 8) return say('Write a few words first.', true);
+  if (text.length > MAX) return say('That is ' + text.length + ' characters. Keep it to ' + MAX + '.', true);
+  const opener = $('p-' + id) && $('p-' + id).querySelector('.reply-b');
+  if (!me) {
+    T.replying = { id, text: raw };
+    pending = { type: 'reply', id, text: raw };
+    openSheet('auth', { why: 'Your reply is saved. Create an account to send it.', whyIn: 'Your reply is saved. Sign in to send it.', opener });
+    if (!OFF) fb().catch(() => { });
+    return false;
+  }
+  try {
+    await within(25000, fb());
+    if (!user) { pending = { type: 'reply', id, text: raw }; openSheet('auth', { mode: 'in', why: 'Your reply is saved. Sign in to send it.', opener }); return false; }
+    if (!user.displayName) { pending = { type: 'reply', id, text: raw }; openSheet('name', { why: 'Your reply is saved. Choose a name to send it.', opener }); return false; }
+    p = find(id) || p;
+    T.replying = null;      // postIt draws the reply under the post; the box must be gone by then
+    try { await within(30000, postIt({ text, url: '', made: false, on: p.about, subject: p.subject || T.name, tag: '', parent: id, v2: true })); }
+    catch (e) { T.replying = { id, text: raw }; throw e; }
+    return true;
+  } catch (e) {
+    if (e && e.code === 'lp/pace') return say('You posted a moment ago. Wait ' + e.wait + ' seconds, then send it again. Your reply is kept.', true);
+    return say('That did not send. ' + words(e) + ' Your reply is kept.', true);
+  }
 }
 function redraw(p, keep) {
   const old = $('p-' + p.id);
@@ -1309,7 +1451,7 @@ async function vote(id, dir, force) {
 function reportCtl(p) {
   const wrap = el('div', 'rp');
   if (p.reported) { wrap.append(el('span', 'rp-done', p.thanked ? 'Reported. Thank you.' : 'Reported', { role: 'status' })); return wrap; }
-  const about = p.about.indexOf('member:') === 0 ? 'Not about this politician' : 'Not about this race';
+  const about = 'Not about ' + whatOf(p.about);
   const b = btn('rp-b', 'Report'), menu = el('div', 'rp-m', null, { role: 'menu', 'aria-label': 'Why are you reporting this?' });
   b.setAttribute('aria-haspopup', 'menu'); b.setAttribute('aria-expanded', 'false');
   menu.hidden = true;
@@ -1431,8 +1573,35 @@ function modTools(box) {
   csvBox.hidden = true;
   const again = btn('btn btn-line', 'Load again', load);
   const top = el('div', 'row mod-top'); top.append(again);
-  box.append(hl, line, top, waitH, waitL, newH, newL, pplH, el('div', 'row', null), pplL);
+  /* The two short links (libertypolitics.com/join and /panel): how many times each was used, day by day,
+     and by which of our own links (the tag). Only an admin may read these. */
+  const goH = el('h2', 'mod-h', 'Short links, last 28 days'), goBox = el('div', 'mod-go', null, { id: 'mod-go' });
+  box.append(hl, line, top, waitH, waitL, newH, newL, goH, goBox, pplH, el('div', 'row', null), pplL);
   pplH.nextSibling.append(copy); pplL.before(csvBox);
+  const GO = ['yt', 'pin', 'qr', 'x', 'site', 'mail', 'other'], GOW = { yt: 'video description', pin: 'pinned comment', qr: 'QR code', x: 'X', site: 'this site', mail: 'newsletter', other: 'another tag', none: 'no tag' };
+  function drawGo(days, err) {
+    goBox.textContent = '';
+    if (err) { goBox.append(el('p', 'said-note', err)); return; }
+    const today = Math.floor(Date.now() / 86400000), num = v => (typeof v === 'number' && v > 0 ? Math.floor(v) : 0);
+    const rows = days.filter(d => /^\d{5}$/.test(d.id) && +d.id > today - 28 && +d.id <= today).sort((a, b) => +b.id - +a.id);
+    const split = (d, link) => { const o = { all: num(d[link]) }; let tagged = 0; GO.forEach(t => { o[t] = num(d[link + '_' + t]); tagged += o[t]; }); o.none = Math.max(0, o.all - tagged); return o; };
+    const said = o => GO.concat(['none']).filter(t => o[t]).map(t => o[t] + ' ' + GOW[t]).join(', ');
+    const sum = link => rows.reduce((acc, d) => { const o = split(d, link); Object.keys(o).forEach(k => { acc[k] = (acc[k] || 0) + o[k]; }); return acc; }, {});
+    ['join', 'panel'].forEach(link => {
+      const s = sum(link), p = el('p', 'mod-go-sum', null, { 'data-link': link });
+      p.append(el('b', null, 'libertypolitics.com/' + link + ': ' + (s.all || 0)), s.all ? ' (' + said(s) + ')' : ' No use recorded yet.');
+      goBox.append(p);
+    });
+    if (!rows.length) return;
+    const wrap = el('div', 'scroll'), table = el('table', 'table mod-go-t'), head = el('tr'), body = el('tbody');
+    ['Day', 'join', 'From', 'panel', 'From'].forEach(t => head.append(el('th', null, t, { scope: 'col' })));
+    rows.forEach(d => {
+      const tr = el('tr'), j = split(d, 'join'), p = split(d, 'panel');
+      tr.append(el('td', 'num', new Date(+d.id * 86400000).toISOString().slice(0, 10)), el('td', 'num', String(j.all)), el('td', null, said(j)), el('td', 'num', String(p.all)), el('td', null, said(p)));
+      body.append(tr);
+    });
+    const th = el('thead'); th.append(head); table.append(th, body); wrap.append(table); goBox.append(wrap);
+  }
   let posts = [], people = [];
   const waiting = p => p.status === 'hidden' || p.status === 'pending' || (p.status === 'live' && p.nrep > 0);
   const label = p => ({ live: p.nrep ? 'Live, reported' : 'Live', hidden: 'Hidden by reports', pending: 'Waiting for you', held: 'Email not confirmed', removed: 'Removed' })[p.status] || p.status;
@@ -1442,7 +1611,9 @@ function modTools(box) {
     meta.append(who, el('span', 'tag' + (p.status === 'live' && !p.nrep ? ' ok' : ''), label(p)));
     if (p.nrep) meta.append(el('span', 'tag', p.nrep + (p.nrep === 1 ? ' report' : ' reports')));
     li.append(meta);
-    if (pathOf(p.about)) li.append(el('a', 'said-on', p.subject || p.about, { href: root + pathOf(p.about) }));
+    if (p.tag) meta.append(el('span', 'tag kind kind-' + p.tag, TAGS[p.tag]));
+    if (p.parent) meta.append(el('span', 'tag', 'Reply'));
+    if (pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || p.about, { href: root + pathOf(p.about) }));
     if (p.text) li.append(el('blockquote', null, p.text));
     if (URL_OK.test(p.url)) li.append(el('a', 'said-link', p.url, { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
     li.append(el('p', 'said-note', p.ups + (p.ups === 1 ? ' like' : ' likes') + ' · ' + p.downs + (p.downs === 1 ? ' unlike' : ' unlikes') + (p.mine ? ' · says they made it' : '')));
@@ -1514,21 +1685,79 @@ function modTools(box) {
         .sort((a, b) => (b.creator - a.creator) || (b.ms - a.ms));
       hold.checked = cfg.exists() && cfg.data().hold === true;
       place(); drawPeople(); tell(line, '');
+      /* The counts are read apart from the rest: while the first version of the rules is live nobody may read them. */
+      try {
+        const st = await within(20000, F.getDocs(F.query(F.collection(db, 'stats'), F.limit(400))));
+        drawGo(st.docs.map(d => Object.assign({ id: d.id }, d.data())));
+      } catch (e) { drawGo([], e && e.code === 'permission-denied' ? 'The counts start once the new rules are published (README.md, "Short links that count").' : 'Could not load the counts. ' + words(e)); }
     } catch (e) { tell(line, 'Could not load. ' + words(e), true); }
     again.disabled = false;
   }
   load();
 }
 
+/* ------------------------------------------------------------------ the newest posts, on the front page
+   The build prints one line that asks the reader in. Once the site has three posts to show, the newest
+   three take its place, each with the page it is on. Fewer than three, or no answer, and the line stays:
+   never an empty box, never a count. This asks Firestore directly, with one small request and without
+   Firebase's own code, because it is near the top of the page most visitors land on. */
+function fromRest(doc) {
+  const out = {}, f = doc.fields || {};
+  for (const k in f) {
+    const v = f[k];
+    out[k] = 'stringValue' in v ? v.stringValue : 'integerValue' in v ? Number(v.integerValue) : 'booleanValue' in v ? v.booleanValue
+      : 'timestampValue' in v ? { toMillis: () => Date.parse(v.timestampValue) } : null;
+  }
+  return shape(String(doc.name || '').split('/').pop(), out);
+}
+function initLatest() {
+  const sec = $('latest');
+  if (!sec || OFF) return;
+  let done = false;
+  const run = () => { if (!done) { done = true; latest(sec).catch(() => { }); } };
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); run(); } }, { rootMargin: '600px 0px' });
+    io.observe(sec);
+  } else run();
+}
+async function latest(sec) {
+  if (hook('lpbreak')) return;
+  const base = (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents:runQuery';
+  const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } },
+    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }], limit: 12 } };
+  const res = await within(15000, fetch(base + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)), { method: 'POST', body: JSON.stringify(q) }));
+  if (!res.ok) return;
+  const got = await res.json();
+  const top = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && pathOf(p.about) != null).slice(0, 3);
+  if (top.length < 3) return;
+  const wrap = sec.querySelector('.wrap') || sec, none = $('latest-none'), list = el('ul', 'votes latest-list');
+  top.forEach(p => {
+    const li = el('li', 'vote said'), meta = el('div', 'meta'), who = el('span');
+    who.append(el('b', null, p.name), ' · ' + niceDate(p.ms));
+    meta.append(who, el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
+    li.append(meta, el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#talk' }));
+    const text = p.text.length > 200 ? p.text.slice(0, 197).replace(/\s+\S*$/, '') + '...' : p.text;
+    if (text) li.append(el('blockquote', null, text));
+    else if (p.kind !== 'opinion') li.append(el('p', 'said-note', p.kind === 'video' ? 'A video. Watch it on the page.' : 'A link. Open it on the page.'));
+    list.append(li);
+  });
+  const more = el('div', 'row latest-go');
+  more.append(el('a', 'btn btn-line', 'Everything readers have said', { href: root + 'talk/' }), el('a', 'btn btn-line', 'Pick a race and add yours', { href: root + 'races/' }));
+  if (none) none.remove();
+  wrap.append(el('h2', null, 'Latest from readers'), list, more);
+  sec.classList.add('on');
+}
+
 /* ------------------------------------------------------------------ start */
 function start() {
   if (!CFG) return;
-  window.LP = { send: () => { send(); }, embedOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet,
-    ready: () => fb().then(() => true), emu: EMU, off: OFF, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl } : null };
+  window.LP = { send: () => { send(); }, embedOf, pathOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet,
+    ready: () => fb().then(() => true), emu: EMU, off: OFF, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2() } : null };
   subs.push(reloadTalk);
   initHeader();
   initBox();
   initTalk();
+  initLatest();
   initMod();
   if (me && !OFF) fb().then(() => { if (user && user.emailVerified && !me.ok) settle(false).catch(() => { }); }, () => { });
   window.addEventListener('focus', quietCheck); D.addEventListener('visibilitychange', quietCheck);
