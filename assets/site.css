@@ -307,8 +307,14 @@ span.portrait{display:flex;align-items:center;justify-content:center;font:900 2.
 .pick{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;background:var(--bg);border:1px solid var(--line);border-radius:999px;font-weight:600;font-size:.95rem;cursor:pointer}
 .pick input{width:18px;height:18px;margin:0;accent-color:var(--field)}
 .pick:has(input:checked){border-color:var(--field)}
-.fbform textarea,.fbform input[type=text]{width:100%;padding:12px 14px;font:500 1rem/1.5 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r)}
-.fbform input[type=text]{min-height:48px;padding:0 14px}
+.fbform textarea,.fbform input[type=text],.fbform input[type=url],.fbform input[type=email]{width:100%;padding:12px 14px;font:500 1rem/1.5 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r)}
+.fbform input[type=text],.fbform input[type=url],.fbform input[type=email]{min-height:48px;padding:0 14px}
+.fbrow{display:grid;gap:8px}
+.fbrow>label{margin-top:10px;font-weight:700}
+.fbhint{color:var(--dim);font-size:.92rem;max-width:62ch}
+.fbcheck{display:inline-flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
+.fbcheck input{width:20px;height:20px;margin:0;accent-color:var(--field)}
+.fbnote a{color:var(--field);font-weight:700}
 .fbform textarea{min-height:8rem;resize:vertical}
 .fbform textarea::placeholder{color:var(--dim)}
 .fbform .row{margin-top:10px}
@@ -352,6 +358,27 @@ span.face-lg{font-size:1.7rem}
    the button that stays in the corner */
 .ask{display:grid;gap:12px;justify-items:start;margin-top:18px;padding:14px 16px;background:var(--panel);border:1px solid var(--field-edge);border-radius:var(--r)}
 .ask p{font-weight:600;max-width:60ch}
+.ask p a{color:var(--field)}
+
+/* what readers say: their words, and the videos they shared */
+@media(min-width:900px){.talk{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+.said .meta b{color:var(--ink)}
+.said .meta .tag{color:var(--field)}
+.said blockquote{font-size:1.05rem;line-height:1.5;overflow-wrap:anywhere;white-space:pre-line}
+.said h3{overflow-wrap:anywhere}
+.tv{margin-top:12px;background:var(--sunk);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tv-play{position:relative;display:grid;align-content:end;min-height:190px;text-decoration:none;color:var(--ink)}
+.tv-play img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55}
+.tv-go{position:absolute;left:50%;top:42%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:var(--field);box-shadow:0 6px 18px -4px rgba(0,0,0,.7)}
+.tv-go::after{content:"";position:absolute;left:25px;top:19px;border-style:solid;border-width:13px 0 13px 21px;border-color:transparent transparent transparent var(--on-field)}
+.tv-what{position:relative;display:grid;gap:2px;padding:44px 14px 12px;background:linear-gradient(transparent,rgba(12,12,9,.94) 55%)}
+.tv-what b{font-weight:700;overflow-wrap:anywhere}
+.tv-what span{color:var(--dim);font-size:.9rem}
+.tv-play:hover .tv-go{background:#FFD52E}
+.tv iframe{display:block;width:100%;border:0;background:var(--sunk)}
+.tv-youtube iframe{aspect-ratio:16/9}
+.tv-x iframe{height:560px}
+.tv-instagram iframe{height:640px}
 .member-main>.ask{order:3}
 .project{background:var(--sunk)}
 .jobs{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:10px}
