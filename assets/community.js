@@ -1289,6 +1289,10 @@ function setCount(n) {
   if (tab) tab.setAttribute('aria-label', n > 0 ? 'Discussion, ' + n + (n === 1 ? ' post' : ' posts') : 'Discussion');
   if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = (n === 1 ? '1 post so far.' : n + ' posts so far.') + ' Read ' + (n === 1 ? 'it' : 'them') + ', and say where you stand.'; }
   if (n > 0 && go) go.textContent = 'Open the discussion (' + (n > 99 ? '99+' : n) + ')';
+  /* The same number on the question high on the record, and words that fit a discussion already going. */
+  const nn = $('nudge-n'), ph = $('nudge-ph');
+  if (nn) { nn.hidden = !(n > 0); nn.textContent = n > 99 ? '99+ posts' : n === 1 ? '1 post' : n + ' posts'; }
+  if (n > 0 && ph) ph.textContent = 'Agree, or not? Add what you think.';
 }
 /* Before a reader has opened the discussion: how many posts it holds, asked for with one small request and
    without Firebase's own code (one read, whatever the number), and, once the end of the record is near the
@@ -1309,29 +1313,42 @@ function initPeek() {
     const got = await res.json(), n = Number((((Array.isArray(got) ? got[0] : got) || {}).result || { aggregateFields: { n: {} } }).aggregateFields.n.integerValue || 0);
     if (T.state === 'idle' || T.state === 'wait') { T.peeked = n; setCount(n); }
   };
-  const idle = window.requestIdleCallback || (f => setTimeout(f, 1200));
-  idle(() => { count().catch(() => { }); });
-  const band = $('band'), top = $('band-top');
+  /* The most liked post is asked for once two things are true, in whichever order they happen: the
+     count says there is at least one post, and a place that shows it (the question high on the record,
+     or the end of the record) is near the screen. */
+  const band = $('band'), top = $('band-top'), nudge = $('nudge'), ntop = $('nudge-top');
+  let near = false, asked = false;
+  const best = async () => {
+    if (asked || !near || !(T.peeked > 0) || T.feed || !top) return;
+    asked = true;
+    const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 8 } };
+    const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
+    if (!res.ok) return;
+    const got = await res.json();
+    const p = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && p.text)
+      .sort((a, b) => (b.score - a.score) || (b.ms - a.ms))[0];
+    if (!p) return;
+    const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
+    top.textContent = '';
+    top.append(el('blockquote', null, cut(p.text, 180)), el('p', null, p.name + ' · ' + niceDate(p.ms)));
+    top.hidden = false;
+    if (ntop) {
+      ntop.textContent = '';
+      ntop.append(el('b', null, p.name + ': '), cut(p.text, 110));
+      ntop.hidden = false;
+    }
+  };
+  const idle = window.requestIdleCallback ? f => window.requestIdleCallback(f, { timeout: 2500 }) : f => setTimeout(f, 1200);
+  idle(() => { count().then(best).catch(() => { }); });
   if (!band || !top || T.feed || !('IntersectionObserver' in window)) return;
   const io = new IntersectionObserver(es => {
     if (!es.some(e => e.isIntersecting)) return;
     io.disconnect();
-    (async () => {
-      if (!(T.peeked > 0)) return;
-      const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 8 } };
-      const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
-      if (!res.ok) return;
-      const got = await res.json();
-      const best = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && p.text)
-        .sort((a, b) => (b.score - a.score) || (b.ms - a.ms))[0];
-      if (!best) return;
-      const text = best.text.length > 180 ? best.text.slice(0, 177).replace(/\s+\S*$/, '') + '...' : best.text;
-      top.textContent = '';
-      top.append(el('blockquote', null, text), el('p', null, best.name + ' · ' + niceDate(best.ms)));
-      top.hidden = false;
-    })().catch(() => { });
+    near = true;
+    best().catch(() => { });
   }, { rootMargin: '500px 0px' });
   io.observe(band);
+  if (nudge) io.observe(nudge);
 }
 /* One post. A reply (it has a parent) is drawn the same way, smaller, inside the post it answers; it has
    no tag and nobody can answer it, so a discussion stays one level deep. */

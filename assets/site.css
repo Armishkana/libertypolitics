@@ -571,6 +571,11 @@ span.face-lg{font-size:1.7rem}
 .mode-d,.mode-d:hover{color:var(--field)}
 .mode-d[aria-current="page"]{color:var(--field);border-bottom-color:var(--field)}
 .mode svg{flex:none}
+/* While the reader is on the record, the way to the discussion is a filled yellow button, not a quiet tab:
+   it is the one thing the page wants pressed (Armin, 5 October 2026: "a better encouragement to switch"). */
+.mode-d:not([aria-current="page"]){margin:6px;min-height:40px;border-bottom:0;border-radius:999px;background:var(--field);color:var(--on-field)}
+.mode-d:not([aria-current="page"]):hover{background:#FFD52E;color:var(--on-field)}
+.mode-d:not([aria-current="page"]) .mode-n{background:var(--on-field);color:var(--field)}
 .mode-n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;background:var(--field);color:var(--on-field);border-radius:999px;font-size:.8rem;font-weight:800}
 .mode-n[hidden]{display:none}
 .mode-share{flex:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:52px;min-height:52px;padding:0 12px;background:none;border:0;border-left:1px solid var(--line);color:var(--dim);font:600 .92rem/1 var(--body);cursor:pointer;white-space:nowrap}
@@ -609,6 +614,25 @@ html.modes-on{scroll-padding-top:128px}
 .disc .talk{margin-top:24px}
 .talk-ctl .chips{margin-top:0}
 .chips-gap{flex:none;width:1px;margin:8px 4px;background:var(--line)}
+
+/* the page's question, high on the record, shaped like a box to write in. A tap opens the discussion. */
+.nudge{display:grid;gap:10px;max-width:46rem;margin-top:20px;padding:14px;background:var(--panel);border:1px solid var(--field-edge);border-radius:8px;text-decoration:none;color:var(--ink)}
+.nudge:hover{border-color:var(--field)}
+.member-main>.nudge{order:1}
+.nudge-sec{padding:20px 0}
+.nudge-sec + .sec{border-top:0}
+.nudge-sec .nudge{margin-top:0}
+.nudge-q{display:flex;align-items:flex-start;gap:8px;font-size:1.1rem;line-height:1.3}
+.nudge-q svg{flex:none;margin-top:3px;color:var(--field)}
+.nudge-q b{font-weight:700}
+.nudge-n{flex:none;margin-left:auto;padding:3px 9px;background:var(--raise);border-radius:999px;font-size:.82rem;font-weight:700;color:var(--field);white-space:nowrap}
+.nudge-n[hidden],.nudge-top[hidden]{display:none}
+.nudge-top{display:block;padding-left:12px;border-left:3px solid var(--field-edge);color:var(--dim);font-size:.98rem;line-height:1.45;overflow-wrap:anywhere}
+.nudge-top b{color:var(--ink);font-weight:600}
+.nudge-in{display:flex;align-items:center;gap:10px;min-height:52px;padding:4px 4px 4px 16px;background:var(--bg);border:1px solid var(--line);border-radius:999px;color:var(--dim);font-size:.98rem;line-height:1.25}
+.nudge-in>span{flex:1 1 auto;min-width:0}
+.nudge-in i{flex:none;display:inline-flex;align-items:center;min-height:42px;padding:0 16px;background:var(--field);color:var(--on-field);border-radius:999px;font-style:normal;font-weight:700}
+.nudge:hover .nudge-in i{background:#FFD52E}
 
 /* the end of the record: the one thing the record asks for */
 .band-top{margin-top:16px;max-width:44rem;padding:12px 14px;background:rgba(22,20,10,.1);border-left:4px solid var(--on-field);border-radius:var(--r)}
