@@ -257,6 +257,8 @@
     document.addEventListener('click', function (ev) {
       var a = ev.target.closest && ev.target.closest('a[href="#feedback"]');
       if (!a || !(a.hasAttribute('data-kind') || a.hasAttribute('data-about'))) return;
+      /* A note the reader never sent is waiting in the box: open the box as they left it, change nothing. */
+      if (a.className.indexOf('kept') >= 0) { setTimeout(function () { msg.focus({ preventScroll: true }); }, 60); return; }
       subject(a.getAttribute('data-about') || '', a.getAttribute('data-id') || '', a.getAttribute('data-on') || '');
       pick(a.getAttribute('data-kind') || 'wrong');
       var first = K[kind()].link === 2 ? link : msg;
@@ -300,15 +302,25 @@
      transition between a politician's page and the discussion page should be seamless, like maybe a
      different tab"). The mode is in the address (#discussion), so a link can open either one and the
      back button undoes a switch. The script in the head has already set the mode before the page drew;
-     with scripts off both parts are on the page and the switch is two plain links. ---- */
+     with scripts off both parts are on the page and the switch is two plain links.
+     THE ADDRESS ALONE DECIDES WHICH SIDE A PAGE OPENS ON. After that only the reader's own tap, or the
+     back button, changes it. Nothing kept on the device may: until 5 October 2026 a note a reader had
+     typed and not sent opened that page on its discussion at every visit, for as long as the note was
+     kept (Armin: "when I click on different pages the default should not be the discussion"). So
+     LPMode.go refuses to switch until the reader has touched the page. ---- */
   var modes = document.getElementById('modes'), H = document.documentElement;
   if (modes && H.getAttribute('data-mode')) {
     var tabR = document.getElementById('mode-record'), tabD = document.getElementById('mode-discussion'), keepY = 0;
     var isDisc = function (h) { return h === '#discussion' || h === '#feedback' || h === '#talk' || h.indexOf('#p-') === 0; };
+    /* "Discussions" in the menu is the front page's discussion: on that page it is lit while it is open. */
+    var feedNav = document.querySelector('#talk[data-feed]') ? document.querySelectorAll('header.top nav a[href$="#discussion"],.subnav a[href$="#discussion"]') : [];
+    var touched = false;
+    ['pointerdown', 'keydown'].forEach(function (t) { window.addEventListener(t, function () { touched = true; }, true); });
     var paint = function (m) {
       H.setAttribute('data-mode', m);
       if (m === 'record') { tabR.setAttribute('aria-current', 'page'); tabD.removeAttribute('aria-current'); }
       else { tabD.setAttribute('aria-current', 'page'); tabR.removeAttribute('aria-current'); }
+      Array.prototype.forEach.call(feedNav, function (a) { if (m === 'discussion') a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     };
     /* The top of the discussion sits right under the switch. A reader who is already near the top of the
        page stays where they are; one who was far down the record is brought up to it. */
@@ -338,7 +350,7 @@
     });
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
-    window.LPMode = { go: function (m) { if (H.getAttribute('data-mode') !== m) put(m === 'record' ? '' : '#discussion'); setMode(m); }, is: function () { return H.getAttribute('data-mode'); } };
+    window.LPMode = { go: function (m) { if (!touched) return false; if (H.getAttribute('data-mode') !== m) put(m === 'record' ? '' : '#discussion'); setMode(m); return true; }, is: function () { return H.getAttribute('data-mode'); } };
   }
 
   /* ---- share this page: the phone's own share sheet where there is one, the link copied where there is not ---- */

@@ -863,13 +863,16 @@ function boxParts() {
 }
 function pageOn() { const t = $('talk'); return (t && t.getAttribute('data-on')) || ''; }
 function pageName() { const t = $('talk'); return (t && t.getAttribute('data-name')) || ''; }
-function saveDraft() {
+/* at: when the note was last written. Putting a kept note back in the box is not writing it, so it keeps
+   its own time: before 5 October 2026 every visit made the note new again and its 14 days never ran out. */
+function saveDraft(at) {
   const b = boxParts();
   if (!b) return;
   const text = b.msg.value, url = b.link.value;
-  if (!text.trim() && !url.trim()) { const d = store.get(KEY.draft); if (d && d.path === location.pathname) store.set(KEY.draft, null); return; }
+  if (!text.trim() && !url.trim()) { const d = store.get(KEY.draft); if (d && d.path === location.pathname) store.set(KEY.draft, null); keptMark(''); return; }
   const m = /^(.*) \[([^\]]*)\]$/.exec(b.ctx.value);
-  store.set(KEY.draft, { path: location.pathname, kind: b.B.kind(), text, url, mine: b.mine.checked, label: m ? m[1] : '', id: m ? m[2] : '', on: b.f.getAttribute('data-on') || '', at: Date.now() });
+  store.set(KEY.draft, { path: location.pathname, kind: b.B.kind(), text, url, mine: b.mine.checked, label: m ? m[1] : '', id: m ? m[2] : '', on: b.f.getAttribute('data-on') || '', at: typeof at === 'number' ? at : Date.now() });
+  keptMark(text.trim() || url.trim());
 }
 function putDraft(d) {
   const b = boxParts();
@@ -878,7 +881,26 @@ function putDraft(d) {
   b.B.pick(d.kind);
   b.msg.value = d.text || ''; b.link.value = d.url || ''; b.mine.checked = !!d.mine;
   b.B.shape();
-  saveDraft();
+  saveDraft(d.at);
+}
+/* A note the reader wrote and never sent. It NEVER decides which side of the page opens: the address alone
+   does that, and a page with no "#discussion" in it opens on the record (Armin, 5 October 2026: "when I
+   click on different pages the default should not be the discussion"). The record says the note is waiting
+   instead, in the two places that already ask for the discussion: the question near the top and the band
+   at the end. A tap on either opens the box as the reader left it. */
+let kept = '', discCount = 0;
+function keptMark(text) {
+  kept = text || '';
+  const nd = $('nudge'), ph = $('nudge-ph'), go = $('band-go'), tab = $('mode-discussion');
+  if (nd && ph) {
+    if (!ph.hasAttribute('data-was')) ph.setAttribute('data-was', ph.textContent);
+    nd.classList.toggle('kept', !!kept);
+    ph.textContent = kept ? 'Your unsent note: “' + (kept.length > 48 ? kept.slice(0, 46).trimEnd() + '…' : kept) + '”'
+      : discCount > 0 ? 'Agree, or not? Add what you think.' : ph.getAttribute('data-was');
+    const i = nd.querySelector('.nudge-in i'); if (i) i.textContent = kept ? 'Finish it' : 'Discuss';
+  }
+  if (go) go.textContent = kept ? 'Finish your unsent note' : 'Open the discussion' + (discCount > 0 ? ' (' + (discCount > 99 ? '99+' : discCount) + ')' : '');
+  if (tab) tab.setAttribute('aria-label', (discCount > 0 ? 'Discussion, ' + discCount + (discCount === 1 ? ' post' : ' posts') : 'Discussion') + (kept ? ', your unsent note is here' : ''));
 }
 function paintBox() {
   const who = $('fbwho');
@@ -894,8 +916,8 @@ function initBox() {
   if (d && d.path === location.pathname && Date.now() - (d.at || 0) < 14 * 86400000 && !b.msg.value && !b.link.value) {
     putDraft(d);
     b.B.say('What you wrote earlier is back in the box.');
-    /* The box is in the discussion. A reader who comes back to a note they never sent is shown it. */
-    if (window.LPMode) window.LPMode.go('discussion');
+    /* The box is in the discussion, and the page stays on the side its address asked for. putDraft has
+       already told the record that a note is waiting (keptMark). */
   }
   let t = 0;
   const later = () => { clearTimeout(t); t = setTimeout(saveDraft, 300); };
@@ -983,6 +1005,7 @@ function clearBox(b) {
   b.msg.value = ''; b.link.value = ''; b.mine.checked = false;
   b.B.subject('', '', ''); b.B.shape();
   store.set(KEY.draft, null);
+  keptMark('');
 }
 /* A post on a page: one document in Firebase, written together with the time of the author's newest post
    (the rules allow one each 30 seconds). tag and parent (the post a reply answers) came with the second
@@ -1314,16 +1337,16 @@ function drawCtl(every) {
 /* The number on the switch, and at the end of the record. Shown only when there is something to count:
    a new place that shows a zero looks abandoned. */
 function setCount(n) {
-  const b = $('disc-n'), p = $('band-p'), go = $('band-go');
+  const b = $('disc-n'), p = $('band-p');
+  discCount = n > 0 ? n : 0;
   if (b) { b.hidden = !(n > 0); b.textContent = n > 99 ? '99+' : String(n); }
-  const tab = $('mode-discussion');
-  if (tab) tab.setAttribute('aria-label', n > 0 ? 'Discussion, ' + n + (n === 1 ? ' post' : ' posts') : 'Discussion');
   if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = (n === 1 ? '1 post so far.' : n + ' posts so far.') + ' Read ' + (n === 1 ? 'it' : 'them') + ', and say where you stand.'; }
-  if (n > 0 && go) go.textContent = 'Open the discussion (' + (n > 99 ? '99+' : n) + ')';
-  /* The same number on the question high on the record, and words that fit a discussion already going. */
-  const nn = $('nudge-n'), ph = $('nudge-ph');
+  /* The same number on the question high on the record. */
+  const nn = $('nudge-n');
   if (nn) { nn.hidden = !(n > 0); nn.textContent = n > 99 ? '99+ posts' : n === 1 ? '1 post' : n + ' posts'; }
-  if (n > 0 && ph) ph.textContent = 'Agree, or not? Add what you think.';
+  /* The words on the button at the end of the record, on the question near the top and on the switch:
+     one place writes them, because a note the reader never sent changes all three (keptMark). */
+  keptMark(kept);
 }
 /* Before a reader has opened the discussion: how many posts it holds, asked for with one small request and
    without Firebase's own code (one read, whatever the number), and, once the end of the record is near the
