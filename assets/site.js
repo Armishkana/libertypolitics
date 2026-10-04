@@ -51,7 +51,8 @@
         var g = el('span', 'g g-sm g-' + (m.g ? m.g[0].toLowerCase() : 'n'), m.g || (m.h ? '–' : '?'));
         var who = el('span', 'who');
         who.appendChild(el('strong', null, m.n)); who.appendChild(el('span', 'dim', ' ' + m.p + ' · ' + m.s + ' · ' + m.c));
-        a.appendChild(g); a.appendChild(who); li.appendChild(a); hits.appendChild(li);
+        if (m.i) { var im = el('img', 'face ' + m.p); im.src = root + m.i; im.alt = ''; im.width = 40; im.height = 40; a.appendChild(im); }
+        a.appendChild(who); a.appendChild(g); li.appendChild(a); hits.appendChild(li);
       });
       if (all.length > out.length) {
         var ml = el('li'), ma = el('a', 'allhits', 'See all ' + all.length + ' on the scorecard');
@@ -189,7 +190,7 @@
         ctx.value = a.getAttribute('data-about') + ' [' + (a.getAttribute('data-id') || '') + ']';
         about.textContent = 'About: ' + a.getAttribute('data-about');
         about.hidden = false;
-        var r = fb.querySelector('input[type=radio][value=fact]');
+        var r = fb.querySelector('input[type=radio][value=' + (a.getAttribute('data-kind') || 'fact') + ']');
         if (r) r.checked = true;
         setTimeout(function () { msg.focus({ preventScroll: true }); }, 60);
       });
@@ -212,6 +213,12 @@
         say('That did not send. Check your connection and try again.', true);
       });
     });
+  }
+
+  /* ---- the button in the corner leads to the note box, so it steps aside while the box is on screen ---- */
+  var fab = document.getElementById('fab'), box = document.getElementById('feedback');
+  if (fab && box && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) { fab.classList.toggle('off', es[0].isIntersecting); }).observe(box);
   }
 
   /* ---- copy the link ---- */
