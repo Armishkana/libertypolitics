@@ -76,7 +76,7 @@
   var list = document.getElementById('all');
   if (list) {
     var q = document.getElementById('q'), fc = document.getElementById('f-chamber'), fp = document.getElementById('f-party'),
-      fs = document.getElementById('f-state'), so = document.getElementById('f-sort'), fb0 = document.getElementById('f-ballot'),
+      fs = document.getElementById('f-state'), so = document.getElementById('f-sort'), fb0 = document.getElementById('f-ballot'), fg = document.getElementById('f-grade'),
       count = document.getElementById('count'), items = Array.prototype.slice.call(list.children);
     items.forEach(function (li, i) { li._i = i; li._t = li.dataset.k.split(' '); });
     var params = new URLSearchParams(location.search);
@@ -85,7 +85,7 @@
       var qq = words(q.value), n = 0;
       items.forEach(function (li) {
         var d = li.dataset, ok = (!qq.length || matches(qq, li._t, d.s)) && (!fc.value || d.c === fc.value) && (!fp.value || d.p === fp.value) &&
-          (!fs.value || d.s === fs.value) && (!fb0.checked || d.b === '1');
+          (!fs.value || d.s === fs.value) && (!fg.value || d.g === fg.value) && (!fb0.checked || (d.b === '1' && d.c === 'Senate'));
         li.hidden = !ok; if (ok) n++;
       });
       count.textContent = n === items.length ? 'Showing all ' + n + ' members.' :
@@ -102,7 +102,7 @@
       });
       items.forEach(function (li) { list.appendChild(li); });
     }
-    [q, fc, fp, fs, fb0].forEach(function (c) { c.addEventListener('input', apply); c.addEventListener('change', apply); });
+    [q, fc, fp, fs, fg, fb0].forEach(function (c) { c.addEventListener('input', apply); c.addEventListener('change', apply); });
     so.addEventListener('change', function () { sort(); apply(); });
     apply();
   }

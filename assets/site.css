@@ -141,6 +141,7 @@ span.face{display:inline-flex;align-items:center;justify-content:center;font:800
 @media(min-width:760px){.steps{grid-template-columns:repeat(3,1fr);gap:28px}}
 .steps strong{display:block;font:800 1.5rem/1 var(--display);text-transform:uppercase;margin-bottom:6px}
 .steps span{color:var(--dim)}
+.facts3 a{color:var(--ink);font-weight:600}
 
 /* call to join */
 .call h2{font-size:clamp(2.4rem,9vw,4.5rem);font-weight:900}
@@ -149,7 +150,7 @@ span.face{display:inline-flex;align-items:center;justify-content:center;font:800
 
 /* list tools */
 .tools{display:grid;gap:10px;margin-top:20px}
-@media(min-width:760px){.tools{grid-template-columns:2fr 1fr 1fr 1fr 1.2fr}}
+@media(min-width:760px){.tools{grid-template-columns:2fr 1fr 1fr 1fr 1fr 1.2fr}}
 .tools input,.tools select{background:var(--panel);color:var(--ink);border:1px solid var(--line);min-height:48px;font-size:1rem}
 .tools input::placeholder{color:var(--dim)}
 .tools label{display:block;font-size:.8rem;font-weight:700;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
@@ -214,6 +215,12 @@ span.portrait{display:flex;align-items:center;justify-content:center;font:900 2.
 .out.aligned dd{color:var(--ga)}.out.against dd{color:var(--gf)}.out.none dd{color:var(--dim)}
 .vote .links{margin-top:12px;display:flex;flex-wrap:wrap;gap:4px 18px;font-size:.92rem}
 .vote .links a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
+
+/* vote pages: tighter member rows, the party split under a count, and titles that link to a vote */
+.tight .person{min-height:56px;padding:6px 10px}
+.tight .face{width:40px;height:40px}
+.sides dd.by{color:var(--dim);font-weight:400;font-size:.88rem}
+.vote h3 a,.reg strong a{display:inline-block;min-height:0;padding:10px 0;margin:-10px 0;font:inherit}
 
 /* prose pages */
 .prose{max-width:68ch}
