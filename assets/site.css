@@ -745,3 +745,54 @@ footer{padding-bottom:84px}
 .mode-share.yq-share span{display:none}
 @media(min-width:620px){.mode-share.yq-share span{display:inline}}
 .yq-sh{margin-top:8px;font-size:.95rem;max-width:60ch}
+/* the discussion as a conversation (5 October 2026, Armin: "Improve the discussion sections ... people
+   should be able to reply to each other ... Make it a lot better"). A post is a face, a name, how long ago,
+   then the words with no quote bar. Replies are a thread under the post, not boxes inside a box. On a phone
+   the likes are a thumb and a number, so likes, Reply and Report share one line. */
+.said-head{display:flex;align-items:center;gap:10px}
+.said-head .meta{flex:1;min-width:0;gap:4px 8px}
+.said .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;overflow-wrap:anywhere}
+.said .who b{font-size:.98rem}
+.said-sub{white-space:nowrap}
+.av{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--raise);color:var(--ink);font:800 1rem/1 var(--body)}
+.av img{display:block;width:100%;height:100%;object-fit:cover}
+.av-0{background:oklch(.40 .07 25)}
+.av-1{background:oklch(.40 .06 75)}
+.av-2{background:oklch(.40 .06 150)}
+.av-3{background:oklch(.40 .06 205)}
+.av-4{background:oklch(.40 .07 265)}
+.av-5{background:oklch(.40 .07 325)}
+.av-host{background:var(--bg);border:2px solid var(--field)}
+.said .meta .tag.host{color:var(--on-field);background:var(--field);border-color:var(--field)}
+.said blockquote{margin-top:12px;padding:0;border-left:0;max-width:66ch}
+.said .at{font-weight:700;color:var(--field)}
+.said-bar{gap:6px;margin-top:12px}
+.vt{justify-content:center;min-width:56px;padding:0 12px}
+.said-acts{flex:1 1 auto;margin-left:0;gap:4px}
+.said-acts .rp,.said-acts .del-b{margin-left:auto}
+@media(max-width:520px){
+  .vt>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .said-acts{flex:1 1 auto;margin-left:0}
+  .said-acts .reply-b{margin-left:0}
+}
+.replies .said-acts{flex:1 1 auto}
+.said-go{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:999px;color:var(--ink);font:700 .92rem/1 var(--body);text-decoration:none}
+.said-go:hover{background:var(--raise)}
+.del-b{min-height:44px;padding:0 6px;background:none;border:0;color:var(--dim);font:600 .9rem/1 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.del-b:hover{color:var(--ink)}
+.del-b.armed{color:var(--gf);font-weight:700}
+.del-b[disabled]{cursor:default;text-decoration:none}
+/* the thread: one thin line down the side, replies as rows on it */
+.replies{margin:14px 0 0;padding:0 0 0 14px;border-left:1px solid var(--line);gap:14px}
+.replies .vote{padding:0;background:none;border:0;border-radius:0}
+.replies .said.own{padding:10px 12px;border:1px dashed var(--field-edge);border-radius:var(--r)}
+.replies .av{width:28px;height:28px;font-size:.8rem}
+.replies .said blockquote{margin-top:8px}
+.replies .said-bar{margin-top:6px}
+.replies .vt{min-width:52px;background:none}
+.thread-more{display:inline-flex;align-items:center;min-height:44px;margin:6px 0 0 14px;padding:0;background:none;border:0;color:var(--field);font:700 .92rem/1 var(--body);cursor:pointer}
+.thread-more:hover{text-decoration:underline;text-underline-offset:3px}
+.reply-f{margin-top:10px}
+.reply-f textarea:focus-visible{border-color:var(--field);outline:0}
+/* the box at rest: the question, a place to type, the button. site.js wakes it on the first tap. */
+.fb.rest fieldset,.fb.rest .fbsend .fbhint,.fb.rest .fbwho{display:none}

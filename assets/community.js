@@ -119,6 +119,27 @@ function channelOf(url) {
 }
 function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (x) { return 'the site'; } }
 function niceDate(ms) { return new Date(ms).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+/* How long ago, the way a person would say it. Past a week it is the date. */
+function ago(ms) {
+  const s = Math.max(0, (Date.now() - ms) / 1000), n = (v, w) => v + ' ' + w + (v === 1 ? '' : 's') + ' ago';
+  if (s < 60) return 'just now';
+  if (s < 3600) return n(Math.floor(s / 60), 'minute');
+  if (s < 86400) return n(Math.floor(s / 3600), 'hour');
+  if (s < 7 * 86400) { const d = Math.floor(s / 86400); return d === 1 ? 'yesterday' : n(d, 'day'); }
+  return niceDate(ms);
+}
+/* The face beside a name: its first letter on one of six quiet grounds, picked by the name so the same
+   reader looks the same everywhere. None of the six is a party's colour or a grade's. A name only the
+   people who run the site can hold (reservedName) gets the site's own mark instead. */
+function face(name) {
+  const f = el('span', 'av', null, { 'aria-hidden': 'true' });
+  if (reservedName(name)) { f.classList.add('av-host'); f.append(el('img', null, null, { src: root + 'assets/seal.png', alt: '', width: '36', height: '36', decoding: 'async' })); return f; }
+  let h = 0;
+  for (const c of String(name)) h = (h * 31 + c.codePointAt(0)) % 9973;
+  f.classList.add('av-' + (h % 6));
+  f.textContent = ((/[A-Za-z0-9]/.exec(name) || ['?'])[0]).toUpperCase();
+  return f;
+}
 /* The page a discussion belongs to, from its key. null when the key is not one of ours: the front page is
    the empty address, so '' is an answer. render.py works it out the same way (subject_of), and
    build/phone-test.html checks the two agree. The same keys are the only ones the rules take. */
@@ -1028,7 +1049,11 @@ async function postIt(d) {
     const batch = F.writeBatch(db);
     batch.set(ref, data); batch.update(F.doc(db, 'users', user.uid), mark);
     await batch.commit();
-    Object.assign(profile, mark, { lastPostAt: { toMillis: () => Date.now() } });
+    /* The time of THIS post, kept as a number. Until 5 October 2026 this answered with the time of asking,
+       so after one post every later post or reply from the same page was told "wait 31 seconds" for good,
+       until the reader loaded the page again. Found by the first test that sent twice from one page. */
+    const sentAt = Date.now();
+    Object.assign(profile, mark, { lastPostAt: { toMillis: () => sentAt } });
     return Object.assign({ tag: '', parent: '' }, data, { id: ref.id, ms: Date.now(), fresh: true, my: 0, reported: false });
   };
   let post;
@@ -1112,7 +1137,7 @@ function initTalk() {
      under the post they answer, with the order and the kinds to pick from once there is enough to sort. */
   const full = sec.hasAttribute('data-full'), page = sec.classList.contains('talk-all');
   T = { el: sec, feed: sec.hasAttribute('data-feed'), all: page || full, full, key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
-    what: sec.getAttribute('data-what') || 'this page', empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null };
+    what: sec.getAttribute('data-what') || 'this page', empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null, open: new Set() };
   T.list = el('ul', 'votes talk-list');
   const go = sec.querySelector('.talk-go');
   if (go) sec.insertBefore(T.list, go); else sec.append(T.list);
@@ -1186,6 +1211,8 @@ async function loadTalk(quiet) {
     if (seq !== T.seq) return;
     T.state = e && e.code === 'lp/off' ? 'off' : 'err';
   }
+  /* A link to a reply opens the thread it is in, or the reply would not be on the page to land on. */
+  if (T.state === 'ok' && location.hash.indexOf('#p-') === 0) { const t = find(location.hash.slice(3)); if (t && t.parent) T.open.add(t.parent); }
   drawTalk();
   if (T.state === 'ok' && location.hash.indexOf('#p-') === 0) { const r = $(location.hash.slice(1)); if (r) r.scrollIntoView({ block: 'center' }); }
 }
@@ -1404,17 +1431,34 @@ function initPeek() {
   io.observe(band);
   if (nudge) io.observe(nudge);
 }
-/* One post. A reply (it has a parent) is drawn the same way, smaller, inside the post it answers; it has
-   no tag and nobody can answer it, so a discussion stays one level deep. */
+/* The reader a reply answers, when it starts with their name ("@Dana K the 2019 vote..."): the longest name
+   in that thread the words start with. Empty when it starts with no name from the thread. */
+function mention(p) {
+  if (!p.parent || p.text.charAt(0) !== '@') return '';
+  const par = find(p.parent), names = (par ? [par.name] : []).concat(repliesTo(p.parent).map(r => r.name)).sort((a, b) => b.length - a.length);
+  return names.find(n => p.text.startsWith('@' + n) && !/[A-Za-z0-9]/.test(p.text.charAt(n.length + 1))) || '';
+}
+/* One post, drawn the way a conversation reads: a face, a name, how long ago, then the words. A reply (it
+   has a parent) is drawn the same way, smaller, in the thread under the post it answers, and has no tag.
+   A reply can be answered too: the answer is filed under the same post and starts with the name of the
+   reader it answers, so a discussion is a list of threads and never a tree (Armin, 5 October 2026:
+   "people should be able to reply to each other"). */
 function row(p, best) {
   const li = el('li', 'vote said' + (p.status !== 'live' ? ' own' : '') + (p.parent ? ' reply' : ''), null, { id: 'p-' + p.id });
-  const meta = el('div', 'meta'), who = el('span');
-  who.append(el('b', null, p.name), (p.parent ? ' replied · ' : ' · ') + niceDate(p.ms));
+  const head = el('div', 'said-head'), meta = el('div', 'meta'), who = el('span', 'who');
+  /* "Dana K replied 2 hours ago": the part after the name stays together, so on a narrow screen it moves under the name whole. */
+  const sub = el('span', 'said-sub', p.parent ? 'replied ' : '');
+  sub.append(el('time', 'said-when', ago(p.ms), { datetime: new Date(p.ms).toISOString(), title: niceDate(p.ms) }));
+  who.append(el('b', null, p.name), ' ', sub);
   meta.append(who);
-  if (!p.parent) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
+  /* Only the people who run the site can hold such a name (the rules refuse it to everyone else). */
+  if (reservedName(p.name)) meta.append(el('span', 'tag host', 'Host'));
+  /* A plain opinion needs no label: it is what a post is. A video, a link, a correction, a bug or an idea says so. */
+  if (!p.parent && (p.tag || p.kind !== 'opinion')) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
   if (p.mine) meta.append(el('span', 'tag', 'Made it'));
   if (best) meta.append(el('span', 'tag best', 'Most liked'));
-  li.append(meta);
+  head.append(face(p.name), meta);
+  li.append(head);
   if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', 'In: ' + nameOf(p.about, p.subject), { href: root + pathOf(p.about) + '#p-' + p.id }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
   else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) li.append(el('p', 'said-about', 'About: ' + p.subject));
@@ -1428,7 +1472,11 @@ function row(p, best) {
     a.append(el('span', 'tv-go', null, { 'aria-hidden': 'true' }), cap);
     box.append(a); li.append(box);
   }
-  if (p.text) li.append(el('blockquote', null, p.text));
+  if (p.text) {
+    const q = el('blockquote'), to = mention(p);
+    if (to) q.append(el('b', 'at', '@' + to), p.text.slice(to.length + 1)); else q.textContent = p.text;
+    li.append(q);
+  }
   if (p.kind !== 'opinion' && !emb && URL_OK.test(p.url)) li.append(el('a', 'said-link', 'Open the link on ' + hostOf(p.url), { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
   if (p.status !== 'live') {
     const note = el('p', 'said-note');
@@ -1450,45 +1498,98 @@ function row(p, best) {
     if (own) { b.disabled = true; b.title = 'You cannot like or unlike your own post'; }
     bar.append(b);
   });
-  /* Reply: on a post that answers nobody, where the whole discussion is or on the page itself, and only
-     once the rules that take a reply are live. */
-  /* Reply and Report share the end of the bar: beside the likes where there is room, on a line of their own on a phone. */
+  /* Reply: on a post and on every reply under it, on the page the discussion belongs to, and only once the
+     rules that take a reply are live. The box opens right under whatever was tapped. An answer to a reply
+     goes into the same thread (top is the post the thread hangs from) and starts with that reader's name. */
+  /* Reply sits beside the likes; Report, or Delete on a reader's own post, at the end of the same line. */
   const acts = el('div', 'said-acts');
-  if (!p.parent && !T.feed && T.v2) {
-    const open = !!(T.replying && T.replying.id === p.id);
-    const rb = btn('reply-b', 'Reply', () => { T.replying = open ? null : { id: p.id, text: '' }; redraw(p, open ? 'reply-b' : 'reply-in'); });
+  if (!T.feed && T.v2) {
+    const top = p.parent || p.id, at = p.parent ? p.id : '', pre = p.parent ? '@' + p.name + ' ' : '';
+    const open = !!(T.replying && T.replying.id === top && (T.replying.at || '') === at);
+    const rb = btn('reply-b', 'Reply', () => {
+      T.replying = open ? null : { id: top, at, pre, text: pre };
+      const q = find(top);
+      if (q) redraw(q, open ? '' : 'reply-in');
+    });
     rb.setAttribute('aria-expanded', String(open));
     acts.append(rb);
+  } else if (T.feed && T.v2 && pathOf(p.about) != null) {
+    /* All discussions: the post being answered lives on its own page, so Reply is the way there. */
+    acts.append(el('a', 'said-go', 'Reply', { href: root + pathOf(p.about) + '#p-' + p.id }));
   }
-  if (!own) acts.append(reportCtl(p));
+  const last = own ? delCtl(p) : reportCtl(p);
+  if (last) acts.append(last);
   if (acts.firstChild) bar.append(acts);
   li.append(bar);
   if (p.msg) li.append(el('p', 'said-msg' + (p.msgBad ? ' bad' : ''), p.msg, { role: 'status' }));
+  if (p.parent && T.replying && T.replying.at === p.id && T.replying.id === p.parent) { const par = find(p.parent); if (par) li.append(replyBox(par, p)); }
   if (!p.parent && !T.feed) hang(li, p);
   return li;
+}
+/* Delete, for the author. A post other readers have answered stays: taking it away would take their
+   answers out of sight with it. Two taps, because it cannot be undone. */
+function delCtl(p) {
+  if (T.feed || (!p.parent && repliesTo(p.id).length)) return null;
+  const b = btn('del-b', 'Delete');
+  let armed = 0;
+  b.addEventListener('click', async () => {
+    if (!armed) {
+      b.textContent = 'Tap again to delete'; b.classList.add('armed');
+      armed = setTimeout(() => { armed = 0; b.textContent = 'Delete'; b.classList.remove('armed'); }, 5000);
+      return;
+    }
+    clearTimeout(armed); b.disabled = true; b.textContent = 'Deleting';
+    try {
+      await within(25000, fb());
+      if (!user || user.uid !== p.uid) throw { code: 'permission-denied' };
+      await within(20000, S.F.deleteDoc(S.F.doc(S.db, 'posts', p.id)));
+      const q = find(p.id);
+      if (q) q.gone = true;
+      T.rev++;
+      drawTalk();
+    } catch (e) {
+      const q = find(p.id) || p;
+      q.msg = 'That did not delete. ' + words(e); q.msgBad = true;
+      redraw(q);
+    }
+  });
+  return b;
 }
 /* What hangs under a post: the box for a reply while it is open, and the replies. On a page that shows only
    the top three posts the replies are one line that leads to them; on the discussion page they are all there. */
 function hang(li, p) {
-  if (T.replying && T.replying.id === p.id) li.append(replyBox(p));
+  if (T.replying && T.replying.id === p.id && !T.replying.at) li.append(replyBox(p));
   const rs = repliesTo(p.id);
   if (!rs.length) return;
-  if (T.all) { const ul = el('ul', 'replies'); rs.forEach(r => ul.append(row(r, false))); li.append(ul); return; }
+  if (T.all) {
+    /* A long thread shows its first two replies and a way to the rest, so one argument does not bury the
+       posts under it. It is open once the reader asks, while they are answering in it, and whenever one of
+       its replies is their own new one or one only they can see. */
+    const whole = rs.length <= 3 || T.open.has(p.id) || (T.replying && T.replying.id === p.id) || rs.some(r => r.fresh || r.status !== 'live');
+    const ul = el('ul', 'replies');
+    (whole ? rs : rs.slice(0, 2)).forEach(r => ul.append(row(r, false)));
+    li.append(ul);
+    if (!whole) li.append(btn('thread-more', 'Show ' + (rs.length - 2) + ' more replies', () => { T.open.add(p.id); redraw(p); }));
+    return;
+  }
   const mine = rs.filter(r => r.fresh || r.status !== 'live');
   if (mine.length) { const ul = el('ul', 'replies'); mine.forEach(r => ul.append(row(r, false))); li.append(ul); }
   const rest = rs.length - mine.length;
   if (rest) li.append(el('a', 'said-more', (mine.length ? 'And ' : 'Read ') + (rest === 1 ? '1 ' + (mine.length ? 'more ' : '') + 'reply' : rest + ' ' + (mine.length ? 'more ' : '') + 'replies'), { href: root + 'talk/?on=' + encodeURIComponent(p.about) + '#p-' + p.id }));
 }
-function replyBox(p) {
-  const f = el('form', 'reply-f', null, { novalidate: '' }), id = 're-' + p.id;
-  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: 'Answer ' + p.name + ' in your own words.' });
+/* The box for a reply. p is the post the thread hangs from; to is the reply being answered, when it is one. */
+function replyBox(p, to) {
+  const f = el('form', 'reply-f', null, { novalidate: '' }), id = 're-' + p.id, name = (to || p).name;
+  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: 'Answer ' + name + ' in your own words.' });
   const line = el('p', 'said-msg', '', { role: 'status', 'aria-live': 'polite' });
   const go = el('button', 'btn btn-key', 'Send reply', { type: 'submit' });
   const no = btn('btn btn-line', 'Cancel', () => { T.replying = null; redraw(p, 'reply-b'); });
   const acts = el('div', 'row'); acts.append(go, no);
   ta.value = T.replying.text || '';
   ta.addEventListener('input', () => { if (T.replying && T.replying.id === p.id) T.replying.text = ta.value; });
-  f.append(el('label', 'vh', 'Your reply to ' + p.name, { for: id }), ta, acts, line);
+  /* Ctrl and Enter (Command and Enter on a Mac) sends, the way it does everywhere people argue. */
+  ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); go.click(); } });
+  f.append(el('label', 'vh', 'Your reply to ' + name, { for: id }), ta, acts, line);
   if (T.replying.msg) { line.textContent = T.replying.msg; line.className = 'said-msg' + (T.replying.bad ? ' bad' : ''); }
   f.addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -1503,13 +1604,15 @@ function replyBox(p) {
 async function sendReply(id, raw) {
   let p = find(id);
   const text = String(raw || '').trim();
-  const say = (msg, bad) => { T.replying = { id, text: raw, msg, bad }; const q = find(id); if (q) redraw(q, 'reply-in'); return false; };
+  /* Which reply in the thread is being answered, and the name the box began with, are kept through a refusal or a sign-in. */
+  const cur = T.replying && T.replying.id === id ? T.replying : {}, keep = () => ({ id, at: cur.at || '', pre: cur.pre || '', text: raw });
+  const say = (msg, bad) => { T.replying = Object.assign(keep(), { msg, bad }); const q = find(id); if (q) redraw(q, 'reply-in'); return false; };
   if (!p || p.status !== 'live') return false;
-  if (text.length < 8) return say('Write a few words first.', true);
+  if (text.length < 8 || (cur.pre && text === cur.pre.trim())) return say('Write a few words first.', true);
   if (text.length > MAX) return say('That is ' + text.length + ' characters. Keep it to ' + MAX + '.', true);
   const opener = $('p-' + id) && $('p-' + id).querySelector('.reply-b');
   if (!me) {
-    T.replying = { id, text: raw };
+    T.replying = keep();
     pending = { type: 'reply', id, text: raw };
     openSheet('auth', { why: 'Your reply is saved. Create an account to send it.', whyIn: 'Your reply is saved. Sign in to send it.', opener });
     if (!OFF) fb().catch(() => { });
@@ -1522,7 +1625,7 @@ async function sendReply(id, raw) {
     p = find(id) || p;
     T.replying = null;      // postIt draws the reply under the post; the box must be gone by then
     try { await within(30000, postIt({ text, url: '', made: false, on: p.about, subject: p.subject || T.name, tag: '', parent: id, v2: true })); }
-    catch (e) { T.replying = { id, text: raw }; throw e; }
+    catch (e) { T.replying = keep(); throw e; }
     return true;
   } catch (e) {
     if (e && e.code === 'lp/pace') return say('You posted a moment ago. Wait ' + e.wait + ' seconds, then send it again. Your reply is kept.', true);
@@ -1536,7 +1639,15 @@ function redraw(p, keep) {
   const fresh = row(p, best);
   old.replaceWith(fresh);
   const cls = String(keep || had || '').split(' ').filter(Boolean), again = cls.length ? fresh.querySelector('.' + cls.join('.')) : null;
-  if (again && !again.disabled) { try { again.focus({ preventScroll: true }); } catch (x) { } }
+  if (again && !again.disabled) {
+    try { again.focus({ preventScroll: true }); } catch (x) { }
+    /* A reply box that opens with a name in it puts the caret after the name, and comes into view if it opened off the screen. */
+    if (again.tagName === 'TEXTAREA') {
+      try { again.setSelectionRange(again.value.length, again.value.length); } catch (x) { }
+      const r = again.getBoundingClientRect();
+      if (r.bottom > window.innerHeight - 90 || r.top < 130) { try { again.scrollIntoView({ block: 'center' }); } catch (x) { } }
+    }
+  }
 }
 const find = id => T && T.posts.find(p => p.id === id);
 /* Needs an account whose email is confirmed. Answers true when the reader has one right now; otherwise

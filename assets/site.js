@@ -242,17 +242,27 @@
       about.hidden = !label;
       /* A reader who came from one line of the record and wants to talk about the whole page can drop the line. */
       if (label) {
+        wake();
         var x = document.createElement('button');
         x.type = 'button'; x.className = 'fbabout-x'; x.textContent = 'Remove'; x.setAttribute('aria-label', 'Remove what this post is about');
         x.addEventListener('click', function () { subject('', '', ''); shape(); msg.focus(); });
         about.appendChild(x);
       }
     }
-    function pick(want) { radios.forEach(function (r) { r.checked = r.value === want; }); say(''); shape(); }
+    function pick(want) { radios.forEach(function (r) { r.checked = r.value === want; }); say(''); shape(); wake(); }
     radios.forEach(function (r) { r.addEventListener('change', function () { say(''); shape(); }); });
     mine.addEventListener('change', shape);
     msg.addEventListener('input', tally);
     shape();
+    /* The box rests small until a reader comes to it: the question, a place to type and the button. The kinds
+       and the line about an account show once they tap in, pick a kind or have words in it. It wakes one way
+       only and never shrinks back while the page is open, so nothing can vanish from under a finger. With
+       scripts off it is never put to rest. Why: on a phone the whole box filled the first screen of every
+       discussion, and a reader saw a form before they saw a single post. */
+    var fbsec = document.getElementById('feedback');
+    function wake() { if (fbsec) fbsec.classList.remove('rest'); }
+    if (fbsec && !msg.value && !link.value) fbsec.classList.add('rest');
+    fb.addEventListener('focusin', wake); fb.addEventListener('input', wake); fb.addEventListener('change', wake);
     /* Buttons that open the box are found when they are tapped, so the ones community.js draws later work too. */
     document.addEventListener('click', function (ev) {
       var a = ev.target.closest && ev.target.closest('a[href="#feedback"]');
