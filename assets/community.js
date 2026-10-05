@@ -22,6 +22,35 @@ const D = document, root = D.documentElement.getAttribute('data-root') || './';
 const $ = id => D.getElementById(id);
 const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (x) { return null; } })();
 
+/* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
+   may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
+   before this one (iranuncensored.com: assets/community-en.js and assets/community-fa.js, made by its
+   render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
+   in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
+   tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
+   another sentence for it; the {parts} are filled in after that, numbers in the site's own digits.
+   site-iu/build/test_discussion.py fails when a key here has no Persian. */
+const SITE = (window.LPSITE && typeof window.LPSITE === 'object') ? window.LPSITE : {};
+const STR = SITE.strings || null, DIGITS = typeof SITE.digits === 'string' && SITE.digits.length === 10 ? SITE.digits : '';
+const dig = n => (DIGITS ? String(n).replace(/[0-9]/g, d => DIGITS[d]) : String(n));
+function tt(s, v) {
+  let out = STR && typeof STR[s] === 'string' ? STR[s] : s;
+  if (v) out = out.replace(/\{(\w+)\}/g, (m, k) => (k in v ? (typeof v[k] === 'number' ? dig(v[k]) : String(v[k])) : m));
+  return out;
+}
+/* A sentence with one element inside it ("We sent a link to <b>you@example.com</b>. Open it ..."): the
+   words before it, the element, the words after it, in the order the site's language puts them. */
+function ttParts(s, name, node) { const p = tt(s).split('{' + name + '}'); return p.length === 2 ? [p[0], node, p[1]] : [p[0], node]; }
+const RTL = SITE.dir === 'rtl', LANG = SITE.lang || 'en';
+/* Two languages in one room: a site that hands in two "langs" shows every post in the language it was
+   written in, offers a translation of the posts in the other one, and a filter once both are there
+   (langOf, trCtl and langRow, further down). libertypolitics.com hands in none, and has none of it. */
+const ML = Array.isArray(SITE.langs) && SITE.langs.length > 1;
+/* A site that promises its readers nothing is fetched from anywhere else until they ask (iranuncensored.com,
+   for readers inside Iran) hands in quiet: then no count of posts is asked for before a reader opens the
+   discussion, and a shared video shows no picture from YouTube before it is tapped. */
+const QUIET = SITE.quiet === true;
+
 /* The local test emulators. The switch exists only on this machine's own addresses: on any other host
    EMU can never become true, whatever the address says. */
 const LOCAL = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
@@ -32,29 +61,41 @@ if (LOCAL) {
     EMU = sessionStorage.getItem('lpemu') === '1';
   } catch (x) { EMU = false; }
 }
-const DEMO = { apiKey: 'demo-key', authDomain: 'demo-lp.firebaseapp.com', projectId: 'demo-lp', appId: 'demo-lp' };
+const DEMO = SITE.demo || { apiKey: 'demo-key', authDomain: 'demo-lp.firebaseapp.com', projectId: 'demo-lp', appId: 'demo-lp' };
 /* A build made with no real project (data/firebase-config.json missing) never talks to the network. */
 const OFF = !CFG || (!EMU && /^demo-/.test(String(CFG.fb && CFG.fb.projectId)));
 /* "Continue with Google" is behind one switch in the build ("google" in data/firebase-config.json, read by
    render.py). Off, the panel is email and password only and nothing here mentions Google sign-in. */
 const GOOGLE = !!(CFG && CFG.google === true);
 const MAX = (CFG && CFG.max) || 600;
-const NAME_OK = /^[A-Za-z0-9 ._'@-]{1,40}$/, URL_OK = /^https:\/\/[^\s<>"']{4,400}$/;
+/* The name rule. A site may allow more letters (Persian on iranuncensored.com); the rules of its own
+   Firebase project must then allow exactly the same, so one file feeds both (site-iu/firebase/shared.json).
+   LETTER: what counts as a letter of a name, for the face beside a post and for where a name ends in a reply. */
+const NAME_OK = SITE.nameOk ? new RegExp(SITE.nameOk) : /^[A-Za-z0-9 ._'@-]{1,40}$/, URL_OK = /^https:\/\/[^\s<>"']{4,400}$/;
+const LETTER = SITE.letter ? new RegExp(SITE.letter) : /[A-Za-z0-9]/;
+/* The way to the panel of the live show, where a site has one. Without it nothing here speaks of a panel. */
+const PANEL = (CFG && CFG.panel) || '';
 /* Switches for the tests, read only in emulator mode: a value kept for this tab under a name. */
 const hookVal = k => { try { return EMU ? sessionStorage.getItem(k) || '' : ''; } catch (x) { return ''; } };
 /* Names that would let a reader pass as the site or its owner are kept for the people who run it.
    The rules refuse them too (reserved() in firestore.rules, the same two patterns). */
 /* What a yes to the news box gets a reader, said next to the box wherever it is offered. */
-const NEWS_HINT = 'One email a week at most: the grades that moved, the votes that moved them, and one clip from the show. Untick it whenever you like.';
+const NEWS_HINT = tt('One email a week at most: the grades that moved, the votes that moved them, and one clip from the show. Untick it whenever you like.');
+/* A site with more letters in its names hands in the same test in its own letters (SITE.reserved): the
+   letters that are written two ways are made one first (fold), then the same two patterns are tried. */
+const RES = SITE.reserved || null, RES_FOLD = RES ? (RES.fold || []).map(([a, b]) => [new RegExp(a, 'g'), b]) : [];
+const RES_SQUASH = RES ? new RegExp(RES.squash, 'g') : /[ ._'@-]/g, RES_IN = RES ? new RegExp(RES.inside) : /(libertypolitics|iranuncensored|arminnavabi)/;
+const RES_WORD = RES ? new RegExp(RES.word) : /(^|[^a-z0-9])(armin|navabi|admin[a-z]*|moderator[a-z]*|official)([^a-z0-9]|$)/;
 function reservedName(n) {
-  const l = String(n).toLowerCase();
-  return /(libertypolitics|iranuncensored|arminnavabi)/.test(l.replace(/[ ._'@-]/g, '')) || /(^|[^a-z0-9])(armin|navabi|admin[a-z]*|moderator[a-z]*|official)([^a-z0-9]|$)/.test(l);
+  let l = String(n).toLowerCase();
+  RES_FOLD.forEach(([a, b]) => { l = l.replace(a, b); });
+  return RES_IN.test(l.replace(RES_SQUASH, '')) || RES_WORD.test(l);
 }
 let adminIs = false;
 function nameProblem(n) {
-  if (!n) return 'Type the name you want shown with your posts.';
-  if (!NAME_OK.test(n)) return 'Use only letters, numbers, spaces and . _ \' @ - in the name, 40 at most.';
-  if (reservedName(n) && !adminIs) return 'That name is kept for the people who run the site. Choose another.';
+  if (!n) return tt('Type the name you want shown with your posts.');
+  if (!NAME_OK.test(n)) return tt('Use only letters, numbers, spaces and . _ \' @ - in the name, 40 at most.');
+  if (reservedName(n) && !adminIs) return tt('That name is kept for the people who run the site. Choose another.');
   return '';
 }
 /* The browsers built into the Facebook, Instagram, X, TikTok, Telegram and Line apps, and Android apps that
@@ -117,15 +158,20 @@ function channelOf(url) {
   if (m) return 'https://www.tiktok.com/' + m[1];
   return '';
 }
-function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (x) { return 'the site'; } }
-function niceDate(ms) { return new Date(ms).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }); }
+function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (x) { return tt('the site'); } }
+function niceDate(ms) {
+  const d = new Date(ms);
+  /* A site with its own month names writes the day first: "5 October 2026", "۵ اکتبر ۲۰۲۶". */
+  if (Array.isArray(SITE.months) && SITE.months.length === 12) return dig(d.getDate()) + ' ' + SITE.months[d.getMonth()] + ' ' + dig(d.getFullYear());
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
 /* How long ago, the way a person would say it. Past a week it is the date. */
 function ago(ms) {
-  const s = Math.max(0, (Date.now() - ms) / 1000), n = (v, w) => v + ' ' + w + (v === 1 ? '' : 's') + ' ago';
-  if (s < 60) return 'just now';
-  if (s < 3600) return n(Math.floor(s / 60), 'minute');
-  if (s < 86400) return n(Math.floor(s / 3600), 'hour');
-  if (s < 7 * 86400) { const d = Math.floor(s / 86400); return d === 1 ? 'yesterday' : n(d, 'day'); }
+  const s = Math.max(0, (Date.now() - ms) / 1000);
+  if (s < 60) return tt('just now');
+  if (s < 3600) { const n = Math.floor(s / 60); return n === 1 ? tt('1 minute ago') : tt('{n} minutes ago', { n }); }
+  if (s < 86400) { const n = Math.floor(s / 3600); return n === 1 ? tt('1 hour ago') : tt('{n} hours ago', { n }); }
+  if (s < 7 * 86400) { const d = Math.floor(s / 86400); return d === 1 ? tt('yesterday') : tt('{n} days ago', { n: d }); }
   return niceDate(ms);
 }
 /* The face beside a name: its first letter on one of six quiet grounds, picked by the name so the same
@@ -133,72 +179,80 @@ function ago(ms) {
    people who run the site can hold (reservedName) gets the site's own mark instead. */
 function face(name) {
   const f = el('span', 'av', null, { 'aria-hidden': 'true' });
-  if (reservedName(name)) { f.classList.add('av-host'); f.append(el('img', null, null, { src: root + 'assets/seal.png', alt: '', width: '36', height: '36', decoding: 'async' })); return f; }
+  if (reservedName(name)) { f.classList.add('av-host'); f.append(el('img', null, null, { src: root + (SITE.mark || 'assets/seal.png'), alt: '', width: '36', height: '36', decoding: 'async' })); return f; }
   let h = 0;
   for (const c of String(name)) h = (h * 31 + c.codePointAt(0)) % 9973;
   f.classList.add('av-' + (h % 6));
-  f.textContent = ((/[A-Za-z0-9]/.exec(name) || ['?'])[0]).toUpperCase();
+  f.textContent = ((LETTER.exec(name) || ['?'])[0]).toUpperCase();
   return f;
 }
 /* The page a discussion belongs to, from its key. null when the key is not one of ours: the front page is
    the empty address, so '' is an answer. render.py works it out the same way (subject_of), and
    build/phone-test.html checks the two agree. The same keys are the only ones the rules take. */
-const KEY_OK = /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you))$/;
-const DIR = { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
+/* A site with other pages hands in its own: the kinds of page that are named by a slug and the folder of
+   each (SITE.kinds), its single pages and the address of each (SITE.pages), and what every address starts
+   with (SITE.base: "fa/" on a Persian page of iranuncensored.com, so one discussion is reached from the
+   page in the reader's own language). The rules of that site's project take exactly the same keys. */
+const SITE_KINDS = SITE.kinds || null, SITE_PAGES = SITE.pages || null, BASE = SITE.base || '';
+const KEY_OK = SITE_KINDS && SITE_PAGES
+  ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + '))$')
+  : /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you))$/;
+const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
 function pathOf(about) {
   const m = KEY_OK.exec(about || '');
   if (!m) return null;
-  if (m[5]) return m[6] === 'home' ? '' : m[6] + '/';
-  return DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
+  if (m[5]) return BASE + (SITE_KINDS && SITE_PAGES ? SITE_PAGES[m[6]] : (m[6] === 'home' ? '' : m[6] + '/'));
+  return BASE + DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
 }
 /* How a page is named inside a sentence when all we have is its key (the discussion page, the report menu). */
-function whatOf(about) { return { race: 'this race', member: 'this politician', vote: 'this vote', state: 'this state' }[keyKind(about)] || 'this page'; }
+function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : tt('this page'); }
 /* The tag on a post. The first three say what a plain post is; the other four are the kinds a reader picks
    in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
-const TAGS = { wrong: 'Something is wrong', source: 'Something we missed', bug: 'Bug', idea: 'Idea' };
-const PLAIN = { opinion: 'Opinion', video: 'Video', link: 'Link' };
+const TAGS = { wrong: tt('Something is wrong'), source: tt('Something we missed'), bug: tt('Bug'), idea: tt('Idea') };
+const PLAIN = { opinion: tt('Opinion'), video: tt('Video'), link: tt('Link') };
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
 function words(e) {
   const c = (e && e.code) || '';
-  const noMatch = GOOGLE ? ', tap "Forgot your password?", or tap Continue with Google if that is how you made the account.' : ', or tap "Forgot your password?".';
+  const wrongPw = GOOGLE ? tt('That password is not right. Try again, tap "Forgot your password?", or tap Continue with Google if that is how you made the account.') : tt('That password is not right. Try again, or tap "Forgot your password?".');
+  const noAcct = GOOGLE ? tt('That email and password do not match an account. Check both, tap "Forgot your password?", or tap Continue with Google if that is how you made the account.') : tt('That email and password do not match an account. Check both, or tap "Forgot your password?".');
   const T = {
-    'auth/email-already-in-use': 'That email already has an account. Sign in with it instead.',
-    'auth/invalid-email': 'That email does not look right. Check it and try again.',
-    'auth/missing-email': 'Type your email first.',
-    'auth/weak-password': 'That password is too short. Use at least 8 characters.',
-    'auth/password-does-not-meet-requirements': 'That password is too short. Use at least 8 characters.',
-    'auth/missing-password': 'Type your password first.',
-    'auth/wrong-password': 'That password is not right. Try again' + noMatch,
-    'auth/user-not-found': 'No account uses that email. Check the spelling, or create an account.',
-    'auth/invalid-credential': 'That email and password do not match an account. Check both' + noMatch,
-    'auth/invalid-login-credentials': 'That email and password do not match an account. Check both' + noMatch,
-    'auth/popup-blocked': 'Your browser stopped the Google window from opening. Allow pop-ups for this site and tap Continue with Google again, or use your email below.',
-    'auth/popup-closed-by-user': 'The Google window was closed before it finished. Tap Continue with Google to try again.',
-    'auth/cancelled-popup-request': 'The Google window was closed before it finished. Tap Continue with Google to try again.',
-    'auth/user-cancelled': 'The Google window was closed before it finished. Tap Continue with Google to try again.',
-    'auth/unauthorized-domain': 'Google sign-in is not set up for this address yet. Use your email below.',
-    'auth/operation-not-supported-in-this-environment': 'Google sign-in does not work in this browser. Use your email below, or open this page in your phone\'s own browser.',
-    'auth/web-storage-unsupported': 'Google sign-in does not work in this browser. Use your email below, or open this page in your phone\'s own browser.',
-    'auth/account-exists-with-different-credential': 'That email already has an account made another way. Sign in with your email and password below.',
-    'auth/user-mismatch': 'That is a different Google account. Pick the one you signed in with.',
-    'lp/name': 'Choose the name shown with your posts first.',
-    'auth/too-many-requests': 'Too many tries. Wait a few minutes and try again, or reset your password.',
-    'auth/user-disabled': 'This account has been switched off. Tell us through the box at the bottom of any page.',
-    'auth/requires-recent-login': 'For your safety, type your password again.',
-    'auth/operation-not-allowed': 'Accounts are not switched on yet. Try again later.',
-    'auth/network-request-failed': 'No connection. Check your internet and try again. What you typed is still here.',
-    'auth/user-token-expired': 'You were signed out. Sign in again.',
-    'unavailable': 'No connection. Check your internet and try again.',
-    'lp/offline': 'No connection. Check your internet and try again. What you typed is still here.',
-    'lp/slow': 'That is taking too long. Check your connection and try again.',
-    'lp/off': 'Accounts are not switched on in this preview.',
-    'lp/signedout': 'You were signed out. Sign in again.',
-    'permission-denied': 'That was not allowed. Reload the page and try again.',
-    'not-found': 'That post is no longer here.'
+    'auth/email-already-in-use': tt('That email already has an account. Sign in with it instead.'),
+    'auth/invalid-email': tt('That email does not look right. Check it and try again.'),
+    'auth/missing-email': tt('Type your email first.'),
+    'auth/weak-password': tt('That password is too short. Use at least 8 characters.'),
+    'auth/password-does-not-meet-requirements': tt('That password is too short. Use at least 8 characters.'),
+    'auth/missing-password': tt('Type your password first.'),
+    'auth/wrong-password': wrongPw,
+    'auth/user-not-found': tt('No account uses that email. Check the spelling, or create an account.'),
+    'auth/invalid-credential': noAcct,
+    'auth/invalid-login-credentials': noAcct,
+    'auth/popup-blocked': tt('Your browser stopped the Google window from opening. Allow pop-ups for this site and tap Continue with Google again, or use your email below.'),
+    'auth/popup-closed-by-user': tt('The Google window was closed before it finished. Tap Continue with Google to try again.'),
+    'auth/cancelled-popup-request': tt('The Google window was closed before it finished. Tap Continue with Google to try again.'),
+    'auth/user-cancelled': tt('The Google window was closed before it finished. Tap Continue with Google to try again.'),
+    'auth/unauthorized-domain': tt('Google sign-in is not set up for this address yet. Use your email below.'),
+    'auth/operation-not-supported-in-this-environment': tt('Google sign-in does not work in this browser. Use your email below, or open this page in your phone\'s own browser.'),
+    'auth/web-storage-unsupported': tt('Google sign-in does not work in this browser. Use your email below, or open this page in your phone\'s own browser.'),
+    'auth/account-exists-with-different-credential': tt('That email already has an account made another way. Sign in with your email and password below.'),
+    'auth/user-mismatch': tt('That is a different Google account. Pick the one you signed in with.'),
+    'lp/name': tt('Choose the name shown with your posts first.'),
+    'auth/too-many-requests': tt('Too many tries. Wait a few minutes and try again, or reset your password.'),
+    'auth/user-disabled': tt('This account has been switched off. Tell us through the box at the bottom of any page.'),
+    'auth/requires-recent-login': tt('For your safety, type your password again.'),
+    'auth/operation-not-allowed': tt('Accounts are not switched on yet. Try again later.'),
+    'auth/network-request-failed': tt('No connection. Check your internet and try again. What you typed is still here.'),
+    'auth/user-token-expired': tt('You were signed out. Sign in again.'),
+    'unavailable': tt('No connection. Check your internet and try again.'),
+    'lp/offline': tt('No connection. Check your internet and try again. What you typed is still here.'),
+    'lp/slow': tt('That is taking too long. Check your connection and try again.'),
+    'lp/off': tt('Accounts are not switched on in this preview.'),
+    'lp/signedout': tt('You were signed out. Sign in again.'),
+    'permission-denied': tt('That was not allowed. Reload the page and try again.'),
+    'not-found': tt('That post is no longer here.')
   };
-  return T[c] || 'Something went wrong. Try again in a moment.';
+  return T[c] || tt('Something went wrong. Try again in a moment.');
 }
 
 /* ------------------------------------------------------------------ Firebase, fetched when first needed */
@@ -367,7 +421,7 @@ async function dropUserDoc(uid, say) {
   const { F, db } = S;
   const lastAt = Math.max((me && me.last) || 0, profile && profile.lastPostAt && profile.lastPostAt.toMillis ? profile.lastPostAt.toMillis() : 0);
   const left = lastAt + 32000 - Date.now();
-  if (left > 0) { say('One moment. This takes about ' + Math.ceil(left / 1000) + ' seconds.'); await sleep(left); }
+  if (left > 0) { say(tt('One moment. This takes about {n} seconds.', { n: Math.ceil(left / 1000) })); await sleep(left); }
   try { await F.deleteDoc(F.doc(db, 'users', uid)); } catch (x) { }
 }
 /* A reader who confirmed in another tab comes back to this one. */
@@ -385,9 +439,9 @@ function paintHeader() {
   a.textContent = '';
   a.classList.toggle('in', !!me);
   if (me) {
-    a.append(el('span', 'acct-i', (me.name.match(/[A-Za-z0-9]/) || ['?'])[0].toUpperCase(), { 'aria-hidden': 'true' }), el('span', 'acct-n', me.name || 'Choose a name'));
-    a.setAttribute('aria-label', me.name ? 'Your account: ' + me.name : 'Finish signing in: choose your name');
-  } else { a.textContent = 'Sign in'; a.removeAttribute('aria-label'); }
+    a.append(el('span', 'acct-i', (me.name.match(LETTER) || ['?'])[0].toUpperCase(), { 'aria-hidden': 'true' }), el('span', 'acct-n', me.name || tt('Choose a name')));
+    a.setAttribute('aria-label', me.name ? tt('Your account: {name}', { name: me.name }) : tt('Finish signing in: choose your name'));
+  } else { a.textContent = tt('Sign in'); a.removeAttribute('aria-label'); }
 }
 function initHeader() {
   const a = $('acct');
@@ -409,7 +463,7 @@ function buildSheet() {
   sheet = el('dialog', 'sheet', null, { id: 'lp-sheet', 'aria-labelledby': 'lp-sheet-h', 'data-clarity-mask': 'true' });
   const inner = el('div', 'sheet-in'), top = el('div', 'sheet-top');
   sheetTitle = el('h2', null, '', { id: 'lp-sheet-h', tabindex: '-1' });
-  const x = btn('sheet-x', null, closeSheet); x.setAttribute('aria-label', 'Close'); x.innerHTML = ICON.x;
+  const x = btn('sheet-x', null, closeSheet); x.setAttribute('aria-label', tt('Close')); x.innerHTML = ICON.x;
   top.append(sheetTitle, x);
   sheetBody = el('div', 'sheet-body');
   inner.append(top, sheetBody); sheet.append(inner);
@@ -462,11 +516,12 @@ function field(label, input, hint) {
 }
 function pwField(auto) {
   const wrap = el('div', 'pw'), input = el('input', null, null, { type: 'password', autocomplete: auto, maxlength: '200', required: '' });
-  const eye = btn('pw-eye', 'Show', () => {
+  if (RTL) input.setAttribute('dir', 'ltr');      // a password and an email are written left to right on a right-to-left page too
+  const eye = btn('pw-eye', tt('Show'), () => {
     const on = input.type === 'password';
-    input.type = on ? 'text' : 'password'; eye.textContent = on ? 'Hide' : 'Show'; eye.setAttribute('aria-pressed', String(on));
+    input.type = on ? 'text' : 'password'; eye.textContent = on ? tt('Hide') : tt('Show'); eye.setAttribute('aria-pressed', String(on));
   });
-  eye.setAttribute('aria-pressed', 'false'); eye.setAttribute('aria-label', 'Show the password');
+  eye.setAttribute('aria-pressed', 'false'); eye.setAttribute('aria-label', tt('Show the password'));
   wrap.append(input, eye);
   return input;
 }
@@ -478,13 +533,13 @@ function viewAuth(opts) {
   draw(opts.say, opts.sayBad);
   function draw(note, bad) {
     sheetBody.textContent = '';
-    sheetTitle.textContent = mode === 'new' ? 'Create your account' : 'Sign in';
+    sheetTitle.textContent = mode === 'new' ? tt('Create your account') : tt('Sign in');
     const why = mode === 'new' ? opts.why : (opts.whyIn || opts.why);
     if (why) sheetBody.append(el('p', 'sheet-why', why));
     /* Google first: one tap, no password to make, and the email arrives already confirmed. */
     let gbtn = null;
     if (!GOOGLE) { /* the switch is off: email and password only */ }
-    else if (INAPP) sheetBody.append(el('p', 'sheet-hint inapp', 'Continue with Google works once this page is open in your phone\'s own browser (Chrome or Safari). Inside this app, use your email.'));
+    else if (INAPP) sheetBody.append(el('p', 'sheet-hint inapp', tt('Continue with Google works once this page is open in your phone\'s own browser (Chrome or Safari). Inside this app, use your email.')));
     else {
       const gline = el('p', 'sheet-msg gmsg', '', { role: 'status', 'aria-live': 'polite' });
       const gsay = (text, bad) => { gline.textContent = text; gline.className = 'sheet-msg gmsg' + (bad ? ' bad' : ''); };
@@ -492,17 +547,17 @@ function viewAuth(opts) {
         if (!S) return;
         let going;
         try { going = googleCred(false); } catch (e) { gsay(words(e), true); return; }      // nothing awaited before the window opens
-        gbtn.disabled = true; gsay('Waiting for Google.');
+        gbtn.disabled = true; gsay(tt('Waiting for Google.'));
         going.then(cred => { onUser(cred.user); return afterGoogle(); }).catch(e => { gbtn.disabled = false; gsay(words(e), true); });
       });
-      gbtn.innerHTML = ICON.g; gbtn.append(el('span', null, 'Continue with Google'));
+      gbtn.innerHTML = ICON.g; gbtn.append(el('span', null, tt('Continue with Google')));
       gbtn.disabled = !S;
-      if (!S) fb().then(() => { gbtn.disabled = false; }, e => gsay(e && e.code === 'lp/off' ? words(e) : 'Google sign-in could not load. ' + words(e), true));
-      sheetBody.append(gbtn, gline, el('p', 'sheet-or', 'or use your email'));
+      if (!S) fb().then(() => { gbtn.disabled = false; }, e => gsay(e && e.code === 'lp/off' ? words(e) : tt('Google sign-in could not load. {why}', { why: words(e) }), true));
+      sheetBody.append(gbtn, gline, el('p', 'sheet-or', tt('or use your email')));
     }
-    const seg = el('div', 'seg', null, { role: 'group', 'aria-label': 'New here, or have an account?' });
-    [['new', 'Create account'], ['in', 'Sign in']].forEach(([m, t]) => {
-      const b = btn(null, t, () => { if (mode !== m) { grab(); mode = m; draw(); } });
+    const seg = el('div', 'seg', null, { role: 'group', 'aria-label': tt('New here, or have an account?') });
+    [['new', tt('Create account')], ['in', tt('Sign in')]].forEach(([m, w]) => {
+      const b = btn(null, w, () => { if (mode !== m) { grab(); mode = m; draw(); } });
       b.setAttribute('aria-pressed', String(mode === m)); seg.append(b);
     });
     const form = el('form', 'sheet-form', null, { novalidate: '' }), line = msgLine();
@@ -511,24 +566,28 @@ function viewAuth(opts) {
     const pw = pwField(mode === 'new' ? 'new-password' : 'current-password');
     const news = el('input', null, null, { type: 'checkbox' });
     name.value = kept.name; email.value = kept.email;
+    if (RTL) email.setAttribute('dir', 'ltr');
+    if (ML) name.setAttribute('dir', 'auto');
     function grab() { kept.name = name.value; kept.email = email.value; }
-    const go = el('button', 'btn btn-key sheet-go', mode === 'new' ? 'Create account' : 'Sign in', { type: 'submit' });
+    const go = el('button', 'btn btn-key sheet-go', mode === 'new' ? tt('Create account') : tt('Sign in'), { type: 'submit' });
     form.append(seg);
-    if (mode === 'new') form.append(field('Name shown with your posts', name));
-    form.append(field('Email', email, mode === 'new' ? 'Never shown on the site, and never passed on.' : null));
-    form.append(field(mode === 'new' ? 'Password, at least 8 characters' : 'Password', pw));
+    /* A site whose readers may be in danger for reading it says so before a name or an email is typed. */
+    if (mode === 'new' && SITE.safety) form.append(el('p', 'sheet-hint safety', SITE.safety));
+    if (mode === 'new') form.append(field(tt('Name shown with your posts'), name));
+    form.append(field(tt('Email'), email, mode === 'new' ? tt('Never shown on the site, and never passed on.') : null));
+    form.append(field(mode === 'new' ? tt('Password, at least 8 characters') : tt('Password'), pw));
     if (mode === 'new') {
-      const lab = el('label', 'sheet-check'); lab.append(news, el('span', null, 'Email me news from Liberty Politics'));
+      const lab = el('label', 'sheet-check'); lab.append(news, el('span', null, tt('Email me news from Liberty Politics')));
       form.append(lab, el('p', 'sheet-hint news-hint', NEWS_HINT));
     } else {
-      form.append(btn('sheet-text', 'Forgot your password?', async () => {
+      form.append(btn('sheet-text', tt('Forgot your password?'), async () => {
         const em = email.value.trim();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { tell(line, 'Type your email above first, then tap "Forgot your password?".', true); email.focus(); return; }
-        tell(line, 'Sending the reset link.');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { tell(line, tt('Type your email above first, then tap "Forgot your password?".'), true); email.focus(); return; }
+        tell(line, tt('Sending the reset link.'));
         try {
           const { A, auth } = await within(25000, fb());
           await within(25000, A.sendPasswordResetEmail(auth, em));
-          tell(line, 'We sent a reset link to ' + em + '. Open it, choose a new password, then sign in here. No email in a few minutes? Check your spam folder.');
+          tell(line, tt('We sent a reset link to {email}. Open it, choose a new password, then sign in here. No email in a few minutes? Check your spam folder.', { email: em }));
         } catch (e) { tell(line, words(e), true); }
       }));
     }
@@ -538,10 +597,10 @@ function viewAuth(opts) {
       ev.preventDefault();
       const nm = name.value.trim().replace(/\s+/g, ' '), em = email.value.trim(), pass = pw.value;
       if (mode === 'new' && nameProblem(nm)) { tell(line, nameProblem(nm), true); name.focus(); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { tell(line, 'That email does not look right. Check it and try again.', true); email.focus(); return; }
-      if (!pass) { tell(line, 'Type your password.', true); pw.focus(); return; }
-      if (mode === 'new' && pass.length < 8) { tell(line, 'That password is too short. Use at least 8 characters.', true); pw.focus(); return; }
-      go.disabled = true; tell(line, mode === 'new' ? 'Creating your account.' : 'Signing you in.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { tell(line, tt('That email does not look right. Check it and try again.'), true); email.focus(); return; }
+      if (!pass) { tell(line, tt('Type your password.'), true); pw.focus(); return; }
+      if (mode === 'new' && pass.length < 8) { tell(line, tt('That password is too short. Use at least 8 characters.'), true); pw.focus(); return; }
+      go.disabled = true; tell(line, mode === 'new' ? tt('Creating your account.') : tt('Signing you in.'));
       try {
         const { A, auth } = await within(25000, fb());
         if (mode === 'new') {
@@ -559,11 +618,11 @@ function viewAuth(opts) {
         go.disabled = false;
         tell(line, words(e), true);
         if (e && e.code === 'auth/email-already-in-use') {
-          line.append(btn('sheet-text', 'Sign in with ' + em, () => { grab(); mode = 'in'; draw(); }));
+          line.append(btn('sheet-text', tt('Sign in with {email}', { email: em }), () => { grab(); mode = 'in'; draw(); }));
         } else if (e && /password/.test(e.code || '')) pw.focus();
       }
     });
-    sheetBody.append(form, el('a', 'sheet-text', 'What we keep, and who can see it', { href: root + 'privacy/', target: '_blank', rel: 'noopener' }));
+    sheetBody.append(form, el('a', 'sheet-text', tt('What we keep, and who can see it'), { href: root + (SITE.privacy || 'privacy/'), target: '_blank', rel: 'noopener' }));
     /* Focus goes to the heading, not a field: on a phone a focused field brings the keyboard up over the Google button. */
     setTimeout(() => { try { (gbtn ? sheetTitle : mode === 'new' && !name.value ? name : !email.value ? email : pw).focus({ preventScroll: true }); } catch (x) { } }, 30);
   }
@@ -581,28 +640,30 @@ async function afterGoogle() {
   }
   const g = ((auth.currentUser.providerData || []).find(p => p.providerId === 'google.com') || {}).displayName || auth.currentUser.displayName || '';
   let first = (g.trim().split(/\s+/)[0] || '').replace(/[^A-Za-z0-9._'@-]/g, '').slice(0, 40);
-  if (reservedName(first)) first = '';
+  if (reservedName(first) || SITE.noPrefill) first = '';      // never prefilled on a site whose readers should not post under their own name
   if (auth.currentUser.displayName) { await A.updateProfile(auth.currentUser, { displayName: '' }); onUser(auth.currentUser); }
   show('name', { suggest: first });
 }
 /* One short step for a reader who came in through Google: the name shown with their posts, and the news tick. */
 function viewName(opts) {
-  sheetTitle.textContent = 'Choose your name';
+  sheetTitle.textContent = tt('Choose your name');
   if (opts.why) sheetBody.append(el('p', 'sheet-why', opts.why));
-  else if (pending && pending.type === 'send') sheetBody.append(el('p', 'sheet-why', 'Your note is saved. Choose a name to send it.'));
-  sheetBody.append(el('p', 'sheet-lead', 'You are signed in. One thing before you post.'));
+  else if (pending && pending.type === 'send') sheetBody.append(el('p', 'sheet-why', tt('Your note is saved. Choose a name to send it.')));
+  sheetBody.append(el('p', 'sheet-lead', tt('You are signed in. One thing before you post.')));
+  if (SITE.safety) sheetBody.append(el('p', 'sheet-hint safety', SITE.safety));
   const form = el('form', 'sheet-form', null, { novalidate: '' }), line = msgLine();
   const name = el('input', null, null, { type: 'text', autocomplete: 'nickname', maxlength: '40', required: '', autocapitalize: 'words', spellcheck: 'false' });
   const news = el('input', null, null, { type: 'checkbox' }), lab = el('label', 'sheet-check');
   name.value = opts.suggest || '';
-  lab.append(news, el('span', null, 'Email me news from Liberty Politics'));
-  const go = el('button', 'btn btn-key sheet-go', 'Continue', { type: 'submit' });
-  form.append(field('Name shown with your posts', name, 'Your own name or a handle. Your Google name and photo are not shown to anyone.'), lab, el('p', 'sheet-hint news-hint', NEWS_HINT), go, line);
+  if (ML) name.setAttribute('dir', 'auto');
+  lab.append(news, el('span', null, tt('Email me news from Liberty Politics')));
+  const go = el('button', 'btn btn-key sheet-go', tt('Continue'), { type: 'submit' });
+  form.append(field(tt('Name shown with your posts'), name, tt('Your own name or a handle. Your Google name and photo are not shown to anyone.')), lab, el('p', 'sheet-hint news-hint', NEWS_HINT), go, line);
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     const nm = name.value.trim().replace(/\s+/g, ' ');
     if (nameProblem(nm)) { tell(line, nameProblem(nm), true); name.focus(); return; }
-    go.disabled = true; tell(line, 'Saving.');
+    go.disabled = true; tell(line, tt('Saving.'));
     try {
       const { A, auth } = await within(20000, fb());
       if (!auth.currentUser) throw { code: 'lp/signedout' };
@@ -612,8 +673,8 @@ function viewName(opts) {
       await afterSignIn();
     } catch (e) { go.disabled = false; tell(line, words(e), true); }
   });
-  sheetBody.append(form, btn('sheet-text', 'Sign out instead', async () => { try { pending = null; await S.A.signOut(S.auth); } catch (x) { } closeSheet(); }),
-    el('a', 'sheet-text', 'What we keep, and who can see it', { href: root + 'privacy/', target: '_blank', rel: 'noopener' }));
+  sheetBody.append(form, btn('sheet-text', tt('Sign out instead'), async () => { try { pending = null; await S.A.signOut(S.auth); } catch (x) { } closeSheet(); }),
+    el('a', 'sheet-text', tt('What we keep, and who can see it'), { href: root + (SITE.privacy || 'privacy/'), target: '_blank', rel: 'noopener' }));
   setTimeout(() => { try { name.focus({ preventScroll: true }); } catch (x) { } }, 30);
 }
 /* Signed in a moment ago: do what the reader was in the middle of, then show the right thing. */
@@ -633,7 +694,7 @@ async function afterSignIn() {
 }
 function pendingNote() {
   if (!pending) return '';
-  return pending.type === 'vote' ? 'Confirm your email to like or unlike. Your tap is saved.' : pending.type === 'report' ? 'Confirm your email to report a post. Your report is saved.' : '';
+  return pending.type === 'vote' ? tt('Confirm your email to like or unlike. Your tap is saved.') : pending.type === 'report' ? tt('Confirm your email to report a post. Your report is saved.') : '';
 }
 /* A like, an unlike or a report that was waiting for the reader to sign in and confirm. */
 async function runPending() {
@@ -646,31 +707,31 @@ async function runPending() {
 
 /* Check your email. Looks again by itself every few seconds and when the reader comes back to the tab. */
 function viewCheck(opts) {
-  sheetTitle.textContent = 'Check your email';
-  const email = (me && me.email) || 'your address', line = msgLine();
-  const p = el('p', 'sheet-lead'); p.append('We sent a link to ', el('b', null, email), '. Open it to confirm the address is yours.');
+  sheetTitle.textContent = tt('Check your email');
+  const email = (me && me.email) || tt('your address'), line = msgLine();
+  const p = el('p', 'sheet-lead'); p.append(...ttParts('We sent a link to {email}. Open it to confirm the address is yours.', 'email', el('b', null, email, RTL ? { dir: 'ltr' } : null)));
   sheetBody.append(p);
-  if (opts.sent) sheetBody.append(el('p', 'sheet-why', (opts.sent === 'reply' ? 'Your reply is sent.' : 'Your note is sent.') + ' Only you can see it until you confirm.'));
-  sheetBody.append(el('p', 'sheet-hint', opts.note || 'Until you confirm, only you can see what you post, and you cannot like, unlike or report. No email after a few minutes? Check your spam folder.'));
-  const ok = btn('btn btn-key sheet-go', 'I have confirmed', async () => {
-    ok.disabled = true; tell(line, 'Checking.');
+  if (opts.sent) sheetBody.append(el('p', 'sheet-why', opts.sent === 'reply' ? tt('Your reply is sent. Only you can see it until you confirm.') : tt('Your note is sent. Only you can see it until you confirm.')));
+  sheetBody.append(el('p', 'sheet-hint', opts.note || tt('Until you confirm, only you can see what you post, and you cannot like, unlike or report. No email after a few minutes? Check your spam folder.')));
+  const ok = btn('btn btn-key sheet-go', tt('I have confirmed'), async () => {
+    ok.disabled = true; tell(line, tt('Checking.'));
     try {
       if (await within(20000, freshVerified())) { show('done', {}); return; }
-      tell(line, 'Not confirmed yet. Open the link in the email we sent to ' + email + ', then come back here.', true);
+      tell(line, tt('Not confirmed yet. Open the link in the email we sent to {email}, then come back here.', { email }), true);
     } catch (e) { tell(line, words(e), true); }
     ok.disabled = false;
   });
-  const again = btn('btn btn-line', 'Send it again', async () => {
-    again.disabled = true; tell(line, 'Sending.');
-    try { await within(20000, sendVerify()); tell(line, 'Sent again to ' + email + '.'); } catch (e) { tell(line, words(e), true); }
+  const again = btn('btn btn-line', tt('Send it again'), async () => {
+    again.disabled = true; tell(line, tt('Sending.'));
+    try { await within(20000, sendVerify()); tell(line, tt('Sent again to {email}.', { email })); } catch (e) { tell(line, words(e), true); }
     tick();
   });
   function tick() {
     const left = Math.ceil((verifySent + 60000 - Date.now()) / 1000);
     again.disabled = left > 0;
-    again.textContent = left > 0 ? 'Send it again in ' + left + ' s' : 'Send it again';
+    again.textContent = left > 0 ? tt('Send it again in {n} s', { n: left }) : tt('Send it again');
   }
-  const other = btn('sheet-text', 'Use a different email', () => changeEmail(line));
+  const other = btn('sheet-text', tt('Use a different email'), () => changeEmail(line));
   const acts = el('div', 'sheet-acts'); acts.append(ok, again);
   sheetBody.append(acts, line, other);
   tick();
@@ -685,11 +746,11 @@ function viewCheck(opts) {
 /* The wrong address was typed. The unconfirmed account is taken away, a note sent from it goes back in
    the box, and the reader starts again with the name already filled in. */
 async function changeEmail(line) {
-  tell(line, 'One moment.');
+  tell(line, tt('One moment.'));
   try {
     const { A, F, auth, db } = await within(20000, fb()), u = auth.currentUser, name = me ? me.name : '';
     if (!u) { show('auth', { mode: 'new', name }); return; }
-    if (u.emailVerified) { tell(line, 'This email is already confirmed.'); return; }
+    if (u.emailVerified) { tell(line, tt('This email is already confirmed.')); return; }
     let back = null;
     try {
       const snap = await F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', u.uid), F.limit(50)));
@@ -703,23 +764,23 @@ async function changeEmail(line) {
       putDraft({ kind: TAGS[back.tag] ? back.tag : back.kind === 'opinion' ? 'opinion' : 'video', text: back.text || '', url: back.url || '', mine: !!back.mine, label: back.subject, id: (back.about || '').split(':')[1] || '', on: back.about });
       pending = { type: 'send' };
     }
-    show('auth', { mode: 'new', name, why: back ? 'Type the right email. Your note is saved and will be sent again.' : 'Type the right email.' });
+    show('auth', { mode: 'new', name, why: back ? tt('Type the right email. Your note is saved and will be sent again.') : tt('Type the right email.') });
   } catch (e) { tell(line, words(e), true); }
 }
 function viewDone() {
-  sheetTitle.textContent = 'You are in';
+  sheetTitle.textContent = tt('You are in');
   const n = lastSettle.n;
-  sheetBody.append(el('p', 'sheet-lead', 'Your email is confirmed.' + (!n ? '' : lastSettle.hold ? ' What you posted will show once we have looked at it.' : ' What you posted is on the page now.')));
-  sheetBody.append(el('p', 'sheet-hint', 'You can post, answer other readers, like, unlike and report on every page.'));
-  const b = btn('btn btn-key sheet-go', 'Done', closeSheet);
+  sheetBody.append(el('p', 'sheet-lead', !n ? tt('Your email is confirmed.') : lastSettle.hold ? tt('Your email is confirmed. What you posted will show once we have looked at it.') : tt('Your email is confirmed. What you posted is on the page now.')));
+  sheetBody.append(el('p', 'sheet-hint', tt('You can post, answer other readers, like, unlike and report on every page.')));
+  const b = btn('btn btn-key sheet-go', tt('Done'), closeSheet);
   sheetBody.append(b);
   setTimeout(() => { try { b.focus({ preventScroll: true }); } catch (x) { } }, 30);
   runPending();
 }
 function viewGone() {
-  sheetTitle.textContent = 'Account deleted';
-  sheetBody.append(el('p', 'sheet-lead', 'Your account, what you posted, and your likes and unlikes are gone.'));
-  const b = btn('btn btn-key sheet-go', 'Done', closeSheet);
+  sheetTitle.textContent = tt('Account deleted');
+  sheetBody.append(el('p', 'sheet-lead', tt('Your account, what you posted, and your likes and unlikes are gone.')));
+  const b = btn('btn btn-key sheet-go', tt('Done'), closeSheet);
   sheetBody.append(b);
   setTimeout(() => { try { b.focus({ preventScroll: true }); } catch (x) { } }, 30);
 }
@@ -727,36 +788,38 @@ function viewGone() {
 /* Your account. */
 let forceOld = false;      // a test may set this to walk the "type your password again" path
 function viewAccount() {
-  sheetTitle.textContent = 'Your account';
-  const line = msgLine(), wait = el('p', 'sheet-hint', 'Loading your details.');
+  sheetTitle.textContent = tt('Your account');
+  const line = msgLine(), wait = el('p', 'sheet-hint', tt('Loading your details.'));
   sheetBody.append(wait);
   within(20000, fb().then(() => { if (!user) throw { code: 'lp/signedout' }; return loadProfile(true); })).then(draw, e => {
     wait.remove();
-    if (e && e.code === 'lp/signedout') { show('auth', { mode: 'in', say: 'You were signed out. Sign in again.', sayBad: true }); return; }
+    if (e && e.code === 'lp/signedout') { show('auth', { mode: 'in', say: tt('You were signed out. Sign in again.'), sayBad: true }); return; }
     if (e && e.code === 'lp/name') { show('name', {}); return; }
     tell(line, words(e), true);
-    sheetBody.append(line, btn('btn btn-line', 'Try again', () => show('account', {})));
+    sheetBody.append(line, btn('btn btn-line', tt('Try again'), () => show('account', {})));
   });
   function draw(p) {
     if (sheetView !== 'account') return;
     wait.remove();
     const form = el('form', 'sheet-form', null, { novalidate: '' });
     const name = el('input', null, null, { type: 'text', autocomplete: 'nickname', maxlength: '40', required: '', spellcheck: 'false' }); name.value = p.name;
-    form.append(field('Name shown with your posts', name, 'A new name shows on what you post from now on.'));
-    const mail = el('div', 'sheet-row'), state = el('span', 'tag' + (user.emailVerified ? ' ok' : ''), user.emailVerified ? 'Confirmed' : 'Not confirmed');
-    mail.append(el('span', 'sheet-k', 'Email'), el('span', 'sheet-v', user.email || ''), state);
+    if (ML) name.setAttribute('dir', 'auto');
+    form.append(field(tt('Name shown with your posts'), name, tt('A new name shows on what you post from now on.')));
+    const mail = el('div', 'sheet-row'), state = el('span', 'tag' + (user.emailVerified ? ' ok' : ''), user.emailVerified ? tt('Confirmed') : tt('Not confirmed'));
+    mail.append(el('span', 'sheet-k', tt('Email')), el('span', 'sheet-v', user.email || '', RTL ? { dir: 'ltr' } : null), state);
     form.append(mail);
-    if (!user.emailVerified) form.append(btn('sheet-text', 'Send the confirmation link again', () => show('check', { resend: true })));
+    if (!user.emailVerified) form.append(btn('sheet-text', tt('Send the confirmation link again'), () => show('check', { resend: true })));
     const creator = el('input', null, null, { type: 'checkbox', role: 'switch' }); creator.checked = !!p.creator;
-    const cl = el('label', 'sheet-check sw'); cl.append(creator, el('span', null, 'I make political videos'));
+    const cl = el('label', 'sheet-check sw'); cl.append(creator, el('span', null, tt('I make political videos')));
     const channel = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' }); channel.value = p.channel || '';
-    const cf = field('Link to your channel', channel, 'YouTube, X, Instagram, TikTok or your own site. We may write to you about our live panel.');
+    const cf = field(tt('Link to your channel'), channel, tt('YouTube, X, Instagram, TikTok or your own site. We may write to you about our live panel.'));
     cf.hidden = !creator.checked;
     creator.addEventListener('change', () => { cf.hidden = !creator.checked; });
     const news = el('input', null, null, { type: 'checkbox' }); news.checked = !!p.news;
-    const nl = el('label', 'sheet-check'); nl.append(news, el('span', null, 'Email me news from Liberty Politics'));
-    const save = el('button', 'btn btn-key sheet-go', 'Save changes', { type: 'submit' });
-    form.append(cl, cf, nl, el('p', 'sheet-hint news-hint', NEWS_HINT), save, line);
+    const nl = el('label', 'sheet-check'); nl.append(news, el('span', null, tt('Email me news from Liberty Politics')));
+    const save = el('button', 'btn btn-key sheet-go', tt('Save changes'), { type: 'submit' });
+    if (PANEL) form.append(cl, cf);      // the switch for people who make videos belongs to the panel of the live show
+    form.append(nl, el('p', 'sheet-hint news-hint', NEWS_HINT), save, line);
     form.addEventListener('submit', async ev => {
       ev.preventDefault();
       const nm = name.value.trim().replace(/\s+/g, ' ');
@@ -766,33 +829,33 @@ function viewAccount() {
       if (nameProblem(nm)) { tell(line, nameProblem(nm), true); name.focus(); return; }
       if (ch && !/^https?:\/\//i.test(ch)) ch = 'https://' + ch;
       ch = ch.replace(/^http:/i, 'https:');
-      if (ch && !(URL_OK.test(ch) && ch.length <= 200 && /^https:\/\/[^\s\/]+\.[^\s]+$/.test(ch))) { tell(line, 'That channel link does not look right. Copy it from the address bar of your channel.', true); channel.focus(); return; }
-      save.disabled = true; tell(line, 'Saving.');
+      if (ch && !(URL_OK.test(ch) && ch.length <= 200 && /^https:\/\/[^\s\/]+\.[^\s]+$/.test(ch))) { tell(line, tt('That channel link does not look right. Copy it from the address bar of your channel.'), true); channel.focus(); return; }
+      save.disabled = true; tell(line, tt('Saving.'));
       try {
         if (nm !== me.name) { await S.A.updateProfile(user, { displayName: nm }); }
         await within(20000, saveProfile({ name: nm, creator: creator.checked, channel: ch, news: news.checked }));
         onUser(S.auth.currentUser);
         channel.value = ch;
-        tell(line, 'Saved.');
+        tell(line, tt('Saved.'));
       } catch (e) { tell(line, words(e), true); }
       save.disabled = false;
     });
     sheetBody.append(form);
-    const out = btn('btn btn-line', 'Sign out', async () => {
+    const out = btn('btn btn-line', tt('Sign out'), async () => {
       out.disabled = true;
       try { pending = null; await S.A.signOut(S.auth); closeSheet(); } catch (e) { out.disabled = false; tell(line, words(e), true); }
     });
     /* Two taps, never a browser dialog: the first arms the button, the second does it. */
     let armed = false, timer = 0;
-    const del = btn('sheet-text danger', 'Delete my account', () => {
+    const del = btn('sheet-text danger', tt('Delete my account'), () => {
       if (!armed) {
-        armed = true; del.textContent = 'Tap again to delete your account and everything you posted'; del.classList.add('armed');
+        armed = true; del.textContent = tt('Tap again to delete your account and everything you posted'); del.classList.add('armed');
         timer = setTimeout(disarm, 7000); return;
       }
       clearTimeout(timer);
       removeAccount();
     });
-    function disarm() { armed = false; clearTimeout(timer); del.textContent = 'Delete my account'; del.classList.remove('armed'); }
+    function disarm() { armed = false; clearTimeout(timer); del.textContent = tt('Delete my account'); del.classList.remove('armed'); }
     del.addEventListener('blur', () => { if (armed && !del.disabled) disarm(); });
     /* Deleting asks who you are once more if you signed in a while ago: with the password, or, for a
        reader who has no password because they came in through Google, with Google again. */
@@ -800,11 +863,11 @@ function viewAccount() {
     const pw = pwField('current-password'), byPw = hasPassword(user);
     let first = pw;
     if (byPw) {
-      again.append(field('For your safety, type your password to delete the account', pw), el('button', 'btn btn-line danger', 'Delete my account for good', { type: 'submit' }));
+      again.append(field(tt('For your safety, type your password to delete the account'), pw), el('button', 'btn btn-line danger', tt('Delete my account for good'), { type: 'submit' }));
       again.addEventListener('submit', async ev => {
         ev.preventDefault();
-        if (!pw.value) { tell(line, 'Type your password.', true); pw.focus(); return; }
-        tell(line, 'Checking your password.');
+        if (!pw.value) { tell(line, tt('Type your password.'), true); pw.focus(); return; }
+        tell(line, tt('Checking your password.'));
         try {
           await within(20000, S.A.reauthenticateWithCredential(S.auth.currentUser, S.A.EmailAuthProvider.credential(user.email, pw.value)));
           forceOld = false;
@@ -815,11 +878,11 @@ function viewAccount() {
       const g = btn('btn gbtn', null, () => {
         let going;
         try { going = googleCred(true); } catch (e) { tell(line, words(e), true); return; }       // straight from the tap, nothing awaited first
-        tell(line, 'Waiting for Google.');
+        tell(line, tt('Waiting for Google.'));
         going.then(() => { forceOld = false; return removeAccount(true); }).catch(e => tell(line, words(e), true));
       });
-      g.innerHTML = ICON.g; g.append(el('span', null, 'Continue with Google to delete'));
-      again.append(el('p', 'sheet-lead', 'For your safety, confirm with Google that it is you. Then the account is deleted.'), g);
+      g.innerHTML = ICON.g; g.append(el('span', null, tt('Continue with Google to delete')));
+      again.append(el('p', 'sheet-lead', tt('For your safety, confirm with Google that it is you. Then the account is deleted.')), g);
       again.addEventListener('submit', ev => ev.preventDefault());
       first = g;
     }
@@ -832,7 +895,7 @@ function viewAccount() {
       if (old && !fresh) { again.hidden = false; del.hidden = true; tell(line, ''); first.focus(); return; }
       del.disabled = out.disabled = save.disabled = true;
       try {
-        tell(line, 'Removing what you posted.');
+        tell(line, tt('Removing what you posted.'));
         const P = F.collection(db, 'posts');
         for (let round = 0; round < 20; round++) {
           const snap = await F.getDocs(F.query(P, F.where('uid', '==', u.uid), F.limit(200)));
@@ -841,7 +904,7 @@ function viewAccount() {
         }
         /* Their likes, unlikes and reports: each is a document of their own, and each takes its count off
            the post as it goes (the rules allow one only together with the other). */
-        tell(line, 'Removing your likes and unlikes.');
+        tell(line, tt('Removing your likes and unlikes.'));
         for (const kind of ['votes', 'reports']) {
           for (let round = 0; round < 20; round++) {
             const snap = await F.getDocs(F.query(F.collection(db, 'users', u.uid, kind), F.limit(200)));
@@ -860,7 +923,7 @@ function viewAccount() {
             if (!gone) break;
           }
         }
-        tell(line, 'Removing your account.');
+        tell(line, tt('Removing your account.'));
         await dropUserDoc(u.uid, t => tell(line, t));
         try { await A.deleteUser(u); }
         catch (e) {
@@ -916,18 +979,18 @@ function keptMark(text) {
   if (nd && ph) {
     if (!ph.hasAttribute('data-was')) ph.setAttribute('data-was', ph.textContent);
     nd.classList.toggle('kept', !!kept);
-    ph.textContent = kept ? 'Your unsent note: “' + (kept.length > 48 ? kept.slice(0, 46).trimEnd() + '…' : kept) + '”'
-      : discCount > 0 ? 'Agree, or not? Add what you think.' : ph.getAttribute('data-was');
-    const i = nd.querySelector('.nudge-in i'); if (i) i.textContent = kept ? 'Finish it' : 'Discuss';
+    ph.textContent = kept ? tt('Your unsent note: “{text}”', { text: kept.length > 48 ? kept.slice(0, 46).trimEnd() + '…' : kept })
+      : discCount > 0 ? tt('Agree, or not? Add what you think.') : ph.getAttribute('data-was');
+    const i = nd.querySelector('.nudge-in i'); if (i) i.textContent = kept ? tt('Finish it') : tt('Discuss');
   }
-  if (go) go.textContent = kept ? 'Finish your unsent note' : 'Open the discussion' + (discCount > 0 ? ' (' + (discCount > 99 ? '99+' : discCount) + ')' : '');
-  if (tab) tab.setAttribute('aria-label', (discCount > 0 ? 'Discussion, ' + discCount + (discCount === 1 ? ' post' : ' posts') : 'Discussion') + (kept ? ', your unsent note is here' : ''));
+  if (go) go.textContent = kept ? tt('Finish your unsent note') : tt('Open the discussion') + (discCount > 0 ? ' (' + (discCount > 99 ? dig('99') + '+' : dig(discCount)) + ')' : '');
+  if (tab) tab.setAttribute('aria-label', (discCount > 0 ? (discCount === 1 ? tt('Discussion, {n} post', { n: discCount }) : tt('Discussion, {n} posts', { n: discCount })) : tt('Discussion')) + (kept ? tt(', your unsent note is here') : ''));
 }
 function paintBox() {
   const who = $('fbwho');
   if (!who) return;
   who.hidden = !me;
-  who.textContent = me ? 'You are signed in as ' + me.name + '.' : '';
+  who.textContent = me ? tt('You are signed in as {name}.', { name: me.name }) : '';
   const n = $('fbname'); if (n) n.value = me ? me.name : '';
 }
 function initBox() {
@@ -936,7 +999,7 @@ function initBox() {
   const d = store.get(KEY.draft);
   if (d && d.path === location.pathname && Date.now() - (d.at || 0) < 14 * 86400000 && !b.msg.value && !b.link.value) {
     putDraft(d);
-    b.B.say('What you wrote earlier is back in the box.');
+    b.B.say(tt('What you wrote earlier is back in the box.'));
     /* The box is in the discussion, and the page stays on the side its address asked for. putDraft has
        already told the record that a note is waiting (keptMark). */
   }
@@ -955,35 +1018,35 @@ async function send(opts) {
   opts = opts || {};
   const b = boxParts();
   if (!b) return false;
-  if ($('fbhp').value) { b.B.say('Sent. Thank you.'); return false; }
+  if ($('fbhp').value) { b.B.say(tt('Sent. Thank you.')); return false; }
   const kd = b.B.kind(), k = b.B.K[kd], text = b.msg.value.trim();
   let url = k.link ? b.link.value.trim() : '';
   b.done.hidden = true;
   if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
   url = url.replace(/^http:/i, 'https:');
-  if (k.link === 2 && !url) { b.B.say('Paste the link to the video first.', true); b.link.focus(); return false; }
-  if (url && !(/^https:\/\/[^\s\/]+\.[^\s]+$/.test(url) && URL_OK.test(url))) { b.B.say('That link does not look right. Copy it again from the address bar or the Share button.', true); b.link.focus(); return false; }
+  if (k.link === 2 && !url) { b.B.say(tt('Paste the link to the video first.'), true); b.link.focus(); return false; }
+  if (url && !(/^https:\/\/[^\s\/]+\.[^\s]+$/.test(url) && URL_OK.test(url))) { b.B.say(tt('That link does not look right. Copy it again from the address bar or the Share button.'), true); b.link.focus(); return false; }
   if (text.length < k.min) { b.B.say(k.short, true); b.msg.focus(); return false; }
-  if (text.length > k.max) { b.B.say('That is ' + text.length + ' characters. Keep it to ' + k.max + ' so it fits on the page.', true); b.msg.focus(); return false; }
+  if (text.length > k.max) { b.B.say(tt('That is {n} characters. Keep it to {max} so it fits on the page.', { n: text.length, max: k.max }), true); b.msg.focus(); return false; }
   saveDraft();
   if (!me) {
     pending = { type: 'send' };
-    openSheet('auth', { why: 'Your note is saved. Create an account to send it.', whyIn: 'Your note is saved. Sign in to send it.', opener: b.go });
-    b.B.say('Your note is saved on this device. Sign in to send it.');
+    openSheet('auth', { why: tt('Your note is saved. Create an account to send it.'), whyIn: tt('Your note is saved. Sign in to send it.'), opener: b.go });
+    b.B.say(tt('Your note is saved on this device. Sign in to send it.'));
     if (!OFF) fb().catch(() => { });
     return false;
   }
-  b.go.disabled = true; b.B.say('Sending.');
+  b.go.disabled = true; b.B.say(tt('Sending.'));
   try {
     await within(25000, fb());
     if (!user) {
-      b.go.disabled = false; b.B.say('Your note is saved on this device. Sign in to send it.');
+      b.go.disabled = false; b.B.say(tt('Your note is saved on this device. Sign in to send it.'));
       pending = { type: 'send' };
-      openSheet('auth', { mode: 'in', why: 'Your note is saved. Sign in to send it.', opener: b.go });
+      openSheet('auth', { mode: 'in', why: tt('Your note is saved. Sign in to send it.'), opener: b.go });
       return false;
     }
     if (!user.displayName) {
-      b.go.disabled = false; b.B.say('Your note is saved on this device. Choose a name to send it.');
+      b.go.disabled = false; b.B.say(tt('Your note is saved on this device. Choose a name to send it.'));
       pending = { type: 'send' };
       openSheet('name', { opener: b.go });
       return false;
@@ -1009,16 +1072,16 @@ async function send(opts) {
       const kind = plain ? 'idea' : kd;
       await within(30000, formIt(b, kind, text, url));
       clearBox(b);
-      b.B.say(!plain ? k.done : kk ? 'Sent. Thank you. The discussion on this page opens shortly. Until it does, only we can read this.'
-        : 'Sent. Thank you. We read every one. To put it on a page, open the race or the politician it is about and say it there.');
+      b.B.say(!plain ? k.done : kk ? tt('Sent. Thank you. The discussion on this page opens shortly. Until it does, only we can read this.')
+        : tt('Sent. Thank you. We read every one. To put it on a page, open the race or the politician it is about and say it there.'));
     }
     b.go.disabled = false;
     return true;
   } catch (e) {
     b.go.disabled = false;
-    if (e && e.code === 'lp/pace') b.B.say('You posted a moment ago. Wait ' + e.wait + ' seconds, then press Send again. Your note is kept.', true);
-    else if (e && e.code === 'lp/hour') b.B.say('That is a lot in one hour. Try again a little later. Your note is kept.', true);
-    else b.B.say('That did not send. ' + words(e) + ' Your note is kept.', true);
+    if (e && e.code === 'lp/pace') b.B.say(tt('You posted a moment ago. Wait {n} seconds, then press Send again. Your note is kept.', { n: e.wait }), true);
+    else if (e && e.code === 'lp/hour') b.B.say(tt('That is a lot in one hour. Try again a little later. Your note is kept.'), true);
+    else b.B.say(tt('That did not send. {why} Your note is kept.', { why: words(e) }), true);
     return false;
   }
 }
@@ -1093,35 +1156,35 @@ async function formIt(b, kind, text, url, postId) {
 }
 function sentPost(b, post, made) {
   const here = T && T.key === post.about && (!T.feed || T.full);
-  const see = el('a', null, 'See it');
+  const see = el('a', null, tt('See it'));
   see.href = (here || pathOf(post.about) == null ? '' : root + pathOf(post.about)) + '#p-' + post.id;
   const box = b.done; box.textContent = '';
-  if (post.status === 'live') sayIn(b, post.tag ? 'Sent. It is on the page now, and it has reached us too.' : 'Sent. It is on the page now.', false, see);
-  else if (post.status === 'pending') b.B.say('Sent. We are looking at new posts before they show, so it will be on the page once we have.');
+  if (post.status === 'live') sayIn(b, post.tag ? tt('Sent. It is on the page now, and it has reached us too.') : tt('Sent. It is on the page now.'), false, see);
+  else if (post.status === 'pending') b.B.say(tt('Sent. We are looking at new posts before they show, so it will be on the page once we have.'));
   else {
-    sayIn(b, 'Sent. Only you can see it until you confirm your email.', false, see);
+    sayIn(b, tt('Sent. Only you can see it until you confirm your email.'), false, see);
     box.hidden = false;
-    box.append(btn('btn btn-line', 'Send the confirmation link again', ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
+    box.append(btn('btn btn-line', tt('Send the confirmation link again'), ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
   }
-  if (!made) return;
+  if (!made || !(b.f.getAttribute('data-panel') || PANEL)) return;      // a site with no panel marks the video as the reader's own and asks for nothing more
   /* A reader who makes videos: the way to the panel, and where their channel is. */
   box.hidden = false;
-  const p = el('p'); p.append('You make videos? Our live show is looking for panelists. ', el('a', null, 'Apply for the panel', { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
+  const p = el('p'); p.append(tt('You make videos? Our live show is looking for panelists.') + ' ', el('a', null, tt('Apply for the panel'), { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
   box.append(p);
-  if (profile && profile.channel) { box.append(el('p', 'fbhint', 'Your channel is saved as ' + profile.channel.replace(/^https:\/\//, '') + '. You can change it under your name at the top of the page.')); return; }
+  if (profile && profile.channel) { box.append(el('p', 'fbhint', tt('Your channel is saved as {channel}. You can change it under your name at the top of the page.', { channel: profile.channel.replace(/^https:\/\//, '') }))); return; }
   const f = el('div', 'fbrow'), id = 'fbchan', input = el('input', null, null, { id, type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
   const line = el('p', 'fbhint', '', { role: 'status', 'aria-live': 'polite' });
-  const save = btn('btn btn-line', 'Save my channel', async () => {
+  const save = btn('btn btn-line', tt('Save my channel'), async () => {
     let ch = input.value.trim();
     if (ch && !/^https?:\/\//i.test(ch)) ch = 'https://' + ch;
     ch = ch.replace(/^http:/i, 'https:');
-    if (!(URL_OK.test(ch) && ch.length <= 200 && /^https:\/\/[^\s\/]+\.[^\s]+$/.test(ch))) { line.textContent = 'That link does not look right. Copy it from the address bar of your channel.'; input.focus(); return; }
-    save.disabled = true; line.textContent = 'Saving.';
-    try { await within(20000, saveProfile({ channel: ch, creator: true })); line.textContent = 'Saved. Thank you.'; input.value = ch; }
+    if (!(URL_OK.test(ch) && ch.length <= 200 && /^https:\/\/[^\s\/]+\.[^\s]+$/.test(ch))) { line.textContent = tt('That link does not look right. Copy it from the address bar of your channel.'); input.focus(); return; }
+    save.disabled = true; line.textContent = tt('Saving.');
+    try { await within(20000, saveProfile({ channel: ch, creator: true })); line.textContent = tt('Saved. Thank you.'); input.value = ch; }
     catch (e) { line.textContent = words(e); }
     save.disabled = false;
   });
-  f.append(el('label', null, 'Where can we find your videos?', { for: id }), input, save, line);
+  f.append(el('label', null, tt('Where can we find your videos?'), { for: id }), input, save, line);
   box.append(f);
 }
 
@@ -1137,7 +1200,7 @@ function initTalk() {
      under the post they answer, with the order and the kinds to pick from once there is enough to sort. */
   const full = sec.hasAttribute('data-full'), page = sec.classList.contains('talk-all');
   T = { el: sec, feed: sec.hasAttribute('data-feed'), all: page || full, full, key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
-    what: sec.getAttribute('data-what') || 'this page', empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null, open: new Set() };
+    what: sec.getAttribute('data-what') || tt('this page'), empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null, open: new Set() };
   T.list = el('ul', 'votes talk-list');
   const go = sec.querySelector('.talk-go');
   if (go) sec.insertBefore(T.list, go); else sec.append(T.list);
@@ -1164,30 +1227,30 @@ async function initTalkPage() {
   T.feed = false;
   T.state = 'wait'; drawTalk();
   let names = null;
-  try { names = await within(15000, fetch(root + 'data/talk.json').then(r => { if (!r.ok) throw 0; return r.json(); })); } catch (x) { names = null; }
+  try { names = await within(15000, fetch(root + (SITE.names || 'data/talk.json')).then(r => { if (!r.ok) throw 0; return r.json(); })); } catch (x) { names = null; }
   const path = pathOf(on);
   if (!names) { T.state = 'err'; T.retry = () => location.reload(); drawTalk(); return; }
   if (path == null || typeof names[on] !== 'string') {
-    h.textContent = 'That page is not on this site';
-    intro.textContent = 'The address may be old or mistyped. Pick a race or a member to see what readers said about it.';
-    D.title = 'Not on this site | Liberty Score';
+    h.textContent = tt('That page is not on this site');
+    intro.textContent = tt('The address may be old or mistyped. Pick a race or a member to see what readers said about it.');
+    D.title = tt('Not on this site | Liberty Score');
     T.list.remove();
     return;
   }
   T.key = on; T.name = names[on];
   const what = T.what = whatOf(on);
-  T.empty = 'Nobody has said anything about ' + what + ' yet. Be the first.';
+  T.empty = tt('Nobody has said anything about {what} yet. Be the first.', { what });
   T.el.setAttribute('data-on', on); T.el.setAttribute('data-name', T.name);
-  h.textContent = T.name + ': what readers say';
-  D.title = T.name + ': what readers say | Liberty Score';
-  intro.textContent = 'What readers have said and shared about ' + what + '. Their words and their videos, not ours.';
+  h.textContent = tt('{name}: what readers say', { name: T.name });
+  D.title = tt('{name}: what readers say | Liberty Score', { name: T.name });
+  intro.textContent = tt('What readers have said and shared about {what}. Their words and their videos, not ours.', { what });
   back.textContent = '← ' + T.name; back.href = root + path;
   /* The box, filed under this page (send() reads data-on from the section when the box names no other). */
   pick.remove();
   if (box) box.hidden = false;
-  const chips = el('div', 'chips talk-sort', null, { role: 'group', 'aria-label': 'Order' });
-  [['top', 'Most liked'], ['new', 'Newest']].forEach(([s, t]) => {
-    const c = btn('chip', t, () => { T.sort = s; [...chips.children].forEach(o => o.setAttribute('aria-pressed', String(o === c))); drawTalk(); });
+  const chips = el('div', 'chips talk-sort', null, { role: 'group', 'aria-label': tt('Order') });
+  [['top', tt('Most liked')], ['new', tt('Newest')]].forEach(([s, w]) => {
+    const c = btn('chip', w, () => { T.sort = s; [...chips.children].forEach(o => o.setAttribute('aria-pressed', String(o === c))); drawTalk(); });
     c.setAttribute('aria-pressed', String(T.sort === s)); chips.append(c);
   });
   T.el.insertBefore(chips, T.list);
@@ -1223,7 +1286,7 @@ function shape(id, d) {
   const ups = num(d.ups), downs = num(d.downs);
   return { id, about: str(d.about), subject: str(d.subject), kind: ['opinion', 'video', 'link'].includes(d.kind) ? d.kind : 'opinion', text: str(d.text).slice(0, MAX), url: str(d.url),
     tag: TAGS[d.tag] ? d.tag : '', parent: /^[A-Za-z0-9]{1,40}$/.test(str(d.parent)) ? d.parent : '',
-    mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : 'A reader', status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), my: 0, reported: false,
+    mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : tt('A reader'), status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), my: 0, reported: false,
     ms: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : Date.now() };
 }
 async function fetchPosts() {
@@ -1283,16 +1346,18 @@ function drawTalk() {
   let n = 0;
   if (T.state === 'wait' || T.state === 'idle') {
     for (let i = 0; i < (T.all ? 3 : 2); i++) L.append(el('li', 'vote sk', null, { 'aria-hidden': 'true' }));
-    if (T.state === 'wait') L.append(el('li', 'vh', 'Loading what readers said.'));
-  } else if (T.state === 'off') L.append(stateRow('Reader posts are not switched on in this preview.'));
-  else if (T.state === 'err') L.append(stateRow('Could not load what readers said. Try again.', btn('btn btn-line', 'Try again', () => (T.retry ? T.retry() : loadTalk()))));
+    if (T.state === 'wait') L.append(el('li', 'vh', tt('Loading what readers said.')));
+  } else if (T.state === 'off') L.append(stateRow(tt('Reader posts are not switched on in this preview.')));
+  else if (T.state === 'err') L.append(stateRow(tt('Could not load what readers said. Try again.'), btn('btn btn-line', tt('Try again'), () => (T.retry ? T.retry() : loadTalk()))));
   else {
-    const every = ordered(), rows = every.filter(p => (!T.only || ONLY[T.only][1](p)) && (!T.where || keyKind(p.about) === T.where));
+    const every = ordered();
+    if (T.lang && !bothLangs(every)) T.lang = '';      // the last post in one of the two languages has gone: the filter goes with it
+    const rows = every.filter(p => (!T.only || ONLY[T.only][1](p)) && (!T.where || keyKind(p.about) === T.where) && (!T.lang || !lgOf(p) || lgOf(p) === T.lang));
     /* The number on the way to the whole discussion counts every post a reader would find there, replies too. */
     n = T.feed ? every.length : every.reduce((sum, p) => sum + 1 + repliesTo(p.id).length, 0);
     const best = T.sort === 'top' && rows.find(p => p.status === 'live' && p.score > 0 && !p.fresh);
-    if (!every.length) L.append(stateRow(T.feed ? (T.full && T.empty) || 'Nobody has posted yet. Pick a race or a member and be the first.' : T.empty || 'Nobody has said anything about ' + T.what + ' yet. Be the first.'));
-    else if (!rows.length) L.append(stateRow('Nothing of that kind here yet.', btn('btn btn-line', 'Show everything', () => { T.only = ''; T.where = ''; drawTalk(); })));
+    if (!every.length) L.append(stateRow(T.feed ? (T.full && T.empty) || tt('Nobody has posted yet. Pick a race or a member and be the first.') : T.empty || tt('Nobody has said anything about {what} yet. Be the first.', { what: T.what })));
+    else if (!rows.length) L.append(stateRow(tt('Nothing of that kind here yet.'), btn('btn btn-line', tt('Show everything'), () => { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); })));
     else (T.all ? rows : rows.slice(0, 3)).forEach(p => L.append(row(p, p === best)));
     if (T.full) { drawCtl(every); setCount(n); }
   }
@@ -1303,22 +1368,22 @@ function drawTalk() {
     if (n && go) {
       if (!more) { more = el('a', 'btn btn-line talk-more'); go.prepend(more); }
       more.href = root + 'talk/?on=' + encodeURIComponent(T.key);
-      more.textContent = 'Open the discussion (' + n + ')';
+      more.textContent = tt('Open the discussion') + ' (' + dig(n) + ')';
     } else if (more) more.remove();
   }
 }
 /* The kinds a reader can narrow a discussion to. Opinions, videos, corrections and bugs sit in one list,
    each with its tag; these let a reader who came for one kind see only that. */
 const ONLY = {
-  video: ['Videos', p => p.kind === 'video' || p.kind === 'link'],
-  fix: ['Corrections', p => p.tag === 'wrong' || p.tag === 'source'],
-  site: ['Bugs and ideas', p => p.tag === 'bug' || p.tag === 'idea']
+  video: [tt('Videos'), p => p.kind === 'video' || p.kind === 'link'],
+  fix: [tt('Corrections'), p => p.tag === 'wrong' || p.tag === 'source'],
+  site: [tt('Bugs and ideas'), p => p.tag === 'bug' || p.tag === 'idea']
 };
 /* Where a post was made, for the list of all discussions. */
-const WHERE = { race: 'Races', member: 'Politicians', state: 'States', vote: 'Votes', page: 'The site' };
+const WHERE = { race: tt('Races'), member: tt('Politicians'), state: tt('States'), vote: tt('Votes'), page: tt('The site') };
 let NAMES = null, namesAsked = false;
 /* What a page is called: from the build's own list once it has loaded, until then from the post. */
-function nameOf(about, fallback) { return (NAMES && typeof NAMES[about] === 'string' && NAMES[about]) || fallback || 'Open the page'; }
+function nameOf(about, fallback) { return (NAMES && typeof NAMES[about] === 'string' && NAMES[about]) || fallback || tt('Open the page'); }
 /* The discussions with the most posts among the newest ones loaded, the front page's own left out. */
 function busiest(every) {
   const by = new Map();
@@ -1331,13 +1396,16 @@ function drawCtl(every) {
   const C = T.ctl;
   if (!C) return;
   C.textContent = '';
-  C.hidden = every.length < 3;
+  /* With posts in both languages the two-language filter is worth showing from the second post on. */
+  const both = bothLangs(every);
+  C.hidden = every.length < 3 && !both;
   if (C.hidden) return;
-  const chips = el('div', 'chips talk-sort', null, { role: 'group', 'aria-label': 'Order, and what to show' });
+  const chips = el('div', 'chips talk-sort', null, { role: 'group', 'aria-label': tt('Order, and what to show') });
   const chip = (text, on, fn) => { const c = btn('chip', text, () => { fn(); drawTalk(); }); c.setAttribute('aria-pressed', String(on)); chips.append(c); };
-  if (!T.feed) [['top', 'Most liked'], ['new', 'Newest']].forEach(([s, t]) => chip(t, T.sort === s, () => { T.sort = s; }));
+  if (every.length < 3) { C.append(langRow()); return; }
+  if (!T.feed) [['top', tt('Most liked')], ['new', tt('Newest')]].forEach(([s, w]) => chip(w, T.sort === s, () => { T.sort = s; }));
   if (!T.feed) chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
-  chip('Everything', !T.only && !T.where, () => { T.only = ''; T.where = ''; });
+  chip(tt('Everything'), !T.only && !T.where, () => { T.only = ''; T.where = ''; });
   Object.keys(ONLY).forEach(k => { if (every.some(ONLY[k][1])) chip(ONLY[k][0], T.only === k, () => { T.only = k; }); });
   /* All discussions (the front page): every page's posts are in one list, so a reader can also narrow it by
      WHERE a post was made, and see which discussions are busiest. Armin, 5 October 2026: "all of the
@@ -1351,26 +1419,27 @@ function drawCtl(every) {
     const busy = busiest(every);
     if (busy.length) {
       const box = el('div', 'busy');
-      box.append(el('p', 'busy-h', 'Busiest discussions'));
+      box.append(el('p', 'busy-h', tt('Busiest discussions')));
       const ul = el('ul', 'busy-l');
-      busy.forEach(b => { const li = el('li'), a = el('a', 'busy-a', null, { href: root + pathOf(b.about) + '#discussion' }); a.append(el('span', null, nameOf(b.about, b.subject)), el('b', 'num', String(b.n))); li.append(a); ul.append(li); });
+      busy.forEach(b => { const li = el('li'), a = el('a', 'busy-a', null, { href: root + pathOf(b.about) + '#discussion' }); a.append(el('span', null, nameOf(b.about, b.subject)), el('b', 'num', dig(b.n))); li.append(a); ul.append(li); });
       box.append(ul);
       C.append(box);
     }
-    if (!NAMES && !namesAsked) { namesAsked = true; within(15000, fetch(root + 'data/talk.json').then(r => (r.ok ? r.json() : null))).then(j => { if (j) { NAMES = j; drawTalk(); } }).catch(() => {}); }
+    if (!NAMES && !namesAsked) { namesAsked = true; within(15000, fetch(root + (SITE.names || 'data/talk.json')).then(r => (r.ok ? r.json() : null))).then(j => { if (j) { NAMES = j; drawTalk(); } }).catch(() => {}); }
   }
   C.append(chips);
+  if (both) C.append(langRow());
 }
 /* The number on the switch, and at the end of the record. Shown only when there is something to count:
    a new place that shows a zero looks abandoned. */
 function setCount(n) {
   const b = $('disc-n'), p = $('band-p');
   discCount = n > 0 ? n : 0;
-  if (b) { b.hidden = !(n > 0); b.textContent = n > 99 ? '99+' : String(n); }
-  if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = (n === 1 ? '1 post so far.' : n + ' posts so far.') + ' Read ' + (n === 1 ? 'it' : 'them') + ', and say where you stand.'; }
+  if (b) { b.hidden = !(n > 0); b.textContent = n > 99 ? dig('99') + '+' : dig(n); }
+  if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = n === 1 ? tt('1 post so far. Read it, and say where you stand.') : tt('{n} posts so far. Read them, and say where you stand.', { n }); }
   /* The same number on the question high on the record. */
   const nn = $('nudge-n');
-  if (nn) { nn.hidden = !(n > 0); nn.textContent = n > 99 ? '99+ posts' : n === 1 ? '1 post' : n + ' posts'; }
+  if (nn) { nn.hidden = !(n > 0); nn.textContent = n > 99 ? tt('99+ posts') : n === 1 ? tt('1 post') : tt('{n} posts', { n }); }
   /* The words on the button at the end of the record, on the question near the top and on the switch:
      one place writes them, because a note the reader never sent changes all three (keptMark). */
   keptMark(kept);
@@ -1384,7 +1453,7 @@ function restWhere() {
   return T.feed ? live : { compositeFilter: { op: 'AND', filters: [{ fieldFilter: { field: { fieldPath: 'about' }, op: 'EQUAL', value: { stringValue: T.key } } }, live] } };
 }
 function initPeek() {
-  if (OFF || hook('lpbreak')) return;
+  if (OFF || QUIET || hook('lpbreak')) return;
   const count = async () => {
     if (T.state !== 'idle') return;
     /* The limit is what the rules ask of every list of posts; a count under it still costs one read. */
@@ -1411,10 +1480,11 @@ function initPeek() {
     if (!p) return;
     const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
     top.textContent = '';
-    top.append(el('blockquote', null, cut(p.text, 180)), el('p', null, p.name + ' · ' + niceDate(p.ms)));
+    top.append(el('blockquote', null, cut(p.text, 180), ML ? { dir: 'auto' } : null), el('p', null, p.name + ' · ' + niceDate(p.ms)));
     top.hidden = false;
     if (ntop) {
       ntop.textContent = '';
+      if (ML) ntop.setAttribute('dir', 'auto');
       ntop.append(el('b', null, p.name + ': '), cut(p.text, 110));
       ntop.hidden = false;
     }
@@ -1431,12 +1501,88 @@ function initPeek() {
   io.observe(band);
   if (nudge) io.observe(nudge);
 }
+/* ------------------------------------------------------------------ two languages in one room
+   Only on a site that hands in two languages (ML). One discussion a page, both languages mixed: a small
+   community split in two looks dead, and most readers of such a site read both. So nothing is stored about
+   a post's language; the letters it is written in say it. Persian and Arabic letters making up three in
+   ten of its letters or more: Persian. Otherwise English. No letters at all (a video with no words): no
+   language, and it is shown whichever language a reader picks. */
+const FA_LETTERS = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/g, LATIN_LETTERS = /[A-Za-z]/g;
+function langOf(text) {
+  const s = String(text || ''), a = (s.match(FA_LETTERS) || []).length, l = (s.match(LATIN_LETTERS) || []).length;
+  if (!a && !l) return '';
+  return a / (a + l) >= 0.3 ? 'fa' : 'en';
+}
+/* The language of a post. A reply that starts with the name of the reader it answers ("@Dariush ...") is
+   judged by what comes after the name: a short Persian answer to a reader with a Latin name is Persian. */
+function lgOf(p) {
+  if (p.lg === undefined || p.lgFor !== p.text) {
+    const named = p.parent && p.text.charAt(0) === '@' && T ? mention(p) : '';
+    p.lg = langOf(named ? p.text.slice(named.length + 1) : p.text); p.lgFor = p.text;
+  }
+  return p.lg;
+}
+/* The direction words run in, from their language. Not left to the browser's own guess (dir="auto"): that
+   goes by the first letter, and a Persian reply that opens with a Latin name would be laid out left to
+   right with its full stop on the wrong side. No letters to go by: the direction of the page. */
+function dirOf(lg) { return lg === 'fa' ? 'rtl' : lg === 'en' ? 'ltr' : (RTL ? 'rtl' : 'ltr'); }
+function bothLangs(posts) { return ML && SITE.langs.every(l => posts.some(p => lgOf(p) === l)); }
+/* All languages, or one. Offered only once there are posts in both: a filter that changes nothing a reader
+   can see is noise. The name of each language is written in that language, whatever page this is. */
+const LANG_NAMES = { fa: 'فارسی', en: 'English' };
+/* A row of its own under the order and the kinds: on a phone that row scrolls sideways, and a filter at
+   the far end of it would be out of sight. */
+function langRow() {
+  const chips = el('div', 'chips talk-lang', null, { role: 'group', 'aria-label': tt('Language') });
+  [''].concat(SITE.langs).forEach(l => {
+    const c = btn('chip chip-lang', l ? LANG_NAMES[l] || l : tt('All languages'), () => { T.lang = l; drawTalk(); });
+    c.setAttribute('aria-pressed', String((T.lang || '') === l)); c.setAttribute('data-lang-pick', l || 'all');
+    if (l) c.setAttribute('lang', l);
+    chips.append(c);
+  });
+  return chips;
+}
+/* Translate a post written in the other language than this page's. The control is a plain link to Google
+   Translate, opened in a new tab: that is what it does in a browser with no translator of its own, and what
+   it falls back to when the browser's own (the Translator API, Chrome and Edge) cannot do this pair, fails,
+   or takes too long. With the browser's own, the words are translated where they stand and the same
+   control puts the original back. Nothing is fetched from anywhere before the reader taps. */
+function trUrl(text) { return 'https://translate.google.com/?sl=auto&tl=' + LANG + '&text=' + encodeURIComponent(text); }
+async function trOwn(p) {
+  const api = self.Translator, pair = { sourceLanguage: lgOf(p), targetLanguage: LANG };
+  const can = await within(8000, Promise.resolve(api.availability(pair)));
+  if (!can || can === 'unavailable') throw { code: 'lp/notr' };
+  const tr = await within(60000, Promise.resolve(api.create(pair)));
+  try {
+    const out = await within(30000, Promise.resolve(tr.translate(p.text)));
+    if (typeof out !== 'string' || !out.trim()) throw { code: 'lp/notr' };
+    return out;
+  } finally { try { if (tr && tr.destroy) tr.destroy(); } catch (x) { } }
+}
+function trCtl(p) {
+  const wrap = el('p', 'tr'), shown = !!(p.tr && p.tr.on);
+  const a = el('a', 'tr-b', shown ? tt('Show original') : p.trNo ? tt('Translate with Google') : tt('Translate'), { href: trUrl(p.text), target: '_blank', rel: 'noopener', 'data-tr': shown ? 'on' : p.trNo ? 'link' : 'off' });
+  const line = el('span', 'tr-msg', p.trMsg || '', { role: 'status' });
+  a.addEventListener('click', ev => {
+    if (p.tr) { ev.preventDefault(); p.tr.on = !p.tr.on; redraw(p, 'tr-b'); return; }      // translated already: this only switches
+    if (p.trNo || !('Translator' in self)) return;      // no translator in this browser: the link opens Google Translate
+    ev.preventDefault();
+    if (p.trBusy) return;
+    p.trBusy = true; line.textContent = tt('Translating.');
+    trOwn(p).then(text => { p.tr = { text, on: true }; p.trMsg = ''; },
+      () => { p.trNo = true; p.trMsg = tt('This browser could not translate it here. Tap again to open it in Google Translate.'); })
+      .then(() => { p.trBusy = false; const q = find(p.id) || p; q.tr = p.tr; q.trNo = p.trNo; q.trMsg = p.trMsg; redraw(q, 'tr-b'); });
+  });
+  wrap.append(a, line);
+  return wrap;
+}
+
 /* The reader a reply answers, when it starts with their name ("@Dana K the 2019 vote..."): the longest name
    in that thread the words start with. Empty when it starts with no name from the thread. */
 function mention(p) {
   if (!p.parent || p.text.charAt(0) !== '@') return '';
   const par = find(p.parent), names = (par ? [par.name] : []).concat(repliesTo(p.parent).map(r => r.name)).sort((a, b) => b.length - a.length);
-  return names.find(n => p.text.startsWith('@' + n) && !/[A-Za-z0-9]/.test(p.text.charAt(n.length + 1))) || '';
+  return names.find(n => p.text.startsWith('@' + n) && !LETTER.test(p.text.charAt(n.length + 1))) || '';
 }
 /* One post, drawn the way a conversation reads: a face, a name, how long ago, then the words. A reply (it
    has a parent) is drawn the same way, smaller, in the thread under the post it answers, and has no tag.
@@ -1447,55 +1593,71 @@ function row(p, best) {
   const li = el('li', 'vote said' + (p.status !== 'live' ? ' own' : '') + (p.parent ? ' reply' : ''), null, { id: 'p-' + p.id });
   const head = el('div', 'said-head'), meta = el('div', 'meta'), who = el('span', 'who');
   /* "Dana K replied 2 hours ago": the part after the name stays together, so on a narrow screen it moves under the name whole. */
-  const sub = el('span', 'said-sub', p.parent ? 'replied ' : '');
-  sub.append(el('time', 'said-when', ago(p.ms), { datetime: new Date(p.ms).toISOString(), title: niceDate(p.ms) }));
-  who.append(el('b', null, p.name), ' ', sub);
+  const sub = el('span', 'said-sub'), when = el('time', 'said-when', ago(p.ms), { datetime: new Date(p.ms).toISOString(), title: niceDate(p.ms) });
+  if (p.parent) sub.append(...ttParts('replied {when}', 'when', when)); else sub.append(when);
+  who.append(el('b', null, p.name, ML ? { dir: 'auto' } : null), ' ', sub);
   meta.append(who);
   /* Only the people who run the site can hold such a name (the rules refuse it to everyone else). */
-  if (reservedName(p.name)) meta.append(el('span', 'tag host', 'Host'));
+  if (reservedName(p.name)) meta.append(el('span', 'tag host', tt('Host')));
   /* A plain opinion needs no label: it is what a post is. A video, a link, a correction, a bug or an idea says so. */
   if (!p.parent && (p.tag || p.kind !== 'opinion')) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
-  if (p.mine) meta.append(el('span', 'tag', 'Made it'));
-  if (best) meta.append(el('span', 'tag best', 'Most liked'));
+  if (p.mine) meta.append(el('span', 'tag', tt('Made it')));
+  if (best) meta.append(el('span', 'tag best', tt('Most liked')));
   head.append(face(p.name), meta);
   li.append(head);
-  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', 'In: ' + nameOf(p.about, p.subject), { href: root + pathOf(p.about) + '#p-' + p.id }));
+  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: root + pathOf(p.about) + '#p-' + p.id }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
-  else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) li.append(el('p', 'said-about', 'About: ' + p.subject));
+  else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) {
+    /* On a site with two languages the line may have been written on the page in the other one: it is kept
+       apart from the word before it, so each runs in its own direction. */
+    if (ML) { const ab = el('p', 'said-about'); ab.append(...ttParts('About: {what}', 'what', el('bdi', null, p.subject))); li.append(ab); }
+    else li.append(el('p', 'said-about', tt('About: {what}', { what: p.subject })));
+  }
   const emb = p.kind === 'video' && URL_OK.test(p.url) ? embedOf(p.url) : null;
   if (emb) {
     const box = el('div', 'tv tv-' + emb[0].toLowerCase(), null, { 'data-embed': emb[1], 'data-plat': emb[0] });
     const a = el('a', 'tv-play', null, { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' });
     const yt = emb[0] === 'YouTube' && /\/embed\/([\w-]{11})$/.exec(emb[1]);
-    if (yt) a.append(el('img', null, null, { src: 'https://i.ytimg.com/vi/' + yt[1] + '/hqdefault.jpg', alt: '', loading: 'lazy', decoding: 'async', width: '480', height: '360' }));
-    const cap = el('span', 'tv-what'); cap.append(el('b', null, 'Video shared by ' + p.name), el('span', null, 'Play it here · ' + emb[0]));
+    if (yt && !QUIET) a.append(el('img', null, null, { src: 'https://i.ytimg.com/vi/' + yt[1] + '/hqdefault.jpg', alt: '', loading: 'lazy', decoding: 'async', width: '480', height: '360' }));
+    const cap = el('span', 'tv-what'); cap.append(el('b', null, tt('Video shared by {name}', { name: p.name })), el('span', null, tt('Play it here · {site}', { site: emb[0] })));
     a.append(el('span', 'tv-go', null, { 'aria-hidden': 'true' }), cap);
     box.append(a); li.append(box);
   }
   if (p.text) {
     const q = el('blockquote'), to = mention(p);
-    if (to) q.append(el('b', 'at', '@' + to), p.text.slice(to.length + 1)); else q.textContent = p.text;
+    if (p.tr && p.tr.on) q.textContent = p.tr.text;      // the reader asked for the translation (trCtl)
+    else if (to) q.append(el('b', 'at', '@' + to, ML ? { dir: 'auto' } : null), p.text.slice(to.length + 1)); else q.textContent = p.text;
     li.append(q);
+    /* Two languages in one room: the words keep the direction of the language they were written in, and a
+       post in the other language than this page's can be translated where it stands. */
+    if (ML) {
+      const lg = lgOf(p);
+      q.setAttribute('dir', dirOf(p.tr && p.tr.on ? LANG : lg));
+      if (lg) li.setAttribute('data-lang', lg);
+      if (lg && lg !== LANG) li.append(trCtl(p));
+    }
   }
-  if (p.kind !== 'opinion' && !emb && URL_OK.test(p.url)) li.append(el('a', 'said-link', 'Open the link on ' + hostOf(p.url), { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
+  if (p.kind !== 'opinion' && !emb && URL_OK.test(p.url)) li.append(el('a', 'said-link', tt('Open the link on {host}', { host: hostOf(p.url) }), { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
   if (p.status !== 'live') {
     const note = el('p', 'said-note');
-    note.textContent = p.status === 'held' ? 'Only you can see this until you confirm your email.' : p.status === 'pending' ? 'Only you can see this until we have looked at it.'
-      : p.status === 'hidden' ? 'Readers reported this, so it is off the page until we have looked at it. Only you can see it.' : 'We removed this because it broke the rules. Only you can see it.';
+    note.textContent = p.status === 'held' ? tt('Only you can see this until you confirm your email.') : p.status === 'pending' ? tt('Only you can see this until we have looked at it.')
+      : p.status === 'hidden' ? tt('Readers reported this, so it is off the page until we have looked at it. Only you can see it.') : tt('We removed this because it broke the rules. Only you can see it.');
     li.append(note);
-    if (p.status === 'held') li.append(btn('sheet-text', 'Send the confirmation link again', ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
+    if (p.status === 'held') li.append(btn('sheet-text', tt('Send the confirmation link again'), ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
     if (!p.parent && !T.feed) hang(li, p);
     return li;
   }
   const bar = el('div', 'said-bar'), own = me && p.uid === me.uid;
   ['up', 'down'].forEach(dir => {
-    const on = !!me && p.my === (dir === 'up' ? 1 : -1), n = dir === 'up' ? p.ups : p.downs, word = dir === 'up' ? 'Like' : 'Unlike';
+    const on = !!me && p.my === (dir === 'up' ? 1 : -1), n = dir === 'up' ? p.ups : p.downs, word = dir === 'up' ? tt('Like') : tt('Unlike');
     const b = btn('vt vt-' + dir, null, () => vote(p.id, dir, false));
     b.innerHTML = ICON[dir];
-    b.append(el('span', null, word), el('b', 'num', String(n)));
+    b.append(el('span', null, word), el('b', 'num', dig(n)));
     b.setAttribute('aria-pressed', String(on));
-    b.setAttribute('aria-label', word + '. ' + n + (n === 1 ? ' reader has' : ' readers have') + (on ? ', you among them. Tap to take it back.' : '.'));
-    if (own) { b.disabled = true; b.title = 'You cannot like or unlike your own post'; }
+    b.setAttribute('aria-label', dir === 'up'
+      ? (on ? (n === 1 ? tt('Like. {n} reader has, you among them. Tap to take it back.', { n }) : tt('Like. {n} readers have, you among them. Tap to take it back.', { n })) : (n === 1 ? tt('Like. {n} reader has.', { n }) : tt('Like. {n} readers have.', { n })))
+      : (on ? (n === 1 ? tt('Unlike. {n} reader has, you among them. Tap to take it back.', { n }) : tt('Unlike. {n} readers have, you among them. Tap to take it back.', { n })) : (n === 1 ? tt('Unlike. {n} reader has.', { n }) : tt('Unlike. {n} readers have.', { n }))));
+    if (own) { b.disabled = true; b.title = tt('You cannot like or unlike your own post'); }
     bar.append(b);
   });
   /* Reply: on a post and on every reply under it, on the page the discussion belongs to, and only once the
@@ -1506,7 +1668,7 @@ function row(p, best) {
   if (!T.feed && T.v2) {
     const top = p.parent || p.id, at = p.parent ? p.id : '', pre = p.parent ? '@' + p.name + ' ' : '';
     const open = !!(T.replying && T.replying.id === top && (T.replying.at || '') === at);
-    const rb = btn('reply-b', 'Reply', () => {
+    const rb = btn('reply-b', tt('Reply'), () => {
       T.replying = open ? null : { id: top, at, pre, text: pre };
       const q = find(top);
       if (q) redraw(q, open ? '' : 'reply-in');
@@ -1515,7 +1677,7 @@ function row(p, best) {
     acts.append(rb);
   } else if (T.feed && T.v2 && pathOf(p.about) != null) {
     /* All discussions: the post being answered lives on its own page, so Reply is the way there. */
-    acts.append(el('a', 'said-go', 'Reply', { href: root + pathOf(p.about) + '#p-' + p.id }));
+    acts.append(el('a', 'said-go', tt('Reply'), { href: root + pathOf(p.about) + '#p-' + p.id }));
   }
   const last = own ? delCtl(p) : reportCtl(p);
   if (last) acts.append(last);
@@ -1530,15 +1692,15 @@ function row(p, best) {
    answers out of sight with it. Two taps, because it cannot be undone. */
 function delCtl(p) {
   if (T.feed || (!p.parent && repliesTo(p.id).length)) return null;
-  const b = btn('del-b', 'Delete');
+  const b = btn('del-b', tt('Delete'));
   let armed = 0;
   b.addEventListener('click', async () => {
     if (!armed) {
-      b.textContent = 'Tap again to delete'; b.classList.add('armed');
-      armed = setTimeout(() => { armed = 0; b.textContent = 'Delete'; b.classList.remove('armed'); }, 5000);
+      b.textContent = tt('Tap again to delete'); b.classList.add('armed');
+      armed = setTimeout(() => { armed = 0; b.textContent = tt('Delete'); b.classList.remove('armed'); }, 5000);
       return;
     }
-    clearTimeout(armed); b.disabled = true; b.textContent = 'Deleting';
+    clearTimeout(armed); b.disabled = true; b.textContent = tt('Deleting');
     try {
       await within(25000, fb());
       if (!user || user.uid !== p.uid) throw { code: 'permission-denied' };
@@ -1549,7 +1711,7 @@ function delCtl(p) {
       drawTalk();
     } catch (e) {
       const q = find(p.id) || p;
-      q.msg = 'That did not delete. ' + words(e); q.msgBad = true;
+      q.msg = tt('That did not delete. {why}', { why: words(e) }); q.msgBad = true;
       redraw(q);
     }
   });
@@ -1569,31 +1731,37 @@ function hang(li, p) {
     const ul = el('ul', 'replies');
     (whole ? rs : rs.slice(0, 2)).forEach(r => ul.append(row(r, false)));
     li.append(ul);
-    if (!whole) li.append(btn('thread-more', 'Show ' + (rs.length - 2) + ' more replies', () => { T.open.add(p.id); redraw(p); }));
+    if (!whole) li.append(btn('thread-more', tt('Show {n} more replies', { n: rs.length - 2 }), () => { T.open.add(p.id); redraw(p); }));
     return;
   }
   const mine = rs.filter(r => r.fresh || r.status !== 'live');
   if (mine.length) { const ul = el('ul', 'replies'); mine.forEach(r => ul.append(row(r, false))); li.append(ul); }
   const rest = rs.length - mine.length;
-  if (rest) li.append(el('a', 'said-more', (mine.length ? 'And ' : 'Read ') + (rest === 1 ? '1 ' + (mine.length ? 'more ' : '') + 'reply' : rest + ' ' + (mine.length ? 'more ' : '') + 'replies'), { href: root + 'talk/?on=' + encodeURIComponent(p.about) + '#p-' + p.id }));
+  if (rest) li.append(el('a', 'said-more', mine.length ? (rest === 1 ? tt('And 1 more reply') : tt('And {n} more replies', { n: rest })) : (rest === 1 ? tt('Read 1 reply') : tt('Read {n} replies', { n: rest })), { href: root + 'talk/?on=' + encodeURIComponent(p.about) + '#p-' + p.id }));
 }
 /* The box for a reply. p is the post the thread hangs from; to is the reply being answered, when it is one. */
 function replyBox(p, to) {
   const f = el('form', 'reply-f', null, { novalidate: '' }), id = 're-' + p.id, name = (to || p).name;
-  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: 'Answer ' + name + ' in your own words.' });
+  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: tt('Answer {name} in your own words.', { name }) });
+  if (ML) {
+    /* The box may open with a name in it ("@Dariush "): its direction follows what the reader types after that. */
+    const pre = (T.replying && T.replying.pre) || '', aim = () => ta.setAttribute('dir', dirOf(langOf(ta.value.indexOf(pre) === 0 ? ta.value.slice(pre.length) : ta.value)));
+    ta.addEventListener('input', aim);
+    setTimeout(aim, 0);
+  }
   const line = el('p', 'said-msg', '', { role: 'status', 'aria-live': 'polite' });
-  const go = el('button', 'btn btn-key', 'Send reply', { type: 'submit' });
-  const no = btn('btn btn-line', 'Cancel', () => { T.replying = null; redraw(p, 'reply-b'); });
+  const go = el('button', 'btn btn-key', tt('Send reply'), { type: 'submit' });
+  const no = btn('btn btn-line', tt('Cancel'), () => { T.replying = null; redraw(p, 'reply-b'); });
   const acts = el('div', 'row'); acts.append(go, no);
   ta.value = T.replying.text || '';
   ta.addEventListener('input', () => { if (T.replying && T.replying.id === p.id) T.replying.text = ta.value; });
   /* Ctrl and Enter (Command and Enter on a Mac) sends, the way it does everywhere people argue. */
   ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); go.click(); } });
-  f.append(el('label', 'vh', 'Your reply to ' + name, { for: id }), ta, acts, line);
+  f.append(el('label', 'vh', tt('Your reply to {name}', { name }), { for: id }), ta, acts, line);
   if (T.replying.msg) { line.textContent = T.replying.msg; line.className = 'said-msg' + (T.replying.bad ? ' bad' : ''); }
   f.addEventListener('submit', async ev => {
     ev.preventDefault();
-    go.disabled = true; line.textContent = 'Sending.'; line.className = 'said-msg';
+    go.disabled = true; line.textContent = tt('Sending.'); line.className = 'said-msg';
     await sendReply(p.id, ta.value);
     go.disabled = false;
   });
@@ -1608,28 +1776,28 @@ async function sendReply(id, raw) {
   const cur = T.replying && T.replying.id === id ? T.replying : {}, keep = () => ({ id, at: cur.at || '', pre: cur.pre || '', text: raw });
   const say = (msg, bad) => { T.replying = Object.assign(keep(), { msg, bad }); const q = find(id); if (q) redraw(q, 'reply-in'); return false; };
   if (!p || p.status !== 'live') return false;
-  if (text.length < 8 || (cur.pre && text === cur.pre.trim())) return say('Write a few words first.', true);
-  if (text.length > MAX) return say('That is ' + text.length + ' characters. Keep it to ' + MAX + '.', true);
+  if (text.length < 8 || (cur.pre && text === cur.pre.trim())) return say(tt('Write a few words first.'), true);
+  if (text.length > MAX) return say(tt('That is {n} characters. Keep it to {max}.', { n: text.length, max: MAX }), true);
   const opener = $('p-' + id) && $('p-' + id).querySelector('.reply-b');
   if (!me) {
     T.replying = keep();
     pending = { type: 'reply', id, text: raw };
-    openSheet('auth', { why: 'Your reply is saved. Create an account to send it.', whyIn: 'Your reply is saved. Sign in to send it.', opener });
+    openSheet('auth', { why: tt('Your reply is saved. Create an account to send it.'), whyIn: tt('Your reply is saved. Sign in to send it.'), opener });
     if (!OFF) fb().catch(() => { });
     return false;
   }
   try {
     await within(25000, fb());
-    if (!user) { pending = { type: 'reply', id, text: raw }; openSheet('auth', { mode: 'in', why: 'Your reply is saved. Sign in to send it.', opener }); return false; }
-    if (!user.displayName) { pending = { type: 'reply', id, text: raw }; openSheet('name', { why: 'Your reply is saved. Choose a name to send it.', opener }); return false; }
+    if (!user) { pending = { type: 'reply', id, text: raw }; openSheet('auth', { mode: 'in', why: tt('Your reply is saved. Sign in to send it.'), opener }); return false; }
+    if (!user.displayName) { pending = { type: 'reply', id, text: raw }; openSheet('name', { why: tt('Your reply is saved. Choose a name to send it.'), opener }); return false; }
     p = find(id) || p;
     T.replying = null;      // postIt draws the reply under the post; the box must be gone by then
     try { await within(30000, postIt({ text, url: '', made: false, on: p.about, subject: p.subject || T.name, tag: '', parent: id, v2: true })); }
     catch (e) { T.replying = keep(); throw e; }
     return true;
   } catch (e) {
-    if (e && e.code === 'lp/pace') return say('You posted a moment ago. Wait ' + e.wait + ' seconds, then send it again. Your reply is kept.', true);
-    return say('That did not send. ' + words(e) + ' Your reply is kept.', true);
+    if (e && e.code === 'lp/pace') return say(tt('You posted a moment ago. Wait {n} seconds, then send it again. Your reply is kept.', { n: e.wait }), true);
+    return say(tt('That did not send. {why} Your reply is kept.', { why: words(e) }), true);
   }
 }
 function redraw(p, keep) {
@@ -1653,19 +1821,22 @@ const find = id => T && T.posts.find(p => p.id === id);
 /* Needs an account whose email is confirmed. Answers true when the reader has one right now; otherwise
    it keeps what they were doing and opens the panel at the right place. */
 async function ready(what, opener) {
-  const verb = what.type === 'vote' ? 'like or unlike' : 'report a post', kept = what.type === 'vote' ? 'Your tap is saved.' : 'Your report is saved.';
+  /* Whole sentences, so another language can put its words in its own order. */
+  const W = what.type === 'vote'
+    ? { make: tt('Create an account to like or unlike. Your tap is saved.'), sign: tt('Sign in to like or unlike. Your tap is saved.'), name: tt('Choose a name to like or unlike. Your tap is saved.'), conf: tt('Confirm your email to like or unlike. Your tap is saved.') }
+    : { make: tt('Create an account to report a post. Your report is saved.'), sign: tt('Sign in to report a post. Your report is saved.'), name: tt('Choose a name to report a post. Your report is saved.'), conf: tt('Confirm your email to report a post. Your report is saved.') };
   if (!me) {
     pending = what;
-    openSheet('auth', { why: 'Create an account to ' + verb + '. ' + kept, whyIn: 'Sign in to ' + verb + '. ' + kept, opener });
+    openSheet('auth', { why: W.make, whyIn: W.sign, opener });
     if (!OFF) fb().catch(() => { });
     return false;
   }
   await within(25000, fb());
-  if (!user) { pending = what; openSheet('auth', { mode: 'in', why: 'Sign in to ' + verb + '. ' + kept, opener }); return false; }
-  if (!user.displayName) { pending = what; openSheet('name', { why: 'Choose a name to ' + verb + '. ' + kept, opener }); return false; }
+  if (!user) { pending = what; openSheet('auth', { mode: 'in', why: W.sign, opener }); return false; }
+  if (!user.displayName) { pending = what; openSheet('name', { why: W.name, opener }); return false; }
   if (!me.v && !(await freshVerified().catch(() => false))) {
     pending = what;
-    openSheet('check', { note: 'Confirm your email to ' + verb + '. ' + kept, opener });
+    openSheet('check', { note: W.conf, opener });
     return false;
   }
   return true;
@@ -1682,7 +1853,7 @@ async function vote(id, dir, force) {
   p = find(id);
   if (!p) return;
   const uid = me.uid, val = dir === 'up' ? 1 : -1;
-  if (p.uid === uid) { p.msg = 'You cannot like or unlike your own post.'; p.msgBad = false; redraw(p); return; }
+  if (p.uid === uid) { p.msg = tt('You cannot like or unlike your own post.'); p.msgBad = false; redraw(p); return; }
   const had = { my: p.my, ups: p.ups, downs: p.downs };
   if (p.my === val && force) return;
   const want = p.my === val ? 0 : val;
@@ -1713,7 +1884,7 @@ async function vote(id, dir, force) {
   } catch (e) {
     p = find(id) || p;
     put(p, had.my, had.ups, had.downs);
-    p.msg = 'That did not count. ' + words(e); p.msgBad = true;
+    p.msg = tt('That did not count. {why}', { why: words(e) }); p.msgBad = true;
     T.rev++;
     redraw(p);
   }
@@ -1722,14 +1893,14 @@ async function vote(id, dir, force) {
    who runs the site has looked. */
 function reportCtl(p) {
   const wrap = el('div', 'rp');
-  if (p.reported) { wrap.append(el('span', 'rp-done', p.thanked ? 'Reported. Thank you.' : 'Reported', { role: 'status' })); return wrap; }
-  const about = 'Not about ' + whatOf(p.about);
-  const b = btn('rp-b', 'Report'), menu = el('div', 'rp-m', null, { role: 'menu', 'aria-label': 'Why are you reporting this?' });
+  if (p.reported) { wrap.append(el('span', 'rp-done', p.thanked ? tt('Reported. Thank you.') : tt('Reported'), { role: 'status' })); return wrap; }
+  const about = tt('Not about {what}', { what: whatOf(p.about) });
+  const b = btn('rp-b', tt('Report')), menu = el('div', 'rp-m', null, { role: 'menu', 'aria-label': tt('Why are you reporting this?') });
   b.setAttribute('aria-haspopup', 'menu'); b.setAttribute('aria-expanded', 'false');
   menu.hidden = true;
   const shut = back => { menu.hidden = true; b.setAttribute('aria-expanded', 'false'); D.removeEventListener('click', away, true); if (back) b.focus(); };
   const away = ev => { if (!wrap.contains(ev.target)) shut(false); };
-  [['off-topic', about], ['abusive', 'Abusive'], ['advert', 'An advert']].forEach(([why, label]) => {
+  [['off-topic', about], ['abusive', tt('Abusive')], ['advert', tt('An advert')]].forEach(([why, label]) => {
     const i = btn(null, label, () => { shut(true); report(p.id, why); });
     i.setAttribute('role', 'menuitem'); menu.append(i);
   });
@@ -1775,15 +1946,15 @@ async function report(id, why) {
     }));
     p = find(id) || p;
     p.reported = true; p.thanked = true;
-    p.msg = hidden ? 'It is off the page until we have looked at it.' : ''; p.msgBad = false;
+    p.msg = hidden ? tt('It is off the page until we have looked at it.') : ''; p.msgBad = false;
     T.rev++;
     redraw(p);
     reason(p, why);
   } catch (e) {
     p = find(id) || p;
     /* Someone else's report hid it a moment ago: the reader's own was not needed. */
-    if (e && e.code === 'permission-denied') { p.reported = true; p.thanked = true; p.msg = 'It is already off the page while we look at it.'; p.msgBad = false; }
-    else { p.msg = 'That report did not go through. ' + words(e); p.msgBad = true; }
+    if (e && e.code === 'permission-denied') { p.reported = true; p.thanked = true; p.msg = tt('It is already off the page while we look at it.'); p.msgBad = false; }
+    else { p.msg = tt('That report did not go through. {why}', { why: words(e) }); p.msgBad = true; }
     redraw(p);
   }
 }
@@ -1850,6 +2021,7 @@ function modTools(box) {
   const goH = el('h2', 'mod-h', 'Short links, last 28 days'), goBox = el('div', 'mod-go', null, { id: 'mod-go' });
   box.append(hl, line, top, waitH, waitL, newH, newL, goH, goBox, pplH, el('div', 'row', null), pplL);
   pplH.nextSibling.append(copy); pplL.before(csvBox);
+  if (SITE.noStats) { goH.hidden = true; goBox.hidden = true; }      // a site with no short links has no counts to show
   const GO = ['yt', 'pin', 'qr', 'x', 'site', 'mail', 'other'], GOW = { yt: 'video description', pin: 'pinned comment', qr: 'QR code', x: 'X', site: 'this site', mail: 'newsletter', other: 'another tag', none: 'no tag' };
   function drawGo(days, err) {
     goBox.textContent = '';
@@ -1884,7 +2056,7 @@ function modTools(box) {
     if (p.nrep) meta.append(el('span', 'tag', p.nrep + (p.nrep === 1 ? ' report' : ' reports')));
     li.append(meta);
     if (p.tag) meta.append(el('span', 'tag kind kind-' + p.tag, TAGS[p.tag]));
-    if (p.parent) meta.append(el('span', 'tag', 'Reply'));
+    if (p.parent) meta.append(el('span', 'tag', tt('Reply')));
     if (pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || p.about, { href: root + pathOf(p.about) }));
     if (p.text) li.append(el('blockquote', null, p.text));
     if (URL_OK.test(p.url)) li.append(el('a', 'said-link', p.url, { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
@@ -1933,7 +2105,7 @@ function modTools(box) {
     if (!people.length) pplL.append(stateRow('Nobody has made an account yet.'));
     people.forEach(u => {
       const li = el('li', 'vote said'), meta = el('div', 'meta');
-      meta.append(el('b', null, u.name), el('span', 'tag' + (u.confirmed ? ' ok' : ''), u.confirmed ? 'Confirmed' : 'Not confirmed'));
+      meta.append(el('b', null, u.name), el('span', 'tag' + (u.confirmed ? ' ok' : ''), u.confirmed ? tt('Confirmed') : tt('Not confirmed')));
       if (u.creator) meta.append(el('span', 'tag best', 'Makes videos'));
       if (u.news) meta.append(el('span', 'tag', 'Wants news'));
       if (u.news) li.setAttribute('data-news-at', when(u));
@@ -1958,7 +2130,7 @@ function modTools(box) {
       hold.checked = cfg.exists() && cfg.data().hold === true;
       place(); drawPeople(); tell(line, '');
       /* The counts are read apart from the rest: while the first version of the rules is live nobody may read them. */
-      try {
+      if (!SITE.noStats) try {
         const st = await within(20000, F.getDocs(F.query(F.collection(db, 'stats'), F.limit(400))));
         drawGo(st.docs.map(d => Object.assign({ id: d.id }, d.data())));
       } catch (e) { drawGo([], e && e.code === 'permission-denied' ? 'The counts start once the new rules are published (README.md, "Short links that count").' : 'Could not load the counts. ' + words(e)); }
@@ -2007,16 +2179,16 @@ async function latest(sec) {
     const li = el('li', 'vote said'), meta = el('div', 'meta'), who = el('span');
     who.append(el('b', null, p.name), ' · ' + niceDate(p.ms));
     meta.append(who, el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
-    li.append(meta, el('a', 'said-on', p.subject || 'Open the page', { href: root + pathOf(p.about) + '#p-' + p.id }));
+    li.append(meta, el('a', 'said-on', p.subject || tt('Open the page'), { href: root + pathOf(p.about) + '#p-' + p.id }));
     const text = p.text.length > 200 ? p.text.slice(0, 197).replace(/\s+\S*$/, '') + '...' : p.text;
     if (text) li.append(el('blockquote', null, text));
-    else if (p.kind !== 'opinion') li.append(el('p', 'said-note', p.kind === 'video' ? 'A video. Watch it on the page.' : 'A link. Open it on the page.'));
+    else if (p.kind !== 'opinion') li.append(el('p', 'said-note', p.kind === 'video' ? tt('A video. Watch it on the page.') : tt('A link. Open it on the page.')));
     list.append(li);
   });
   const more = el('div', 'row latest-go');
-  more.append(el('a', 'btn btn-line', 'Every discussion', { href: '#discussion' }));
+  more.append(el('a', 'btn btn-line', tt('Every discussion'), { href: '#discussion' }));
   if (none) none.remove();
-  wrap.append(el('h2', null, 'Latest from readers'), list, more);
+  wrap.append(el('h2', null, tt('Latest from readers')), list, more);
   sec.classList.add('on');
 }
 
@@ -2024,7 +2196,7 @@ async function latest(sec) {
 function start() {
   if (!CFG) return;
   window.LP = { send: () => { send(); }, embedOf, pathOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet,
-    ready: () => fb().then(() => true), emu: EMU, off: OFF, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2() } : null };
+    ready: () => fb().then(() => true), emu: EMU, off: OFF, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
   initHeader();
   initBox();
