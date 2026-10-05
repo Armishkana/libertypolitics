@@ -698,7 +698,7 @@ footer{padding-bottom:84px}
 .youline{margin-top:12px;font-weight:600;max-width:46ch}
 .youline a{display:inline}
 .yq{list-style:none;margin:0;padding:0;display:grid;gap:14px;max-width:46rem}
-.yq-i{padding:18px 16px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:var(--r);scroll-margin-top:140px}
+.yq-i{padding:18px 16px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:var(--r)}
 .yq-i.done{border-left-color:var(--field)}
 .yq-i.with{border-left-color:var(--ga)}
 .yq-i.against{border-left-color:var(--gf)}
@@ -718,10 +718,10 @@ footer{padding-bottom:84px}
 .yq-you{font-weight:700}
 .with .yq-you{color:var(--ga)}
 .against .yq-you{color:var(--gf)}
-.yq-end{margin-top:20px;display:grid;gap:10px;justify-items:start;max-width:46rem;scroll-margin-top:140px}
+.yq-end{margin-top:20px;display:grid;gap:10px;justify-items:start;max-width:46rem}
 .yq-end p{font-weight:600}
 .yq-end .btn[disabled]{opacity:.45;cursor:not-allowed}
-.yq-res{background:var(--panel);scroll-margin-top:120px}
+.yq-res{background:var(--panel)}
 .yq-res[hidden]{display:none}
 .yq-res .person{background:var(--bg)}
 .yq-grade{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
