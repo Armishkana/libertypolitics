@@ -382,4 +382,9 @@
       else done(false);
     });
   });
+
+  /* ---- take action: a state picker that opens that state's discussion ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('select[data-go-state]'), function (s) {
+    s.addEventListener('change', function () { if (s.value) location.href = root + 'states/' + s.value + '/' + (s.getAttribute('data-go-state') || ''); });
+  });
 })();
