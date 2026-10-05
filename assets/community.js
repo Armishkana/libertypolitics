@@ -122,7 +122,7 @@ function niceDate(ms) { return new Date(ms).toLocaleDateString('en-US', { month:
 /* The page a discussion belongs to, from its key. null when the key is not one of ours: the front page is
    the empty address, so '' is an answer. render.py works it out the same way (subject_of), and
    build/phone-test.html checks the two agree. The same keys are the only ones the rules take. */
-const KEY_OK = /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build))$/;
+const KEY_OK = /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you))$/;
 const DIR = { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
 function pathOf(about) {
