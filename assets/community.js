@@ -114,7 +114,7 @@ function btn(cls, text, fn) { const b = el('button', cls, text, { type: 'button'
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 /* Nothing may wait forever: a promise that has not settled in ms fails as "slow". */
 function within(ms, p) { return Promise.race([p, new Promise((_, no) => setTimeout(() => no({ code: 'lp/slow' }), ms))]); }
-const KEY = { me: EMU ? 'lp-emu-me' : 'lp-me', seen: EMU ? 'lp-emu-seen' : 'lp-seen', draft: 'lp-draft' };
+const KEY = { me: EMU ? 'lp-emu-me' : 'lp-me', seen: EMU ? 'lp-emu-seen' : 'lp-seen', draft: 'lp-draft', ry: EMU ? 'lp-emu-ry' : 'lp-ry', rseen: EMU ? 'lp-emu-ry-seen' : 'lp-ry-seen' };
 const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (x) { return null; } },
   set(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (x) { } }
@@ -309,9 +309,11 @@ function onUser(u) {
        reader who came in through Google until they have chosen one (Google's own name is never used). */
     me = { uid: u.uid, name: u.displayName || '', email: u.email || '', v: !!u.emailVerified, last: (same && was.last) || 0, ok: !!(same && was.ok && u.emailVerified) };
     store.set(KEY.me, me); store.set(KEY.seen, 1);
-    if (!same) { profile = null; adminIs = false; }
-  } else { me = null; profile = null; adminIs = false; store.set(KEY.me, null); }
+    if (!same) { profile = null; adminIs = false; ryDrop(); }
+  } else { me = null; profile = null; adminIs = false; store.set(KEY.me, null); ryDrop(); }
   changed();
+  /* Firebase's code is loaded and a reader is signed in: the one moment "replies to you" may be asked for. */
+  if (u) ryCheck().catch(() => { });
 }
 function changed() { paintHeader(); paintBox(); subs.forEach(f => { try { f(); } catch (x) { } }); }
 
@@ -432,6 +434,147 @@ function quietCheck() {
   freshVerified().then(ok => { if (ok && sheetView === 'check') show('done', {}); else if (ok) runPending(); }).catch(() => { });
 }
 
+/* ------------------------------------------------------------------ replies to you
+   Armin, 6 October 2026: "make sure that people get notifications when somebody replies to them." There is
+   no server of ours, so the page works it out for a signed-in reader: live replies written by other accounts
+   under the reader's own posts, and replies that begin with the reader's name ("@Dana K ") in a thread the
+   reader answered in. New means newer than the last time this device showed the list (kept on the device;
+   with nothing kept, the last 14 days). It shows as a small count on the account control in the header and
+   as a list at the top of the account panel, so the header still carries one thing.
+   What it costs: it is asked only once Firebase's code is loaded for a signed-in reader, never for a
+   visitor, and at most once in ten minutes: the answer is kept for the tab and the next page paints from
+   it. One read for each of the reader's own posts (300 at most), then one for each live reply in the
+   threads they are part of (the newest 90 threads, 30 to a question). No order is asked for, so no index
+   has to exist; the sorting is done here. The rules are untouched: a list of the reader's own posts, and a
+   list of live posts, each with a limit. */
+const RY = { every: 10 * 60000, back: 14 * 86400000, threads: 90, show: 20 };
+let ry = null, ryAsk = null, rySeenAt = 0;
+const ryKept = {
+  get() { try { return JSON.parse(sessionStorage.getItem(KEY.ry)); } catch (x) { return null; } },
+  set(v) { try { if (v == null) sessionStorage.removeItem(KEY.ry); else sessionStorage.setItem(KEY.ry, JSON.stringify(v)); } catch (x) { } }
+};
+/* One reply as it is kept: where it is, who wrote it, how it begins and when. Anything else is dropped. */
+function ryRow(r) {
+  if (!r || typeof r.id !== 'string' || !/^[A-Za-z0-9]{1,40}$/.test(r.id) || pathOf(r.about) == null || typeof r.text !== 'string' || typeof r.ms !== 'number') return null;
+  return { id: r.id, about: r.about, name: typeof r.name === 'string' && NAME_OK.test(r.name) ? r.name : tt('A reader'), text: r.text.slice(0, 200), ms: r.ms };
+}
+function ryDrop() { ry = null; ryAsk = null; rySeenAt = 0; ryKept.set(null); }
+/* What the tab kept from the last page, painted before Firebase's code has loaded. */
+function ryWake() {
+  const k = ryKept.get();
+  if (me && k && k.uid === me.uid && typeof k.at === 'number' && Array.isArray(k.rows)) ry = { uid: k.uid, at: Math.min(k.at, Date.now()), rows: k.rows.map(ryRow).filter(Boolean) };
+}
+/* When this device last showed the list to this reader. Kept by account (the last eight on the device), so
+   a second reader signing in here does not make the first one's replies new again; and kept in memory too,
+   for a browser that keeps nothing. */
+function rySeenAll() { const s = store.get(KEY.rseen); return s && typeof s === 'object' && !Array.isArray(s) ? s : {}; }
+function rySeen() {
+  const at = me ? rySeenAll()[me.uid] : 0, kept = typeof at === 'number' ? at : 0;
+  return Math.max(kept, rySeenAt) || Date.now() - RY.back;
+}
+function ryNew() {
+  if (!me || !ry || ry.uid !== me.uid) return 0;
+  const since = rySeen();
+  return ry.rows.filter(r => r.ms > since).length;
+}
+function ryMark(rows) {
+  if (!me) return;
+  rySeenAt = Math.max(Date.now(), ...rows.map(r => r.ms));
+  const all = rySeenAll(), keep = {};
+  all[me.uid] = rySeenAt;
+  Object.keys(all).filter(k => typeof all[k] === 'number').sort((a, b) => all[b] - all[a]).slice(0, 8).forEach(k => { keep[k] = all[k]; });
+  store.set(KEY.rseen, keep);
+  paintHeader();
+}
+async function ryFind(uid, myName) {
+  const { F, db } = S, P = F.collection(db, 'posts');
+  const own = (await F.getDocs(F.query(P, F.where('uid', '==', uid), F.limit(300)))).docs.map(d => shape(d.id, d.data()));
+  /* The threads this reader is part of, each named by the post it hangs from. mine: that post is their own.
+     names: what they were called there, for a reply that begins with their name. */
+  const th = new Map();
+  own.forEach(p => {
+    const id = p.parent || p.id, t = th.get(id) || { mine: false, names: new Set(), ms: 0 };
+    if (!p.parent) t.mine = true;
+    t.names.add(p.name); t.ms = Math.max(t.ms, p.ms); th.set(id, t);
+  });
+  const ids = [...th.keys()].sort((a, b) => th.get(b).ms - th.get(a).ms).slice(0, RY.threads), got = new Map();
+  const take = snap => snap.docs.forEach(d => got.set(d.id, shape(d.id, d.data())));
+  try {
+    if (hook('lpnoindex')) throw { code: 'failed-precondition' };
+    for (let i = 0; i < ids.length; i += 30) take(await F.getDocs(F.query(P, F.where('parent', 'in', ids.slice(i, i + 30)), F.where('status', '==', 'live'), F.limit(300))));
+  } catch (e) {
+    if (!e || e.code !== 'failed-precondition') throw e;
+    /* The question about many threads at once was refused for want of an index: ask the newest ten one by one. */
+    for (const id of ids.slice(0, 10)) take(await F.getDocs(F.query(P, F.where('parent', '==', id), F.where('status', '==', 'live'), F.limit(100))));
+  }
+  const all = [...got.values()].filter(r => th.has(r.parent));
+  const toMe = r => {
+    const t = th.get(r.parent);
+    if (t.mine) return true;
+    const n = [...t.names].concat(myName ? [myName] : []).find(x => r.text.startsWith('@' + x + ' '));
+    if (!n) return false;
+    /* "@Dana K ..." is not for Dana when a Dana K wrote in that thread too: the longest name wins, as in mention(). */
+    return !all.some(o => o.parent === r.parent && o.uid !== uid && o.name.length > n.length && r.text.startsWith('@' + o.name) && !LETTER.test(r.text.charAt(o.name.length + 1)));
+  };
+  return all.filter(r => r.uid !== uid && r.status === 'live' && toMe(r)).sort((a, b) => b.ms - a.ms).map(ryRow).filter(Boolean).slice(0, 40);
+}
+/* Answers what is known for the signed-in reader, asking the database only when the last answer is older
+   than ten minutes. Never loads Firebase's code by itself: with none loaded it answers nothing. */
+function ryCheck() {
+  if (OFF || !S || !user || !me || me.uid !== user.uid) return Promise.resolve(null);
+  const uid = user.uid;
+  if (ry && ry.uid === uid && Date.now() - ry.at < RY.every) return Promise.resolve(ry);
+  if (ryAsk && ryAsk.uid === uid) return ryAsk.p;
+  const p = within(25000, ryFind(uid, user.displayName || '')).then(rows => {
+    if (!user || user.uid !== uid) return null;
+    ry = { uid, at: Date.now(), rows }; ryKept.set(ry); paintHeader();
+    return ry;
+  });
+  const done = () => { if (ryAsk && ryAsk.p === p) ryAsk = null; };
+  p.then(done, done);
+  ryAsk = { uid, p };
+  return p;
+}
+/* The list at the top of the account panel: who answered, how it begins, how long ago, and the way to it on
+   its own page. Drawing it is what marks the replies as seen. A reader's words go in as text, never as markup. */
+function ryView() {
+  const box = el('section', 'ry', null, { 'aria-labelledby': 'ry-h', 'data-clarity-mask': 'true' });
+  const wait = el('p', 'sheet-hint', tt('Looking for replies to you.'));
+  box.append(el('h3', null, tt('Replies to you'), { id: 'ry-h' }), wait);
+  const cut = t => { t = String(t).replace(/\s+/g, ' ').trim(); return t.length > 80 ? t.slice(0, 77).replace(/\s+\S*$/, '') + '...' : t; };
+  const fill = got => {
+    wait.remove();
+    if (!got) { box.append(el('p', 'sheet-hint', tt('Could not look for replies just now. Try again in a moment.'))); return; }
+    if (!got.rows.length) { box.append(el('p', 'sheet-hint', tt('Nobody has answered you yet.'))); return; }
+    const since = rySeen(), ul = el('ul', 'ry-list', null, { 'data-clarity-mask': 'true' });
+    got.rows.slice(0, RY.show).forEach(r => {
+      const li = el('li'), a = el('a', 'ry-go', null, { href: root + pathOf(r.about) + '#p-' + r.id }), who = el('span', 'ry-who'), sub = el('span', 'ry-sub');
+      sub.append(...ttParts('replied {when}', 'when', el('time', null, ago(r.ms), { datetime: new Date(r.ms).toISOString(), title: niceDate(r.ms) })));
+      who.append(el('b', null, r.name, ML ? { dir: 'auto' } : null), ' ', sub);
+      if (r.ms > since) who.append(el('span', 'tag', tt('New')));
+      a.append(who, el('span', 'ry-t', cut(r.text), ML ? { dir: 'auto' } : null));
+      /* The panel must not stay over the page the link opens, when that page is this one. */
+      a.addEventListener('click', () => closeSheet());
+      li.append(a); ul.append(li);
+    });
+    box.append(ul);
+    ryMark(got.rows);
+  };
+  const mine = () => (ry && me && ry.uid === me.uid ? ry : null);
+  ryCheck().then(got => fill(got || mine()), () => fill(mine()));
+  return box;
+}
+/* A link to one post on the page the reader is already on (#p-...): the discussion is open by now
+   (discussion.js switches on the same address); this brings the post into view, opening its thread first. */
+function landOn() {
+  if (!T || location.hash.indexOf('#p-') !== 0 || T.state !== 'ok') return;
+  const t = find(location.hash.slice(3));
+  if (!t) { reloadTalk(); return; }
+  if (t.parent && !T.open.has(t.parent)) { T.open.add(t.parent); drawTalk(); }
+  const r = $(location.hash.slice(1));
+  if (r) r.scrollIntoView({ block: 'center' });
+}
+
 /* ------------------------------------------------------------------ the control in the header */
 function paintHeader() {
   const a = $('acct');
@@ -439,9 +582,16 @@ function paintHeader() {
   a.textContent = '';
   a.classList.toggle('in', !!me);
   if (me) {
-    a.append(el('span', 'acct-i', (me.name.match(LETTER) || ['?'])[0].toUpperCase(), { 'aria-hidden': 'true' }), el('span', 'acct-n', me.name || tt('Choose a name')));
-    a.setAttribute('aria-label', me.name ? tt('Your account: {name}', { name: me.name }) : tt('Finish signing in: choose your name'));
-  } else { a.textContent = tt('Sign in'); a.removeAttribute('aria-label'); }
+    /* Replies to you: a small count on the reader's own letter, which is on screen at every width (the name
+       beside it is not). It sits over the corner of the letter and takes no room, so the bar is as wide as before. */
+    const n = ryNew(), i = el('span', 'acct-i', (me.name.match(LETTER) || ['?'])[0].toUpperCase(), { 'aria-hidden': 'true' });
+    if (n) i.append(el('b', 'acct-c', n > 9 ? dig(9) + '+' : dig(n)));
+    a.append(i, el('span', 'acct-n', me.name || tt('Choose a name')));
+    a.setAttribute('aria-label', !me.name ? tt('Finish signing in: choose your name')
+      : n === 1 ? tt('Your account: {name}. 1 new reply to you.', { name: me.name })
+        : n ? tt('Your account: {name}. {n} new replies to you.', { name: me.name, n }) : tt('Your account: {name}', { name: me.name }));
+    if (n) a.setAttribute('title', n === 1 ? tt('1 new reply to you') : tt('{n} new replies to you', { n })); else a.removeAttribute('title');
+  } else { a.textContent = tt('Sign in'); a.removeAttribute('aria-label'); a.removeAttribute('title'); }
 }
 function initHeader() {
   const a = $('acct');
@@ -840,7 +990,7 @@ function viewAccount() {
       } catch (e) { tell(line, words(e), true); }
       save.disabled = false;
     });
-    sheetBody.append(form);
+    sheetBody.append(ryView(), form);
     const out = btn('btn btn-line', tt('Sign out'), async () => {
       out.disabled = true;
       try { pending = null; await S.A.signOut(S.auth); closeSheet(); } catch (e) { out.disabled = false; tell(line, words(e), true); }
@@ -2198,6 +2348,7 @@ function start() {
   window.LP = { send: () => { send(); }, embedOf, pathOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet,
     ready: () => fb().then(() => true), emu: EMU, off: OFF, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
+  if (me && !OFF) ryWake();
   initHeader();
   initBox();
   initTalk();
@@ -2205,5 +2356,6 @@ function start() {
   initMod();
   if (me && !OFF) fb().then(() => { if (user && user.emailVerified && !me.ok) settle(false).catch(() => { }); }, () => { });
   window.addEventListener('focus', quietCheck); D.addEventListener('visibilitychange', quietCheck);
+  window.addEventListener('hashchange', landOn);
 }
 start();

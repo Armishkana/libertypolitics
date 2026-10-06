@@ -428,6 +428,23 @@ span.face-lg{font-size:1.7rem}
 @media(min-width:1220px){.acct-n{display:none}.top nav a.acct.in{padding:0 6px}}
 .mark{min-height:44px;flex-shrink:0}
 @media(max-width:419px){.top .wrap{gap:8px}.mark{font-size:1.15rem;gap:8px}.mark img{width:34px;height:34px}.top nav a.acct{padding:0 9px}.top nav a.join{padding:0 12px}}
+/* replies to you (6 October 2026): a count on the corner of the reader's letter, which is the one part of
+   the control on screen at every width. It is laid over the letter and takes no room of its own, so the bar
+   is exactly as wide as without it and the menu cannot be pushed over the site name again. Cream, not red:
+   red on this site is a grade and a party. The list it stands for is at the top of the account panel. */
+.acct-i{position:relative}
+.acct-c{position:absolute;top:-5px;right:-8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--ink);color:var(--on-field);box-shadow:0 0 0 2px var(--sunk);font:800 .75rem/18px var(--body);text-align:center;font-variant-numeric:tabular-nums}
+.ry{display:grid;gap:6px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.ry h3{font-size:1.35rem}
+.ry-list{list-style:none;margin:0;padding:0;display:grid}
+.ry-list li+li{border-top:1px solid var(--line)}
+.ry-go{display:grid;gap:2px;align-content:center;min-height:44px;padding:10px 0;text-decoration:none}
+.ry-go:hover .ry-t{text-decoration:underline;text-underline-offset:3px}
+.ry-who{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 8px;color:var(--dim);font-size:.92rem}
+.ry-who b{color:var(--ink);overflow-wrap:anywhere}
+.ry-who .tag{color:var(--field)}
+.ry-sub{white-space:nowrap}
+.ry-t{overflow-wrap:anywhere}
 
 /* the panel: create an account, sign in, check your email, your account. A real dialog; it sits at the
    bottom of a phone screen and in the middle of a computer screen. */
