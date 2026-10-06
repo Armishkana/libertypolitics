@@ -425,7 +425,8 @@ span.face-lg{font-size:1.7rem}
 .acct-i{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;flex:none;border-radius:50%;background:var(--field);color:var(--on-field);font:800 1.15rem/1 var(--display)}
 .acct-n{max-width:9rem;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:559px){.acct-n{display:none}.top nav a.acct.in{padding:0 6px}}
-.mark{min-height:44px}
+@media(min-width:1220px){.acct-n{display:none}.top nav a.acct.in{padding:0 6px}}
+.mark{min-height:44px;flex-shrink:0}
 @media(max-width:419px){.top .wrap{gap:8px}.mark{font-size:1.15rem;gap:8px}.mark img{width:34px;height:34px}.top nav a.acct{padding:0 9px}.top nav a.join{padding:0 12px}}
 
 /* the panel: create an account, sign in, check your email, your account. A real dialog; it sits at the
