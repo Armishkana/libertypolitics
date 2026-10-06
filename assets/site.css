@@ -241,6 +241,9 @@ span.portrait{display:flex;align-items:center;justify-content:center;font:900 2.
 .sides .out{grid-column:1/-1}
 @media(min-width:620px){.sides .out{grid-column:auto}}
 .out.aligned dd{color:var(--ga)}.out.against dd{color:var(--gf)}.out.none dd{color:var(--dim)}
+/* the letter beside one line or one vote, the same box as the tiles above the list */
+.sides .out.lt{position:relative;padding-left:64px;min-height:60px;display:flex;flex-direction:column;justify-content:center}
+.out.lt .g{position:absolute;left:12px;top:50%;transform:translateY(-50%)}
 .vote .links{margin-top:12px;display:flex;flex-wrap:wrap;gap:4px 18px;font-size:.92rem}
 .vote .links a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
 
