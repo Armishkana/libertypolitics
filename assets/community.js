@@ -1475,8 +1475,10 @@ async function fetchPosts() {
   return [...out.values()];
 }
 function talkAdd(post) {
-  /* On the front page the discussion is the newest posts from every page, and a post made there belongs in it. */
-  if (!T || T.key !== post.about || (T.feed && !T.full)) return;
+  /* On the front page the discussion is the newest posts from every page, and a post made there belongs in it.
+     A reply written on a site-wide list belongs on it too, under its post, whatever page that post is on. */
+  if (!T) return;
+  if (T.feed ? !((T.full && T.key === post.about) || hasPost(post.parent)) : T.key !== post.about) return;
   T.rev++;
   if (T.state !== 'ok') { if (T.state === 'idle' || T.state === 'err') loadTalk(); return; }
   T.posts = T.posts.filter(p => p.id !== post.id).concat([post]);
@@ -1830,12 +1832,17 @@ function row(p, best) {
     if (own) { b.disabled = true; b.title = tt('You cannot like or unlike your own post'); }
     bar.append(b);
   });
-  /* Reply: on a post and on every reply under it, on the page the discussion belongs to, and only once the
-     rules that take a reply are live. The box opens right under whatever was tapped. An answer to a reply
-     goes into the same thread (top is the post the thread hangs from) and starts with that reader's name. */
+  /* Reply: on a post and on every reply under it, and only once the rules that take a reply are live. The
+     box opens right under whatever was tapped, on the site-wide lists too. An answer to a reply goes into
+     the same thread (top is the post the thread hangs from) and starts with that reader's name.
+     Until 6 October 2026 Reply on a site-wide list was a link to the page the post is on. For a post made
+     on the front page that was the page the reader was already on, so the tap did nothing (a reader, that
+     day: "If I press it, no text box or anything else appears"). Now the post being answered is always on
+     the list with its replies under it (ordered, hang), so the answer is written where the reader is. The
+     link is kept for the one row that stands alone: a reply whose post could not be loaded. */
   /* Reply sits beside the likes; Report, or Delete on a reader's own post, at the end of the same line. */
   const acts = el('div', 'said-acts');
-  if (!T.feed && T.v2) {
+  if (T.v2 && (!T.feed || hasPost(p.parent || p.id))) {
     const top = p.parent || p.id, at = p.parent ? p.id : '', pre = p.parent ? '@' + p.name + ' ' : '';
     const open = !!(T.replying && T.replying.id === top && (T.replying.at || '') === at);
     const rb = btn('reply-b', tt('Reply'), () => {
@@ -1846,7 +1853,7 @@ function row(p, best) {
     rb.setAttribute('aria-expanded', String(open));
     acts.append(rb);
   } else if (T.feed && T.v2 && pathOf(p.about) != null) {
-    /* All discussions: the post being answered lives on its own page, so Reply is the way there. */
+    /* A reply left alone on a site-wide list: the thread it belongs to is on its own page, so Reply is the way there. */
     acts.append(el('a', 'said-go', tt('Reply'), { href: root + pathOf(p.about) + '#p-' + p.id }));
   }
   const last = own ? delCtl(p) : reportCtl(p);
