@@ -1451,6 +1451,14 @@ async function fetchPosts() {
       /* The index for the ordered question is not there yet: ask without an order and sort here. */
       take(await F.getDocs(F.query(P, F.where('status', '==', 'live'), F.limit(300))));
     }
+    /* A reply is drawn under the post it answers (ordered, hang). The newest posts can hold a reply whose
+       post is older than all of them: that post is asked for by its id, so an answer is never left alone. */
+    const lost = [...new Set([...out.values()].map(p => p.parent).filter(id => id && !out.has(id)))].slice(0, 20);
+    await Promise.all(lost.map(id => F.getDoc(F.doc(db, 'posts', id)).then(d => {
+      if (!d.exists()) return;
+      const q = shape(d.id, d.data());
+      if (q.status === 'live') out.set(d.id, q);
+    }).catch(() => {})));
   } else {
     take(await F.getDocs(F.query(P, F.where('about', '==', T.key), F.where('status', '==', 'live'), F.limit(200))));
     if (user) take(await F.getDocs(F.query(P, F.where('about', '==', T.key), F.where('uid', '==', user.uid), F.limit(50))));
@@ -1474,12 +1482,21 @@ function talkAdd(post) {
   T.posts = T.posts.filter(p => p.id !== post.id).concat([post]);
   drawTalk();
 }
-/* The posts in the order they are shown. On the site-wide list that is every post, newest first, replies
-   among them. Everywhere else it is the posts that answer nobody; their replies hang under them (repliesTo). */
+/* The posts in the order they are shown: the posts that answer nobody. Their replies hang under them
+   (repliesTo), on every list, the site-wide one too. Until 6 October 2026 the site-wide list drew a reply
+   as a box of its own between other posts, so the first answers the site gave sat nowhere near the posts
+   they answered (Armin, that day: "The comments should have shown up as a reply underneath their comments").
+   On the site-wide list the newest word in a thread is what places it, so an answer lifts the post it
+   answers to the top with the answer under it. A reply whose post could not be loaded (removed, or hidden)
+   is the one reply that still stands alone, with the page it is on. */
+function hasPost(id) { return !!id && T.posts.some(q => q.id === id && !q.gone); }
 function ordered() {
   const mineFirst = p => (p.fresh || (me && p.uid === me.uid && p.status !== 'live')) ? 1 : 0;
-  const by = T.sort === 'new' ? (a, b) => b.ms - a.ms : (a, b) => (b.score - a.score) || (b.ms - a.ms);
-  return T.posts.filter(p => !p.gone && (T.feed || !p.parent)).sort((a, b) => (mineFirst(b) - mineFirst(a)) || by(a, b));
+  const last = new Map();
+  if (T.feed) T.posts.forEach(r => { if (!r.gone && r.parent && r.ms > (last.get(r.parent) || 0)) last.set(r.parent, r.ms); });
+  const act = p => Math.max(p.ms, (!p.parent && last.get(p.id)) || 0);
+  const by = T.sort === 'new' ? (a, b) => act(b) - act(a) : (a, b) => (b.score - a.score) || (b.ms - a.ms);
+  return T.posts.filter(p => !p.gone && (!p.parent || (T.feed && !hasPost(p.parent)))).sort((a, b) => (mineFirst(b) - mineFirst(a)) || by(a, b));
 }
 /* The replies to one post, oldest first, the way a conversation reads. */
 function repliesTo(id) { return T.posts.filter(p => !p.gone && p.parent === id).sort((a, b) => a.ms - b.ms); }
@@ -1504,7 +1521,7 @@ function drawTalk() {
     if (T.lang && !bothLangs(every)) T.lang = '';      // the last post in one of the two languages has gone: the filter goes with it
     const rows = every.filter(p => (!T.only || ONLY[T.only][1](p)) && (!T.where || keyKind(p.about) === T.where) && (!T.lang || !lgOf(p) || lgOf(p) === T.lang));
     /* The number on the way to the whole discussion counts every post a reader would find there, replies too. */
-    n = T.feed ? every.length : every.reduce((sum, p) => sum + 1 + repliesTo(p.id).length, 0);
+    n = every.reduce((sum, p) => sum + 1 + (p.parent ? 0 : repliesTo(p.id).length), 0);
     const best = T.sort === 'top' && rows.find(p => p.status === 'live' && p.score > 0 && !p.fresh);
     if (!every.length) L.append(stateRow(T.feed ? (T.full && T.empty) || tt('Nobody has posted yet. Pick a race or a member and be the first.') : T.empty || tt('Nobody has said anything about {what} yet. Be the first.', { what: T.what })));
     else if (!rows.length) L.append(stateRow(tt('Nothing of that kind here yet.'), btn('btn btn-line', tt('Show everything'), () => { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); })));
@@ -1543,6 +1560,10 @@ function busiest(every) {
 /* The order and the kinds, above the list. Not drawn until there are three posts: with fewer there is
    nothing to sort, and a row of switches over one post is noise. */
 function drawCtl(every) {
+  /* What each page is called, for "In: Texas" on the site-wide list. Asked for before anything below can
+     return early: it used to sit after the row of switches, which is not drawn under three posts, so a list
+     of two threads named its pages from the posts instead of from the build. */
+  if (T.feed && !NAMES && !namesAsked) { namesAsked = true; within(15000, fetch(root + (SITE.names || 'data/talk.json')).then(r => (r.ok ? r.json() : null))).then(j => { if (j) { NAMES = j; drawTalk(); } }).catch(() => {}); }
   const C = T.ctl;
   if (!C) return;
   C.textContent = '';
@@ -1566,7 +1587,7 @@ function drawCtl(every) {
       chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
       kinds.forEach(k => chip(WHERE[k], T.where === k, () => { T.where = T.where === k ? '' : k; }));
     }
-    const busy = busiest(every);
+    const busy = busiest(T.posts.filter(p => !p.gone));
     if (busy.length) {
       const box = el('div', 'busy');
       box.append(el('p', 'busy-h', tt('Busiest discussions')));
@@ -1575,7 +1596,6 @@ function drawCtl(every) {
       box.append(ul);
       C.append(box);
     }
-    if (!NAMES && !namesAsked) { namesAsked = true; within(15000, fetch(root + (SITE.names || 'data/talk.json')).then(r => (r.ok ? r.json() : null))).then(j => { if (j) { NAMES = j; drawTalk(); } }).catch(() => {}); }
   }
   C.append(chips);
   if (both) C.append(langRow());
@@ -1755,7 +1775,7 @@ function row(p, best) {
   if (best) meta.append(el('span', 'tag best', tt('Most liked')));
   head.append(face(p.name), meta);
   li.append(head);
-  if (T.feed && pathOf(p.about) != null) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: root + pathOf(p.about) + '#p-' + p.id }));
+  if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: root + pathOf(p.about) + '#p-' + p.id }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
   else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) {
     /* On a site with two languages the line may have been written on the page in the other one: it is kept
@@ -1794,7 +1814,7 @@ function row(p, best) {
       : p.status === 'hidden' ? tt('Readers reported this, so it is off the page until we have looked at it. Only you can see it.') : tt('We removed this because it broke the rules. Only you can see it.');
     li.append(note);
     if (p.status === 'held') li.append(btn('sheet-text', tt('Send the confirmation link again'), ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
-    if (!p.parent && !T.feed) hang(li, p);
+    if (!p.parent) hang(li, p);
     return li;
   }
   const bar = el('div', 'said-bar'), own = me && p.uid === me.uid;
@@ -1835,7 +1855,7 @@ function row(p, best) {
   li.append(bar);
   if (p.msg) li.append(el('p', 'said-msg' + (p.msgBad ? ' bad' : ''), p.msg, { role: 'status' }));
   if (p.parent && T.replying && T.replying.at === p.id && T.replying.id === p.parent) { const par = find(p.parent); if (par) li.append(replyBox(par, p)); }
-  if (!p.parent && !T.feed) hang(li, p);
+  if (!p.parent) hang(li, p);
   return li;
 }
 /* Delete, for the author. A post other readers have answered stays: taking it away would take their

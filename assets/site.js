@@ -204,7 +204,18 @@
     if (days > 1) s.textContent = ' That is ' + days + ' days from today.';
     else if (days === 1) s.textContent = ' That is tomorrow.';
     else if (days === 0) s.textContent = ' That is today.';
+    else if (s.getAttribute('data-after')) s.textContent = s.getAttribute('data-after');      /* the day has passed: say so, never leave a vote that was held reading as one to come */
   });
+
+  /* ---- the country switch: the United States, or one of the other countries (build/world.py) ----
+     A choice opens that country's page. Coming back with the back button puts the switch back on the
+     country of the page, because a browser keeps the last choice of a select when it restores a page. */
+  var picks = Array.prototype.slice.call(document.querySelectorAll('select[data-country]'));
+  function homeChoice(s) { Array.prototype.forEach.call(s.options, function (o, i) { if (o.defaultSelected) s.selectedIndex = i; }); }
+  picks.forEach(function (s) {
+    s.addEventListener('change', function () { if (s.value) location.href = s.value; });
+  });
+  if (picks.length) window.addEventListener('pageshow', function () { picks.forEach(homeChoice); });
 
   /* The box a reader writes in, the switch between a page's record and its discussion, the player a shared
      video opens in and the Share button are in discussion.js since 5 October 2026: iranuncensored.com runs
