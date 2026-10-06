@@ -99,10 +99,10 @@
     fill($('yq-near'), ok.slice().sort(by(1)).slice(0, 4));
     fill($('yq-far'), ok.slice().sort(by(-1)).slice(0, 4));
     var lower = all.filter(function (m) { return m.score < t.score; }).length;
-    $('yq-rank').textContent = lower === 0 ? 'No member of Congress we grade scores lower than that.'
-      : lower === all.length ? 'That is higher than every one of the ' + all.length + ' members of Congress we grade.'
-      : 'That is higher than ' + lower + ' of the ' + all.length + ' members of Congress we grade.';
-    $('yq-like-p').textContent = 'Compared on the ' + t.n + ' measure' + (t.n === 1 ? '' : 's') + ' you answered, using every vote we count for each member.';
+    $('yq-rank').textContent = lower === 0 ? 'No member of Congress I grade scores lower than that.'
+      : lower === all.length ? 'That\'s higher than every one of the ' + all.length + ' members of Congress I grade.'
+      : 'That\'s higher than ' + lower + ' of the ' + all.length + ' members of Congress I grade.';
+    $('yq-like-p').textContent = 'Compared on the ' + t.n + ' measure' + (t.n === 1 ? '' : 's') + ' you answered, using every vote I count for each member.';
     $('yq-like').hidden = false;
     mineIn(all);
   }
@@ -129,7 +129,7 @@
       if (a === 'yea' || a === 'nay') {
         li.classList.add(a === side ? 'with' : 'against');
         you.textContent = 'You voted ' + (a === 'yea' ? 'Yes' : 'No') + '. ' + (a === side ? 'With the liberty side.' : 'Against the liberty side.');
-      } else you.textContent = a === 'skip' ? 'You skipped this one.' : 'You have not answered this one.';
+      } else you.textContent = a === 'skip' ? 'You skipped this one.' : 'You haven\'t answered this one.';
       li.querySelector('.yq-a').hidden = false;
     });
     res.hidden = false;

@@ -35,18 +35,18 @@
     /* What the box asks for, by what the reader picked. link: 0 no link field, 1 a link is welcome, 2 a link
        is the point. max: what a reader says or shares is printed on a page, so it is kept short. */
     var K = {
-      opinion: { lab: tt('What do you think?'), ph: tt('Did we get this right? Who has it wrong, and why? Say it in your own words.'), link: 0, min: 8, max: 600, short: tt('Write a few words first.') },
+      opinion: { lab: tt('What do you think?'), ph: tt('Did I get this right? Who has it wrong, and why? Say it in your own words.'), link: 0, min: 8, max: 600, short: tt('Write a few words first.') },
       video: { lab: tt('What is in the video? (optional)'), ph: tt('One line: who is speaking, and about what.'), link: 2, min: 0, max: 600, short: '',
         linklab: tt('Link to the video'), linkhint: tt('A video from YouTube, X or Instagram plays right on the page. From anywhere else, it is shown as a link.') },
       wrong: { lab: tt('What is wrong, and where?'), ph: tt('A wrong vote, an unfair summary, a name that is missing, a sentence that reads badly.'), link: 0, min: 8, max: 600, short: tt('Write a few words about what is wrong.'),
-        done: tt('Sent. Thank you. We check it, and we fix what holds up.') },
+        done: tt('Sent. Thank you. I check it, and I fix what holds up.') },
       bug: { lab: tt('What broke, and where?'), ph: tt('A button that does nothing, a link that goes nowhere, a page that looks odd on your phone. Say which phone or browser if you can.'), link: 0, min: 8, max: 600, short: tt('Write a few words about what broke.'),
-        done: tt('Sent. Thank you. We try it ourselves, and we fix what we can make happen.') },
-      source: { lab: tt('What did we miss?'), ph: tt('Something a candidate said or did, or a vote we should be counting.'), link: 1, min: 8, max: 600, short: tt('Write a few words about what we missed.'),
-        linklab: tt('Link, if you have one'), linkhint: tt('No link? Say in your note where you saw it, and we will look for it.'),
-        done: tt('Sent. Thank you. Once we have found the words ourselves, it goes on the page.') },
+        done: tt('Sent. Thank you. I try it myself, and I fix what I can make happen.') },
+      source: { lab: tt('What did I miss?'), ph: tt('Something a candidate said or did, or a vote I should be counting.'), link: 1, min: 8, max: 600, short: tt('Write a few words about what I missed.'),
+        linklab: tt('Link, if you have one'), linkhint: tt('No link? Say in your note where you saw it, and I\'ll look for it.'),
+        done: tt('Sent. Thank you. Once I\'ve found the words myself, it goes on the page.') },
       idea: { lab: tt('What should this site do?'), ph: tt('Something you looked for and did not find, or something that would make you come back.'), link: 0, min: 8, max: 600, short: tt('Write a few words first.'),
-        done: tt('Sent. Thank you. We read every one.') }
+        done: tt('Sent. Thank you. I read every one.') }
     };
     function kind() { var r = radios.filter(function (x) { return x.checked; })[0]; return r && K[r.value] ? r.value : 'opinion'; }
     function say(text, bad) { note.textContent = text; note.className = 'fbnote' + (bad ? ' bad' : ''); }

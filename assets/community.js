@@ -209,7 +209,7 @@ function pathOf(about) {
 function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : tt('this page'); }
 /* The tag on a post. The first three say what a plain post is; the other four are the kinds a reader picks
    in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
-const TAGS = { wrong: tt('Something is wrong'), source: tt('Something we missed'), bug: tt('Bug'), idea: tt('Idea') };
+const TAGS = { wrong: tt('Something is wrong'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea') };
 const PLAIN = { opinion: tt('Opinion'), video: tt('Video'), link: tt('Link') };
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
@@ -239,7 +239,7 @@ function words(e) {
     'auth/user-mismatch': tt('That is a different Google account. Pick the one you signed in with.'),
     'lp/name': tt('Choose the name shown with your posts first.'),
     'auth/too-many-requests': tt('Too many tries. Wait a few minutes and try again, or reset your password.'),
-    'auth/user-disabled': tt('This account has been switched off. Tell us through the box at the bottom of any page.'),
+    'auth/user-disabled': tt('This account has been switched off. Tell me through the box at the bottom of any page.'),
     'auth/requires-recent-login': tt('For your safety, type your password again.'),
     'auth/operation-not-allowed': tt('Accounts are not switched on yet. Try again later.'),
     'auth/network-request-failed': tt('No connection. Check your internet and try again. What you typed is still here.'),
@@ -737,7 +737,7 @@ function viewAuth(opts) {
         try {
           const { A, auth } = await within(25000, fb());
           await within(25000, A.sendPasswordResetEmail(auth, em));
-          tell(line, tt('We sent a reset link to {email}. Open it, choose a new password, then sign in here. No email in a few minutes? Check your spam folder.', { email: em }));
+          tell(line, tt('I sent a reset link to {email}. Open it, choose a new password, then sign in here. No email in a few minutes? Check your spam folder.', { email: em }));
         } catch (e) { tell(line, words(e), true); }
       }));
     }
@@ -772,7 +772,7 @@ function viewAuth(opts) {
         } else if (e && /password/.test(e.code || '')) pw.focus();
       }
     });
-    sheetBody.append(form, el('a', 'sheet-text', tt('What we keep, and who can see it'), { href: root + (SITE.privacy || 'privacy/'), target: '_blank', rel: 'noopener' }));
+    sheetBody.append(form, el('a', 'sheet-text', tt('What I keep, and who can see it'), { href: root + (SITE.privacy || 'privacy/'), target: '_blank', rel: 'noopener' }));
     /* Focus goes to the heading, not a field: on a phone a focused field brings the keyboard up over the Google button. */
     setTimeout(() => { try { (gbtn ? sheetTitle : mode === 'new' && !name.value ? name : !email.value ? email : pw).focus({ preventScroll: true }); } catch (x) { } }, 30);
   }
@@ -824,7 +824,7 @@ function viewName(opts) {
     } catch (e) { go.disabled = false; tell(line, words(e), true); }
   });
   sheetBody.append(form, btn('sheet-text', tt('Sign out instead'), async () => { try { pending = null; await S.A.signOut(S.auth); } catch (x) { } closeSheet(); }),
-    el('a', 'sheet-text', tt('What we keep, and who can see it'), { href: root + (SITE.privacy || 'privacy/'), target: '_blank', rel: 'noopener' }));
+    el('a', 'sheet-text', tt('What I keep, and who can see it'), { href: root + (SITE.privacy || 'privacy/'), target: '_blank', rel: 'noopener' }));
   setTimeout(() => { try { name.focus({ preventScroll: true }); } catch (x) { } }, 30);
 }
 /* Signed in a moment ago: do what the reader was in the middle of, then show the right thing. */
@@ -859,7 +859,7 @@ async function runPending() {
 function viewCheck(opts) {
   sheetTitle.textContent = tt('Check your email');
   const email = (me && me.email) || tt('your address'), line = msgLine();
-  const p = el('p', 'sheet-lead'); p.append(...ttParts('We sent a link to {email}. Open it to confirm the address is yours.', 'email', el('b', null, email, RTL ? { dir: 'ltr' } : null)));
+  const p = el('p', 'sheet-lead'); p.append(...ttParts('I sent a link to {email}. Open it to confirm the address is yours.', 'email', el('b', null, email, RTL ? { dir: 'ltr' } : null)));
   sheetBody.append(p);
   if (opts.sent) sheetBody.append(el('p', 'sheet-why', opts.sent === 'reply' ? tt('Your reply is sent. Only you can see it until you confirm.') : tt('Your note is sent. Only you can see it until you confirm.')));
   sheetBody.append(el('p', 'sheet-hint', opts.note || tt('Until you confirm, only you can see what you post, and you cannot like, unlike or report. No email after a few minutes? Check your spam folder.')));
@@ -867,7 +867,7 @@ function viewCheck(opts) {
     ok.disabled = true; tell(line, tt('Checking.'));
     try {
       if (await within(20000, freshVerified())) { show('done', {}); return; }
-      tell(line, tt('Not confirmed yet. Open the link in the email we sent to {email}, then come back here.', { email }), true);
+      tell(line, tt('Not confirmed yet. Open the link in the email I sent to {email}, then come back here.', { email }), true);
     } catch (e) { tell(line, words(e), true); }
     ok.disabled = false;
   });
@@ -920,7 +920,7 @@ async function changeEmail(line) {
 function viewDone() {
   sheetTitle.textContent = tt('You are in');
   const n = lastSettle.n;
-  sheetBody.append(el('p', 'sheet-lead', !n ? tt('Your email is confirmed.') : lastSettle.hold ? tt('Your email is confirmed. What you posted will show once we have looked at it.') : tt('Your email is confirmed. What you posted is on the page now.')));
+  sheetBody.append(el('p', 'sheet-lead', !n ? tt('Your email is confirmed.') : lastSettle.hold ? tt('Your email is confirmed. What you posted will show once I\'ve looked at it.') : tt('Your email is confirmed. What you posted is on the page now.')));
   sheetBody.append(el('p', 'sheet-hint', tt('You can post, answer other readers, like, unlike and report on every page.')));
   const b = btn('btn btn-key sheet-go', tt('Done'), closeSheet);
   sheetBody.append(b);
@@ -962,7 +962,7 @@ function viewAccount() {
     const creator = el('input', null, null, { type: 'checkbox', role: 'switch' }); creator.checked = !!p.creator;
     const cl = el('label', 'sheet-check sw'); cl.append(creator, el('span', null, tt('I make political videos')));
     const channel = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' }); channel.value = p.channel || '';
-    const cf = field(tt('Link to your channel'), channel, tt('YouTube, X, Instagram, TikTok or your own site. We may write to you about our live panel.'));
+    const cf = field(tt('Link to your channel'), channel, tt('YouTube, X, Instagram, TikTok or your own site. The show may write to you about the live panel.'));
     cf.hidden = !creator.checked;
     creator.addEventListener('change', () => { cf.hidden = !creator.checked; });
     const news = el('input', null, null, { type: 'checkbox' }); news.checked = !!p.news;
@@ -1222,8 +1222,8 @@ async function send(opts) {
       const kind = plain ? 'idea' : kd;
       await within(30000, formIt(b, kind, text, url));
       clearBox(b);
-      b.B.say(!plain ? k.done : kk ? tt('Sent. Thank you. The discussion on this page opens shortly. Until it does, only we can read this.')
-        : tt('Sent. Thank you. We read every one. To put it on a page, open the race or the politician it is about and say it there.'));
+      b.B.say(!plain ? k.done : kk ? tt('Sent. Thank you. The discussion on this page opens shortly. Until it does, only I can read this.')
+        : tt('Sent. Thank you. I read every one. To put it on a page, open the race or the politician it is about and say it there.'));
     }
     b.go.disabled = false;
     return true;
@@ -1309,8 +1309,8 @@ function sentPost(b, post, made) {
   const see = el('a', null, tt('See it'));
   see.href = (here || pathOf(post.about) == null ? '' : root + pathOf(post.about)) + '#p-' + post.id;
   const box = b.done; box.textContent = '';
-  if (post.status === 'live') sayIn(b, post.tag ? tt('Sent. It is on the page now, and it has reached us too.') : tt('Sent. It is on the page now.'), false, see);
-  else if (post.status === 'pending') b.B.say(tt('Sent. We are looking at new posts before they show, so it will be on the page once we have.'));
+  if (post.status === 'live') sayIn(b, post.tag ? tt('Sent. It is on the page now, and it has reached me too.') : tt('Sent. It is on the page now.'), false, see);
+  else if (post.status === 'pending') b.B.say(tt('Sent. I\'m looking at new posts before they show, so it will be on the page once I have.'));
   else {
     sayIn(b, tt('Sent. Only you can see it until you confirm your email.'), false, see);
     box.hidden = false;
@@ -1319,7 +1319,7 @@ function sentPost(b, post, made) {
   if (!made || !(b.f.getAttribute('data-panel') || PANEL)) return;      // a site with no panel marks the video as the reader's own and asks for nothing more
   /* A reader who makes videos: the way to the panel, and where their channel is. */
   box.hidden = false;
-  const p = el('p'); p.append(tt('You make videos? Our live show is looking for panelists.') + ' ', el('a', null, tt('Apply for the panel'), { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
+  const p = el('p'); p.append(tt('You make videos? The live show is looking for panelists.') + ' ', el('a', null, tt('Apply for the panel'), { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
   box.append(p);
   if (profile && profile.channel) { box.append(el('p', 'fbhint', tt('Your channel is saved as {channel}. You can change it under your name at the top of the page.', { channel: profile.channel.replace(/^https:\/\//, '') }))); return; }
   const f = el('div', 'fbrow'), id = 'fbchan', input = el('input', null, null, { id, type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
@@ -1334,7 +1334,7 @@ function sentPost(b, post, made) {
     catch (e) { line.textContent = words(e); }
     save.disabled = false;
   });
-  f.append(el('label', null, tt('Where can we find your videos?'), { for: id }), input, save, line);
+  f.append(el('label', null, tt('Where can I find your videos?'), { for: id }), input, save, line);
   box.append(f);
 }
 
@@ -1393,7 +1393,7 @@ async function initTalkPage() {
   T.el.setAttribute('data-on', on); T.el.setAttribute('data-name', T.name);
   h.textContent = tt('{name}: what readers say', { name: T.name });
   D.title = tt('{name}: what readers say | Liberty Score', { name: T.name });
-  intro.textContent = tt('What readers have said and shared about {what}. Their words and their videos, not ours.', { what });
+  intro.textContent = tt('What readers have said and shared about {what}. Their words and their videos, not mine.', { what });
   back.textContent = '← ' + T.name; back.href = root + path;
   /* The box, filed under this page (send() reads data-on from the section when the box names no other). */
   pick.remove();
@@ -1812,8 +1812,8 @@ function row(p, best) {
   if (p.kind !== 'opinion' && !emb && URL_OK.test(p.url)) li.append(el('a', 'said-link', tt('Open the link on {host}', { host: hostOf(p.url) }), { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
   if (p.status !== 'live') {
     const note = el('p', 'said-note');
-    note.textContent = p.status === 'held' ? tt('Only you can see this until you confirm your email.') : p.status === 'pending' ? tt('Only you can see this until we have looked at it.')
-      : p.status === 'hidden' ? tt('Readers reported this, so it is off the page until we have looked at it. Only you can see it.') : tt('We removed this because it broke the rules. Only you can see it.');
+    note.textContent = p.status === 'held' ? tt('Only you can see this until you confirm your email.') : p.status === 'pending' ? tt('Only you can see this until I\'ve looked at it.')
+      : p.status === 'hidden' ? tt('Readers reported this, so it is off the page until I\'ve looked at it. Only you can see it.') : tt('I removed this because it broke the rules. Only you can see it.');
     li.append(note);
     if (p.status === 'held') li.append(btn('sheet-text', tt('Send the confirmation link again'), ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
     if (!p.parent) hang(li, p);
@@ -2123,14 +2123,14 @@ async function report(id, why) {
     }));
     p = find(id) || p;
     p.reported = true; p.thanked = true;
-    p.msg = hidden ? tt('It is off the page until we have looked at it.') : ''; p.msgBad = false;
+    p.msg = hidden ? tt('It is off the page until I\'ve looked at it.') : ''; p.msgBad = false;
     T.rev++;
     redraw(p);
     reason(p, why);
   } catch (e) {
     p = find(id) || p;
     /* Someone else's report hid it a moment ago: the reader's own was not needed. */
-    if (e && e.code === 'permission-denied') { p.reported = true; p.thanked = true; p.msg = tt('It is already off the page while we look at it.'); p.msgBad = false; }
+    if (e && e.code === 'permission-denied') { p.reported = true; p.thanked = true; p.msg = tt('It is already off the page while I look at it.'); p.msgBad = false; }
     else { p.msg = tt('That report did not go through. {why}', { why: words(e) }); p.msgBad = true; }
     redraw(p);
   }
