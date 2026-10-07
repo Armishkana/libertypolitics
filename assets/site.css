@@ -423,6 +423,7 @@ span.face-lg{font-size:1.7rem}
 .rp-m{position:absolute;right:0;top:calc(100% + 2px);z-index:12;display:grid;width:max-content;min-width:13rem;max-width:calc(100vw - 64px);padding:4px;background:var(--raise);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 14px 30px -10px rgba(0,0,0,.75)}
 .rp-m button{min-height:46px;padding:0 12px;text-align:left;background:none;border:0;border-radius:2px;color:var(--ink);font:600 .95rem/1.2 var(--body);cursor:pointer}
 .rp-m button:hover,.rp-m button:focus-visible{background:var(--panel)}
+.rp-team{margin:0;padding:8px 12px;max-width:17rem;border-top:1px solid var(--line);color:var(--field);font:600 .8rem/1.4 var(--body)}
 .rp-done{display:inline-flex;align-items:center;min-height:44px;color:var(--dim);font-size:.9rem;font-weight:600}
 /* waiting, nothing yet, could not load: the same box, so the page does not jump between them */
 .talk-list{margin-top:16px}
@@ -807,6 +808,9 @@ footer{padding-bottom:84px}
 .av-5{background:oklch(.40 .07 325)}
 .av-host{background:var(--bg);border:2px solid var(--field)}
 .said .meta .tag.host{color:var(--on-field);background:var(--field);border-color:var(--field)}
+/* Someone on the team: the reader's own letter inside a ring, and the tag in outline. The site itself is the filled one. */
+.av-team{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--field)}
+.said .meta .tag.team{color:var(--field);border-color:var(--field)}
 .said blockquote{margin-top:12px;padding:0;border-left:0;max-width:66ch}
 .said .at{font-weight:700;color:var(--field)}
 .said-bar{gap:6px;margin-top:12px}

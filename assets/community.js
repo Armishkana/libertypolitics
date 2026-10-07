@@ -85,13 +85,25 @@ const NEWS_HINT = tt('One email a week at most: the grades that moved, the votes
    letters that are written two ways are made one first (fold), then the same two patterns are tried. */
 const RES = SITE.reserved || null, RES_FOLD = RES ? (RES.fold || []).map(([a, b]) => [new RegExp(a, 'g'), b]) : [];
 const RES_SQUASH = RES ? new RegExp(RES.squash, 'g') : /[ ._'@-]/g, RES_IN = RES ? new RegExp(RES.inside) : /(libertypolitics|iranuncensored|arminnavabi)/;
-const RES_WORD = RES ? new RegExp(RES.word) : /(^|[^a-z0-9])(armin|navabi|admin[a-z]*|moderator[a-z]*|official)([^a-z0-9]|$)/;
+const RES_WORD = RES ? new RegExp(RES.word) : /(^|[^a-z0-9])(armin|navabi|admin[a-z]*|moderator[a-z]*|mods?|team|staff|official)([^a-z0-9]|$)/;
 function reservedName(n) {
   let l = String(n).toLowerCase();
   RES_FOLD.forEach(([a, b]) => { l = l.replace(a, b); });
   return RES_IN.test(l.replace(RES_SQUASH, '')) || RES_WORD.test(l);
 }
 let adminIs = false;
+/* The team: the people who help run the site, known by the id of their account and never by a name (mods/ in
+   the database; a line is added with the site's own key, build/team.py). Their posts carry a ring and the
+   Team tag. One report from them takes a post off the page at once, and reports never hide a post of theirs.
+   The rules hold both; this list is only so the page can draw the mark and write a report the rules will
+   take. Asked for once a page. Under rules that do not know the list yet the question is refused and the
+   list is empty, which is how the page behaved before. ../LIVING.md, "Who is speaking". */
+let TEAM = new Set(), teamAsk = null;
+function teamReady() {
+  if (!teamAsk) teamAsk = fb().then(({ F, db }) => within(8000, F.getDocs(F.query(F.collection(db, 'mods'), F.limit(100)))))
+    .then(s => { TEAM = new Set(s.docs.map(d => d.id)); }, () => { });
+  return teamAsk;
+}
 function nameProblem(n) {
   if (!n) return tt('Type the name you want shown with your posts.');
   if (!NAME_OK.test(n)) return tt('Use only letters, numbers, spaces and . _ \' @ - in the name, 40 at most.');
@@ -176,9 +188,11 @@ function ago(ms) {
 }
 /* The face beside a name: its first letter on one of six quiet grounds, picked by the name so the same
    reader looks the same everywhere. None of the six is a party's colour or a grade's. A name only the
-   people who run the site can hold (reservedName) gets the site's own mark instead. */
-function face(name) {
+   people who run the site can hold (reservedName) gets the site's own mark instead. A post by someone on
+   the team (by the id of the account, TEAM) keeps its letter and gains a ring. */
+function face(name, uid) {
   const f = el('span', 'av', null, { 'aria-hidden': 'true' });
+  if (uid && TEAM.has(uid) && !reservedName(name)) f.classList.add('av-team');
   if (reservedName(name)) { f.classList.add('av-host'); f.append(el('img', null, null, { src: root + (SITE.mark || 'assets/seal.png'), alt: '', width: '36', height: '36', decoding: 'async' })); return f; }
   let h = 0;
   for (const c of String(name)) h = (h * 31 + c.codePointAt(0)) % 9973;
@@ -1441,6 +1455,7 @@ function shape(id, d) {
 }
 async function fetchPosts() {
   const { F, db } = await fb(), P = F.collection(db, 'posts'), out = new Map();
+  const team = teamReady();      // asked for beside the posts, and waited for before a post is drawn
   const take = snap => snap.docs.forEach(d => out.set(d.id, shape(d.id, d.data())));
   if (T.feed) {
     try {
@@ -1472,6 +1487,7 @@ async function fetchPosts() {
       reports.docs.forEach(d => { const p = out.get(d.id); if (p) p.reported = true; });
     } catch (x) { }
   }
+  await team;
   return [...out.values()];
 }
 function talkAdd(post) {
@@ -1771,11 +1787,13 @@ function row(p, best) {
   meta.append(who);
   /* Only the people who run the site can hold such a name (the rules refuse it to everyone else). */
   if (reservedName(p.name)) meta.append(el('span', 'tag host', tt('Host')));
+  /* Someone on the team, by the id of the account: a reader cannot take this by choosing a name. */
+  else if (TEAM.has(p.uid)) meta.append(el('span', 'tag team', tt('Team')));
   /* A plain opinion needs no label: it is what a post is. A video, a link, a correction, a bug or an idea says so. */
   if (!p.parent && (p.tag || p.kind !== 'opinion')) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
   if (p.mine) meta.append(el('span', 'tag', tt('Made it')));
   if (best) meta.append(el('span', 'tag best', tt('Most liked')));
-  head.append(face(p.name), meta);
+  head.append(face(p.name, p.uid), meta);
   li.append(head);
   if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: root + pathOf(p.about) + '#p-' + p.id }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
@@ -2067,7 +2085,7 @@ async function vote(id, dir, force) {
   }
 }
 /* Report: a small menu with three reasons. Three reports from three readers hide a post until someone
-   who runs the site has looked. */
+   who runs the site has looked. One from the team hides it at once (TEAM, above). */
 function reportCtl(p) {
   const wrap = el('div', 'rp');
   if (p.reported) { wrap.append(el('span', 'rp-done', p.thanked ? tt('Reported. Thank you.') : tt('Reported'), { role: 'status' })); return wrap; }
@@ -2081,6 +2099,9 @@ function reportCtl(p) {
     const i = btn(null, label, () => { shut(true); report(p.id, why); });
     i.setAttribute('role', 'menuitem'); menu.append(i);
   });
+  /* Someone on the team is told, where they act, what their report does. Nobody else is ever shown this line,
+     so nobody has to be told by hand what being on the team gives them. */
+  if (user && TEAM.has(user.uid) && !TEAM.has(p.uid)) menu.append(el('p', 'rp-team', tt('You are on the team. Your report takes this off the page at once.')));
   b.addEventListener('click', () => {
     if (!menu.hidden) { shut(false); return; }
     menu.hidden = false; b.setAttribute('aria-expanded', 'true');
@@ -2089,7 +2110,7 @@ function reportCtl(p) {
   });
   wrap.addEventListener('keydown', ev => {
     if (menu.hidden) return;
-    const items = [...menu.children], at = items.indexOf(D.activeElement);
+    const items = [...menu.querySelectorAll('button')], at = items.indexOf(D.activeElement);
     if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); shut(true); }
     else if (ev.key === 'ArrowDown') { ev.preventDefault(); items[(at + 1) % items.length].focus(); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); items[(at - 1 + items.length) % items.length].focus(); }
@@ -2116,10 +2137,12 @@ async function report(id, why) {
       if (!s.exists()) throw { code: 'not-found' };
       if (r.exists()) return false;
       const d = s.data(), nrep = (d.nrep || 0) + 1, patch = { nrep };
-      if (nrep >= 3) patch.status = 'hidden';
+      /* The same test as hides() in the rules: the third report, or one from the team; never a post by the team or the site. */
+      const hide = !TEAM.has(d.uid) && (nrep >= 3 || TEAM.has(uid));
+      if (hide) patch.status = 'hidden';
       tx.set(mine, { why, about: d.about, at: F.serverTimestamp() });
       tx.update(ref, patch);
-      return nrep >= 3;
+      return hide;
     }));
     p = find(id) || p;
     p.reported = true; p.thanked = true;
