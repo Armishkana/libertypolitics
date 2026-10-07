@@ -104,6 +104,18 @@ function teamReady() {
     .then(s => { TEAM = new Set(s.docs.map(d => d.id)); }, () => { });
   return teamAsk;
 }
+/* The team page (team/): the brand's files and the team's room, drawn by teamroom.js. Whether this reader is
+   in the room is asked of the rules, which are what decide it: the question is refused to everyone else. The
+   account panel shows the way there only to someone the rules let in. Asked once per account per page. */
+let roomAsk = null;
+function inRoom() {
+  if (!user) return Promise.resolve(false);
+  const uid = user.uid;
+  if (roomAsk && roomAsk.uid === uid) return roomAsk.p;
+  const p = fb().then(({ F, db }) => within(8000, F.getDoc(F.doc(db, 'teamkit', '-brand')))).then(() => true, () => false);
+  roomAsk = { uid, p };
+  return p;
+}
 function nameProblem(n) {
   if (!n) return tt('Type the name you want shown with your posts.');
   if (!NAME_OK.test(n)) return tt('Use only letters, numbers, spaces and . _ \' @ - in the name, 40 at most.');
@@ -1005,6 +1017,10 @@ function viewAccount() {
       save.disabled = false;
     });
     sheetBody.append(ryView(), form);
+    /* The way to the team page, for someone on the team and nobody else. */
+    inRoom().then(ok => {
+      if (ok && sheetView === 'account' && form.isConnected) form.before(el('a', 'btn btn-line sheet-team', tt('Team page: brand files and requests'), { href: root + BASE + 'team/' }));
+    });
     const out = btn('btn btn-line', tt('Sign out'), async () => {
       out.disabled = true;
       try { pending = null; await S.A.signOut(S.auth); closeSheet(); } catch (e) { out.disabled = false; tell(line, words(e), true); }
@@ -1397,7 +1413,7 @@ async function initTalkPage() {
   if (path == null || typeof names[on] !== 'string') {
     h.textContent = tt('That page is not on this site');
     intro.textContent = tt('The address may be old or mistyped. Pick a race or a member to see what readers said about it.');
-    D.title = tt('Not on this site | Liberty Score');
+    D.title = tt('Not on this site | Liberty Politics');
     T.list.remove();
     return;
   }
@@ -1406,7 +1422,7 @@ async function initTalkPage() {
   T.empty = tt('Nobody has said anything about {what} yet. Be the first.', { what });
   T.el.setAttribute('data-on', on); T.el.setAttribute('data-name', T.name);
   h.textContent = tt('{name}: what readers say', { name: T.name });
-  D.title = tt('{name}: what readers say | Liberty Score', { name: T.name });
+  D.title = tt('{name}: what readers say | Liberty Politics', { name: T.name });
   intro.textContent = tt('What readers have said and shared about {what}. Their words and their videos, not mine.', { what });
   back.textContent = '← ' + T.name; back.href = root + path;
   /* The box, filed under this page (send() reads data-on from the section when the box names no other). */
@@ -2396,7 +2412,10 @@ async function latest(sec) {
 function start() {
   if (!CFG) return;
   window.LP = { send: () => { send(); }, embedOf, pathOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet,
-    ready: () => fb().then(() => true), emu: EMU, off: OFF, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
+    ready: () => fb().then(() => true), emu: EMU, off: OFF,
+    /* What teamroom.js (the team page) is handed: Firebase once it is loaded, the signed-in reader, a call when
+       that changes, and the same words, faces and dates the discussion uses. */
+    room: { fb: () => fb(), user: () => user, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
   if (me && !OFF) ryWake();
   initHeader();

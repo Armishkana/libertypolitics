@@ -63,7 +63,10 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 .field .btn-ink{background:var(--field);color:var(--on-field)}
 .field .btn-ink:hover{background:var(--field-hi)}
 .field .wrap{padding-top:36px;padding-bottom:36px}
-.hero h1{font-size:clamp(4.2rem,21vw,6rem);font-weight:900;line-height:.82;letter-spacing:-.01em}
+/* The front page's headline is two sentences since 7 October 2026 ("See how they voted. Then do something about
+   it."). Until then it was the two-word wordmark LIBERTY SCORE at 21vw. Sized so the first sentence is one line on
+   a 360px phone and in the left column of a wide screen. */
+.hero h1{font-size:clamp(2.2rem,10.8vw,4.2rem);font-weight:900;line-height:.9;letter-spacing:-.01em}
 @media(min-width:900px){.hero .wrap{display:grid;grid-template-columns:1.1fr 1fr;gap:48px;align-items:end;padding-top:64px;padding-bottom:56px}}
 .lede{font-size:1.25rem;line-height:1.35;font-weight:600;max-width:34ch;margin-top:16px}
 .field .sub{margin-top:10px;max-width:46ch;color:var(--dim)}
