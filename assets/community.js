@@ -336,7 +336,14 @@ function onUser(u) {
     me = { uid: u.uid, name: u.displayName || '', email: u.email || '', v: !!u.emailVerified, last: (same && was.last) || 0, ok: !!(same && was.ok && u.emailVerified) };
     store.set(KEY.me, me); store.set(KEY.seen, 1);
     if (!same) { profile = null; adminIs = false; ryDrop(); }
-  } else { me = null; profile = null; adminIs = false; store.set(KEY.me, null); ryDrop(); }
+  } else {
+    /* On a site whose readers may have their phone looked through (SITE.safety, the Iran site), nothing
+       that names the account stays on the device after it: every post carries the id of its author, so an
+       id left here would tie this phone to what was written from it. The price is that replies already
+       seen count as new after the next sign-in. Elsewhere the id is kept, so they do not. */
+    if (SITE.safety && was && was.uid) { const all = rySeenAll(); if (all[was.uid] != null) { delete all[was.uid]; store.set(KEY.rseen, Object.keys(all).length ? all : null); } }
+    me = null; profile = null; adminIs = false; store.set(KEY.me, null); ryDrop();
+  }
   changed();
   /* Firebase's code is loaded and a reader is signed in: the one moment "replies to you" may be asked for. */
   if (u) ryCheck().catch(() => { });
@@ -450,7 +457,9 @@ async function dropUserDoc(uid, say) {
   const lastAt = Math.max((me && me.last) || 0, profile && profile.lastPostAt && profile.lastPostAt.toMillis ? profile.lastPostAt.toMillis() : 0);
   const left = lastAt + 32000 - Date.now();
   if (left > 0) { say(tt('One moment. This takes about {n} seconds.', { n: Math.ceil(left / 1000) })); await sleep(left); }
-  try { await F.deleteDoc(F.doc(db, 'users', uid)); } catch (x) { }
+  /* The users document holds the reader's email. If it will not go, say so (false): the sign-in must not
+     be removed while it is still there, or the email is left behind with nobody able to delete it. */
+  try { await F.deleteDoc(F.doc(db, 'users', uid)); return true; } catch (x) { return false; }
 }
 /* A reader who confirmed in another tab comes back to this one. */
 let lookedAt = 0;
@@ -934,8 +943,8 @@ async function changeEmail(line) {
       back = (docs.map(d => d.data()).find(d => !d.parent)) || null;      // a reply has no place in the box: it answered a post
       for (const d of docs) await F.deleteDoc(d.ref);
     } catch (x) { }
-    await dropUserDoc(u.uid, t => tell(line, t));
-    try { await A.deleteUser(u); } catch (x) { await A.signOut(auth); }
+    if (await dropUserDoc(u.uid, t => tell(line, t))) { try { await A.deleteUser(u); } catch (x) { await A.signOut(auth); } }
+    else await A.signOut(auth);      // the account stays whole, so the reader can sign in and remove it
     if (back && window.LPBox && !$('fbmsg').value) {
       putDraft({ kind: TAGS[back.tag] ? back.tag : back.kind === 'opinion' ? 'opinion' : 'video', text: back.text || '', url: back.url || '', mine: !!back.mine, label: back.subject, id: (back.about || '').split(':')[1] || '', on: back.about });
       pending = { type: 'send' };
@@ -1023,7 +1032,7 @@ function viewAccount() {
     });
     const out = btn('btn btn-line', tt('Sign out'), async () => {
       out.disabled = true;
-      try { pending = null; await S.A.signOut(S.auth); closeSheet(); } catch (e) { out.disabled = false; tell(line, words(e), true); }
+      try { pending = null; await S.A.signOut(S.auth); store.set(KEY.draft, null); closeSheet(); } catch (e) { out.disabled = false; tell(line, words(e), true); }
     });
     /* Two taps, never a browser dialog: the first arms the button, the second does it. */
     let armed = false, timer = 0;
@@ -1104,13 +1113,13 @@ function viewAccount() {
           }
         }
         tell(line, tt('Removing your account.'));
-        await dropUserDoc(u.uid, t => tell(line, t));
+        if (!(await dropUserDoc(u.uid, t => tell(line, t)))) throw { code: 'lp/slow' };
         try { await A.deleteUser(u); }
         catch (e) {
           if (e && e.code === 'auth/requires-recent-login') { del.disabled = out.disabled = save.disabled = false; again.hidden = false; del.hidden = true; tell(line, ''); first.focus(); return; }
           throw e;
         }
-        pending = null;
+        pending = null; store.set(KEY.draft, null);
         show('gone', {});
         reloadTalk();
       } catch (e) { del.disabled = out.disabled = save.disabled = false; disarm(); tell(line, words(e), true); }
@@ -1323,7 +1332,6 @@ async function formIt(b, kind, text, url, postId) {
   if (log.length >= 6) throw { code: 'lp/hour' };
   const data = new URLSearchParams(new FormData(b.f)), kindField = b.f.querySelector('input[type=radio]').name, tail = [];
   if (url) tail.push('link: ' + url);
-  tail.push('email: ' + (user.email || ''));
   tail.push('uid: ' + user.uid);
   if (postId) tail.push('post: ' + postId);      // it is also a post on the page: this is its id (mod/ and the Firebase console find it by this)
   data.set(kindField, kind);
@@ -1465,7 +1473,7 @@ function shape(id, d) {
   const num = v => (typeof v === 'number' && v > 0 ? Math.floor(v) : 0), str = v => typeof v === 'string' ? v : '';
   const ups = num(d.ups), downs = num(d.downs);
   return { id, about: str(d.about), subject: str(d.subject), kind: ['opinion', 'video', 'link'].includes(d.kind) ? d.kind : 'opinion', text: str(d.text).slice(0, MAX), url: str(d.url),
-    tag: TAGS[d.tag] ? d.tag : '', parent: /^[A-Za-z0-9]{1,40}$/.test(str(d.parent)) ? d.parent : '',
+    tag: Object.prototype.hasOwnProperty.call(TAGS, d.tag) ? d.tag : '', parent: /^[A-Za-z0-9]{1,40}$/.test(str(d.parent)) ? d.parent : '',
     mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : tt('A reader'), status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), my: 0, reported: false,
     ms: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : Date.now() };
 }
@@ -1822,7 +1830,7 @@ function row(p, best) {
   const emb = p.kind === 'video' && URL_OK.test(p.url) ? embedOf(p.url) : null;
   if (emb) {
     const box = el('div', 'tv tv-' + emb[0].toLowerCase(), null, { 'data-embed': emb[1], 'data-plat': emb[0] });
-    const a = el('a', 'tv-play', null, { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' });
+    const a = el('a', 'tv-play', null, { href: p.url, target: '_blank', rel: 'noopener noreferrer nofollow ugc' });
     const yt = emb[0] === 'YouTube' && /\/embed\/([\w-]{11})$/.exec(emb[1]);
     if (yt && !QUIET) a.append(el('img', null, null, { src: 'https://i.ytimg.com/vi/' + yt[1] + '/hqdefault.jpg', alt: '', loading: 'lazy', decoding: 'async', width: '480', height: '360' }));
     const cap = el('span', 'tv-what'); cap.append(el('b', null, tt('Video shared by {name}', { name: p.name })), el('span', null, tt('Play it here · {site}', { site: emb[0] })));
@@ -1843,7 +1851,7 @@ function row(p, best) {
       if (lg && lg !== LANG) li.append(trCtl(p));
     }
   }
-  if (p.kind !== 'opinion' && !emb && URL_OK.test(p.url)) li.append(el('a', 'said-link', tt('Open the link on {host}', { host: hostOf(p.url) }), { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
+  if (p.kind !== 'opinion' && !emb && URL_OK.test(p.url)) li.append(el('a', 'said-link', tt('Open the link on {host}', { host: hostOf(p.url) }), { href: p.url, target: '_blank', rel: 'noopener noreferrer nofollow ugc' }));
   if (p.status !== 'live') {
     const note = el('p', 'said-note');
     note.textContent = p.status === 'held' ? tt('Only you can see this until you confirm your email.') : p.status === 'pending' ? tt('Only you can see this until I\'ve looked at it.')
@@ -2275,7 +2283,7 @@ function modTools(box) {
     if (p.parent) meta.append(el('span', 'tag', tt('Reply')));
     if (pathOf(p.about) != null) li.append(el('a', 'said-on', p.subject || p.about, { href: root + pathOf(p.about) }));
     if (p.text) li.append(el('blockquote', null, p.text));
-    if (URL_OK.test(p.url)) li.append(el('a', 'said-link', p.url, { href: p.url, target: '_blank', rel: 'noopener nofollow ugc' }));
+    if (URL_OK.test(p.url)) li.append(el('a', 'said-link', p.url, { href: p.url, target: '_blank', rel: 'noopener noreferrer nofollow ugc' }));
     li.append(el('p', 'said-note', p.ups + (p.ups === 1 ? ' like' : ' likes') + ' · ' + p.downs + (p.downs === 1 ? ' unlike' : ' unlikes') + (p.mine ? ' · says they made it' : '')));
     const acts = el('div', 'row'), note = el('p', 'said-msg', '', { role: 'status' });
     const set = async (patch, b) => {
@@ -2326,7 +2334,7 @@ function modTools(box) {
       if (u.news) meta.append(el('span', 'tag', 'Wants news'));
       if (u.news) li.setAttribute('data-news-at', when(u));
       li.append(meta, el('p', 'mod-mail', u.email));
-      if (u.creator && URL_OK.test(u.channel)) li.append(el('a', 'said-link', u.channel, { href: u.channel, target: '_blank', rel: 'noopener nofollow ugc' }));
+      if (u.creator && URL_OK.test(u.channel)) li.append(el('a', 'said-link', u.channel, { href: u.channel, target: '_blank', rel: 'noopener noreferrer nofollow ugc' }));
       li.append(el('p', 'said-note', 'Joined ' + (u.ms ? niceDate(u.ms) : 'just now') + (u.news ? ' · ' + (u.newsMs ? 'Said yes to news on ' + niceDate(u.newsMs) : 'Said yes to news, date not recorded') : '')));
       pplL.append(li);
     });

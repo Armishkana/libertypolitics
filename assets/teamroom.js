@@ -372,7 +372,7 @@ function who(n) {
 function body(n) {
   const f = D.createDocumentFragment();
   f.append(el('p', 'tr-text', n.text || '', { dir: 'auto' }));
-  if (typeof n.url === 'string' && /^https:\/\/[^\s<>"']{4,}$/.test(n.url)) f.append(el('a', 'tr-link', n.url, { href: n.url, target: '_blank', rel: 'noopener nofollow', dir: 'ltr' }));
+  if (typeof n.url === 'string' && /^https:\/\/[^\s<>"']{4,}$/.test(n.url)) f.append(el('a', 'tr-link', n.url, { href: n.url, target: '_blank', rel: 'noopener noreferrer nofollow', dir: 'ltr' }));
   return f;
 }
 function noteCard(n) {
