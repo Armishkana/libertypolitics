@@ -38,6 +38,8 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 .mark{display:flex;align-items:center;gap:10px;text-decoration:none;font:800 1.35rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em;white-space:nowrap}
 .mark img{width:44px;height:44px;border-radius:50%}
 .mark b{color:var(--field);font-weight:800}
+/* A reader, 8 October 2026: on a computer monitor the stamp is too small to make out. The bar is 60px, so 56 fits. */
+@media(min-width:1000px){.mark img{width:56px;height:56px}}
 .top nav{margin-left:auto;display:flex;align-items:center;gap:4px}
 .top nav a{display:none;padding:10px 12px;text-decoration:none;font-weight:600;font-size:.95rem;border-radius:var(--r)}
 .top nav a:hover{background:var(--raise)}
@@ -676,6 +678,16 @@ html.modes-on{scroll-padding-top:128px}
 .fbsend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:10px}
 .fbsend .fbhint{flex:1 1 14rem}
 .disc .talk{margin-top:24px}
+/* A reader, 8 October 2026: on a computer the discussion opened on the writing box, the first post started near the
+   bottom of the screen, and the right third of the column sat empty. From 1100px the box sits in that empty side
+   and stays in view while the posts scroll, so the posts start at the top and the one ask of the page is always
+   in reach. Narrower than that nothing changes: the box is first, then the posts. A box the page moves under a
+   post to answer it is no longer a child of .disc-col, so it is drawn where it was moved to. */
+@media(min-width:1100px){
+  .disc-col{max-width:none;display:grid;grid-template-columns:minmax(0,46rem) minmax(0,1fr);column-gap:40px;align-items:start}
+  .disc-col>*{grid-column:1}
+  .disc-col>.fb{grid-column:2;grid-row:2 / span 12;position:sticky;top:140px;margin-top:6px}
+}
 .talk-ctl .chips{margin-top:0}
 .chips-gap{flex:none;width:1px;margin:8px 4px;background:var(--line)}
 
@@ -867,7 +879,9 @@ footer{padding-bottom:84px}
 /* The other countries (build/world.py). The switch is a real select: a phone opens its own picker, and
    nothing can be clipped by the strip it sits in. Beside the mark on a wide screen, first in the strip
    of sections below that, and both move at the same width as the menu (1220px). */
-.cpick{position:relative;display:inline-flex;align-items:center;flex:none}
+.cpick{display:inline-flex;align-items:center;gap:8px;flex:none}
+.cpick-s{position:relative;display:inline-flex;align-items:center}
+.cpick-w{display:none;font:600 .92rem/1 var(--body);color:var(--dim);white-space:nowrap}
 .cpick svg{position:absolute;left:10px;top:50%;margin-top:-9px;pointer-events:none;color:var(--field)}
 .cpick select{appearance:none;-webkit-appearance:none;min-height:40px;max-width:12.5rem;padding:0 30px 0 34px;font:700 .92rem/1 var(--body);color:var(--ink);cursor:pointer;
   background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.500l5 5 5-5' fill='none' stroke='%23F4C430' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 11px center;
@@ -881,6 +895,23 @@ footer{padding-bottom:84px}
    menu gives that back: the YouTube mark loses its words (it is a mark, not a button), and the links sit
    a little closer. build/community-test.html fails the bar if the menu runs over the name or off the edge. */
 @media(min-width:1220px){.top .cpick{display:inline-flex}.top-c nav a{padding:10px 8px;font-size:.92rem}.top-c nav a.yt{padding:0 6px}.top-c nav a.yt span{display:none}}
+/* A reader, 8 October 2026, in three posts: the menu letters are too small and too close, the YouTube mark does
+   not say there is a live show behind it, and the country switch says nothing about what it does. All three came
+   from the squeeze above, and measuring it that day found worse: with Sign in showing, the menu ran 26px past the
+   end of the bar at every computer width (the test above measured it signed in, where the control is narrower).
+   So from 1220px the bar is as wide as the screen allows, up to 100rem, and no longer held to the page's column.
+   The menu takes back what it gave up as the room appears (measured 8 October 2026, signed out, the widest state):
+     1220px  as before: .92rem letters, 8px each side            needs 1157 of 1188
+     1360px  full-size letters, 10px each side                   needs about 1236 of 1328
+     1440px  and the words Watch live beside the YouTube mark    needs about 1321 of 1408
+     1560px  12px each side                                      needs about 1383 of 1528
+     1680px  and "Elections in" beside the country switch        needs 1471 of 1568
+   build/community-test.html fails the bar at each of these widths if the menu passes the end of the bar. */
+@media(min-width:1220px){.top .wrap{max-width:100rem}}
+@media(min-width:1360px){.top-c nav a{padding:10px;font-size:1rem}}
+@media(min-width:1440px){.top-c nav a.yt{padding:0 10px}.top-c nav a.yt span{display:inline}}
+@media(min-width:1560px){.top-c nav{gap:4px}.top-c nav a{padding:10px 12px}}
+@media(min-width:1680px){.top .cpick-w{display:inline}}
 /* the cards of the other countries: their own list, so the checks on the Senate race cards do not count them */
 .wlist{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:10px}
 @media(min-width:700px){.wlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
