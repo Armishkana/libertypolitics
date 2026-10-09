@@ -45,7 +45,7 @@
 <dt>Show times</dt><dd>11am to 2pm and 3pm to 5pm, U.S. Eastern time. <span id="job-local" hidden></span></dd>
 <dt>Where</dt><dd>From home</dd>
 </dl>
-<div class="row" style="margin-top:22px"><a class="btn btn-key" href="apply/" data-apply>Apply with a short video</a></div>
+<div class="row" style="margin-top:22px"><a class="btn btn-key" href="apply/" data-apply>Apply with two short videos</a></div>
 </div></section>
 <section class="sec"><div class="wrap"><div class="prose">
 <h2 style="margin-top:0">What you'd do</h2>
@@ -69,12 +69,12 @@
 <p>You don't give political opinions on air. On some days you may be on camera in a corner of the screen.</p>
 <h2>How to apply</h2>
 <ol>
-<li>Fill in the form. It asks for a short video and tells you what to record. Applications without the video aren't read.</li>
+<li>Fill in the form. It asks for two short videos: about 2 minutes of your screen while you run a test broadcast in StreamYard (a free account is enough), and 30 seconds of you on camera saying hello. Applications without the videos aren't read.</li>
 <li>Armin Navabi, who hosts the show, watches every video.</li>
-<li>The people who fit get an email back. The video comes first for everyone, so please don't ask for a call before it.</li>
+<li>The people who fit get an email back. The videos come first for everyone, so please don't ask for a call before them.</li>
 <li>A yes starts the two week paid trial.</li>
 </ol>
-<div class="row" style="margin-top:28px"><a class="btn btn-key" href="apply/" data-apply>Apply with a short video</a></div>
+<div class="row" style="margin-top:28px"><a class="btn btn-key" href="apply/" data-apply>Apply with two short videos</a></div>
 </div></div></section>
 <script>(function(){try{var f=(new URLSearchParams(location.search).get('from')||'').toLowerCase();if(!/^[a-z0-9]{1,12}$/.test(f))return;var a=document.querySelectorAll('a[data-apply]');for(var i=0;i<a.length;i++)a[i].setAttribute('href',a[i].getAttribute('href')+'?from='+f)}catch(e){}})();</script>
 <script>(function(){try{var el=document.getElementById('job-local');if(!el||!window.Intl)return;var n=new Date(),p={};new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric'}).formatToParts(n).forEach(function(x){p[x.type]=+x.value});var off=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute)-Math.floor(n.getTime()/60000)*60000;var at=function(h){return new Date(Date.UTC(p.year,p.month-1,p.day,h,0)-off)};if(at(11).getHours()===11&&at(11).getMinutes()===0)return;var f=new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'}),t=[11,14,15,17].map(function(h){return f.format(at(h))});el.textContent='On your clock: '+t[0]+' to '+t[1]+' and '+t[2]+' to '+t[3]+'.';el.hidden=false}catch(e){}})();</script>
