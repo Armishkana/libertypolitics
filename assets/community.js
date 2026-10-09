@@ -1484,7 +1484,10 @@ async function fetchPosts() {
   if (T.feed) {
     try {
       if (hook('lpnoindex')) throw { code: 'failed-precondition' };
-      take(await F.getDocs(F.query(P, F.where('status', '==', 'live'), F.orderBy('createdAt', 'desc'), F.limit(60))));
+      /* 300, the most the rules let any list ask for. It was 60 until 8 October 2026: with 110 posts on the site
+         the page that says "every discussion in one place" was leaving out the oldest fifty, and the number on
+         the switch fell from 110 to 61 the moment a reader opened it. */
+      take(await F.getDocs(F.query(P, F.where('status', '==', 'live'), F.orderBy('createdAt', 'desc'), F.limit(300))));
     } catch (e) {
       if (!e || e.code !== 'failed-precondition') throw e;
       /* The index for the ordered question is not there yet: ask without an order and sort here. */
