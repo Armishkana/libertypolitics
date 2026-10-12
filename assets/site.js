@@ -66,21 +66,26 @@
       hits.textContent = '';
       if (raw.length < 2 || !idx) return;
       var all = idx.filter(function (m) { return matches(q, m.t, m.code); }), st = stateFor(raw);
+      /* How to vote (build/vote.py): a state typed here offers its guide as a line of its own, beside its ballot, not as one row among forty. */
+      var guide = st ? idx.filter(function (m) { return m.k === 'guide' && m.code === st; })[0] : null;
+      if (st) all = all.filter(function (m) { return m.k !== 'guide'; });
       if (st) all.sort(function (a, b) { return (b.code === st) - (a.code === st); });
       var out = all.slice(0, 12);
       if (!all.length) { hits.appendChild(el('li', 'none', 'No member of Congress or candidate matches that. Try a last name or a state.')); return; }
       if (st) {
         var sl = el('li'), sa = el('a', 'allhits', 'See who is on the ballot in ' + sp.querySelector('option[value="' + st + '"]').text);
         sa.href = root + 'states/' + st + '/#ballot'; sl.appendChild(sa); hits.appendChild(sl);
+        if (guide) { var gl = el('li'), ga = el('a', 'allhits', guide.n); ga.href = root + guide.h; gl.appendChild(ga); hits.appendChild(gl); }
       }
       out.forEach(function (m) {
         var li = el('li'), a = el('a');
         a.href = root + (m.h || 'scorecard/' + m.u + '/');
         var g = el('span', 'g g-sm g-' + (m.g ? m.g[0].toLowerCase() : 'n'), m.g || (m.h ? '–' : '?'));
         var who = el('span', 'who');
-        who.appendChild(el('strong', null, m.n)); who.appendChild(el('span', 'dim', ' ' + m.p + ' · ' + m.s + ' · ' + m.c));
+        who.appendChild(el('strong', null, m.n)); who.appendChild(el('span', 'dim', m.k === 'guide' ? ' ' + m.c : ' ' + m.p + ' · ' + m.s + ' · ' + m.c));
         if (m.i) { var im = el('img', 'face ' + m.p); im.src = root + m.i; im.alt = ''; im.width = 40; im.height = 40; a.appendChild(im); }
-        a.appendChild(who); a.appendChild(g); li.appendChild(a); hits.appendChild(li);
+        a.appendChild(who); if (m.k !== 'guide') a.appendChild(g);      /* a guide is not a person: it carries no grade and no dash */
+        li.appendChild(a); hits.appendChild(li);
       });
       if (all.length > out.length) {
         var ml = el('li'), ma = el('a', 'allhits', 'See all ' + all.length + ' on the scorecard');

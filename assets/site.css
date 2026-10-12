@@ -725,14 +725,23 @@ html.modes-on{scroll-padding-top:128px}
 @media(min-width:620px){.top nav a.yt span{display:inline}}
 .yt-i{flex:none;display:block}
 footer a.yt-f{display:inline-flex;align-items:center;gap:8px}
-.calls{position:fixed;right:10px;bottom:10px;z-index:15;display:flex;align-items:stretch;max-width:calc(100vw - 20px);background:#0C0C09;color:#F2F1E6;border:2px solid var(--field);border-radius:999px;box-shadow:0 10px 30px -8px rgba(0,0,0,.65)}
-.calls-a{display:flex;align-items:center;gap:10px;min-height:48px;padding:5px 4px 5px 14px;color:inherit;text-decoration:none}
-.calls-a i{flex:none;width:10px;height:10px;border-radius:50%;background:#C8102E;box-shadow:0 0 0 4px rgba(200,16,46,.25)}
-.calls-a b{display:block;font:800 1rem/1.15 var(--body);color:var(--field)}
+/* 12 October 2026: the bubble says WHEN (data/whats-on.json, build/whatson.py). One row for each thing that is on,
+   each its own link, so it is a small rounded card and no longer a pill. A row whose thing is on NOW carries the
+   red dot; a row for something later carries a quiet ring. Still one bubble, and the cross still puts it away. */
+.calls{position:fixed;right:10px;bottom:10px;z-index:15;display:flex;align-items:flex-start;max-width:min(calc(100vw - 20px),21rem);background:#0C0C09;color:#F2F1E6;border:2px solid var(--field);border-radius:14px;box-shadow:0 10px 30px -8px rgba(0,0,0,.65)}
+.calls-rows{display:grid;min-width:0;flex:1}
+.calls-a{display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 2px 4px 12px;color:inherit;text-decoration:none}
+.calls-a + .calls-a{border-top:1px solid var(--line)}
+.calls-a i{flex:none;width:10px;height:10px;border-radius:50%;border:2px solid var(--dim)}
+.calls-a.live i{border:0;background:#C8102E;box-shadow:0 0 0 4px rgba(200,16,46,.25)}
+.calls-a b{display:block;font:800 .95rem/1.15 var(--body);color:var(--field)}
 .calls-a small{display:block;font:600 .8rem/1.2 var(--body);opacity:.85}
-.calls-x{flex:none;width:44px;min-height:44px;border:0;background:transparent;color:inherit;font:700 1.4rem/1 var(--body);cursor:pointer;border-radius:0 999px 999px 0}
+.calls-x{flex:none;width:40px;height:44px;border:0;background:transparent;color:inherit;font:700 1.4rem/1 var(--body);cursor:pointer;border-radius:0 12px 0 0}
+footer .on-when{display:block;margin:-6px 0 8px;font-size:.85rem;font-weight:400;color:var(--dim)}
 .calls-x:hover,.calls-a:hover b{text-decoration:underline}
 .calls.off{display:none}
+/* While it would sit on the button that sends a post, it steps aside (build/whatson.js, duck). It keeps its place, so nothing moves. */
+.calls.duck{visibility:hidden}
 /* Never over the box a reader is typing in, or over the sign-in panel. */
 body:has(textarea:focus) .calls,body:has(input:focus) .calls,body:has(.sheet[open]) .calls{display:none}
 footer{padding-bottom:84px}
@@ -949,3 +958,23 @@ footer{padding-bottom:84px}
 .tile.tile-l{display:block;padding:0}
 .tile.tile-l a{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:10px;min-height:64px;text-decoration:none;border-radius:var(--r)}
 .tile.tile-l a:hover{background:var(--raise)}
+
+/* ---- 12 October 2026: how to vote (build/vote.py). Plain text and plain links: a date is a fact in the sentence,
+   and the chip beside it (build/vote.js) is the only thing here that knows what day it is. ---- */
+.vg h2{margin-top:40px;font-size:2rem}
+.vg h2 + p{color:inherit;font-size:inherit;max-width:none}
+.vg-list{list-style:none;padding:0;display:grid;gap:10px}
+.vg-list li{margin-top:0;padding-left:14px;border-left:3px solid var(--line)}
+.vg time{font-weight:700;color:var(--ink)}
+.vg-chip{display:inline-block;padding:1px 8px;border:1px solid var(--field-edge);border-radius:999px;font-size:.8rem;font-weight:700;line-height:1.5;color:var(--field);white-space:nowrap;vertical-align:1px}
+.vg-chip.gone{color:var(--dim);border-color:var(--line)}
+.vg-chip.now{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.vg-open{padding-left:14px;border-left:3px solid var(--field);font-weight:600}
+.vg .src{font-size:.9rem;color:var(--dim)}
+.vg .src a{overflow-wrap:anywhere}
+.vg-states{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}
+.vg-states li{margin-top:0}
+.vg-states a{display:flex;align-items:center;min-height:44px;font-weight:600}
+@media(min-width:720px){.vg-states{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.vg-offer{max-width:62ch}
+.vg-front .youline{margin-top:0;max-width:62ch}
