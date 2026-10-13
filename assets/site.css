@@ -689,6 +689,12 @@ html.modes-on{scroll-padding-top:128px}
   .disc-col>.fb{grid-column:2;grid-row:2 / span 12;position:sticky;top:140px;margin-top:6px}
 }
 .talk-ctl .chips{margin-top:0}
+/* A reader, 12 October 2026: on a computer the nine chips over the list of all discussions are about 870px in one
+   row and the column is 46rem, so the last ones were cut off and could only be reached by a thin sideways
+   scrollbar. From 760px the row wraps and every chip is on screen. Narrower, it still slides under a thumb. */
+@media(min-width:760px){
+  .talk-ctl .chips{flex-wrap:wrap;overflow-x:visible}
+}
 .chips-gap{flex:none;width:1px;margin:8px 4px;background:var(--line)}
 
 /* the page's question, high on the record, shaped like a box to write in. A tap opens the discussion. */
