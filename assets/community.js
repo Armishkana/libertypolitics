@@ -220,22 +220,33 @@ function face(name, uid) {
    with (SITE.base: "fa/" on a Persian page of iranuncensored.com, so one discussion is reached from the
    page in the reader's own language). The rules of that site's project take exactly the same keys. */
 const SITE_KINDS = SITE.kinds || null, SITE_PAGES = SITE.pages || null, BASE = SITE.base || '';
+/* 13 October 2026, the mission board (build/quests.js): its own discussion is page:act, and a mission report is a
+   post about "quest:<mission id>". A report has no page of its own: it lives on the board, so its address is
+   the board's (SITE.questPage, "act/" when a site hands in none) and its link opens that mission (hrefOf). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
-  ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + '))$')
-  : /^(?:(race|member|vote):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you))$/;
+  ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + '))$')
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act))$/;
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
+const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
 function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
 function pathOf(about) {
   const m = KEY_OK.exec(about || '');
   if (!m) return null;
   if (m[5]) return BASE + (SITE_KINDS && SITE_PAGES ? SITE_PAGES[m[6]] : (m[6] === 'home' ? '' : m[6] + '/'));
+  if (m[1] === 'quest') return BASE + QUEST_PAGE;
   return BASE + DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
 }
+/* The address of one post, from the site root. A mission report opens its mission on the board (act/#<mission id>);
+   every other post opens on its own page (#p-<post id>). about must be a key pathOf knows. */
+function hrefOf(about, id) {
+  const m = KEY_OK.exec(about || '');
+  return root + pathOf(about) + (m && m[1] === 'quest' ? '#' + m[2] : '#p-' + id);
+}
 /* How a page is named inside a sentence when all we have is its key (the discussion page, the report menu). */
-function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : tt('this page'); }
+function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : k === 'quest' ? tt('this mission') : tt('this page'); }
 /* The tag on a post. The first three say what a plain post is; the other four are the kinds a reader picks
    in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
-const TAGS = { wrong: tt('Something is wrong'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea') };
+const TAGS = { wrong: tt('Something is wrong'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea'), report: tt('Mission report') };
 const PLAIN = { opinion: tt('Opinion'), video: tt('Video'), link: tt('Link') };
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
@@ -583,7 +594,7 @@ function ryView() {
     if (!got.rows.length) { box.append(el('p', 'sheet-hint', tt('Nobody has answered you yet.'))); return; }
     const since = rySeen(), ul = el('ul', 'ry-list', null, { 'data-clarity-mask': 'true' });
     got.rows.slice(0, RY.show).forEach(r => {
-      const li = el('li'), a = el('a', 'ry-go', null, { href: root + pathOf(r.about) + '#p-' + r.id }), who = el('span', 'ry-who'), sub = el('span', 'ry-sub');
+      const li = el('li'), a = el('a', 'ry-go', null, { href: hrefOf(r.about, r.id) }), who = el('span', 'ry-who'), sub = el('span', 'ry-sub');
       sub.append(...ttParts('replied {when}', 'when', el('time', null, ago(r.ms), { datetime: new Date(r.ms).toISOString(), title: niceDate(r.ms) })));
       who.append(el('b', null, r.name, ML ? { dir: 'auto' } : null), ' ', sub);
       if (r.ms > since) who.append(el('span', 'tag', tt('New')));
@@ -940,7 +951,7 @@ async function changeEmail(line) {
     try {
       const snap = await F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', u.uid), F.limit(50)));
       const docs = snap.docs.slice().sort((a, b) => ((b.data().createdAt || {}).seconds || 0) - ((a.data().createdAt || {}).seconds || 0));
-      back = (docs.map(d => d.data()).find(d => !d.parent)) || null;      // a reply has no place in the box: it answered a post
+      back = (docs.map(d => d.data()).find(d => !d.parent && d.tag !== 'report')) || null;      // a reply has no place in the box: it answered a post. Nor has a mission report: the board keeps its own
       for (const d of docs) await F.deleteDoc(d.ref);
     } catch (x) { }
     if (await dropUserDoc(u.uid, t => tell(line, t))) { try { await A.deleteUser(u); } catch (x) { await A.signOut(auth); } }
@@ -1592,7 +1603,7 @@ const ONLY = {
   site: [tt('Bugs and ideas'), p => p.tag === 'bug' || p.tag === 'idea']
 };
 /* Where a post was made, for the list of all discussions. */
-const WHERE = { race: tt('Races'), member: tt('Politicians'), state: tt('States'), vote: tt('Votes'), page: tt('The site') };
+const WHERE = { race: tt('Races'), member: tt('Politicians'), state: tt('States'), vote: tt('Votes'), quest: tt('Missions'), page: tt('The site') };
 let NAMES = null, namesAsked = false;
 /* What a page is called: from the build's own list once it has loaded, until then from the post. */
 function nameOf(about, fallback) { return (NAMES && typeof NAMES[about] === 'string' && NAMES[about]) || fallback || tt('Open the page'); }
@@ -1637,7 +1648,7 @@ function drawCtl(every) {
       const box = el('div', 'busy');
       box.append(el('p', 'busy-h', tt('Busiest discussions')));
       const ul = el('ul', 'busy-l');
-      busy.forEach(b => { const li = el('li'), a = el('a', 'busy-a', null, { href: root + pathOf(b.about) + '#discussion' }); a.append(el('span', null, nameOf(b.about, b.subject)), el('b', 'num', dig(b.n))); li.append(a); ul.append(li); });
+      busy.forEach(b => { const li = el('li'), a = el('a', 'busy-a', null, { href: keyKind(b.about) === 'quest' ? hrefOf(b.about, '') : root + pathOf(b.about) + '#discussion' }); a.append(el('span', null, nameOf(b.about, b.subject)), el('b', 'num', dig(b.n))); li.append(a); ul.append(li); });
       box.append(ul);
       C.append(box);
     }
@@ -1825,7 +1836,7 @@ function row(p, best) {
   if (best) meta.append(el('span', 'tag best', tt('Most liked')));
   head.append(face(p.name, p.uid), meta);
   li.append(head);
-  if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: root + pathOf(p.about) + '#p-' + p.id }));
+  if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: hrefOf(p.about, p.id) }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
   else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) {
     /* On a site with two languages the line may have been written on the page in the other one: it is kept
@@ -1902,7 +1913,7 @@ function row(p, best) {
     acts.append(rb);
   } else if (T.feed && T.v2 && pathOf(p.about) != null) {
     /* A reply left alone on a site-wide list: the thread it belongs to is on its own page, so Reply is the way there. */
-    acts.append(el('a', 'said-go', tt('Reply'), { href: root + pathOf(p.about) + '#p-' + p.id }));
+    acts.append(el('a', 'said-go', keyKind(p.about) === 'quest' ? tt('Open the mission') : tt('Reply'), { href: hrefOf(p.about, p.id) }));
   }
   const last = own ? delCtl(p) : reportCtl(p);
   if (last) acts.append(last);
@@ -2398,19 +2409,24 @@ async function latest(sec) {
   if (hook('lpbreak')) return;
   const base = (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents:runQuery';
   const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } },
-    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }], limit: 12 } };
+    orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }], limit: 30 } };
   const res = await within(15000, fetch(base + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)), { method: 'POST', body: JSON.stringify(q) }));
   if (!res.ok) return;
   const got = await res.json();
-  const top = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && pathOf(p.about) != null).slice(0, 3);
+  /* One post a subject (13 October 2026: the three newest were three answers to the same question, so the front page
+     printed one title three times). The newest post on each page, or on each question of the day, and then the three
+     newest of those. The discussions themselves list every post, as before. */
+  const seen = new Set(), top = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && pathOf(p.about) != null)
+    .filter(p => { const k = p.about + '|' + p.subject; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 3);
   if (top.length < 3) return;
   const wrap = sec.querySelector('.wrap') || sec, none = $('latest-none'), list = el('ul', 'votes latest-list');
   top.forEach(p => {
     const li = el('li', 'vote said'), meta = el('div', 'meta'), who = el('span');
     who.append(el('b', null, p.name), ' · ' + niceDate(p.ms));
     meta.append(who, el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
-    li.append(meta, el('a', 'said-on', p.subject || tt('Open the page'), { href: root + pathOf(p.about) + '#p-' + p.id }));
-    const text = p.text.length > 200 ? p.text.slice(0, 197).replace(/\s+\S*$/, '') + '...' : p.text;
+    li.append(meta, el('a', 'said-on', p.subject || tt('Open the page'), { href: hrefOf(p.about, p.id) }));
+    /* A taste of each post, not the post: the front page is kept to what a glance can take in (13 October 2026). */
+    const text = p.text.length > 140 ? p.text.slice(0, 137).replace(/\s+\S*$/, '') + '...' : p.text;
     if (text) li.append(el('blockquote', null, text));
     else if (p.kind !== 'opinion') li.append(el('p', 'said-note', p.kind === 'video' ? tt('A video. Watch it on the page.') : tt('A link. Open it on the page.')));
     list.append(li);
@@ -2422,6 +2438,77 @@ async function latest(sec) {
   sec.classList.add('on');
 }
 
+/* ------------------------------------------------------------------ the mission board (build/quests.js)
+   quests.js draws the board. It is handed three things it cannot do alone, and nothing else here knows of it.
+   questDoc: one PUBLIC document by its address (xp/_board, xp/<uid>), asked over plain REST like the count
+   of posts, so a visitor who never signs in loads none of Firebase's code. A document that is not there is null.
+   questReport: a mission report, which is a post like any other (postIt), about "quest:<mission id>", tagged
+   "report". It needs the second version of the rules. It never throws: it answers { ok } or { ok: false, code, text }.
+   questMine: the signed-in reader's own reports, waiting or not, so a report made on another device shows here. */
+function restPlain(v) {
+  if (!v || typeof v !== 'object') return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return Date.parse(v.timestampValue) || 0;
+  if ('mapValue' in v) { const o = {}, f = v.mapValue.fields || {}; for (const k in f) o[k] = restPlain(f[k]); return o; }
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(restPlain);
+  return null;
+}
+async function questDoc(path) {
+  if (OFF || hook('lpbreak') || !/^xp\/[A-Za-z0-9_]{1,128}$/.test(path)) return null;
+  const base = (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/';
+  const res = await within(15000, fetch(base + path + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey))));
+  if (!res.ok) return null;
+  const got = await res.json();
+  return restPlain({ mapValue: { fields: (got && got.fields) || {} } });
+}
+/* The third version of the rules (a report about quest:<id>, the Act page's own discussion, xp/) is live when anyone
+   may read xp/: the answer is 200 or, with no document yet, 404. Under the second version the question is refused.
+   Asked over plain REST, once a page. Until it is live a report is not sent and the board says reports are not open
+   yet, instead of sending a post the rules would refuse. A yes is kept on this device, because rules do not go back. */
+let v3 = null;
+async function isV3() {
+  if (v3 !== null) return v3;
+  if (!EMU && store.get('lp-v3') === 1) return (v3 = true);
+  const base = (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/';
+  let res;
+  try { res = await within(15000, fetch(base + 'xp/_board' + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)))); } catch (x) { throw { code: 'lp/offline' }; }
+  if (res.status >= 500) throw { code: 'lp/offline' };
+  v3 = res.ok || res.status === 404;
+  if (v3 && !EMU) store.set('lp-v3', 1);
+  return v3;
+}
+async function questReport(d, opener) {
+  d = d || {};
+  if (pathOf(d.about) == null || keyKind(d.about) !== 'quest') return { ok: false, code: 'lp/closed', text: '' };
+  if (!me) {
+    openSheet('auth', { why: tt('Your report is saved. Create an account to send it.'), whyIn: tt('Your report is saved. Sign in to send it.'), opener });
+    if (!OFF) fb().catch(() => { });
+    return { ok: false, code: 'lp/signin', text: '' };
+  }
+  try {
+    await within(25000, fb());
+    if (!user) { openSheet('auth', { mode: 'in', why: tt('Your report is saved. Sign in to send it.'), opener }); return { ok: false, code: 'lp/signin', text: '' }; }
+    if (!user.displayName) { openSheet('name', { why: tt('Your report is saved. Choose a name to send it.'), opener }); return { ok: false, code: 'lp/name', text: '' }; }
+    if (!(await within(20000, isV2())) || !(await within(20000, isV3()))) return { ok: false, code: 'lp/closed', text: '' };
+    const url = typeof d.url === 'string' && URL_OK.test(d.url) ? cleanUrl(d.url) : '';
+    const post = await within(30000, postIt({ text: String(d.text || '').slice(0, MAX), url, made: false, on: d.about, subject: String(d.subject || d.about), tag: 'report', v2: true }));
+    return { ok: true, post: { id: post.id, status: post.status } };
+  } catch (e) {
+    const code = (e && e.code) || '';
+    return { ok: false, code, text: code === 'lp/pace' ? tt('You posted a moment ago. Wait {n} seconds, then send it again.', { n: e.wait }) : words(e) };
+  }
+}
+async function questMine() {
+  if (!me || OFF) return [];
+  const { F, db } = await within(25000, fb());
+  if (!user) return [];
+  const snap = await within(20000, F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', user.uid), F.limit(50))));
+  return snap.docs.map(x => shape(x.id, x.data())).filter(p => keyKind(p.about) === 'quest' && !p.parent).map(p => ({ id: p.id, mission: p.about.split(':')[1], status: p.status, ms: p.ms }));
+}
+
 /* ------------------------------------------------------------------ start */
 function start() {
   if (!CFG) return;
@@ -2429,7 +2516,10 @@ function start() {
     ready: () => fb().then(() => true), emu: EMU, off: OFF,
     /* What teamroom.js (the team page) is handed: Firebase once it is loaded, the signed-in reader, a call when
        that changes, and the same words, faces and dates the discussion uses. */
-    room: { fb: () => fb(), user: () => user, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
+    room: { fb: () => fb(), user: () => user, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 },
+    /* What quests.js (the mission board) is handed: the same words, who is signed in (the id and the name, as kept on
+       this device), a call when that changes, one public document, sending a report, and the reader's own reports. */
+    quests: { tt, dig, who: () => me && { uid: me.uid, name: me.name }, sub: f => { subs.push(f); }, doc: questDoc, report: questReport, mine: questMine, off: OFF, quiet: QUIET, max: MAX }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
   if (me && !OFF) ryWake();
   initHeader();

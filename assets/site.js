@@ -236,8 +236,16 @@
     });
   });
 
-  /* ---- take action: a state picker that opens that state's discussion ---- */
-  Array.prototype.forEach.call(document.querySelectorAll('select[data-go-state]'), function (s) {
-    s.addEventListener('change', function () { if (s.value) location.href = root + 'states/' + s.value + '/' + (s.getAttribute('data-go-state') || ''); });
-  });
+  /* ---- More, in the menu (13 October 2026). It is a native <details>, so it opens with this file missing.
+     Here it only closes again: on a tap anywhere else, and on Escape. ---- */
+  /* The strip of links under the bar scrolls sideways on a phone. The link of the page a reader is on is brought into
+     view when it would be out of sight, so the strip always says where they are. Only the strip moves, never the page. */
+  var strip = document.querySelector('.subnav-s'), here = strip && strip.querySelector('a[aria-current]');
+  if (here) { var hx = here.offsetLeft - strip.offsetLeft; if (hx + here.offsetWidth > strip.clientWidth - 28) strip.scrollLeft = Math.max(0, hx - 24); }
+  var mores = document.querySelectorAll('details.nav-more');
+  if (mores.length) {
+    var shut = function (but) { Array.prototype.forEach.call(mores, function (d) { if (d !== but && d.open) d.open = false; }); };
+    document.addEventListener('click', function (ev) { shut(ev.target.closest ? ev.target.closest('details.nav-more') : null); });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') shut(null); });
+  }
 })();

@@ -3,18 +3,22 @@
 :root{
   --field:#F4C430; --on-field:#14120B; --field-edge:#8F7420; --field-hi:#FFD95A;
   --bg:#101010; --panel:#191918; --sunk:#0A0A0A; --raise:#232322;
-  --ink:#F3F1EA; --dim:#B4B2A8; --line:#34332F;
+  --ink:#F3F1EA; --dim:#B4B2A8; --line:#2B2A27;
   --seal:#E9D9A6;
   --ga:#46CC82; --gb:#A9D84E; --gc:#E8DC82; --gd:#FF9A3D; --gf:#FF5A48; --on-grade:#16140A;
   --rep:#E5564A; --dem:#5B8DEF; --ind:#B9B7A6;
   --display:"Big Shoulders Display","Big Shoulders","Arial Narrow","Roboto Condensed",sans-serif;
   --body:"Public Sans","Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
-  --gutter:16px; --col:72rem; --r:4px;
+  --gutter:16px; --col:72rem; --r:6px; --r2:10px;
+  /* 13 October 2026, the calmer pass (Armin: "messy and chaotic, too much clutter ... simplified and look more
+     beautiful"). One scale of space, used by everything new and by the section rhythm: 4 8 12 16 24 36 48.
+     The line between things is quieter (it was #34332F), so a border separates without drawing a box. */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:36px; --s7:48px;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-padding-top:72px}
-body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 var(--body);overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 var(--body);overflow-x:hidden}
 ::selection{background:var(--field);color:var(--on-field)}
 img{max-width:100%;display:block}
 a{color:inherit;text-underline-offset:3px;text-decoration-thickness:1px}
@@ -22,8 +26,9 @@ a:hover{text-decoration-thickness:2px}
 :focus-visible{outline:3px solid var(--field);outline-offset:2px;border-radius:2px}
 .field :focus-visible{outline-color:var(--field)}
 h1,h2,h3{font-family:var(--display);font-weight:800;line-height:.95;margin:0;text-transform:uppercase;letter-spacing:.005em;text-wrap:balance}
-h2{font-size:clamp(2rem,6vw,3.25rem)}
-h3{font-size:1.5rem;line-height:1}
+/* Section heads were up to 3.25rem, as loud as a page title. One step down, so a page has one headline. */
+h2{font-size:clamp(1.75rem,5vw,2.6rem);line-height:1}
+h3{font-size:1.4rem;line-height:1.05}
 p{margin:0}
 .wrap{max-width:var(--col);margin:0 auto;padding:0 var(--gutter)}
 .dim{color:var(--dim)}
@@ -49,7 +54,12 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 /* The links sit in the bar only where all of them fit on one line beside the mark (seven of them since
    4 October 2026; at 900px they ran over the mark). Narrower than that, the strip under the bar carries them. */
 @media(min-width:1220px){.top nav a{display:inline-flex;align-items:center;min-height:44px;white-space:nowrap;padding:10px 9px}.top nav{gap:2px}}
-.subnav{display:flex;gap:4px;overflow-x:auto;background:var(--sunk);border-bottom:1px solid var(--line);padding:0 8px;scrollbar-width:none}
+.subnav{position:relative;display:flex;align-items:stretch;background:var(--sunk);border-bottom:1px solid var(--line);padding:0 0 0 8px}
+/* the links fade out where they run under More, so the strip reads as one that scrolls */
+.subnav-s{display:flex;gap:4px;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);padding-right:20px}
+.subnav-s::-webkit-scrollbar{display:none}
+.subnav .nav-more{border-left:1px solid var(--line)}
+.subnav .nav-more-l{right:6px}
 .subnav a{flex:none;padding:12px 10px;min-height:44px;text-decoration:none;font-weight:600;font-size:.92rem;color:var(--dim)}
 .subnav a[aria-current="page"]{color:var(--field)}
 @media(min-width:1220px){.subnav{display:none}}
@@ -64,7 +74,7 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 .field.call{background:var(--panel);border-top:1px solid var(--line);border-bottom:0}
 .field .btn-ink{background:var(--field);color:var(--on-field)}
 .field .btn-ink:hover{background:var(--field-hi)}
-.field .wrap{padding-top:36px;padding-bottom:36px}
+.field .wrap{padding-top:var(--s6);padding-bottom:var(--s6)}
 /* The front page's headline is two sentences since 7 October 2026 ("See how they voted. Then do something about
    it."). Until then it was the two-word wordmark LIBERTY SCORE at 21vw. Sized so the first sentence is one line on
    a 360px phone and in the left column of a wide screen. */
@@ -102,8 +112,10 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 .row{display:flex;flex-wrap:wrap;gap:10px}
 
 /* sections */
-.sec{padding:44px 0}
+.sec{padding:var(--s7) 0 var(--s7)}
+@media(max-width:699px){.sec{padding:var(--s6) 0}}
 .sec + .sec{border-top:1px solid var(--line)}
+.sec + .sec-alt,.sec-alt + .sec{border-top:0}
 .sec-alt{background:var(--panel)}
 .sec h2 + p{margin-top:12px;max-width:62ch;color:var(--dim);font-size:1.05rem}
 .more{display:inline-flex;align-items:center;min-height:44px;margin-top:10px;font-weight:700}
@@ -130,7 +142,7 @@ a.vh:focus{position:fixed;left:8px;top:8px;z-index:60;width:auto;height:auto;cli
 .people{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:8px}
 @media(min-width:700px){.people{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(min-width:1060px){.people.three{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.person{display:flex;align-items:center;gap:12px;padding:10px 12px;min-height:76px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);text-decoration:none;transition:border-color .15s,background-color .15s}
+.person{display:flex;align-items:center;gap:12px;padding:10px 12px;min-height:76px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);text-decoration:none;transition:border-color .15s,background-color .15s}
 .sec-alt .person{background:var(--bg)}
 .person:hover{border-color:var(--field);background:var(--raise)}
 .face{width:52px;height:52px;flex:none;border-radius:50%;object-fit:cover;object-position:50% 18%;background:var(--raise);border:2px solid var(--ind)}
@@ -358,12 +370,16 @@ span.portrait{display:flex;align-items:center;justify-content:center;font:900 2.
 .fbfine a{display:inline-flex;align-items:center;min-height:44px;color:var(--ink);font-weight:600}
 
 /* footer */
-footer{background:var(--sunk);border-top:1px solid var(--line);padding:36px 0 96px;color:var(--dim);font-size:.92rem}
-footer .cols{display:grid;gap:24px}
-@media(min-width:760px){footer .cols{grid-template-columns:2fr 1fr 1fr}}
-footer a{display:inline-flex;align-items:center;min-height:44px;color:var(--ink);font-weight:600}
+/* 13 October 2026, second pass: the footer was 1,129px tall on a phone. It is one line about the site, the links the
+   menu does not hold (two columns on a phone, one row on a wide screen), and the one sentence the law asks for. What it
+   used to say about sources and photographs is on methodology/#sources and photos/. */
+footer{background:var(--sunk);border-top:1px solid var(--line);padding:20px 0 96px;color:var(--dim);font-size:.9rem;line-height:1.5}
+footer .foot-who strong{color:var(--ink)}
+footer a{display:inline-flex;align-items:center;min-height:40px;color:var(--ink);font-weight:600;line-height:1.25}
 footer ul{list-style:none;margin:0;padding:0}
-footer .fine{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);max-width:80ch}
+footer .foot-l{margin-top:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}
+@media(min-width:760px){footer .foot-l{display:flex;flex-wrap:wrap;column-gap:22px;row-gap:0}}
+footer .fine{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);max-width:80ch;font-size:.85rem}
 
 
 /* faces everywhere a candidate is named, and the mark for a candidate with no votes: the same letter in
@@ -743,7 +759,7 @@ footer a.yt-f{display:inline-flex;align-items:center;gap:8px}
 .calls-a b{display:block;font:800 .95rem/1.15 var(--body);color:var(--field)}
 .calls-a small{display:block;font:600 .8rem/1.2 var(--body);opacity:.85}
 .calls-x{flex:none;width:40px;height:44px;border:0;background:transparent;color:inherit;font:700 1.4rem/1 var(--body);cursor:pointer;border-radius:0 12px 0 0}
-footer .on-when{display:block;margin:-6px 0 8px;font-size:.85rem;font-weight:400;color:var(--dim)}
+footer .on-when{display:block;margin:-7px 0 4px;font-size:.8rem;font-weight:400;color:var(--dim);line-height:1.3}
 .calls-x:hover,.calls-a:hover b{text-decoration:underline}
 .calls.off{display:none}
 /* While it would sit on the button that sends a post, it steps aside (build/whatson.js, duck). It keeps its place, so nothing moves. */
@@ -874,22 +890,235 @@ footer{padding-bottom:84px}
 /* the box at rest: the question, a place to type, the button. site.js wakes it on the first tap. */
 .fb.rest fieldset,.fb.rest .fbsend .fbhint,.fb.rest .fbwho{display:none}
 
-/* take action (act/): the guide to building a voting bloc */
-.act-head h1{font-size:clamp(3rem,13vw,5.5rem);font-weight:900;line-height:.9}
-.act-head .lede{color:var(--ink)}
-.act-pick select{width:100%;max-width:22rem}
-.act-pick{margin-top:22px}
-.act-pick select{min-height:52px;font-weight:700;border-color:var(--field);color:var(--field)}
-.act-steps{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:14px;max-width:52rem}
-.act-steps>li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;padding:18px 16px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
-.act-steps>li>b{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--field);color:var(--on-field);font:900 1.6rem/1 var(--display)}
-.act-steps h3{font-size:1.7rem}
-.act-steps p{margin-top:10px;max-width:60ch}
-.act-steps .act-pick{margin-top:14px}
-.act-links{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:0}
-.act-links a{display:inline-flex;align-items:center;min-height:44px;color:var(--field);font-weight:700}
-.act-line p{max-width:56ch}
-.field.call .act-pick select{background:var(--bg)}
+/* ---- 13 October 2026: the mission board (act/), the front page's way into it, and the three doors.
+   Armin: the act part "needs to be front and center ... like a video game. Gamified, a quest and side quests",
+   and the whole site "simplified ... people should know exactly what this page is about by just glancing at it".
+   The markup is printed by render.py (act, q_card) and run by build/quests.js; its contract is at the top of that
+   file. Colour stays as it was decided on 5 October: black, and yellow only on the headline, the buttons and the
+   links. So a chip that is on is a yellow button, the XP bar is the one filled thing, and icons are cream.
+   Nothing here is hidden and then animated in: a part only the script can run (.q-js) is simply not drawn
+   until the page's own first line of script has said scripts are on. */
+.q-js{display:none}
+html.q-js-on .q-js:not([hidden]){display:block}
+html.q-js-on p.q-chain:not([hidden]){display:flex}
+.q-head h1{font-size:clamp(2.5rem,11.5vw,4.8rem);font-weight:900;line-height:.9}
+.q-head .lede{max-width:44ch;margin-top:8px;font-size:1rem;font-weight:500;line-height:1.35}
+.q-head .wrap{padding-top:16px;padding-bottom:20px}
+.q-rank{margin-top:12px;max-width:30rem;display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:baseline}
+.q-rank-l{grid-row:1;grid-column:1}.q-rank-n{grid-row:1;grid-column:2}
+.q-rank-l{display:flex;align-items:baseline;gap:10px}
+.q-rank-l b{font:800 1.5rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.q-rank-l span{font-weight:700;color:var(--seal)}
+.q-rank-n{color:var(--dim);font-size:.9rem;text-align:right}
+.q-bar{grid-row:2;grid-column:1/-1;height:8px;border-radius:999px;background:var(--raise);overflow:hidden}
+.q-bar i{display:block;height:100%;width:0;min-width:8px;border-radius:999px;background:var(--field);transition:width .5s cubic-bezier(.16,1,.3,1)}
+/* The chooser is one block that flows: each row starts a new line (its label, then its chips), and where the reader
+   lives follows the last chips on the same line when there is room. On a 375px phone it is four lines, 40px each, and the
+   whole of it ends above 640px (measured), so a phone shows the headline, the rank and every choice without scrolling.
+   The one line over it says what the chips are for, which is what a stranger taps first. */
+.q-pick{margin-top:12px;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;max-width:46rem}
+.q-cue{flex:0 0 100%;font-weight:700;font-size:.98rem;margin-bottom:2px}
+.q-row{display:contents}
+.q-row::before{content:"";flex:0 0 100%;height:0}
+.q-row.q-row-w::before{display:none}
+.q-row .q-chips{display:contents}
+.q-lab{font-weight:700;color:var(--dim);font-size:.9rem;margin-right:1px}
+.q-chips{display:flex;flex-wrap:wrap;gap:8px}
+.q-chip{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font:700 .9rem/1 var(--body);text-decoration:none;cursor:pointer;white-space:nowrap}
+/* A chip changes at once: it is a switch, and a switch that fades reads as slow. */
+.q-chip:hover{border-color:var(--field)}
+.q-chip[aria-pressed="true"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.q-row-w .q-lab{margin-left:4px}
+.q-row-w select{flex:1 1 8.5rem;min-width:8.5rem;min-height:40px;max-width:15rem;padding:0 12px;font:700 .95rem/1 var(--body);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px}
+.q-row-w select:focus,.q-row-w select:hover{border-color:var(--field)}
+
+/* the reader's mission, and the board */
+.q-yours{padding:28px 0}
+.q-yours.q-empty .q-best,.q-yours.q-empty .q-also{display:none}
+.q-yours h2,.q-mine h2,.q-top h2{font-size:clamp(1.5rem,5vw,2rem)}
+.q-best{margin-top:14px;max-width:46rem}
+.q-also{margin-top:10px;display:grid;gap:8px;max-width:46rem}
+.q-also-h{color:var(--dim);font-weight:700;font-size:.92rem;margin-top:6px}
+.q-also:empty{display:none}
+.q-goal{max-width:46rem;font-size:1.1rem;line-height:1.45;color:var(--dim)}
+.q-goal b{color:var(--ink);font-weight:700}
+.q-tier{margin-top:36px}
+.q-tier[hidden]{display:none}
+.q-tier h2 i{font-style:normal;color:var(--field)}
+.q-tier h2 + p{margin-top:8px;color:var(--dim);max-width:56ch;font-size:1rem}
+.q-chain{align-items:center;gap:12px;margin-top:14px;color:var(--dim);font-weight:700;font-size:.92rem}
+.q-dots{display:flex;gap:5px}
+.q-dots i{display:block;width:22px;height:8px;border-radius:999px;background:var(--raise)}
+.q-dots i.now{background:var(--field-edge)}
+.q-dots i.on{background:var(--field)}
+.q-list{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:8px;max-width:46rem}
+.q-list li[hidden]{display:none}
+/* From a tablet up the board uses the width: two columns of cards, three for the side quests on a wide screen. An open
+   card keeps its own height (align-items:start), so opening one never stretches its neighbour. The head of the page is two
+   columns from 900px: what the board is on the left, the choices on the right, so the chooser is a block and not one thin line. */
+@media(min-width:700px){.q-list{grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;align-items:start}.q-also{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;max-width:none}.q-also-h{grid-column:1/-1}}
+@media(min-width:1100px){.q-tier-side .q-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:900px){
+  .q-head .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,26rem);column-gap:48px;align-items:start;padding-top:36px;padding-bottom:36px}
+  html.q-js-on .q-head .q-js:not([hidden]){display:contents}
+  .q-head h1,.q-head .lede,.q-head .q-rank{grid-column:1}
+  .q-head .lede{font-size:1.15rem}
+  .q-head .q-rank{margin-top:20px}
+  .q-head .q-pick{grid-column:2;grid-row:1/span 4;margin-top:0;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);gap:8px 6px}
+  .q-best{max-width:none}
+  .q-big summary{align-items:center}
+  .hero .wrap{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto auto;align-items:start}
+  .hero h1{grid-column:1;grid-row:1/span 2;align-self:start;font-size:clamp(3.2rem,5.3vw,4.2rem)}
+  .hero .lede{grid-column:2;grid-row:1;margin-top:0;max-width:40ch}
+  .hero .q-front{grid-column:2;grid-row:2;margin-top:18px}
+  .morelist{max-width:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:48px}
+}
+.q-m{background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;transition:border-color .15s}
+.q-m:hover,.q-m[open]{border-color:var(--field-edge)}
+.q-m summary{display:grid;grid-template-columns:44px minmax(0,1fr) 16px;gap:12px;align-items:center;min-height:68px;padding:12px 14px;cursor:pointer;list-style:none}
+.q-m summary::-webkit-details-marker{display:none}
+.q-m summary::after{content:"";width:9px;height:9px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);transform:rotate(45deg);justify-self:center;margin-top:-4px;transition:transform .2s}
+.q-m[open] summary::after{transform:rotate(225deg);margin-top:4px}
+.q-ic{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--raise);color:var(--seal)}
+.q-stage{position:absolute;right:-5px;bottom:-5px;display:grid;place-items:center;min-width:20px;height:20px;padding:0 4px;border-radius:999px;background:var(--bg);border:1px solid var(--line);color:var(--ink);font:800 .78rem/1 var(--body);font-style:normal}
+.q-t{display:grid;gap:4px;min-width:0}
+.q-title{font-weight:700;font-size:1.05rem;line-height:1.25}
+.q-meta{display:flex;flex-wrap:wrap;gap:2px 12px;color:var(--dim);font-size:.88rem;font-weight:600}
+.q-xp{color:var(--seal);font-weight:800}
+.q-until{color:var(--gd)}
+.q-done[hidden],.q-state[hidden]{display:none}
+.q-state{justify-self:start;padding:3px 9px;border-radius:999px;background:var(--raise);font-size:.82rem;font-weight:700;color:var(--ink)}
+.q-s-accepted.q-state,.q-state.q-s-accepted{color:var(--ga)}
+.q-state.q-s-back{color:var(--gd)}
+.q-state.q-s-reported,.q-state.q-s-draft{color:var(--seal)}
+.q-hook-s{color:var(--dim);font-size:.98rem;line-height:1.4}
+.q-body{padding:2px 14px 16px;display:grid;gap:12px;border-top:1px solid var(--line)}
+.q-body>:first-child{margin-top:14px}
+.q-hook{font-size:1.08rem;line-height:1.45;font-weight:600;max-width:58ch}
+.q-only{color:var(--dim);font-size:.92rem;font-weight:700}
+.q-why{max-width:62ch;color:var(--dim);line-height:1.55}
+.q-why b,.q-proof b{color:var(--ink)}
+.q-why .src{display:block;margin-top:4px;font-size:.88rem}
+.q-why .src a{color:var(--field);overflow-wrap:anywhere}
+.q-steps{margin:0;padding:0;list-style:none;counter-reset:qs;display:grid;gap:10px;max-width:62ch}
+.q-steps li{counter-increment:qs;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;line-height:1.5}
+.q-steps li::before{content:counter(qs);display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--raise);color:var(--ink);font:800 .85rem/1 var(--body);font-variant-numeric:tabular-nums}
+.q-proof{max-width:62ch;line-height:1.5}
+.q-never{max-width:62ch;color:var(--gd);font-weight:600;font-size:.95rem}
+.q-repeat{max-width:62ch;color:var(--seal);font-weight:600;font-size:.95rem}
+.q-links{list-style:none;margin:0;padding:0;display:grid}
+.q-links a{display:inline-flex;align-items:center;min-height:44px;color:var(--field);font-weight:700}
+.q-act{display:grid;gap:10px}
+.q-btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.q-btns [hidden]{display:none}
+.q-text{min-height:44px;padding:0 6px;background:none;border:0;color:var(--dim);font:600 .95rem/1 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.q-text:hover{color:var(--ink)}
+.q-say{font-weight:600;color:var(--seal);max-width:60ch;overflow-wrap:anywhere}
+.q-say:empty{display:none}
+.q-say.bad{color:var(--gd)}
+.q-ns{color:var(--dim);font-size:.92rem}
+.q-form{display:grid;gap:8px;max-width:44rem;padding:14px;background:var(--bg);border:1px solid var(--line);border-radius:var(--r2)}
+.q-form[hidden]{display:none}
+.q-form label{font-weight:700}
+.q-form textarea,.q-form input{width:100%;padding:12px 14px;font:500 1rem/1.5 var(--body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.q-form input{min-height:48px;padding:0 14px}
+.q-form textarea{min-height:7rem;resize:vertical}
+.q-form textarea:focus,.q-form input:focus{border-color:var(--field)}
+.q-form textarea::placeholder,.q-form input::placeholder{color:var(--dim)}
+.q-form button[disabled]{opacity:.6;cursor:default}
+.q-hint{color:var(--dim);font-size:.9rem;max-width:60ch}
+/* the reader's own mission: the same card, larger, with its one line showing and a way in that looks like one */
+.q-big{border-color:var(--field-edge)}
+.q-big summary{grid-template-columns:52px minmax(0,1fr) 16px;padding:16px;align-items:start}
+.q-big .q-ic{width:52px;height:52px}
+.q-big .q-title{font:800 1.75rem/1.02 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.q-big .q-body .q-hook,.q-small .q-body .q-hook{display:none}
+.q-big .q-meta{font-size:.95rem;margin-top:2px}
+.q-small .q-hook-s{display:none}
+.q-big summary::before{content:attr(data-q-go);grid-column:2;grid-row:2;justify-self:start;display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:var(--r);background:var(--field);color:var(--on-field);font-weight:700}
+.q-big[open] summary::before{display:none}
+/* my missions */
+.q-mine{padding:28px 0}
+.q-mine[hidden],.q-top[hidden]{display:none}
+.q-minelist{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px;max-width:46rem}
+.q-mine-a{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px;min-height:52px;padding:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);text-decoration:none}
+.q-mine-a:hover{border-color:var(--field)}
+.q-mine-a b{font-weight:700}
+.q-mine-why{margin:6px 14px 0;color:var(--dim);font-size:.95rem;overflow-wrap:anywhere}
+/* the leaderboard, how XP works, and the reading that was the old guide */
+.q-toplist{list-style:none;counter-reset:qt;margin:14px 0 0;padding:0;display:grid;gap:0;max-width:34rem}
+.q-toplist li{counter-increment:qt;display:grid;grid-template-columns:2rem minmax(0,1fr) auto auto;gap:10px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--line)}
+.q-toplist li::before{content:counter(qt);font:800 1.2rem/1 var(--display);color:var(--dim)}
+.q-toplist b{overflow-wrap:anywhere}
+.q-top-l{color:var(--dim);font-size:.88rem}
+.q-top-x{font-weight:800;color:var(--seal)}
+.q-read .wrap{max-width:calc(46rem + 2*var(--gutter));margin-left:auto;margin-right:auto}
+@media(min-width:1000px){.q-read .wrap{max-width:var(--col)}.q-fold{max-width:46rem}}
+.q-read-h{margin-top:36px;font-size:clamp(1.5rem,5vw,2rem)}
+.q-fold{border-bottom:1px solid var(--line)}
+.q-read-h + .q-fold{margin-top:8px}
+.q-fold>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;font-weight:700;font-size:1.08rem;cursor:pointer;list-style:none}
+.q-fold>summary::-webkit-details-marker{display:none}
+.q-fold>summary::after{content:"";flex:none;width:9px;height:9px;margin-right:4px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);transform:rotate(45deg);transition:transform .2s}
+.q-fold[open]>summary::after{transform:rotate(225deg)}
+.q-fold-b{padding:0 0 22px;max-width:64ch}
+.q-fold-b>p{margin-top:10px;line-height:1.6}
+.q-fold-b>:first-child{margin-top:0}
+.q-fold-b h3{margin-top:22px;font-size:1.25rem}
+.q-ladder{list-style:none;margin:12px 0 0;padding:0}
+.q-ladder li{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid var(--line)}
+.q-ladder li:last-child{border-bottom:0}
+.q-ladder b{flex:none;color:var(--seal)}
+/* Congress at a glance, on the scorecard: three sections of the old front page, folded into one line above the list */
+.glance{margin-top:18px;max-width:none;border-top:1px solid var(--line)}
+.glance-b{padding:4px 0 26px}
+.glance-b>p{max-width:62ch;color:var(--dim)}
+.glance-b h3{margin-top:26px}
+.glance-b .two{margin-top:6px}
+.glance + .tools{margin-top:18px}
+/* the front page: the way onto a mission, and the three doors to the record */
+.q-front{margin-top:22px}
+.q-front-q{font-weight:700;font-size:1.1rem}
+.q-front .q-chips{margin-top:10px;display:flex}
+.q-front .q-chip{min-height:50px;padding:0 16px;font-size:1rem;background:var(--field);border-color:var(--field);color:var(--on-field)}
+.q-front .q-chip:hover{background:var(--field-hi)}
+.q-front-n{margin-top:4px}
+.q-front-n a{display:inline-flex;align-items:center;min-height:44px;color:var(--dim);font-weight:600}
+.hero .lede{max-width:36ch}
+.doors-sec{padding:28px 0}
+.doors{display:grid;gap:10px}
+@media(min-width:900px){.doors{grid-template-columns:1.25fr 1fr 1fr;align-items:stretch}}
+.door{display:block;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);text-decoration:none;transition:border-color .15s}
+a.door{display:grid;gap:6px;align-content:start;min-height:96px}
+a.door:hover{border-color:var(--field)}
+a.door b{font:800 1.5rem/1 var(--display);text-transform:uppercase;letter-spacing:.01em;color:var(--field)}
+a.door span{color:var(--dim);line-height:1.45}
+.door-find .find{margin-top:0}
+.door-find .find label{font:800 1.5rem/1 var(--display);text-transform:uppercase;letter-spacing:.01em;color:var(--field);margin-bottom:10px}
+.door-find .statepick select{width:100%}
+/* The newest posts on the front page are a taste, not the thread: four lines each, the rest is one tap away. */
+.latest-list blockquote{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;overflow:hidden}
+@media(max-width:899px){.latest.on{padding:var(--s5) 0}.latest .latest-go{margin-top:10px}.latest-list{gap:8px}.latest-list .said{padding-top:12px;padding-bottom:12px}}
+.more-sec h2,.latest h2{font-size:clamp(1.5rem,5vw,2rem)}
+.morelist{list-style:none;margin:10px 0 0;padding:0;max-width:46rem}
+.morelist a{display:grid;gap:2px;padding:9px 0;min-height:56px;border-bottom:1px solid var(--line);text-decoration:none}
+.morelist li:last-child a{border-bottom:0}
+.morelist b{color:var(--field);font-weight:700}
+.morelist span{color:var(--dim);font-size:.95rem;line-height:1.4}
+.morelist a:hover b{text-decoration:underline;text-underline-offset:3px}
+/* More, in the menu: a native <details>, so it opens with scripts off */
+.nav-more{position:relative;flex:none}
+.nav-more>summary{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:12px 10px;font-weight:600;font-size:.92rem;color:var(--dim);cursor:pointer;list-style:none;white-space:nowrap;border-radius:var(--r)}
+.nav-more>summary::-webkit-details-marker{display:none}
+.nav-more>summary::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);margin-top:-4px}
+.nav-more[open]>summary::after{transform:rotate(225deg);margin-top:3px}
+.nav-more>summary.on{color:var(--field)}
+.nav-more-l{position:absolute;right:0;top:100%;z-index:30;min-width:13rem;display:grid;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);box-shadow:0 14px 30px -10px rgba(0,0,0,.7)}
+.nav-more .nav-more-l a{display:flex;align-items:center;min-height:44px;padding:0 12px;color:var(--ink);font-weight:600;font-size:.95rem;text-decoration:none;white-space:nowrap;border-radius:var(--r)}
+.nav-more .nav-more-l a:hover{background:var(--raise)}
+.nav-more .nav-more-l a[aria-current="page"]{color:var(--field)}
+.top nav .nav-more{display:none}
+@media(min-width:1220px){.top nav .nav-more{display:block}.top nav .nav-more>summary{color:var(--ink);font-size:.95rem;padding:10px 9px}.top nav .nav-more>summary:hover{background:var(--raise)}}
 
 /* The other countries (build/world.py). The switch is a real select: a phone opens its own picker, and
    nothing can be clipped by the strip it sits in. Beside the mark on a wide screen, first in the strip

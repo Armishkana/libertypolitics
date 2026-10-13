@@ -56,6 +56,21 @@
     return out.sort(function (a, b) { return (b.on - a.on) || (a.start - b.start); });
   }
 
+  /* SEVERAL SHOWS, ONE ROW (13 October 2026: the channel runs five live shows a day, and a bubble with one of
+     them said the next show was 17 hours off while another was live). Items that name the same row share one
+     line of the bubble. For each row, the one occurrence that matters: what is on now (the latest to start, if
+     two overlap), or else the next to start. An item with no row is a row of its own. Same order as plan(). */
+  function rows(items, now) {
+    var rowOf = {}, best = {}, out = [];
+    (items || []).forEach(function (it) { rowOf[it.id] = it.row || it.id; });
+    plan(items, now).forEach(function (p) {
+      var r = rowOf[p.id], q = best[r];
+      if (!q || (p.on && q.on && p.start > q.start)) best[r] = { id: p.id, row: r, on: p.on, start: p.start, end: p.end, mins: p.mins };
+    });
+    for (var r in best) if (Object.prototype.hasOwnProperty.call(best, r)) out.push(best[r]);
+    return out.sort(function (a, b) { return (b.on - a.on) || (a.start - b.start); });
+  }
+
   function num(n, words) {
     var s = String(n);
     return (words && words.digits) ? s.replace(/[0-9]/g, function (d) { return words.digits.charAt(+d); }) : s;
@@ -84,7 +99,7 @@
     return [it.name, words.at.replace('{t}', clock(p.start, locale, zone))];
   }
 
-  var api = { parts: parts, offset: offset, at: at, plan: plan, span: span, clock: clock, row: row };
+  var api = { parts: parts, offset: offset, at: at, plan: plan, rows: rows, span: span, clock: clock, row: row };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.LPOn = api;
   if (typeof document === 'undefined' || !root.Intl) return;
@@ -96,24 +111,33 @@
   cfg.items.forEach(function (it) { byId[it.id] = it; });
   function draw() {
     var list;
-    try { list = plan(cfg.items, Date.now()); } catch (x) { return; }      // a browser that does not know the zone keeps the printed sentence
-    var rows = box.querySelector('.calls-rows');
+    var now = Date.now(), each;
+    try { list = rows(cfg.items, now); each = plan(cfg.items, now); } catch (x) { return; }      // a browser that does not know the zone keeps the printed sentence
+    var lines = box.querySelector('.calls-rows');
     for (var i = list.length - 1; i >= 0; i--) {
-      var a = box.querySelector('a[data-on-row="' + list[i].id + '"]');
+      var a = box.querySelector('a[data-on-row="' + list[i].row + '"]');
       if (!a) continue;
       var two = row(list[i], byId[list[i].id], words, i === 0, words.locale);
       a.querySelector('b').textContent = two[0];
       a.querySelector('small').textContent = two[1];
       a.className = 'calls-a' + (list[i].on ? ' live' : '');
-      if (rows && rows.firstChild !== a) rows.insertBefore(a, rows.firstChild);      // what is on now, or next, goes on top
+      if (lines && lines.firstChild !== a) lines.insertBefore(a, lines.firstChild);      // what is on now, or next, goes on top
     }
     /* The same times where a page states them in a sentence (the About page, the footer): the visitor's own
-       clock is added after the Eastern one, unless the visitor's clock IS Eastern. */
+       clock is added after the Eastern one, unless the visitor's clock IS Eastern. A row of several shows is
+       stated as "from 11am", so what is added is when the first show of the day starts on the visitor's clock. */
     Array.prototype.forEach.call(document.querySelectorAll('[data-on-local]'), function (el) {
-      var p = list.filter(function (q) { return q.id === el.getAttribute('data-on-local'); })[0];
-      if (!p || !words.local) return;
-      var mine = clock(p.start, words.locale), theirs = clock(p.start, words.locale, byId[p.id].tz || 'America/New_York');
-      el.textContent = mine === theirs ? '' : words.local.replace('{a}', mine).replace('{b}', clock(p.end, words.locale));
+      var key = el.getAttribute('data-on-local');
+      var its = cfg.items.filter(function (it) { return (it.row || it.id) === key; });
+      if (!its.length) its = cfg.items.filter(function (it) { return it.id === key; });
+      if (!its.length || !words.local) return;
+      var first = its.slice().sort(function (x, y) { return x.start < y.start ? -1 : x.start > y.start ? 1 : 0; })[0];
+      var p = each.filter(function (q) { return q.id === first.id; })[0];
+      if (!p) return;
+      var mine = clock(p.start, words.locale), theirs = clock(p.start, words.locale, first.tz || 'America/New_York');
+      if (mine === theirs) el.textContent = '';
+      else if (its.length > 1) el.textContent = words.from ? words.from.replace('{a}', mine) : '';
+      else el.textContent = words.local.replace('{a}', mine).replace('{b}', clock(p.end, words.locale));
     });
   }
   /* NEVER OVER THE BUTTON THAT SENDS A POST. The bubble is fixed to the corner and the page scrolls under it, so on
