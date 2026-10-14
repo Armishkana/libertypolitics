@@ -517,23 +517,45 @@ function ryWake() {
    a second reader signing in here does not make the first one's replies new again; and kept in memory too,
    for a browser that keeps nothing. */
 function rySeenAll() { const s = store.get(KEY.rseen); return s && typeof s === 'object' && !Array.isArray(s) ? s : {}; }
-function rySeen() {
-  const at = me ? rySeenAll()[me.uid] : 0, kept = typeof at === 'number' ? at : 0;
-  return Math.max(kept, rySeenAt) || Date.now() - RY.back;
+/* One account's entry: everything up to `at` is seen, and so is each reply in `open` (opened one by one).
+   Until 14 October 2026 an entry was only the number, and drawing the list moved it past every reply in it,
+   so opening one reply cleared New from all of them (a reader on iranuncensored.com, post w1haMgCFZ5lR8nLfLIF0).
+   A number kept by the old script still reads, as `at` with nothing opened. */
+const ryOpenMem = new Set();
+function ryEntry(v) {
+  if (typeof v === 'number') return { at: v, open: [] };
+  if (v && typeof v === 'object' && typeof v.at === 'number') return { at: v.at, open: Array.isArray(v.open) ? v.open.filter(x => typeof x === 'string').slice(-200) : [] };
+  return { at: 0, open: [] };
 }
+function rySeen() { return Math.max(me ? ryEntry(rySeenAll()[me.uid]).at : 0, rySeenAt) || Date.now() - RY.back; }
+function ryOpened() { return new Set([...ryOpenMem, ...(me ? ryEntry(rySeenAll()[me.uid]).open : [])]); }
+function ryIsNew(r, since, opened) { return r.ms > since && !opened.has(r.id); }
 function ryNew() {
   if (!me || !ry || ry.uid !== me.uid) return 0;
-  const since = rySeen();
-  return ry.rows.filter(r => r.ms > since).length;
+  const since = rySeen(), opened = ryOpened();
+  return ry.rows.filter(r => ryIsNew(r, since, opened)).length;
 }
+function ryKeep(entry) {
+  const all = rySeenAll(), keep = {};
+  all[me.uid] = entry;
+  Object.keys(all).filter(k => ryEntry(all[k]).at || ryEntry(all[k]).open.length).sort((a, b) => ryEntry(all[b]).at - ryEntry(all[a]).at).slice(0, 8).forEach(k => { keep[k] = all[k]; });
+  store.set(KEY.rseen, keep);
+  paintHeader();
+}
+/* Every reply listed is seen: the reader pressed "Mark all read". */
 function ryMark(rows) {
   if (!me) return;
   rySeenAt = Math.max(Date.now(), ...rows.map(r => r.ms));
-  const all = rySeenAll(), keep = {};
-  all[me.uid] = rySeenAt;
-  Object.keys(all).filter(k => typeof all[k] === 'number').sort((a, b) => all[b] - all[a]).slice(0, 8).forEach(k => { keep[k] = all[k]; });
-  store.set(KEY.rseen, keep);
-  paintHeader();
+  ryOpenMem.clear();
+  ryKeep({ at: rySeenAt, open: [] });
+}
+/* One reply is seen: the reader opened it from the list, or landed on it on its page. */
+function ryOpen(id) {
+  if (!me || typeof id !== 'string') return;
+  ryOpenMem.add(id);
+  const e = ryEntry(rySeenAll()[me.uid]);
+  if (e.open.indexOf(id) < 0) e.open.push(id);
+  ryKeep({ at: Math.max(e.at, rySeenAt), open: e.open.slice(-200) });
 }
 async function ryFind(uid, myName) {
   const { F, db } = S, P = F.collection(db, 'posts');
@@ -595,19 +617,25 @@ function ryView() {
     wait.remove();
     if (!got) { box.append(el('p', 'sheet-hint', tt('Could not look for replies just now. Try again in a moment.'))); return; }
     if (!got.rows.length) { box.append(el('p', 'sheet-hint', tt('Nobody has answered you yet.'))); return; }
-    const since = rySeen(), ul = el('ul', 'ry-list', null, { 'data-clarity-mask': 'true' });
-    got.rows.slice(0, RY.show).forEach(r => {
+    const since = rySeen(), opened = ryOpened(), ul = el('ul', 'ry-list', null, { 'data-clarity-mask': 'true' });
+    const shown = got.rows.slice(0, RY.show);
+    shown.forEach(r => {
       const li = el('li'), a = el('a', 'ry-go', null, { href: hrefOf(r.about, r.id) }), who = el('span', 'ry-who'), sub = el('span', 'ry-sub');
       sub.append(...ttParts('replied {when}', 'when', el('time', null, ago(r.ms), { datetime: new Date(r.ms).toISOString(), title: niceDate(r.ms) })));
       who.append(el('b', null, r.name, ML ? { dir: 'auto' } : null), ' ', sub);
-      if (r.ms > since) who.append(el('span', 'tag', tt('New')));
+      if (ryIsNew(r, since, opened)) who.append(el('span', 'tag', tt('New')));
       a.append(who, el('span', 'ry-t', cut(r.text), ML ? { dir: 'auto' } : null));
-      /* The panel must not stay over the page the link opens, when that page is this one. */
-      a.addEventListener('click', () => closeSheet());
+      /* Opening a reply clears New on that reply only. The panel must not stay over the page the link opens,
+         when that page is this one. */
+      a.addEventListener('click', () => { ryOpen(r.id); closeSheet(); });
       li.append(a); ul.append(li);
     });
     box.append(ul);
-    ryMark(got.rows);
+    /* Seeing the list no longer marks anything: New stays until the reply is opened, or until this. */
+    if (shown.some(r => ryIsNew(r, since, opened))) {
+      const all = btn('sheet-text ry-all', tt('Mark all read'), () => { ryMark(got.rows); ul.querySelectorAll('.tag').forEach(t => t.remove()); all.remove(); });
+      box.append(all);
+    }
   };
   const mine = () => (ry && me && ry.uid === me.uid ? ry : null);
   ryCheck().then(got => fill(got || mine()), () => fill(mine()));
@@ -619,6 +647,7 @@ function landOn() {
   if (!T || location.hash.indexOf('#p-') !== 0 || T.state !== 'ok') return;
   const t = find(location.hash.slice(3));
   if (!t) { reloadTalk(); return; }
+  if (ry && me && ry.uid === me.uid && ry.rows.some(r => r.id === t.id)) ryOpen(t.id);
   if (t.parent && !T.open.has(t.parent)) { T.open.add(t.parent); drawTalk(); }
   const r = $(location.hash.slice(1));
   if (r) r.scrollIntoView({ block: 'center' });
@@ -1326,6 +1355,8 @@ async function postIt(d) {
        until the reader loaded the page again. Found by the first test that sent twice from one page. */
     const sentAt = Date.now();
     Object.assign(profile, mark, { lastPostAt: { toMillis: () => sentAt } });
+    /* members.js ticks "Carry out your first order" and "Answer another member" from this at once (15 October 2026) */
+    try { D.dispatchEvent(new CustomEvent('lp:posted', { detail: { reply: !!data.parent, report: data.tag === 'report' || /^quest:/.test(String(data.on || data.about || '')) } })); } catch (x) { }
     return Object.assign({ tag: '', parent: '' }, data, { id: ref.id, ms: Date.now(), fresh: true, my: 0, reported: false });
   };
   let post;
@@ -1797,13 +1828,32 @@ async function trOwn(p) {
     return out;
   } finally { try { if (tr && tr.destroy) tr.destroy(); } catch (x) { } }
 }
+/* CHANGED 15 October 2026 (Armin: "a way for people to translate it ... If you don't have a solution for that, just remove
+   the translate option"). Seen that day on the live site: in a browser that has the Translator interface but no Persian in it,
+   the first tap said "Translating." for seconds, then asked for a SECOND tap to reach Google. Now the browser is asked once,
+   when the control is drawn, whether it is READY for this pair ("available": nothing to download). Only then does a tap
+   translate in place; in every other case the first tap is the plain link and opens Google Translate in a new tab. Asking
+   is local to the browser: nothing is fetched from anywhere. */
+const TR = { api: null, ready: {} };
+function trProbe(src) {
+  try {
+    const api = self.Translator, k = src + '>' + LANG;
+    if (TR.api !== api) { TR.api = api; TR.ready = {}; }
+    if (!api || typeof api.availability !== 'function' || k in TR.ready) return;
+    TR.ready[k] = undefined;
+    within(8000, Promise.resolve(api.availability({ sourceLanguage: src, targetLanguage: LANG }))).then(v => { if (TR.api === api) TR.ready[k] = v === 'available'; }, () => { if (TR.api === api) TR.ready[k] = false; });
+  } catch (x) { }
+}
+/* false: the browser said it is not ready for this pair, so the tap is the link. true or not known yet: try it here. */
+const trKnownNo = p => TR.api === self.Translator && TR.ready[lgOf(p) + '>' + LANG] === false;
 function trCtl(p) {
+  trProbe(lgOf(p));
   const wrap = el('p', 'tr'), shown = !!(p.tr && p.tr.on);
   const a = el('a', 'tr-b', shown ? tt('Show original') : p.trNo ? tt('Translate with Google') : tt('Translate'), { href: trUrl(p.text), target: '_blank', rel: 'noopener', 'data-tr': shown ? 'on' : p.trNo ? 'link' : 'off' });
   const line = el('span', 'tr-msg', p.trMsg || '', { role: 'status' });
   a.addEventListener('click', ev => {
     if (p.tr) { ev.preventDefault(); p.tr.on = !p.tr.on; redraw(p, 'tr-b'); return; }      // translated already: this only switches
-    if (p.trNo || !('Translator' in self)) return;      // no translator in this browser: the link opens Google Translate
+    if (p.trNo || !('Translator' in self) || trKnownNo(p)) return;      // no translator ready for this pair: the link opens Google Translate
     ev.preventDefault();
     if (p.trBusy) return;
     p.trBusy = true; line.textContent = tt('Translating.');

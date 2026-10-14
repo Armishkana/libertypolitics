@@ -88,8 +88,11 @@ const ms = t => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
 const same = (a, b) => !!(a && b && typeof a.isEqual === 'function' && a.isEqual(b));
 
 /* ------------------------------------------------------------------ the reader's own account, as this file sees it */
-let PRIV = null, PROF = null, mineFor = '';
-const STATE = { account: false, questions: false, profile: false };
+let PRIV = null, PROF = null, mineFor = '', MYPOSTS = { post: false, reply: false };
+/* post and reply (15 October 2026, community-strategy.md "THE RECRUITMENT SCREEN"): the reader has a live post of their own
+   that starts a thread, and one that answers somebody. The Enlist missions "Carry out your first order" and "Answer another
+   member" tick themselves from these, and build/people.py grants their XP from the same posts. */
+const STATE = { account: false, questions: false, profile: false, post: false, reply: false };
 function questionsDone(p) { return !!p && (IU ? !!p.role : !!(p.freedom && p.fight)); }
 function profileDone(p) { return !!p && !!(p.bio && p.bio.trim()) && !!(p.avatar || p.pic); }
 function paintState() {
@@ -97,19 +100,23 @@ function paintState() {
   STATE.account = !!u;
   STATE.questions = !!u && questionsDone(PRIV);
   STATE.profile = !!u && profileDone(PROF);
+  STATE.post = !!u && MYPOSTS.post;
+  STATE.reply = !!u && MYPOSTS.reply;
   D.querySelectorAll('[data-q-tick]').forEach(t => { if (STATE[t.getAttribute('data-q-tick')]) t.setAttribute('data-q-tick-on', ''); else t.removeAttribute('data-q-tick-on'); });
   try { D.dispatchEvent(new CustomEvent('lp:members', { detail: Object.assign({}, STATE) })); } catch (x) { }
 }
 async function loadMine(force) {
   const u = me();
-  if (!u) { PRIV = PROF = null; mineFor = ''; paintState(); return; }
+  if (!u) { PRIV = PROF = null; mineFor = ''; MYPOSTS = { post: false, reply: false }; paintState(); return; }
   if (mineFor === u.uid && !force) return;
   mineFor = u.uid;
   try {
     const { F, db } = await within(25000, fb());
-    const [a, b] = await Promise.all([F.getDoc(F.doc(db, 'private', u.uid)).catch(() => null), F.getDoc(F.doc(db, 'profiles', u.uid)).catch(() => null)]);
+    const [a, b, c] = await Promise.all([F.getDoc(F.doc(db, 'private', u.uid)).catch(() => null), F.getDoc(F.doc(db, 'profiles', u.uid)).catch(() => null),
+      F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', u.uid), F.where('status', '==', 'live'), F.limit(50))).catch(() => null)]);
     PRIV = a && a.exists() ? a.data() : null;
     PROF = b && b.exists() ? b.data() : null;
+    if (c) { const ps = c.docs.map(d => d.data()).filter(p => p.tag !== 'report' && !/^quest:/.test(String(p.about || ''))); MYPOSTS = { post: ps.some(p => !p.parent), reply: ps.some(p => !!p.parent) }; }
   } catch (x) { }
   paintState();
 }
@@ -155,7 +162,15 @@ function initFront() {
   if (!box) return;
   const btns = [...box.querySelectorAll('[data-fq-a]')], line = box.querySelector('[data-fq-n]'), go = box.querySelector('[data-fq-keep]');
   const wbox = box.querySelector('[data-fq-box]'), other = wbox && wbox.querySelector('input');
-  const keepText = go ? go.textContent : '';
+  const keepText = go ? go.textContent : '', keepHref = go ? go.getAttribute('href') : '';
+  /* 15 October 2026 (community-strategy.md, "THE RECRUITMENT SCREEN"): each answer carries its first order, shown the moment
+     it is tapped; the count line and the signed-in button take their words from the page (front-ask.json "count" and "go"). */
+  const ord = box.querySelector('[data-fq-o]'), oneW = box.getAttribute('data-fq-one'), manyW = box.getAttribute('data-fq-many'), goW = box.getAttribute('data-fq-go');
+  function showOrder(a) {
+    if (!ord) return;
+    const b = btns.find(x => x.getAttribute('data-fq-a') === a), t = b ? b.getAttribute('data-fq-order') || '' : '';
+    ord.textContent = t; ord.hidden = !t;
+  }
   let pick = (kept.get(KEY.front) || {}).a || '';
   const press = a => btns.forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-fq-a') === a)));
   function paintGo() {
@@ -163,22 +178,23 @@ function initFront() {
     const u = me();
     go.hidden = !pick;
     if (!pick) return;
+    if (u && goW) { go.textContent = goW; go.href = '#discussion'; return; }      // signed in: the order is carried out in the front page's discussion
     if (u && !IU) { go.hidden = true; return; }      // signed in: the answer is already on the account (said in the line)
     go.textContent = u ? tt('Your profile') : keepText;
-    go.href = u ? page('member/?u=' + encodeURIComponent(u.uid)) : go.href;
+    go.href = u ? page('member/?u=' + encodeURIComponent(u.uid)) : keepHref;
   }
   async function showCount(a) {
     line.hidden = false;
     try {
       const c = await counts(), n = c[a] || 0;
-      const t = n <= 1 ? tt('You\'re the first to pick this.') : tt('{n} people picked this.', { n });
+      const t = n <= 1 ? (oneW || tt('You\'re the first to pick this.')) : manyW ? manyW.replace('{n}', dig(n)) : tt('{n} people picked this.', { n });
       line.textContent = t + (me() && !IU ? ' ' + tt('Your answer is kept on your account.') : '');
     } catch (x) { line.textContent = me() && !IU ? tt('Your answer is kept on your account.') : ''; line.hidden = !line.textContent; }
   }
-  if (pick) { press(pick); if (other) { other.value = (kept.get(KEY.front) || {}).other || ''; if (wbox) wbox.hidden = !btns.some(b => b.hasAttribute('data-fq-write') && b.getAttribute('data-fq-a') === pick); } paintGo(); if (!QUIET) showCount(pick).catch(() => { }); }
+  if (pick) { press(pick); showOrder(pick); if (other) { other.value = (kept.get(KEY.front) || {}).other || ''; if (wbox) wbox.hidden = !btns.some(b => b.hasAttribute('data-fq-write') && b.getAttribute('data-fq-a') === pick); } paintGo(); if (!QUIET) showCount(pick).catch(() => { }); }
   btns.forEach(b => b.addEventListener('click', async () => {
     const a = b.getAttribute('data-fq-a');
-    pick = a; press(a);
+    pick = a; press(a); showOrder(a);
     if (wbox) { wbox.hidden = !b.hasAttribute('data-fq-write'); if (!wbox.hidden) setTimeout(() => { try { other.focus(); } catch (x) { } }, 30); }
     kept.set(KEY.front, IU ? { a } : { a, other: other ? other.value.trim().slice(0, 80) : '' });
     paintGo();
@@ -886,6 +902,7 @@ function start() {
   let was = !!me();
   if (was && needs) loadMine().then(carryFront).catch(() => { });
   paintState();
+  D.addEventListener('lp:posted', ev => { if (ev && ev.detail && ev.detail.report) return; MYPOSTS[ev && ev.detail && ev.detail.reply ? 'reply' : 'post'] = true; paintState(); });
   if (K) K.sub(() => {
     const now = !!me(), came = now && !was; was = now;
     if (!now) { PRIV = PROF = null; mineFor = ''; paintState(); return; }

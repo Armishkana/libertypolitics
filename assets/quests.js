@@ -254,9 +254,11 @@ function run() {
      says which through window.LPMembers.state() and the event "lp:members". Such a mission has no Start, no report and
      no XP claimed from this page: build/quests.py grants its XP from what build/people.py reads. With members.js missing,
      the account is still known (signed in) and the other two simply wait. */
-  let AUTO = { account: false, questions: false, profile: false };
+  /* post and reply (15 October 2026): a live post of the reader's own that starts a thread, and one that answers somebody */
+  const AUTO_KINDS = ['account', 'questions', 'profile', 'post', 'reply'];
+  let AUTO = { account: false, questions: false, profile: false, post: false, reply: false };
   /* the card says it too (data-q-auto, printed by missions.py): either one is enough */
-  MS.forEach(m => { if (!m.auto) { const c = D.getElementById(m.id), a = c && c.getAttribute('data-q-auto'); if (a === 'account' || a === 'questions' || a === 'profile') m.auto = a; } });
+  MS.forEach(m => { if (!m.auto) { const c = D.getElementById(m.id), a = c && c.getAttribute('data-q-auto'); if (AUTO_KINDS.includes(a)) m.auto = a; } });
   try { if (window.LPMembers && window.LPMembers.state) AUTO = Object.assign(AUTO, window.LPMembers.state()); } catch (x) { }
   const autoDone = m => !!(m && m.auto && (m.auto === 'account' ? (AUTO.account || !!who()) : AUTO[m.auto]));
   /* '' | started | reported | back | accepted. A mission that may be done again ("repeat") goes back to reported or
@@ -379,7 +381,9 @@ function run() {
   const AUTO_HOW = {
     account: () => tt('Make your account and this ticks itself.'),
     questions: () => tt('Answer the two questions and this ticks itself.'),
-    profile: () => tt('Add a picture and one line about you on your profile, and this ticks itself.')
+    profile: () => tt('Add a picture and one line about you on your profile, and this ticks itself.'),
+    post: () => tt('Post your take in any discussion, and this ticks itself.'),
+    reply: () => tt('Reply to another member in any discussion, and this ticks itself.')
   };
   function paintAuto(card, m, B, done) {
     B.start.hidden = B.report.hidden = B.drop.hidden = true;
@@ -387,7 +391,10 @@ function run() {
     if (!B.auto) {
       const me = () => who();
       const L = window.LP && window.LP.open ? window.LP : null;
-      const go = m.auto === 'profile'
+      const talk = m.auto === 'post' || m.auto === 'reply';
+      const go = talk
+        ? el('a', 'btn btn-key', tt('Open the discussion'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + '#discussion', 'data-q-auto-go': '' })
+        : m.auto === 'profile'
         ? el('a', 'btn btn-key', tt('Open your profile'), { href: '#', 'data-q-auto-go': '' })
         : el('button', 'btn btn-key', m.auto === 'account' ? tt('Make your account') : tt('Answer them now'), { type: 'button', 'data-q-auto-go': '' });
       go.addEventListener('click', ev => {
