@@ -1699,5 +1699,7 @@ footer .fine{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);f
   .shr-has-pic .shr-pic{inline-size:auto;max-inline-size:100%;block-size:clamp(120px,27vh,172px);margin-inline:auto;border-radius:var(--r2)}
 }
 @media(max-height:619px){.shr-has-pic .shr-pic{block-size:clamp(84px,17vh,120px)}}
+/* Four to a row on any phone, so eight apps are two even rows and never five and an orphan on a wider phone. */
+@media(max-width:639px){.shr-apps{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(min-width:640px){.shr .sheet-body{gap:var(--s4);padding-block-end:var(--s5)}}
 @media(prefers-reduced-motion:reduce){.shr-ic{transition:none}}
