@@ -64,6 +64,63 @@
       #q-top [hidden] with [data-q-slot="top"]       the leaderboard, drawn only when there are three names
       [data-q="none"]         one line when no mission is left for this reader
 
+   ---------------------------------------------------------------- ADDED 14 OCTOBER 2026 (all optional)
+   The page became "Missions": a journey in three acts, one next mission, the chooser one tap away, and a rank with a
+   drawing. Every part below is optional: a page that prints none of it works exactly as before.
+
+   6. In the data
+      "path": ["<id>", ...]      the order a new reader is led through. While no chip is chosen, the missions offered
+                                 are the first ones on the path that are still open to the reader; the rest follow by fit.
+      "open": {"<name>": {"tx": "2026-10-05", ...}}      a table of last days by state (lower-case letters)
+      a mission's "open": "<name>"      the mission is on the board only while the day of the reader's state in that table
+                                 has not passed. No state chosen: the card is shown, [data-q-need] inside it is shown
+                                 (the build's own words and a state picker), and Start and Report back are not offered.
+                                 A state that the table does not hold, or whose day has passed: the mission is hidden.
+      a mission's "in": ["us", "world"]      where it works. See the "in" row below. Left out: everywhere.
+      a mission's "hook", "timeName", "modeName"      one line each, used only by [data-q-slot="next"]
+      a level's "line"           one plain line that says what the rank means ([data-q="level-line"])
+      "proof": "either"          the report form offers the link field and does not require it
+      a mission's "confirm": true      the report form carries one box under the link ("Everyone shown in my post said
+                                 yes ..."); a report with a link is not sent until it is ticked. A report with no link is.
+      "rows": {"who": [ids], "in": [ids], "time": [ids], "can": [ids]}      the ids of the chooser's rows, for a page that
+                                 carries the data and no chooser: what a reader chose on the board still decides what
+                                 that page shows them (someone who said they are not a citizen is never offered a
+                                 mission that leaves them out, on any page)
+      "tier" is any word now (join, gather, lead): only "main" still gets its small lead in fit()
+
+   7. On the page
+      <div data-q-row="in">      one more row of the chooser, one chip at a time ("in:us", "in:world"). Once chosen, a
+                                 mission whose "in" leaves that place out is hidden, exactly as "who" hides.
+      ?in=<id>                   chooses it for this visit only (it is never kept on the device), so a link from a page about
+                                 another country opens the missions that work anywhere without changing a reader's own choice.
+      [data-q-in="<id>"]         shown only while that place is chosen (a line that says what is being shown)
+      <button data-q-in-set="">  sets the place ("" clears it) and keeps it
+      select[data-q-where]       there may be several now (one in the chooser, one in a card that needs the state): they
+                                 are kept alike. A copy of a card carries its own.
+      [data-q-need]              inside a card whose mission has "open": see above
+      [data-q-slot="next"]       ONE LINK to the reader's next mission, drawn from the data alone, so it works on a page
+                                 that prints no cards (the front page). data-q-href on it is the address of the page that
+                                 holds the cards; the link goes to <that>#<mission id>. The build prints the link a new
+                                 reader gets, and it is replaced only when this reader's next mission is another one.
+      [data-q-slot="best"] with no [data-q-slot="also"]      holds ONE card, the next mission, and nothing else
+      [data-q-lv="<n>"]          inside #q-rank: a drawing for level n (0 is the lowest). Only the reader's own is shown.
+      [data-q="level-line"]      inside #q-rank: the "line" of the reader's level
+      [data-q-count="<tier>"]    "2 of 8 done" for the missions of that tier that this reader is shown
+      A card whose summary already holds .q-hook-s is copied as it is (the hook is not added a second time).
+      A page with no card and no [data-q-slot="top"] does not ask the database for xp/_board.
+
+   8. Added the same day, second pass (all optional)
+      Inside a [data-q-tier]: <ul data-q-top="3"> and <details data-q-more> holding <ul data-q-rest> and, in its summary,
+      [data-q-rest-n]. Every <li> of the two lists carries data-q-i (its place in the act as printed). The top list then
+      holds THIS reader's next N missions of the act, in printed order: shown to them, not reported and waiting, not
+      accepted for good, of a chain only the stage they are on, and never the one already offered in [data-q-slot="best"]
+      (which counts as one of its act's N: it is on show already, at the top of the page).
+      Everything else goes back into the fold, in printed order; [data-q-rest-n] says how many it holds that the reader
+      can see, and the fold is hidden when that is none. A card that is open is never moved. With this file missing the
+      lists stay as printed. An address with a mission in it (#id) opens the fold that holds it.
+      [data-q-rk="<n>"] anywhere: data-q-rk-is is set to "on" on the reader's rank, "next" on the one after, "" on the
+      rest (the page's stylesheet decides what each looks like; as printed, rank 0 is on and rank 1 is next).
+
    ---------------------------------------------------------------- WHAT IS KEPT, AND WHERE
 
    On the device (localStorage; sessionStorage on a site that sets LPSITE.safety, so nothing outlives the visit):
@@ -121,19 +178,28 @@ function run() {
   const cardsOf = id => qa('[data-q-m="' + id + '"]');
   const ROWS = {};
   qa('[data-q-row]').forEach(r => { ROWS[r.getAttribute('data-q-row')] = { box: r, many: r.hasAttribute('data-q-many'), ids: qa('[data-q-chip]', r).map(c => c.getAttribute('data-q-chip').split(':')[1]) }; });
-  const WHERE = q('[data-q-where]');
+  const wheres = () => qa('select[data-q-where]');
+  /* The table a mission's "open" names: last days by state. */
+  const OPEN = DATA.open && typeof DATA.open === 'object' ? DATA.open : {};
+  const PATH = Array.isArray(DATA.path) ? DATA.path.filter(id => typeof id === 'string') : [];
 
   /* ---------------------------------------------------------------- what this device keeps */
   const KEEP = (() => { try { const s = SITE.safety ? window.sessionStorage : window.localStorage; s.getItem('x'); return s; } catch (x) { return null; } })();
   const NAME = typeof DATA.store === 'string' && DATA.store ? DATA.store : 'lp-quests';
-  const ST = { pick: { who: '', time: '', can: [], where: '' }, m: {} };
+  /* The ids of a row of the chooser: from the page, or, on a page that carries the data and no chooser, from the data
+     ("rows"). What a reader chose on the board then still decides what that page offers them. */
+  const idsOf = row => (ROWS[row] ? ROWS[row].ids : (DATA.rows && Array.isArray(DATA.rows[row]) ? DATA.rows[row] : []));
+  const ST = { pick: { who: '', time: '', can: [], where: '', in: '' }, m: {} };
+  /* The place chosen by the address (?in=) holds for this visit only and is never written to the device. */
+  let visitIn = '';
+  const placeNow = () => visitIn || ST.pick.in;
   (() => {
     let v = null;
     try { v = KEEP ? JSON.parse(KEEP.getItem(NAME)) : null; } catch (x) { v = null; }
     if (!v || typeof v !== 'object') return;
     const p = v.pick && typeof v.pick === 'object' ? v.pick : {};
-    const one = (row, val) => (typeof val === 'string' && ROWS[row] && ROWS[row].ids.includes(val) ? val : '');
-    ST.pick.who = one('who', p.who); ST.pick.time = one('time', p.time);
+    const one = (row, val) => (typeof val === 'string' && idsOf(row).includes(val) ? val : '');
+    ST.pick.who = one('who', p.who); ST.pick.time = one('time', p.time); ST.pick.in = one('in', p.in);
     ST.pick.can = Array.isArray(p.can) ? p.can.filter(c => one('can', c)) : [];
     ST.pick.where = typeof p.where === 'string' && /^[a-z]{2}$/.test(p.where) ? p.where : '';
     const m = v.m && typeof v.m === 'object' ? v.m : {};
@@ -150,9 +216,11 @@ function run() {
   /* ?have=1h : the front page's chips. Chosen, kept, and taken out of the address so a shared link is clean. */
   try {
     const u = new URL(location.href), have = u.searchParams.get('have');
-    if (have != null) {
-      if (ROWS.time && ROWS.time.ids.includes(have)) { ST.pick.time = have; save(); }
-      u.searchParams.delete('have');
+    const inn = u.searchParams.get('in');
+    if (have != null || inn != null) {
+      if (have != null && idsOf('time').includes(have)) { ST.pick.time = have; save(); }
+      if (inn != null && idsOf('in').includes(inn) && !ST.pick.in) visitIn = inn;
+      u.searchParams.delete('have'); u.searchParams.delete('in');
       history.replaceState(null, '', u.pathname + u.search + u.hash);
     }
   } catch (x) { }
@@ -194,7 +262,16 @@ function run() {
   /* A report written and not sent: it is kept on this device, and the card must say so. */
   const draft = id => !!(ST.m[id] && ST.m[id].text && ST.m[id].text.trim());
   const expired = m => typeof m.until === 'string' && m.until < today;
-  const shown = m => !expired(m) && (!ST.pick.who || !Array.isArray(m.who) || m.who.includes(ST.pick.who));
+  /* A mission that is only open while a day of the reader's state has not passed ("open": the name of a table in the
+     data). 'ask': no state chosen yet, the card says so. 'no': the table does not hold the state, or its day has passed. */
+  const gate = m => {
+    if (typeof m.open !== 'string' || !m.open) return 'yes';
+    const t = OPEN[m.open], st = ST.pick.where;
+    if (!st) return 'ask';
+    return t && typeof t[st] === 'string' && t[st] >= today ? 'yes' : 'no';
+  };
+  const shown = m => !expired(m) && (!ST.pick.who || !Array.isArray(m.who) || m.who.includes(ST.pick.who))
+    && (!placeNow() || !Array.isArray(m.in) || m.in.includes(placeNow())) && gate(m) !== 'no';
 
   /* ---------------------------------------------------------------- which mission is yours */
   function fit(m, i) {
@@ -223,7 +300,15 @@ function run() {
     });
     /* of a chain, only the stage the reader is on */
     const list = MS.map((m, i) => ({ m, i })).filter(x => open.has(x.m.id) && (!x.m.chain || stageNow[x.m.chain] === x.m.stage));
-    return list.map(x => ({ id: x.m.id, s: fit(x.m, x.i) })).sort((a, b) => b.s - a.s).slice(0, 3).map(x => x.id);
+    const byFit = list.map(x => ({ id: x.m.id, s: fit(x.m, x.i) })).sort((a, b) => b.s - a.s).map(x => x.id);
+    /* Nothing chosen: the path leads. A mission the reader has started, or that came back, still comes first. */
+    if (PATH.length && !(ST.pick.who || ST.pick.time || ST.pick.can.length)) {
+      const mine = byFit.filter(id => { const st = status(id); return st === 'started' || st === 'back'; });
+      const onPath = PATH.filter(id => byFit.includes(id) && !mine.includes(id) && gate(BY.get(id)) === 'yes');
+      const rest = byFit.filter(id => !mine.includes(id) && !onPath.includes(id));
+      return mine.concat(onPath, rest).slice(0, 3);
+    }
+    return byFit.slice(0, 3);
   }
 
   /* ---------------------------------------------------------------- drawing */
@@ -257,10 +342,11 @@ function run() {
     if (mark) { mark.hidden = !tag; mark.textContent = tag ? LABEL[tag](id) : ''; mark.className = 'q-state' + (tag ? ' q-s-' + tag : ''); }
     const box = buildAct(card, id);
     if (!box) return;
-    const B = box._q, can = m.report !== false, formOpen = !!(B.form && !B.form.hidden);
-    B.start.hidden = st !== '' || kept;
+    const B = box._q, can = m.report !== false, formOpen = !!(B.form && !B.form.hidden), ask = gate(m) === 'ask';
+    const need = q('[data-q-need]', card); if (need) need.hidden = !ask;
+    B.start.hidden = st !== '' || kept || ask;
     B.drop.hidden = st !== 'started';
-    B.report.hidden = formOpen || !can || (st === 'accepted' && !more);
+    B.report.hidden = formOpen || !can || (st === 'accepted' && !more) || (ask && !st && !kept);
     B.report.textContent = kept ? tt('Finish your report') : st === 'back' || more ? tt('Report again') : st === 'reported' ? tt('Send another report') : tt('Report back');
     B.report.className = 'btn ' + (st === 'started' || st === 'back' || kept ? 'btn-key' : 'btn-line');
     if (!B.say.hasAttribute('data-q-keep')) {
@@ -282,14 +368,43 @@ function run() {
     qa('[data-q-tier]', BOARD).forEach(t => { t.hidden = !qa('[data-q-m]', t).some(c => { const li = c.closest('li'); return !(li && li.hidden); }); });
     const none = q('[data-q="none"]', BOARD);
     if (none) { const any = MS.some(shown); none.hidden = any; none.textContent = any ? '' : tt('No mission on this board fits yet. Tell me in the discussion which one is missing.'); }
-    paintPicks(); paintMine(); paintRank(); paintChains(); paintLinks();
+    qa('[data-q-count]').forEach(e => {
+      const ms = MS.filter(m => m.tier === e.getAttribute('data-q-count') && shown(m));
+      e.textContent = ms.length ? tt('{n} of {all} done', { n: ms.filter(m => VER[m.id] && VER[m.id].n).length, all: ms.length }) : '';
+    });
+    qa('[data-q-in]').forEach(e => { e.hidden = e.getAttribute('data-q-in') !== placeNow(); });
+    paintPicks(); paintFolds(); paintNext(); paintMine(); paintRank(); paintChains(); paintLinks();
+  }
+  /* Each act: this reader's next N missions on show, the rest behind its one fold (section 8 above). */
+  function paintFolds() {
+    const offered = (() => { const c = q('[data-q-slot="best"] [data-q-m]'); return c ? c.getAttribute('data-q-m') : ''; })();
+    qa('[data-q-tier]', BOARD).forEach(t => {
+      const top = q('[data-q-top]', t), more = q('[data-q-more]', t), rest = more && q('[data-q-rest]', more);
+      if (!top || !rest) return;
+      const N = Math.max(0, parseInt(top.getAttribute('data-q-top'), 10) || 3);
+      const lis = qa('li[data-q-i]', t).filter(li => li.parentNode === top || li.parentNode === rest)
+        .sort((a, b) => (+a.getAttribute('data-q-i')) - (+b.getAttribute('data-q-i')));
+      const stageNow = {};
+      lis.forEach(li => { const c = q('[data-q-m]', li), m = c && BY.get(c.getAttribute('data-q-m'));
+        if (m && m.chain && status(m.id) !== 'accepted' && (stageNow[m.chain] == null || m.stage < stageNow[m.chain])) stageNow[m.chain] = m.stage; });
+      const next = id => { const m = BY.get(id), st = status(id);
+        if (!m || id === offered || !shown(m) || st === 'reported' || (st === 'accepted' && !again(id))) return false;
+        return !m.chain || stageNow[m.chain] === m.stage; };
+      /* the mission offered at the top of the page is one of the act's three, shown there and not twice */
+      let n = lis.some(li => { const c = q('[data-q-m]', li); return c && c.getAttribute('data-q-m') === offered; }) ? 1 : 0;
+      const want = lis.filter(li => { const c = q('[data-q-m]', li); if (c && c.open) return li.parentNode === top; if (n < N && c && next(c.getAttribute('data-q-m'))) { n++; return true; } return false; });
+      lis.forEach(li => { const into = want.includes(li) ? top : rest; const c = q('[data-q-m]', li); if (c && c.open) return; into.appendChild(li); });
+      const left = qa('li[data-q-i]', rest).filter(li => !li.hidden).length, cnt = q('[data-q-rest-n]', more);
+      if (cnt) cnt.textContent = dig(left);
+      more.hidden = !left;
+    });
   }
   /* The reader's mission and two more: copies of the cards, so they open in place and work like the originals. */
   let lastPicks = '';
   function paintPicks() {
     const best = q('[data-q-slot="best"]'), also = q('[data-q-slot="also"]');
     if (!best) return;
-    const ids = picks(), key = ids.join(' ');
+    const ids = also ? picks() : picks().slice(0, 1), key = ids.join(' ');
     const chosen = !!(ST.pick.who || ST.pick.time || ST.pick.can.length);
     const h = q('[data-q="yours-h"]');
     if (h) h.textContent = !ids.length ? tt('Nothing left for you here') : chosen || ids.some(i => status(i)) ? tt('Your mission') : tt('Start here');
@@ -307,7 +422,7 @@ function run() {
       c.classList.add(big ? 'q-big' : 'q-small');
       const act = q('[data-q-act]', c); if (act) act.textContent = '';
       const hook = q('.q-hook', c), t = q('.q-title', c);
-      if (hook && t) t.after(el('span', 'q-hook-s', hook.textContent));
+      if (hook && t && !q('.q-hook-s', c)) t.after(el('span', 'q-hook-s', hook.textContent));
       /* closed, the big card says how to get in; the words are drawn from this attribute (site.css, .q-big summary::before) */
       const sm = q('summary', c); if (big && sm) sm.setAttribute('data-q-go', tt('Open mission'));
       paintCard(c, id);
@@ -317,6 +432,26 @@ function run() {
     ids.forEach((id, n) => { const c = copy(id, n === 0); if (c) (n === 0 || !also ? best : also).append(c); });
     if (also && ids.length > 1) also.prepend(el('p', 'q-also-h', tt('Also fits you')));
     if (sec) sec.classList.toggle('q-empty', !ids.length);
+  }
+  /* One link to the reader's next mission, from the data alone: for a page that prints no cards (the front page). */
+  let lastNext = null;
+  function paintNext() {
+    const slot = q('[data-q-slot="next"]');
+    if (!slot) return;
+    const id = picks()[0] || '', m = id && BY.get(id);
+    if (lastNext === null) { const a = q('a[data-q-next]', slot); lastNext = a ? a.getAttribute('data-q-next') : ''; }
+    if (!m || id === lastNext) return;
+    lastNext = id;
+    const a = el('a', 'q-next', null, { href: (slot.getAttribute('data-q-href') || '') + '#' + id, 'data-q-next': id });
+    const t = el('span', 'q-next-t');
+    t.append(el('b', null, m.title));
+    if (typeof m.hook === 'string' && m.hook) t.append(el('span', 'q-next-h', m.hook));
+    const meta = el('span', 'q-meta');
+    if (typeof m.timeName === 'string' && m.timeName) meta.append(el('span', 'q-time', m.timeName));
+    meta.append(el('span', 'q-xp num', tt('{n} XP', { n: m.xp })));
+    if (typeof m.modeName === 'string' && m.modeName) meta.append(el('span', 'q-mode', m.modeName));
+    t.append(meta); a.append(t);
+    slot.textContent = ''; slot.append(a);
   }
   function paintMine() {
     const sec = D.getElementById('q-mine'), list = q('[data-q-slot="mine"]');
@@ -345,6 +480,9 @@ function run() {
     const bar = q('[data-q="bar"]', box), fill = bar && q('i', bar);
     if (fill) fill.style.width = (next ? Math.max(0, Math.min(100, 100 * (xp - cur.xp) / (next.xp - cur.xp))) : 100).toFixed(1) + '%';
     if (bar) bar.setAttribute('aria-label', line);
+    qa('[data-q-lv]', box).forEach(e => { e.hidden = e.getAttribute('data-q-lv') !== String(i); });
+    if (typeof cur.line === 'string') set('level-line', cur.line);
+    qa('[data-q-rk]').forEach(e => { const n = +e.getAttribute('data-q-rk'); e.setAttribute('data-q-rk-is', n === i ? 'on' : n === i + 1 ? 'next' : ''); });
   }
   function paintChains() {
     qa('[data-q-chain]').forEach(box => {
@@ -365,10 +503,10 @@ function run() {
   }
   function paintChooser() {
     for (const row in ROWS) qa('[data-q-chip]', ROWS[row].box).forEach(c => {
-      const id = c.getAttribute('data-q-chip').split(':')[1], on = ROWS[row].many ? ST.pick[row].includes(id) : ST.pick[row] === id;
+      const id = c.getAttribute('data-q-chip').split(':')[1], on = ROWS[row].many ? ST.pick[row].includes(id) : (row === 'in' ? placeNow() : ST.pick[row]) === id;
       c.setAttribute('aria-pressed', String(on));
     });
-    if (WHERE && [...WHERE.options].some(o => o.value === ST.pick.where)) WHERE.value = ST.pick.where;
+    wheres().forEach(w => { if ([...w.options].some(o => o.value === ST.pick.where)) w.value = ST.pick.where; });
   }
   function paintTop() {
     const sec = D.getElementById('q-top'), list = q('[data-q-slot="top"]');
@@ -395,15 +533,24 @@ function run() {
       const ta = el('textarea', null, null, { id: 'q-t' + n, rows: '4', maxlength: String(MAXLEN), placeholder: m.ask || '' });
       f.append(el('label', null, tt('What did you do?'), { for: 'q-t' + n }), ta);
       let link = null;
-      if (m.proof === 'link') {
+      if (m.proof === 'link' || m.proof === 'either') {
         link = el('input', null, null, { id: 'q-u' + n, type: 'url', inputmode: 'url', maxlength: '400', autocomplete: 'off', placeholder: 'https://' });
-        f.append(el('label', null, tt('Link to your proof'), { for: 'q-u' + n }), link);
+        f.append(el('label', null, m.proof === 'either' ? tt('Link to your own post, if you made one') : tt('Link to your proof'), { for: 'q-u' + n }), link);
+      }
+      /* THE HOST'S YES IS NOT THE GUEST'S YES (14 October 2026). A mission whose data says "confirm" puts one box under the
+         link: a report that carries a link is not sent until the box is ticked. Nothing about the tick is stored. */
+      let ok = null;
+      if (link && m.confirm) {
+        const lab = el('label', 'q-ok', null, { for: 'q-k' + n });
+        ok = el('input', null, null, { id: 'q-k' + n, type: 'checkbox' });
+        lab.append(ok, el('span', null, tt('Everyone shown in my post said yes to being shown on this site and on the shows.')));
+        f.append(lab);
       }
       f.append(el('p', 'q-hint', tt('Leave out anything private about anyone. A report is a post: other readers can see it.')));
       const go = el('button', 'btn btn-key', tt('Send report'), { type: 'submit' }), no = el('button', 'q-text', tt('Not now'), { type: 'button' });
       const row = el('div', 'q-btns'); row.append(go, no);
       f.append(row);
-      B.form = f; B.ta = ta; B.link = link; B.go = go;
+      B.form = f; B.ta = ta; B.link = link; B.go = go; B.ok = ok;
       box.insertBefore(f, B.say);
       let t = 0;
       f.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { const r = rec(id); r.text = ta.value.slice(0, MAXLEN); r.url = link ? link.value.slice(0, 400) : ''; save(); }, 300); });
@@ -428,8 +575,9 @@ function run() {
     if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
     url = url.replace(/^http:/i, 'https:');
     if (text.length < 10) { tell(B, tt('Say what you did, in a sentence or two.'), true); B.ta.focus(); return; }
-    if (B.link && !url) { tell(B, tt('Paste the link to your proof first.'), true); B.link.focus(); return; }
+    if (B.link && !url && m.proof !== 'either') { tell(B, tt('Paste the link to your proof first.'), true); B.link.focus(); return; }
     if (url && !/^https:\/\/[^\s\/<>"']+\.[^\s<>"']+$/.test(url)) { tell(B, tt('That link does not look right. Copy it again from the address bar or the Share button.'), true); B.link.focus(); return; }
+    if (url && B.ok && !B.ok.checked) { tell(B, tt('Tick the box first: everyone shown in your post has to have said yes.'), true); B.ok.focus(); return; }
     r.text = text; r.url = url; save();
     if (!K || !K.report || K.off) { tell(B, tt('Reports are not open here yet. Your report is kept on this device.'), true); return; }
     B.go.disabled = true; tell(B, tt('Sending.'));
@@ -460,10 +608,13 @@ function run() {
       const [row, id] = chip.getAttribute('data-q-chip').split(':'), R = ROWS[row];
       if (!R) return;
       if (R.many) { const at = ST.pick[row].indexOf(id); if (at >= 0) ST.pick[row].splice(at, 1); else ST.pick[row].push(id); }
+      else if (row === 'in') { ST.pick.in = placeNow() === id ? '' : id; visitIn = ''; }
       else ST.pick[row] = ST.pick[row] === id ? '' : id;
       save(); paintChooser(); paintAll();
       return;
     }
+    const setIn = t.closest('button[data-q-in-set]');
+    if (setIn) { const v = setIn.getAttribute('data-q-in-set'); ST.pick.in = idsOf('in').includes(v) ? v : ''; visitIn = ''; save(); paintChooser(); paintAll(); return; }
     const card = t.closest('[data-q-m]'), id = card && card.getAttribute('data-q-m');
     if (card && BY.has(id)) {
       if (t.closest('[data-q-start]')) { const r = rec(id); r.s = 'started'; r.at = Date.now(); save(); paintAll(); return; }
@@ -473,13 +624,19 @@ function run() {
     const open = t.closest('a[data-q-open]');
     if (open) { ev.preventDefault(); show(open.getAttribute('data-q-open'), true); }
   });
-  if (WHERE) WHERE.addEventListener('change', () => { ST.pick.where = /^[a-z]{2}$/.test(WHERE.value) ? WHERE.value : ''; save(); paintLinks(); });
+  /* Any state picker on the page, a copy of a card's included: they are kept alike, and a mission that waits for the state is painted again. */
+  D.addEventListener('change', ev => {
+    const w = ev.target && ev.target.matches && ev.target.matches('select[data-q-where]') ? ev.target : null;
+    if (!w) return;
+    ST.pick.where = /^[a-z]{2}$/.test(w.value) ? w.value : ''; save(); paintChooser(); paintAll();
+  });
 
   /* act/#<mission id>: that mission, open. A report on the list of all discussions links here. */
   function show(id, move) {
     const c = BY.has(id) ? D.getElementById(id) : null;
     /* a mission that is not for this reader stays hidden, whatever the address says */
     if (!c || !shown(BY.get(id))) return;
+    const fold = c.closest('details[data-q-more]'); if (fold) fold.open = true;
     c.open = true;
     if (move) { try { history.replaceState(null, '', '#' + id); } catch (x) { } }
     try { c.scrollIntoView({ block: 'start' }); } catch (x) { }
@@ -490,7 +647,7 @@ function run() {
   /* ---------------------------------------------------------------- the database, asked once */
   async function ask() {
     if (!K || K.off || !K.doc) return;
-    try { const b = await K.doc('xp/_board'); if (b && typeof b === 'object') { TOP = { done: b.done && typeof b.done === 'object' ? b.done : {}, top: Array.isArray(b.top) ? b.top : [] }; paintAll(); paintTop(); } } catch (x) { }
+    if (q('[data-q-m]') || q('[data-q-slot="top"]')) try { const b = await K.doc('xp/_board'); if (b && typeof b === 'object') { TOP = { done: b.done && typeof b.done === 'object' ? b.done : {}, top: Array.isArray(b.top) ? b.top : [] }; paintAll(); paintTop(); } } catch (x) { }
     await mine();
   }
   let asked = '';

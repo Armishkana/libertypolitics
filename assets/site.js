@@ -33,6 +33,18 @@
     try { if (sessionStorage.getItem('lp-calls') === 'off') calls.className += ' off'; } catch (x) {}
     callsX.addEventListener('click', function () { calls.className += ' off'; try { sessionStorage.setItem('lp-calls', 'off'); } catch (x) {} });
   }
+  /* 14 October 2026. The front page opens on the three ways in, and its first two are the same two things the
+     bubble says (the live show, the call). On a phone the bubble sat on the third. While the ways are on
+     screen the bubble steps aside (it keeps its place, like "duck" in whatson.js: nothing jumps and nothing is
+     animated); once they have scrolled away it is back, as on every other page. The same on the Missions page, for
+     the reader's next mission, which it used to sit on. */
+  var ways = document.querySelector('.ways, .q-best');
+  if (calls && ways && window.IntersectionObserver) {
+    new IntersectionObserver(function (es) {
+      var on = es[es.length - 1].isIntersecting, has = calls.className.indexOf(' aside') > -1;
+      if (on !== has) calls.className = on ? calls.className + ' aside' : calls.className.replace(' aside', '');
+    }, { threshold: 0.05 }).observe(ways);
+  }
 
   /* ---- matching, shared by the home search and the scorecard search ----
      Each word typed must be the two-letter code of the member's state, or the START of a word in the

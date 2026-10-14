@@ -123,6 +123,16 @@
       a.className = 'calls-a' + (list[i].on ? ' live' : '');
       if (lines && lines.firstChild !== a) lines.insertBefore(a, lines.firstChild);      // what is on now, or next, goes on top
     }
+    /* A WAY IN THAT IS TRUE AT EVERY HOUR (14 October 2026: the front page's first way in is the live chat). A link that
+       carries data-on-way="<row>" holds one [data-on-say]: as the build printed it, a true sentence in U.S. Eastern.
+       Here it becomes what the bubble's top row would say for that row, in one line: a show that is on reads as live
+       (and the link gets the class "live"), otherwise the line says how long until the next one, on the visitor's clock. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-on-way]'), function (a) {
+      var p = list.filter(function (q) { return q.row === a.getAttribute('data-on-way'); })[0], say = a.querySelector('[data-on-say]');
+      if (!p || !say || !byId[p.id]) return;
+      say.textContent = row(p, byId[p.id], words, true, words.locale).join(words.sep || ', ');
+      a.className = a.className.replace(/ live\b/g, '') + (p.on ? ' live' : '');
+    });
     /* The same times where a page states them in a sentence (the About page, the footer): the visitor's own
        clock is added after the Eastern one, unless the visitor's clock IS Eastern. A row of several shows is
        stated as "from 11am", so what is added is when the first show of the day starts on the visitor's clock. */

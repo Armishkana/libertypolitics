@@ -140,6 +140,7 @@
       if (!sh.hasAttribute('data-url0')) { sh.setAttribute('data-url0', sh.getAttribute('data-url')); sh.setAttribute('data-title0', sh.getAttribute('data-title')); }
       sh.setAttribute('data-url', C.origin + '/you/got/' + C.slug[g] + '/');
       sh.setAttribute('data-title', 'I got ' + an(g) + ' ' + g + ' on Liberty Score. What would you get?');
+      sh.setAttribute('data-pic', C.origin + '/og/you-' + C.slug[g] + '.jpg');      // the share panel shows the grade's own picture (build/share.js)
       var lab = sh.querySelector('span');
       if (lab) lab.textContent = 'Share your ' + g;
       sh.classList.add('yq-share');
@@ -160,6 +161,7 @@
     if (!sh || !sh.hasAttribute('data-url0')) return;
     sh.setAttribute('data-url', sh.getAttribute('data-url0'));
     sh.setAttribute('data-title', sh.getAttribute('data-title0'));
+    sh.removeAttribute('data-pic');
     var lab = sh.querySelector('span');
     if (lab) lab.textContent = 'Share';
     sh.classList.remove('yq-share');

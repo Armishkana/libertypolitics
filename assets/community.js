@@ -228,11 +228,14 @@ const KEY_OK = SITE_KINDS && SITE_PAGES
   : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act))$/;
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
+/* 14 October 2026: a single page whose address is not its key (SITE.pageAt, used where SITE.pages is not handed in).
+   On libertypolitics.com the Missions page is missions/ and its discussion is still page:act, the key the live rules know. */
+const PAGE_AT = SITE.pageAt && typeof SITE.pageAt === 'object' ? SITE.pageAt : {};
 function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
 function pathOf(about) {
   const m = KEY_OK.exec(about || '');
   if (!m) return null;
-  if (m[5]) return BASE + (SITE_KINDS && SITE_PAGES ? SITE_PAGES[m[6]] : (m[6] === 'home' ? '' : m[6] + '/'));
+  if (m[5]) return BASE + (SITE_KINDS && SITE_PAGES ? SITE_PAGES[m[6]] : (m[6] === 'home' ? '' : (typeof PAGE_AT[m[6]] === 'string' ? PAGE_AT[m[6]] : m[6] + '/')));
   if (m[1] === 'quest') return BASE + QUEST_PAGE;
   return BASE + DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
 }
@@ -2464,7 +2467,7 @@ async function questDoc(path) {
   const got = await res.json();
   return restPlain({ mapValue: { fields: (got && got.fields) || {} } });
 }
-/* The third version of the rules (a report about quest:<id>, the Act page's own discussion, xp/) is live when anyone
+/* The third version of the rules (a report about quest:<id>, the Missions page's own discussion page:act, xp/) is live when anyone
    may read xp/: the answer is 200 or, with no document yet, 404. Under the second version the question is refused.
    Asked over plain REST, once a page. Until it is live a report is not sent and the board says reports are not open
    yet, instead of sending a post the rules would refuse. A yes is kept on this device, because rules do not go back. */

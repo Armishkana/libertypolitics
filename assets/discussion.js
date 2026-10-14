@@ -198,12 +198,17 @@
     window.LPMode = { go: function (m) { if (!touched) return false; if (H.getAttribute('data-mode') !== m) put(m === 'record' ? '' : '#discussion'); setMode(m); return true; }, is: function () { return H.getAttribute('data-mode'); } };
   }
 
-  /* ---- share this page: the phone's own share sheet where there is one, the link copied where there is not ---- */
+  /* ---- share this page. Since 14 October 2026 the panel a reader gets is build/share.js: the site's own, with
+     the picture a friend will see, the link and the apps. What is here is only what is left when that file did
+     not load: the phone's own share sheet where there is a good one, the link copied where there is not. It
+     never hands the job to the browser on a Windows computer: that grey system window is what the panel
+     replaced (Armin, 14 October 2026: "It's horrible"). ---- */
   var sh = document.getElementById('share');
   if (sh) sh.addEventListener('click', function () {
+    if (window.LPShare) return;
     var url = sh.getAttribute('data-url') + (H.getAttribute('data-mode') === 'discussion' ? '#discussion' : ''), lab = sh.querySelector('span'), old = lab.textContent;
     var done = function (text) { lab.textContent = text; sh.classList.add('said'); setTimeout(function () { lab.textContent = old; sh.classList.remove('said'); }, 2200); };
-    if (navigator.share) { navigator.share({ title: sh.getAttribute('data-title'), url: url }).catch(function () { }); return; }
+    if (navigator.share && !/Windows/i.test(navigator.userAgent || '')) { navigator.share({ title: sh.getAttribute('data-title'), url: url }).catch(function () { }); return; }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function () { done(tt('Link copied')); }, function () { done(tt('Copy the address bar')); });
     else done(tt('Copy the address bar'));
   });
