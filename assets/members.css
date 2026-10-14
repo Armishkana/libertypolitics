@@ -1,0 +1,101 @@
+/* The members engine (build/members.js, build/members.py): the front question, the gatherings board, profiles. ONE file for
+   both sites. It uses only the tokens both sites' site.css define (--field, --on-field, --bg, --panel, --sunk, --raise,
+   --ink, --dim, --line, --r, --s1 to --s7, --display, --body) and their .btn, .sheet and .av, so each site keeps its own
+   look. Phone first: every control is at least 44px tall, nothing is wider than the screen, nothing is hidden and animated in. */
+
+/* ---- the front question */
+.fq{display:grid;gap:var(--s4);margin-top:var(--s5)}
+.fq-q{font-size:clamp(1.6rem,6.4vw,2.6rem);line-height:1.02}
+.fq-a{display:none;flex-wrap:wrap;gap:var(--s2)}
+.m-js .fq-a{display:flex}
+.fq-b{min-height:48px;padding:10px 16px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font:600 1rem/1.25 var(--body);cursor:pointer;text-align:start;max-width:100%;overflow-wrap:anywhere}
+.fq-b:hover{border-color:var(--field)}
+.fq-b[aria-pressed="true"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.fq-w{display:grid;gap:6px;max-width:28rem}
+.fq-w label{font-weight:700}
+.fq-w input,.mb-form input[type=text],.mb-form input[type=url],.mb-form input[type=number],.mb-form input[type=datetime-local],.mb-form select,.mb-form textarea,.mb-sheet select,.mb-filter select{display:block;width:100%;min-height:48px;padding:10px 14px;font:500 1rem/1.4 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);caret-color:var(--field)}
+.mb-form textarea{min-height:96px;resize:vertical}
+.fq-w input:focus-visible,.mb-form :is(input,select,textarea):focus-visible{border-color:var(--field)}
+.fq-n{color:var(--dim);font-weight:600}
+.fq-n b{color:var(--ink)}
+.fq-go{justify-self:start}
+.fq-ns a{font-weight:700}
+
+/* ---- pages and the board */
+.mb-page{padding-top:var(--s6)}
+.mb-wrap{display:grid;gap:var(--s4)}
+.mb-lede{color:var(--dim);font-size:1.1rem;max-width:40rem}
+.mb-promise{max-width:40rem}
+.mb-go{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:center}
+.mb-body{display:grid;gap:var(--s4);min-width:0}
+.mb-body[aria-busy="true"]:empty{min-height:120px}
+.mb-ns{color:var(--dim)}
+.mb-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--s3)}
+@media(min-width:760px){.mb-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.mb-card{display:grid;gap:var(--s2);padding:var(--s4);background:var(--panel);border-radius:var(--r2,10px);min-width:0}
+.mb-card h3{font-size:1.35rem;overflow-wrap:anywhere}
+.mb-card h3 a{text-decoration:none}
+.mb-kind{color:var(--field);font:800 .8rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase}
+.mb-when{font-weight:700}
+.mb-where,.mb-seats,.mb-host{color:var(--dim);overflow-wrap:anywhere}
+.mb-host a{color:var(--ink)}
+.mb-row{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center}
+.mb-filter{display:grid;gap:6px;max-width:24rem}
+.mb-filter label{font-weight:700}
+.mb-empty{color:var(--dim)}
+.mb-safe{display:grid;gap:6px;padding:var(--s3) var(--s4);border-left:3px solid var(--field);background:var(--sunk);font-size:.95rem}
+.mb-safe a{font-weight:700}
+.mb-say{min-height:1.4em;color:var(--dim);font-weight:600}
+.mb-say.bad{color:var(--gf,#FF5A48)}
+.mb-place{padding:var(--s3) var(--s4);background:var(--sunk);border:1px solid var(--field);border-radius:var(--r);white-space:pre-wrap;overflow-wrap:anywhere}
+.mb-h2{font-size:clamp(1.3rem,4.6vw,1.8rem)}
+.mb-guests{list-style:none;margin:0;padding:0;display:grid;gap:var(--s2)}
+.mb-guests li{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--line)}
+.mb-btn-s{min-height:44px;padding:8px 14px}
+.mb-text{min-height:44px;padding:8px 0;background:none;border:0;color:var(--dim);font:600 .95rem/1.2 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.mb-text:hover{color:var(--ink)}
+.mb-text.armed{color:var(--gf,#FF5A48)}
+
+/* ---- forms */
+.mb-form{display:grid;gap:var(--s4);max-width:36rem}
+.mb-f{display:grid;gap:6px;min-width:0}
+.mb-f > label,.mb-f > .mb-l{font-weight:700}
+.mb-hint{color:var(--dim);font-size:.92rem}
+.mb-chips{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.mb-chip{min-height:44px;padding:8px 14px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font:600 .98rem/1.2 var(--body);cursor:pointer}
+.mb-chip[aria-pressed="true"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.mb-tick{display:flex;align-items:flex-start;gap:12px;min-height:44px;font-weight:600;cursor:pointer}
+.mb-tick input{width:22px;height:22px;flex:none;margin:2px 0 0;accent-color:var(--field)}
+.mb-count{color:var(--dim);font-size:.85rem;justify-self:end}
+
+/* ---- the profile */
+.mb-prof{display:grid;gap:var(--s4)}
+.mb-top{display:flex;gap:var(--s4);align-items:center;min-width:0}
+.mb-pic{flex:none;width:96px;height:96px;border-radius:50%;overflow:hidden;background:var(--raise);display:grid;place-items:center}
+.mb-pic img{width:100%;height:100%;object-fit:cover}
+.mb-pic .av{width:96px;height:96px;font-size:2.4rem}
+.mb-who{display:grid;gap:4px;min-width:0}
+.mb-who h1{overflow-wrap:anywhere}
+.mb-bio{font-size:1.1rem;overflow-wrap:anywhere}
+.mb-rank{display:grid;gap:6px;padding:var(--s4);background:var(--panel);border-radius:var(--r)}
+.mb-bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
+.mb-bar i{display:block;height:100%;background:var(--field)}
+.mb-stats{list-style:none;margin:0;padding:0;display:grid;gap:var(--s2)}
+.mb-stats li{overflow-wrap:anywhere}
+.mb-avs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:var(--s2)}
+.mb-av{min-height:64px;padding:0;border:2px solid transparent;border-radius:50%;background:var(--raise);overflow:hidden;cursor:pointer;aspect-ratio:1}
+.mb-av img{width:100%;height:100%;object-fit:cover}
+.mb-av[aria-pressed="true"]{border-color:var(--field)}
+.mb-stars{display:flex;gap:var(--s1);flex-wrap:wrap}
+.mb-star{min-width:48px;min-height:48px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--ink);font:800 1.1rem/1 var(--body);cursor:pointer}
+.mb-star[aria-pressed="true"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.mb-sheet .sheet-body{display:grid;gap:var(--s4)}
+.mb-sheet .mb-chips{flex-direction:column}
+.mb-sheet .mb-chip{text-align:start;border-radius:var(--r)}
+.mb-acct{display:flex;align-items:center;justify-content:center;width:100%}
+/* every link that stands on its own is a tap target of 44px, like the buttons */
+.mb-host a,.mb-stats li > a,.mb-guests a,.mb-card h3 a,.mb-safe a,.mb-card > a:not(.btn),.mb-f > a:not(.btn){display:inline-flex;align-items:center;min-height:44px}
+.mb-form input[type=file]{display:block;width:100%;min-height:48px;padding:10px 0;color:var(--ink);font:500 1rem/1.4 var(--body)}
+[data-q-tick][data-q-tick-on]::before{content:"\2713\00a0"}
+/* a mission that ticks itself has nothing to open: quests.js gives its big card no data-q-go, so no empty yellow label */
+.q-big summary:not([data-q-go])::before{content:none;display:none}

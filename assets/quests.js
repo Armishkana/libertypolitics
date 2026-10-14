@@ -87,6 +87,10 @@
                                  that page shows them (someone who said they are not a citizen is never offered a
                                  mission that leaves them out, on any page)
       "tier" is any word now (join, gather, lead): only "main" still gets its small lead in fit()
+      a mission's "auto": "account" | "questions" | "profile"      (14 October 2026, evening) it ticks itself from the reader's
+                                 own account (build/members.js tells this file through window.LPMembers and "lp:members"):
+                                 no Start, no report, one button to do it, and [data-q-tick] inside the card gets
+                                 data-q-tick-on once done. Its XP is never claimed here: build/quests.py grants it.
 
    7. On the page
       <div data-q-row="in">      one more row of the chooser, one chip at a time ("in:us", "in:world"). Once chosen, a
@@ -245,10 +249,21 @@ function run() {
   }
   let VER = {};
   const WEEK = 7 * 86400000;
+  /* ADDED 14 OCTOBER 2026, evening: a mission whose data carries "auto": "account" | "questions" | "profile" ticks itself
+     from the reader's own account (made, both questions answered, a picture and one line on the profile). build/members.js
+     says which through window.LPMembers.state() and the event "lp:members". Such a mission has no Start, no report and
+     no XP claimed from this page: build/quests.py grants its XP from what build/people.py reads. With members.js missing,
+     the account is still known (signed in) and the other two simply wait. */
+  let AUTO = { account: false, questions: false, profile: false };
+  /* the card says it too (data-q-auto, printed by missions.py): either one is enough */
+  MS.forEach(m => { if (!m.auto) { const c = D.getElementById(m.id), a = c && c.getAttribute('data-q-auto'); if (a === 'account' || a === 'questions' || a === 'profile') m.auto = a; } });
+  try { if (window.LPMembers && window.LPMembers.state) AUTO = Object.assign(AUTO, window.LPMembers.state()); } catch (x) { }
+  const autoDone = m => !!(m && m.auto && (m.auto === 'account' ? (AUTO.account || !!who()) : AUTO[m.auto]));
   /* '' | started | reported | back | accepted. A mission that may be done again ("repeat") goes back to reported or
      back when a later report is waiting or was turned down; one that may not stays accepted for good. */
   function status(id) {
     const m = BY.get(id), v = VER[id], l = ST.m[id], judged = new Set(Object.keys(XP.reports || {}));
+    if (m && m.auto) return autoDone(m) ? 'accepted' : '';
     const waiting = MINE.some(p => p.mission === id && !judged.has(p.id)) || !!(l && l.s === 'reported' && l.at > (v ? v.at : 0));
     if (v && v.n && !m.repeat) return 'accepted';
     if (waiting) return 'reported';
@@ -316,7 +331,7 @@ function run() {
     started: () => tt('Started'),
     reported: () => tt('Report sent. Waiting.'),
     back: () => tt('Sent back'),
-    accepted: id => { const v = VER[id]; return v && v.n > 1 ? tt('Accepted {times} times. +{n} XP', { times: v.n, n: v.sum }) : tt('Accepted. +{n} XP', { n: (v && v.sum) || BY.get(id).xp }); },
+    accepted: id => { if (BY.get(id) && BY.get(id).auto) return tt('Done'); const v = VER[id]; return v && v.n > 1 ? tt('Accepted {times} times. +{n} XP', { times: v.n, n: v.sum }) : tt('Accepted. +{n} XP', { n: (v && v.sum) || BY.get(id).xp }); },
     draft: () => tt('Report not sent')
   };
   function buildAct(card, id) {
@@ -343,6 +358,7 @@ function run() {
     const box = buildAct(card, id);
     if (!box) return;
     const B = box._q, can = m.report !== false, formOpen = !!(B.form && !B.form.hidden), ask = gate(m) === 'ask';
+    if (m.auto) { paintAuto(card, m, B, st === 'accepted'); return; }
     const need = q('[data-q-need]', card); if (need) need.hidden = !ask;
     B.start.hidden = st !== '' || kept || ask;
     B.drop.hidden = st !== 'started';
@@ -359,6 +375,34 @@ function run() {
       B.say.textContent = line; B.say.classList.remove('bad');
     }
   }
+  /* A mission that ticks itself: no Start and no report. One way to do it while it is not done, a tick once it is. */
+  const AUTO_HOW = {
+    account: () => tt('Make your account and this ticks itself.'),
+    questions: () => tt('Answer the two questions and this ticks itself.'),
+    profile: () => tt('Add a picture and one line about you on your profile, and this ticks itself.')
+  };
+  function paintAuto(card, m, B, done) {
+    B.start.hidden = B.report.hidden = B.drop.hidden = true;
+    qa('[data-q-tick]', card).forEach(t => { if (done) t.setAttribute('data-q-tick-on', ''); else t.removeAttribute('data-q-tick-on'); });
+    if (!B.auto) {
+      const me = () => who();
+      const L = window.LP && window.LP.open ? window.LP : null;
+      const go = m.auto === 'profile'
+        ? el('a', 'btn btn-key', tt('Open your profile'), { href: '#', 'data-q-auto-go': '' })
+        : el('button', 'btn btn-key', m.auto === 'account' ? tt('Make your account') : tt('Answer them now'), { type: 'button', 'data-q-auto-go': '' });
+      go.addEventListener('click', ev => {
+        const u = me();
+        if (!u) { ev.preventDefault(); if (L) L.open('auth', { opener: go }); return; }
+        if (m.auto === 'questions') { ev.preventDefault(); if (window.LPMembers && window.LPMembers.ask) window.LPMembers.ask(); }
+        if (m.auto === 'profile') go.setAttribute('href', (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + 'member/?u=' + encodeURIComponent(u.uid) + '#edit');
+      });
+      B.say.before(go);
+      B.auto = go;
+    }
+    B.auto.hidden = done;
+    B.say.removeAttribute('data-q-keep'); B.say.classList.remove('bad');
+    B.say.textContent = done ? tt('Done. It ticked itself.') : AUTO_HOW[m.auto] ? AUTO_HOW[m.auto]() : '';
+  }
   function paintAll() {
     VER = verdicts();
     MS.forEach(m => {
@@ -370,7 +414,7 @@ function run() {
     if (none) { const any = MS.some(shown); none.hidden = any; none.textContent = any ? '' : tt('No mission on this board fits yet. Tell me in the discussion which one is missing.'); }
     qa('[data-q-count]').forEach(e => {
       const ms = MS.filter(m => m.tier === e.getAttribute('data-q-count') && shown(m));
-      e.textContent = ms.length ? tt('{n} of {all} done', { n: ms.filter(m => VER[m.id] && VER[m.id].n).length, all: ms.length }) : '';
+      e.textContent = ms.length ? tt('{n} of {all} done', { n: ms.filter(m => (m.auto ? autoDone(m) : VER[m.id] && VER[m.id].n)).length, all: ms.length }) : '';
     });
     qa('[data-q-in]').forEach(e => { e.hidden = e.getAttribute('data-q-in') !== placeNow(); });
     paintPicks(); paintFolds(); paintNext(); paintMine(); paintRank(); paintChains(); paintLinks();
@@ -424,7 +468,8 @@ function run() {
       const hook = q('.q-hook', c), t = q('.q-title', c);
       if (hook && t && !q('.q-hook-s', c)) t.after(el('span', 'q-hook-s', hook.textContent));
       /* closed, the big card says how to get in; the words are drawn from this attribute (site.css, .q-big summary::before) */
-      const sm = q('summary', c); if (big && sm) sm.setAttribute('data-q-go', tt('Open mission'));
+      /* a mission that ticks itself has nothing to open: no label, its tick is on the card ([data-q-tick]) */
+      const sm = q('summary', c); if (big && sm && !(BY.get(id) && BY.get(id).auto)) sm.setAttribute('data-q-go', tt('Open mission'));
       paintCard(c, id);
       return c;
     };
@@ -457,7 +502,7 @@ function run() {
     const sec = D.getElementById('q-mine'), list = q('[data-q-slot="mine"]');
     if (!sec || !list) return;
     const order = { draft: 0, back: 1, started: 2, reported: 3, accepted: 4 };
-    const rows = MS.filter(shown).map(m => ({ m, st: status(m.id) || (draft(m.id) ? 'draft' : '') })).filter(x => x.st).sort((a, b) => order[a.st] - order[b.st]);
+    const rows = MS.filter(m => shown(m) && !m.auto).map(m => ({ m, st: status(m.id) || (draft(m.id) ? 'draft' : '') }))      /* a mission that ticks itself is not a report: it is not listed here */.filter(x => x.st).sort((a, b) => order[a.st] - order[b.st]);
     sec.hidden = !rows.length;
     list.textContent = '';
     rows.forEach(({ m, st }) => {
@@ -675,6 +720,7 @@ function run() {
   /* Said once, at the moment a reader goes from signed out to signed in. community.js also calls back when it only
      asks the account again (after a post the rules refused, for one), and that must not wipe what the form just said. */
   let wasIn = !!who();
+  D.addEventListener('lp:members', ev => { AUTO = Object.assign({}, AUTO, (ev && ev.detail) || {}); paintAll(); });
   if (K && K.sub) K.sub(() => { const isIn = !!who(), came = isIn && !wasIn; wasIn = isIn; mine().catch(() => { }); if (came) { try { signedIn(); } catch (x) { } } });
 
   paintChooser(); paintAll(); fromHash();

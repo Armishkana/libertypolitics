@@ -131,6 +131,7 @@
     fr.src = src; fr.title = b ? b.textContent : tt('Video');
     fr.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; fr.allowFullscreen = true;
     fr.referrerPolicy = 'strict-origin-when-cross-origin';
+    if (box.getAttribute('data-plat') === 'X') fr.setAttribute('scrolling', 'no');  /* the post sets its own height below; a frame scrollbar is only ever a stray strip */
     box.textContent = ''; box.appendChild(fr); box.classList.add('on');
   });
   /* A post from X says how tall it is once it has drawn itself. */
@@ -185,6 +186,14 @@
     var sync = function () { var h = location.hash; if (isDisc(h)) { if (H.getAttribute('data-mode') !== 'discussion') setMode('discussion'); } else if (H.getAttribute('data-mode') !== 'record') setMode('record'); };
     var put = function (hash) { try { history.pushState(null, '', hash || (location.pathname + location.search)); } catch (x) { location.hash = hash; } };
     paint(H.getAttribute('data-mode'));
+    /* Opened on #discussion, the browser jumps to the discussion's own box, which sits a little under the menu
+       strip, so the page opened 34-44px down with half the strip showing under the header (bug sweep, 14 October
+       2026). In discussion mode that box IS the top of the page, so it opens at the top. A link to one post
+       (#p-...) still goes to that post, and a reader who has already scrolled is left alone. */
+    if (H.getAttribute('data-mode') === 'discussion' && isDisc(location.hash) && location.hash.indexOf('#p-') !== 0) {
+      var atTop = function () { if (!touched && window.pageYOffset > 0 && window.pageYOffset < 120) window.scrollTo(0, 0); };
+      requestAnimationFrame(atTop); window.addEventListener('load', function () { setTimeout(atTop, 0); });
+    }
     document.addEventListener('click', function (ev) {
       var a = ev.target.closest && ev.target.closest('a[href="#discussion"],a[href="#feedback"],a[href="#record"]');
       if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;

@@ -14,13 +14,16 @@
      places that ask it (the question near the top, the end of the record, the label over the box) before
      anything else reads them. The discussion is also named after the question, so a post sent today still
      says what it was answering after the question has moved on. */
+  /* Since 14 October 2026 (evening) the front page's FIRST ask is the front question (build/members.py) and the question of
+     the day is the question of its DISCUSSION only: the list rides on the band at the end of the record (#band), not on a
+     question near the top (#nudge), which the front page no longer has. Either one may carry it. */
   (function () {
-    var nd = document.getElementById('nudge'), list = [];
-    try { list = JSON.parse((nd && nd.getAttribute('data-asks')) || '[]'); } catch (x) { list = []; }
+    var nd = document.getElementById('nudge'), src = document.querySelector('[data-asks]'), list = [];
+    try { list = JSON.parse((src && src.getAttribute('data-asks')) || '[]'); } catch (x) { list = []; }
     if (!list.length) return;
     var q = list[Math.floor(Date.now() / 86400000) % list.length];
     if (typeof q !== 'string' || !q) return;
-    var b = nd.querySelector('.nudge-q b'), h = document.querySelector('#band h2'), f = document.getElementById('fbform'), t = document.getElementById('talk');
+    var b = nd && nd.querySelector('.nudge-q b'), h = document.querySelector('#band h2'), f = document.getElementById('fbform'), t = document.getElementById('talk');
     if (b) b.textContent = q;
     if (h) h.textContent = q;
     if (f) f.setAttribute('data-ask', q);
@@ -33,18 +36,21 @@
     try { if (sessionStorage.getItem('lp-calls') === 'off') calls.className += ' off'; } catch (x) {}
     callsX.addEventListener('click', function () { calls.className += ' off'; try { sessionStorage.setItem('lp-calls', 'off'); } catch (x) {} });
   }
-  /* 14 October 2026. The front page opens on the three ways in, and its first two are the same two things the
-     bubble says (the live show, the call). On a phone the bubble sat on the third. While the ways are on
-     screen the bubble steps aside (it keeps its place, like "duck" in whatson.js: nothing jumps and nothing is
-     animated); once they have scrolled away it is back, as on every other page. The same on the Missions page, for
-     the reader's next mission, which it used to sit on. */
-  var ways = document.querySelector('.ways, .q-best');
-  if (calls && ways && window.IntersectionObserver) {
-    new IntersectionObserver(function (es) {
-      var on = es[es.length - 1].isIntersecting, has = calls.className.indexOf(' aside') > -1;
-      if (on !== has) calls.className = on ? calls.className + ' aside' : calls.className.replace(' aside', '');
-    }, { threshold: 0.05 }).observe(ways);
-  }
+  /* THE BUBBLE NEVER STEPS ASIDE (14 October 2026, evening). Armin: it "is good. I just don't like that I have to scroll
+     down to see it ... It should be there all the time." From that morning it had stepped aside while the front page's
+     three ways in (or the Missions page's next mission) were on screen, so a visitor arriving on the front page did not see
+     it until they scrolled. The three ways in are gone, and so is the stepping aside: the bubble is on screen from the
+     first pixel, on every page, until the reader's own cross puts it away for the visit. */
+
+  /* ---- a link that opens the sign-in (the account mission, data-open-acct) ----
+     The Sign in button in the header (#acct) is what community.js turns into the sign-in panel. Any link marked
+     data-open-acct hands its tap to it; with scripts off, or a build with no accounts, it is a plain link to the page that
+     explains accounts. */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest ? ev.target.closest('a[data-open-acct]') : null, acct = document.getElementById('acct');
+    if (!a || !acct || ev.metaKey || ev.ctrlKey || ev.shiftKey) return;
+    ev.preventDefault(); acct.click();
+  });
 
   /* ---- matching, shared by the home search and the scorecard search ----
      Each word typed must be the two-letter code of the member's state, or the START of a word in the

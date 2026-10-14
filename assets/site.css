@@ -579,6 +579,13 @@ span.face-lg{font-size:1.7rem}
 .tv-youtube iframe{aspect-ratio:16/9}
 .tv-x iframe{height:560px}
 .tv-instagram iframe{height:640px}
+/* A post from X is drawn at most 550px wide, and its frame's page is light while ours is dark. A frame
+   whose colour scheme differs from its page is painted solid white by the browser, so an X post sat in a
+   white slab with a scrollbar (Armin, 14 Oct 2026: "What is that white space?"). Matching the frame's
+   scheme to the post's makes it see-through; the width cap and scrolling="no" (discussion.js) do the rest.
+   Measured in build/x-msg-probe.html. */
+.tv-x iframe,.tv-instagram iframe{color-scheme:light;background:transparent}
+.tv-x.on,.tv-instagram.on{max-width:550px;background:none;border:0}
 .member-main>.ask{order:3}
 .project{background:var(--sunk)}
 .jobs{list-style:none;margin:22px 0 0;padding:0;display:grid;gap:10px}
@@ -762,7 +769,7 @@ footer a.yt-f{display:inline-flex;align-items:center;gap:8px}
 .calls-a b{display:block;font:800 .95rem/1.15 var(--body);color:var(--field)}
 .calls-a small{display:block;font:600 .8rem/1.2 var(--body);opacity:.85}
 .calls-x{flex:none;width:40px;height:44px;border:0;background:transparent;color:inherit;font:700 1.4rem/1 var(--body);cursor:pointer;border-radius:0 12px 0 0}
-footer .on-when{display:block;margin:-7px 0 4px;font-size:.8rem;font-weight:400;color:var(--dim);line-height:1.3}
+footer .on-when{display:block;margin:2px 0 4px;font-size:.8rem;font-weight:400;color:var(--dim);line-height:1.3}
 .calls-x:hover,.calls-a:hover b{text-decoration:underline}
 .calls.off{display:none}
 /* While it would sit on the button that sends a post, it steps aside (build/whatson.js, duck). It keeps its place, so nothing moves. */
@@ -1278,7 +1285,7 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 .crumb{font-size:var(--t2)}
 
 /* ---------------------------------------------------------------- the header: one calm bar, and a strip that belongs to it */
-.top{background:rgba(10,10,10,.96);border-bottom:0}
+.top{background:#0A0A0A;border-bottom:0}
 .top .wrap{min-height:60px}
 .mark{font-size:1.4rem;letter-spacing:.03em}
 .top nav a{font-size:var(--t2);font-weight:600;color:var(--dim);border-radius:var(--r);transition:color .15s}
@@ -1286,7 +1293,7 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 .top nav a[aria-current="page"]{color:var(--ink);box-shadow:inset 0 -2px 0 var(--field);border-radius:0}
 .top nav a.acct{color:var(--ink);border-color:#3a3936;border-radius:999px;padding:0 16px}
 .top nav a.acct:hover{border-color:var(--seal);background:none}
-.subnav{background:rgba(10,10,10,.96);border-bottom:1px solid var(--line);padding-left:var(--gutter)}
+.subnav{background:#0A0A0A;border-bottom:1px solid var(--line);padding-left:var(--gutter)}
 .subnav-s{gap:2px;align-items:center}
 .subnav a{padding:12px 11px;font-size:var(--t2);transition:color .15s}
 .subnav a:hover{color:var(--ink)}
@@ -1297,7 +1304,8 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 .nav-more-l{border:0;border-radius:var(--r2);background:var(--raise);box-shadow:0 18px 40px -12px rgba(0,0,0,.8)}
 .nav-more .nav-more-l a:hover{background:rgba(243,241,234,.07)}
 .cpick select{border-color:#3a3936;border-radius:999px;background-color:transparent}
-.modes{background:rgba(10,10,10,.96)}
+/* Solid, not .96: at .96 the text scrolling under the bars showed through as a ghost (bug sweep, 14 Oct 2026). */
+.modes{background:#0A0A0A}
 
 /* ---------------------------------------------------------------- pictures */
 /* A painting behind a head. The ground is there first; the picture arrives on it; a shade keeps the words readable
@@ -1331,31 +1339,19 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 /* the rank over a painting keeps its contrast */
 .hero-art .q-rank{text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 14px rgba(0,0,0,.7)}
 
-/* ---------------------------------------------------------------- the front page: who it is for, and three ways in */
+/* ---------------------------------------------------------------- the front page: the headline and the front question
+   (rebuilt 14 October 2026, evening: the three ways in are gone; the first and only ask of the first screen is the front
+   question, build/members.py. Its own parts are styled where it is built; this only places it.) */
 .hero-home .wrap{padding-top:24px;padding-bottom:28px}
-.hero-home .lede{margin-top:10px;font-size:1.0625rem}
+.hero-home .lede{margin-top:10px;font-size:1.0625rem;max-width:36ch}
 .hero-home h1{font-size:clamp(2.3rem,11.2vw,5.6rem)}
-.ways{list-style:none;margin:16px 0 0;padding:0;display:grid;border-radius:var(--r2);background:rgba(24,24,23,.84);overflow:hidden;max-width:34rem}
-.ways li + li{border-top:1px solid rgba(243,241,234,.08)}
-.way{display:grid;grid-template-columns:40px minmax(0,1fr) 20px;gap:12px;align-items:center;min-height:64px;padding:9px 14px;text-decoration:none;transition:background-color .18s}
-.way:hover,.way:focus-visible{background:rgba(243,241,234,.06)}
-.way-i{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:rgba(233,217,166,.1);color:var(--seal)}
-.way-t{display:grid;gap:1px;min-width:0}
-.way-t b{font:800 1.4rem/1.05 var(--display);text-transform:uppercase;letter-spacing:.015em;color:var(--field)}
-.way-l{color:var(--ink);font-size:var(--t2);line-height:1.35}
-.way-w{color:var(--dim);font-size:var(--t1);line-height:1.35;font-weight:600}
-.way-go{color:var(--dim);display:grid;place-items:center;transition:transform .2s var(--ease),color .2s}
-.way-go svg{width:20px;height:20px}
-.way:hover .way-go{color:var(--field);transform:translateX(3px)}
-/* a show is on now: the row says so, with the same red dot as the bubble in the corner */
-.way.live .way-w{color:var(--ink)}
-.way.live .way-w::before{content:"";display:inline-block;width:8px;height:8px;margin-right:7px;border-radius:50%;background:#C8102E;box-shadow:0 0 0 3px rgba(200,16,46,.28);vertical-align:.05em}
+.front-q{margin-top:18px;max-width:34rem}
+.front-q:empty{display:none}
 @media(min-width:900px){
   .hero-home .wrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,30rem);column-gap:56px;align-items:end;padding-top:84px;padding-bottom:84px}
   .hero-home h1{grid-column:1;grid-row:1;font-size:clamp(4rem,7vw,6.2rem)}
   .hero-home .lede{grid-column:1;grid-row:2;font-size:1.3rem}
-  .hero-home .ways{grid-column:2;grid-row:1/span 2;margin-top:0;align-self:end}
-  .way{min-height:84px;padding:14px 18px}
+  .hero-home .front-q{grid-column:2;grid-row:1/span 2;margin-top:0;align-self:end}
 }
 
 /* the reader's rank, and their next mission */
@@ -1371,13 +1367,12 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 .q-next-h{color:var(--dim);line-height:1.45;max-width:52ch}
 .you-all{margin-top:6px}
 .you-all a{display:inline-flex;align-items:center;min-height:44px;color:var(--field);font-weight:700}
+.you-row{display:grid;gap:4px}
+.you-next-w .you-h{margin-top:18px;font-size:var(--t2);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.you-next-w .you-next{margin-top:8px}
 @media(min-width:900px){
-  .you-sec .wrap{display:grid;grid-template-columns:minmax(0,22rem) minmax(0,1fr);column-gap:56px;align-items:start}
-  .you-h{grid-column:1/-1}
-  .you-sec .q-rank{grid-column:1;grid-row:2}
-  .you-next{grid-column:2;grid-row:2/span 2;margin-top:14px;max-width:none}
-  .you-all{grid-column:1;grid-row:3}
-  .nudge-sec .nudge{max-width:none}
+  .you-row{grid-template-columns:minmax(0,22rem) minmax(0,1fr);column-gap:56px;align-items:end}
+  .you-row .you-next{max-width:none}
 }
 
 /* the journey in three acts: each a painting, a numeral and one line */
@@ -1393,8 +1388,14 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 .act-t b{align-self:end;font:800 2.1rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em;color:var(--ink)}
 .act-l{color:var(--ink);font-size:var(--t2);line-height:1.35}
 .act-x{align-self:start;color:var(--seal);font-size:var(--t1);font-weight:700}
+/* GATHER IS THE MAIN MISSION, AND THE BIGGEST DOOR (14 October 2026, evening: "meeting in person should be the main thing") */
+.act-gather .act-c,.act-gather .act-t{min-height:184px}
+.act-gather .act-t b{font-size:2.6rem}
+.act-gather .act-c{box-shadow:inset 0 0 0 1px rgba(244,196,48,.35)}
 @media(min-width:800px){
-  .acts{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .acts{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+  .act-gather .act-c,.act-gather .act-t{min-height:340px}
+  .act-gather .act-t b{font-size:3.2rem}
   .act-c,.act-t{min-height:300px}
   .act-c::after{background:linear-gradient(180deg,rgba(10,10,10,0) 0%,rgba(10,10,10,0) 42%,rgba(10,10,10,.78) 72%,rgba(10,10,10,.94) 100%)}
   .act-t{grid-template-columns:1fr;align-content:end;row-gap:4px;padding:24px}
@@ -1426,8 +1427,9 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 }
 .nudge-sec{padding:8px 0 28px}
 .proof{margin-top:10px;color:var(--seal);font-weight:600;font-size:var(--t2)}
-/* the bubble steps aside while the three ways in are on screen (site.js): they say the same two things */
-.calls.aside{visibility:hidden}
+/* THE BUBBLE IS ON SCREEN FROM THE FIRST PIXEL (14 October 2026, evening). It no longer steps aside; the page keeps room at
+   its foot instead, so the bubble never sits on the last line of the footer. */
+body:has(#calls:not(.off)){padding-bottom:120px}
 
 /* ---------------------------------------------------------------- the Missions page */
 .q-head .wrap{padding-top:16px;padding-bottom:14px}
@@ -1510,6 +1512,16 @@ html.q-js-on span.q-js:not([hidden]){display:inline}
 .q-list{margin-top:16px;gap:10px}
 @media(min-width:700px){.q-act-h,.q-act-t{min-height:210px}.q-act-t{padding:28px 32px}.q-act-n{font-size:5rem}.q-list{gap:12px}}
 @media(min-width:1100px){.q-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.q-tier-gather .q-act-h,.q-tier-gather .q-act-t{min-height:124px}
+.q-tier-gather .q-act-t h2{font-size:clamp(2.9rem,13vw,4.4rem)}
+.q-tier-gather .q-act-h{box-shadow:inset 0 0 0 1px rgba(244,196,48,.35)}
+@media(min-width:700px){.q-tier-gather .q-act-h,.q-tier-gather .q-act-t{min-height:280px}}
+@media(min-width:1100px){.q-tier-gather .q-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* what a mission does for liberty: the first line of an open card (14 October 2026, evening) */
+.q-for{margin:0 0 12px;padding-left:12px;border-left:2px solid var(--field);color:var(--ink);font-size:var(--t3);line-height:1.45;max-width:60ch}
+/* a mission that ticks itself (the account, the two answers, the profile) */
+.q-auto{color:var(--seal);font-weight:700}
+.q-auto.done::before{content:"✓ ";color:var(--field)}
 /* a mission: a thing you pick up. No outline: the panel is the card, and it lifts under a finger. */
 .q-m{border:0;border-radius:var(--r2);background:var(--panel);transition:background-color .18s,transform .22s var(--ease)}
 .q-m:hover{background:#1f1f1e}

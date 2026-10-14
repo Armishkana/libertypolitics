@@ -986,6 +986,10 @@ function viewGone() {
 
 /* Your account. */
 let forceOld = false;      // a test may set this to walk the "type your password again" path
+/* What members.js (profiles and the gatherings board, 14 October 2026) adds here: one line in this panel (the way to the
+   reader's own profile), and its own documents removed before the account is (the profile, the private answers, the
+   gatherings hosted). Both are optional: with members.js missing, this panel is exactly what it was. */
+const acctHooks = [], dropHooks = [];
 function viewAccount() {
   sheetTitle.textContent = tt('Your account');
   const line = msgLine(), wait = el('p', 'sheet-hint', tt('Loading your details.'));
@@ -1040,6 +1044,7 @@ function viewAccount() {
       save.disabled = false;
     });
     sheetBody.append(ryView(), form);
+    acctHooks.forEach(f => { try { const n = f(); if (n) form.before(n); } catch (x) { } });
     /* The way to the team page, for someone on the team and nobody else. */
     inRoom().then(ok => {
       if (ok && sheetView === 'account' && form.isConnected) form.before(el('a', 'btn btn-line sheet-team', tt('Team page: brand files and requests'), { href: root + BASE + 'team/' }));
@@ -1126,6 +1131,7 @@ function viewAccount() {
             if (!gone) break;
           }
         }
+        for (const f of dropHooks) { try { await within(30000, Promise.resolve(f(u.uid))); } catch (x) { } }
         tell(line, tt('Removing your account.'));
         if (!(await dropUserDoc(u.uid, t => tell(line, t)))) throw { code: 'lp/slow' };
         try { await A.deleteUser(u); }
@@ -2522,7 +2528,12 @@ function start() {
     room: { fb: () => fb(), user: () => user, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 },
     /* What quests.js (the mission board) is handed: the same words, who is signed in (the id and the name, as kept on
        this device), a call when that changes, one public document, sending a report, and the reader's own reports. */
-    quests: { tt, dig, who: () => me && { uid: me.uid, name: me.name }, sub: f => { subs.push(f); }, doc: questDoc, report: questReport, mine: questMine, off: OFF, quiet: QUIET, max: MAX }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
+    quests: { tt, dig, who: () => me && { uid: me.uid, name: me.name }, sub: f => { subs.push(f); }, doc: questDoc, report: questReport, mine: questMine, off: OFF, quiet: QUIET, max: MAX },
+    /* What members.js (profiles, the front question, the gatherings board) is handed: Firebase once it is loaded, who is
+       signed in, a call when that changes, the panel, the same words, faces and dates, and its two hooks (above viewAccount). */
+    members: { fb: () => fb(), user: () => user, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
+      tt, dig, el, btn, tell, words, ago, niceDate, face, within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
+      off: OFF, emu: EMU, quiet: QUIET, rtl: RTL, lang: LANG, safety: !!SITE.safety }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
   if (me && !OFF) ryWake();
   initHeader();
