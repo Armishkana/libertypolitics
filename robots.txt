@@ -1,3 +1,2 @@
 User-agent: *
-Allow: /
-Sitemap: https://libertypolitics.com/sitemap.xml
+Disallow: /
