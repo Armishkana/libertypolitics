@@ -163,25 +163,30 @@ function initFront() {
   const btns = [...box.querySelectorAll('[data-fq-a]')], line = box.querySelector('[data-fq-n]'), go = box.querySelector('[data-fq-keep]');
   const wbox = box.querySelector('[data-fq-box]'), other = wbox && wbox.querySelector('input');
   const keepText = go ? go.textContent : '', keepHref = go ? go.getAttribute('href') : '';
-  /* 15 October 2026 (community-strategy.md, "THE RECRUITMENT SCREEN"): each answer carries its first order, shown the moment
-     it is tapped; the count line and the signed-in button take their words from the page (front-ask.json "count" and "go"). */
-  const ord = box.querySelector('[data-fq-o]'), oneW = box.getAttribute('data-fq-one'), manyW = box.getAttribute('data-fq-many'), goW = box.getAttribute('data-fq-go');
-  function showOrder(a) {
+  /* 15 October 2026, second pass (community-strategy.md, "THE RECRUITMENT SCREEN"): the question asks HOW the reader will
+     fight. Each answer carries the line shown on its tap (data-fq-line: what the account gets them) and where its button
+     leads once they are signed in (data-fq-go, data-fq-href). data-fq-free leads there with no account and is NEVER kept:
+     on the Iran site that answer says the reader is inside Iran. data-fq-field is the private document's field the answer
+     is kept in (Liberty Politics: fight; the Iran site: role, outside answers only, and only once there is an account). */
+  const ord = box.querySelector('[data-fq-o]'), oneW = box.getAttribute('data-fq-one'), manyW = box.getAttribute('data-fq-many');
+  const FIELD = box.getAttribute('data-fq-field') || (IU ? 'role' : 'freedom');
+  const btnOf = a => btns.find(x => x.getAttribute('data-fq-a') === a);
+  const isFree = a => { const b = btnOf(a); return !!(b && b.hasAttribute('data-fq-free')); };
+  function showLine(a) {
     if (!ord) return;
-    const b = btns.find(x => x.getAttribute('data-fq-a') === a), t = b ? b.getAttribute('data-fq-order') || '' : '';
+    const b = btnOf(a), t = b ? b.getAttribute('data-fq-line') || '' : '';
     ord.textContent = t; ord.hidden = !t;
   }
-  let pick = (kept.get(KEY.front) || {}).a || '';
+  const was = kept.get(KEY.front) || {};
+  let pick = was.a && btnOf(was.a) && (was.f || 'freedom') === FIELD ? was.a : '';      // a pick from an older question is not this question's answer
   const press = a => btns.forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-fq-a') === a)));
   function paintGo() {
     if (!go) return;
-    const u = me();
+    const u = me(), b = btnOf(pick);
     go.hidden = !pick;
-    if (!pick) return;
-    if (u && goW) { go.textContent = goW; go.href = '#discussion'; return; }      // signed in: the order is carried out in the front page's discussion
-    if (u && !IU) { go.hidden = true; return; }      // signed in: the answer is already on the account (said in the line)
-    go.textContent = u ? tt('Your profile') : keepText;
-    go.href = u ? page('member/?u=' + encodeURIComponent(u.uid)) : keepHref;
+    if (!pick || !b) return;
+    if ((u || isFree(pick)) && b.getAttribute('data-fq-go')) { go.textContent = b.getAttribute('data-fq-go'); go.href = b.getAttribute('data-fq-href') || '#discussion'; return; }
+    go.textContent = keepText; go.href = keepHref;
   }
   async function showCount(a) {
     line.hidden = false;
@@ -191,33 +196,45 @@ function initFront() {
       line.textContent = t + (me() && !IU ? ' ' + tt('Your answer is kept on your account.') : '');
     } catch (x) { line.textContent = me() && !IU ? tt('Your answer is kept on your account.') : ''; line.hidden = !line.textContent; }
   }
-  if (pick) { press(pick); showOrder(pick); if (other) { other.value = (kept.get(KEY.front) || {}).other || ''; if (wbox) wbox.hidden = !btns.some(b => b.hasAttribute('data-fq-write') && b.getAttribute('data-fq-a') === pick); } paintGo(); if (!QUIET) showCount(pick).catch(() => { }); }
+  if (pick) { press(pick); showLine(pick); if (other) { other.value = was.other || ''; if (wbox) wbox.hidden = !btns.some(b => b.hasAttribute('data-fq-write') && b.getAttribute('data-fq-a') === pick); } paintGo(); if (!QUIET) showCount(pick).catch(() => { }); }
   btns.forEach(b => b.addEventListener('click', async () => {
     const a = b.getAttribute('data-fq-a');
-    pick = a; press(a); showOrder(a);
+    pick = a; press(a); showLine(a);
     if (wbox) { wbox.hidden = !b.hasAttribute('data-fq-write'); if (!wbox.hidden) setTimeout(() => { try { other.focus(); } catch (x) { } }, 30); }
-    kept.set(KEY.front, IU ? { a } : { a, other: other ? other.value.trim().slice(0, 80) : '' });
+    /* the free answer (inside Iran) leaves nothing on the device: the page forgets any earlier pick too */
+    if (isFree(a)) kept.set(KEY.front, null);
+    else kept.set(KEY.front, { a, f: FIELD, other: other && a === 'other' ? other.value.trim().slice(0, 80) : '' });
     paintGo();
     if (K && !K.off) {
       if (!kept.get(KEY.counted)) { try { await countTap(a); kept.set(KEY.counted, 1); } catch (x) { } }
-      if (me() && !IU) savePrivate({ freedom: a, other: other && a === 'other' ? other.value.trim().slice(0, 80) : '' }).catch(() => { });
+      if (me() && !isFree(a)) keepAnswer(FIELD, a, other && a === 'other' ? other.value.trim().slice(0, 80) : '').catch(() => { });
       showCount(a).catch(() => { });
     }
   }));
   if (other) other.addEventListener('change', () => {
     const v = other.value.trim().slice(0, 80);
-    kept.set(KEY.front, { a: pick, other: v });
-    if (me() && pick === 'other') savePrivate({ freedom: 'other', other: v }).catch(() => { });
+    kept.set(KEY.front, { a: pick, f: FIELD, other: v });
+    if (me() && pick === 'other') keepAnswer(FIELD, 'other', v).catch(() => { });
   });
-  if (go) go.addEventListener('click', ev => { if (!K || me()) return; ev.preventDefault(); K.open('auth', { opener: go }); if (!K.off) fb().catch(() => { }); });
+  if (go) go.addEventListener('click', ev => { if (!K || me() || isFree(pick)) return; ev.preventDefault(); K.open('auth', { opener: go }); if (!K.off) fb().catch(() => { }); });
   if (K) K.sub(paintGo);
 }
-/* An answer tapped before the account was made goes onto it the moment the reader is signed in (Liberty Politics only). */
+/* One answer onto the reader's private document, in the field its question names. The Iran site keeps the role and nothing
+   else (its rules refuse any other field), so a front answer there is kept only when the field is role. */
+function keepAnswer(field, a, other) {
+  if (IU) return field === 'role' ? savePrivate({ role: a }) : Promise.resolve();
+  if (field === 'freedom') return savePrivate({ freedom: a, other: a === 'other' ? String(other || '').slice(0, 80) : '' });
+  if (field === 'fight') return savePrivate({ fight: a });
+  return Promise.resolve();
+}
+/* An answer tapped before the account was made goes onto it the moment the reader is signed in, unless the account already
+   holds one. A pick kept before 15 October 2026 carries no field: it answered the freedom question. */
 async function carryFront() {
-  if (IU) return;
   const k = kept.get(KEY.front);
-  if (!k || !k.a || (PRIV && PRIV.freedom)) return;
-  await savePrivate({ freedom: k.a, other: k.a === 'other' ? String(k.other || '').slice(0, 80) : '' });
+  if (!k || !k.a) return;
+  const f = k.f || (IU ? '' : 'freedom');
+  if (!f || (PRIV && PRIV[f])) return;
+  await keepAnswer(f, k.a, k.other);
 }
 
 /* ------------------------------------------------------------------ the questions after sign-up */
@@ -263,7 +280,7 @@ async function askQuestions(force) {
       S.answers.forEach(a => chips.append(btn('mb-chip', w(a.text), async ev => {
         chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === ev.currentTarget)));
         say(line, tt('Saving.'));
-        try { await savePrivate(IU ? { role: a.id } : { fight: a.id }); step(needPlace ? 'place' : 'done'); }
+        try { await keepAnswer(S.field || (IU ? 'role' : 'fight'), a.id, ''); step(needPlace ? 'place' : 'done'); }
         catch (e) { say(line, words(e), true); }
       })));
       chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', 'false'));

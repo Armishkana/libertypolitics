@@ -16,6 +16,8 @@
 .fq-w input,.mb-form input[type=text],.mb-form input[type=url],.mb-form input[type=number],.mb-form input[type=datetime-local],.mb-form select,.mb-form textarea,.mb-sheet select,.mb-filter select{display:block;width:100%;min-height:48px;padding:10px 14px;font:500 1rem/1.4 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);caret-color:var(--field)}
 .mb-form textarea{min-height:96px;resize:vertical}
 .fq-w input:focus-visible,.mb-form :is(input,select,textarea):focus-visible{border-color:var(--field)}
+.fq-lead{margin:0;font:700 clamp(1.05rem,3.6vw,1.3rem)/1.35 var(--body);color:var(--ink);max-width:34rem}
+.fq-o{margin:0;max-width:34rem}
 .fq-n{color:var(--dim);font-weight:600}
 .fq-n b{color:var(--ink)}
 .fq-go{justify-self:start}
