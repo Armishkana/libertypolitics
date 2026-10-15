@@ -21,10 +21,15 @@
                             from the reader's own profile until answered.
    [data-mb="front-board"]  the next three gatherings on the front page, or only the one button to host the first.
    [data-mb="board"]        gatherings/: every upcoming gathering, a filter by state or country.
-   [data-mb="new"]          gatherings/new/: the host's form. No address field: the place is private and only accepted
-                            guests read it. Two ticks (a public place for a first meeting, 18 and over) are required.
-   [data-mb="one"]          gatherings/g/?id=: one gathering. I'm in, the host's yes or no, the place for accepted guests,
-                            and after it started the guest's rating (1 to 5) and private note to the host.
+   [data-mb="new"]          gatherings/new/: the host's form. Right after the title and the time, "Where is it?": a public
+                            place (its name and street address, shown to everyone with Open in Maps; anyone can join, or the
+                            host says yes to each) or a home (the full address, required, read only by the host and the guests
+                            the host says yes to). Then the hook line, why come (1,000 characters), a cover picture made small
+                            in this browser, a video link. Two ticks (a public place for a first meeting, 18 and over).
+   [data-mb="one"]          gatherings/g/?id=: one gathering. The cover, where, how many are going, why come, the video, Share.
+                            I'm in (at once at an open public place, else the host's yes or no), who is going (for the host
+                            and the guests who are in), the host's edit box, and after it started the guest's rating (1 to 5),
+                            the private note to the host, and "From the night": photos and videos the host and the guests post.
    [data-mb="member"]       member/?u=<account id>: a profile. The owner edits it here: a drawn avatar or a photo made
                             small in this browser (256 pixels, a JPEG of 60 KB at most, kept in the profile document), one
                             line about them. A new photo is shown to others only once the site has looked at it.
@@ -403,31 +408,131 @@ function face(name, uid) { return K && K.face ? K.face(name, uid) : el('span', '
 /* What a kind of gathering is, in one line ('about' on a format in data/members.json). A stranger reads the kind's
    name on a card and has no idea what a Liberty Table is without it (Armin, 15 October 2026). */
 function aboutOf(kind) { const f = DATA && DATA.formats.find(x => x.id === kind); return f && f.about ? w(f.about) : ''; }
-/* A card: the whole card opens the gathering (the title's link is stretched over it, members.css .mb-open), and it says
-   where you actually go: the city here, the exact spot only to the guests the host accepts. */
+
+/* WHERE IT IS (15 October 2026, Armin: "don't be too conservative when it comes to safety ... Isn't it Meetup? Don't people
+   provide addresses?"). placeKind 'public': the venue and its street address are on the gathering, for everyone, with a link
+   to a map. placeKind 'home', or a gathering posted before that day (no placeKind): the city only, and the address goes to
+   the guests the host says yes to (place/p). The rules (firestore.rules, the gatherings board) hold the same contract. */
+const isPublic = g => !!g && g.placeKind === 'public' && !!g.address;
+const openJoin = g => isPublic(g) && g.join === 'open';
+function mapsHref(g) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([g.venue, g.address].filter(Boolean).join(', ')); }
+function mapsLink(text, q) { return el('a', 'mb-map', text, { href: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), target: '_blank', rel: 'noopener noreferrer' }); }
+function whereBlock(g) {
+  const b = el('div', 'mb-whereb');
+  if (isPublic(g)) {
+    b.append(el('p', 'mb-venue', g.venue), el('p', 'mb-where', g.address + (whereOf(g) && !g.address.includes(g.city) ? ' · ' + whereOf(g) : '')));
+    const m = el('a', 'mb-map', tt('Open in Maps'), { href: mapsHref(g), target: '_blank', rel: 'noopener noreferrer' }); b.append(m);
+  } else b.append(el('p', 'mb-where', whereOf(g)), el('p', 'mb-hint', tt('Address sent to guests the host says yes to.')));
+  return b;
+}
+/* How many are going: the guests who are in, and the host. Names are for the host and the guests who are in. */
+function goingLine(g) { const n = (g.taken || 0) + 1; return n === 1 ? tt('1 going') : tt('{n} going', { n }); }
+/* The picture at the top of a card and of the page: the host's own (thumb on the gathering, the larger one in cover/c), or a
+   drawing for its kind, so no card is ever a blank box. */
+const GLYPH = {
+  table: '<circle cx="60" cy="40" r="17"/><circle cx="25" cy="28" r="7"/><circle cx="95" cy="28" r="7"/><circle cx="25" cy="54" r="7"/><circle cx="95" cy="54" r="7"/>',
+  watch: '<rect x="28" y="16" width="64" height="40" rx="4"/><path d="M52 28l14 8-14 8z"/><path d="M48 64h24"/>',
+  registration: '<rect x="38" y="12" width="44" height="56" rx="4"/><path d="M47 30h26M47 40h26M47 50h16"/><path d="M50 12v-4h20v4"/>',
+  vote: '<path d="M30 40h60v28H30z"/><path d="M48 40l8-24 18 6-6 18"/><path d="M44 52h32"/>',
+  'public-event': '<path d="M30 34l40-16v44L30 46z"/><path d="M30 34h-8v12h8"/><path d="M38 47l6 17"/><path d="M80 32c6 4 6 12 0 16"/>',
+};
+function cover(g, big) {
+  const box = el('div', 'mb-cover mb-cover-' + String(g.kind || 'table').replace(/[^a-z-]/g, ''));
+  if (typeof g.thumb === 'string' && /^data:image\/jpeg;base64,/.test(g.thumb)) {
+    box.append(el('img', null, null, { src: g.thumb, alt: '', width: '480', height: '270', decoding: 'async' }));
+  } else {
+    box.classList.add('mb-cover-drawn');
+    box.innerHTML = '<svg viewBox="0 0 120 80" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + (GLYPH[g.kind] || GLYPH.table) + '</svg>';
+  }
+  if (big) box.classList.add('mb-cover-big');
+  return box;
+}
+/* A video link people can play here: the same player the discussion uses (community.js embedOf, discussion.js plays it on a
+   tap; nothing from the other site loads before that). TikTok has no player there: a plain link. */
+function tvBox(url, label) {
+  const emb = window.LP && window.LP.embedOf ? window.LP.embedOf(url) : null;
+  if (!emb) { const a = el('a', 'mb-vid', label || tt('Watch the video'), { href: url, target: '_blank', rel: 'noopener noreferrer nofollow ugc' }); return a; }
+  const box = el('div', 'tv tv-' + emb[0].toLowerCase(), null, { 'data-embed': emb[1], 'data-plat': emb[0] });
+  const a = el('a', 'tv-play', null, { href: url, target: '_blank', rel: 'noopener noreferrer nofollow ugc' });
+  const yt = emb[0] === 'YouTube' && /\/embed\/([\w-]{11})$/.exec(emb[1]);
+  if (yt && !QUIET) a.append(el('img', null, null, { src: 'https://i.ytimg.com/vi/' + yt[1] + '/hqdefault.jpg', alt: '', loading: 'lazy', decoding: 'async', width: '480', height: '360' }));
+  const cap = el('span', 'tv-what'); cap.append(el('b', null, label || tt('Watch the video')), el('span', null, tt('Play it here · {site}', { site: emb[0] })));
+  a.append(el('span', 'tv-go', null, { 'aria-hidden': 'true' }), cap);
+  box.append(a);
+  return box;
+}
+const VIDEO_OK = /^https:\/\/(www\.|m\.|vm\.)?(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|x\.com|twitter\.com)\/.+$/;
+/* Share: the site's own panel (share.js opens anything with data-share), with this gathering's own address. */
+function shareBtn(g) {
+  let url = ''; try { url = new URL(page(DATA.paths.one + '?id=' + encodeURIComponent(g.id)), location.href).href; } catch (x) { }
+  const b = btn('btn btn-line mb-btn-s mb-share', tt('Share'));
+  b.setAttribute('data-share', ''); if (url) b.setAttribute('data-url', url);
+  b.setAttribute('data-title', String(g.title || '').slice(0, 80)); if (g.line) b.setAttribute('data-text', String(g.title || '') + ': ' + g.line);
+  return b;
+}
+/* A card: the whole card opens the gathering (the title's link is stretched over it, members.css .mb-open). The picture, the
+   hook line, when, where (the address itself for a public place), how many are going, and Share. */
 function card(g) {
   const li = el('li', 'mb-card'), href = page(DATA.paths.one + '?id=' + encodeURIComponent(g.id));
+  const past = ms(g.startAt) < Date.now() - 6 * 3600000;
+  li.append(cover(g));
   li.append(el('span', 'mb-kind', fmtName(g.kind)));
   const h = el('h3'); h.append(el('a', 'mb-open', g.title, { href })); li.append(h);
-  const ab = aboutOf(g.kind); if (ab) li.append(el('p', 'mb-about', ab));
-  li.append(el('p', 'mb-when', when(g)), el('p', 'mb-where', whereOf(g)), el('p', 'mb-hint', tt('Only the guests the host says yes to get the exact place.')));
-  if (g.line) li.append(el('p', null, g.line));
+  if (g.line) li.append(el('p', 'mb-hook', g.line));
+  else { const ab = aboutOf(g.kind); if (ab) li.append(el('p', 'mb-about', ab)); }
+  li.append(el('p', 'mb-when', when(g)), whereBlock(g));
   const left = Math.max(0, g.size - (g.taken || 0));
-  li.append(el('p', 'mb-seats', g.status === 'cancelled' ? tt('Called off') : left ? tt('{n} of {size} seats left', { n: left, size: g.size }) : tt('Full')));
+  if (past) { if (g.nightN) li.append(el('p', 'mb-seats', tt('Photos from the night'))); }
+  else li.append(el('p', 'mb-seats', g.status === 'cancelled' ? tt('Called off') : goingLine(g) + ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: g.size }) : tt('Full'))));
   const host = el('p', 'mb-host mb-row');
   host.append(face(g.hostName, g.hostUid), el('a', null, g.hostName, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(g.hostUid)) }));
   const r = ratingLine(g); if (r) host.append(el('span', null, r));
   li.append(host);
+  /* Its own discussion, from wherever the card is shown (15 October 2026, Armin: "even if you're not on the page for the
+     gathering, you should be able to see that there is an option to discuss this ... the number of people ... and the number
+     of comments"). community.js draws it and counts it. */
+  const tk = talkKey(g.id);
   const acts = el('div', 'mb-acts');
   if (g.status === 'open' && left && ms(g.startAt) > Date.now()) acts.append(el('a', 'btn btn-key mb-btn-s', tt('I\'m in'), { href: href + '#in' }));
-  acts.append(el('a', 'btn btn-line mb-btn-s', tt('See the details'), { href }));
+  acts.append(el('a', 'btn btn-line mb-btn-s', past && g.nightN ? tt('See the photos') : tt('See the details'), { href: past && g.nightN ? href + '#night' : href }), shareBtn(g));
+  if (tk) acts.append(el('a', 'talk-n', tt('Discuss'), { 'data-talk-n': tk, href: href + '#discussion' }));
   li.append(acts);
   return li;
+}
+/* The key a gathering's discussion is filed under (firestore.rules goodGatheringPost, community.js KEY_OK). */
+const talkKey = id => (typeof id === 'string' && /^[A-Za-z0-9]{20}$/.test(id) ? 'gathering:' + id : '');
+/* The board, read over plain REST (15 October 2026, Armin on the front page: "It took a while to load, which is weird").
+   Through Firebase's own code the front page first fetched members-data.json, then three files of Firebase (the database
+   one is large), then waited to learn who was signed in, then asked: a list anyone may read waited on all of it. One
+   request now, sent at the same moment as members-data.json. Firebase's own code is still the way when this cannot be
+   used (an older community.js still in a browser's cache). */
+async function restUpcoming() {
+  const lim = (DATA && DATA.limits.board) || 200, live = { fieldFilter: { field: { fieldPath: 'hidden' }, op: 'EQUAL', value: { booleanValue: false } } };
+  const ask = async ordered => {
+    const where = ordered ? { compositeFilter: { op: 'AND', filters: [live, { fieldFilter: { field: { fieldPath: 'startAt' }, op: 'GREATER_THAN_OR_EQUAL', value: { timestampValue: new Date(Date.now() - 6 * 3600000).toISOString() } } }] } } : live;
+    const q = { structuredQuery: Object.assign({ from: [{ collectionId: 'gatherings' }], where, limit: lim }, ordered ? { orderBy: [{ field: { fieldPath: 'startAt' }, direction: 'ASCENDING' }] } : {}) };
+    return within(15000, fetch(K.rest('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
+  };
+  let res = await ask(true);
+  if (res.status === 403) throw { code: 'permission-denied' };
+  if (!res.ok) res = await ask(false);      // the index is not there yet
+  if (res.status === 403) throw { code: 'permission-denied' };
+  if (!res.ok) throw { code: 'lp/offline' };
+  const got = await res.json();
+  const stamp = v => (typeof v === 'number' ? { toMillis: () => v } : v);
+  return (Array.isArray(got) ? got : []).filter(r => r && r.document).map(r => {
+    const g = K.plain({ mapValue: { fields: r.document.fields || {} } }) || {};
+    g.startAt = stamp(g.startAt); g.createdAt = stamp(g.createdAt);
+    return Object.assign(g, { id: String(r.document.name || '').split('/').pop() });
+  });
 }
 let listAsk = null;
 async function upcoming() {
   if (listAsk) return listAsk;
   listAsk = (async () => {
+    if (K && K.rest && K.plain) {
+      return (await restUpcoming()).filter(g => g.status !== 'cancelled' && ms(g.startAt) >= Date.now() - 6 * 3600000).sort((a, b) => ms(a.startAt) - ms(b.startAt));
+    }
     const { F, db } = await within(25000, fb());
     const col = F.collection(db, 'gatherings'), from = F.Timestamp.fromMillis(Date.now() - 6 * 3600000), lim = (DATA && DATA.limits.board) || 200;
     let snap;
@@ -448,10 +553,11 @@ function initFrontBoard() {
   const sec = D.querySelector('[data-mb="front-board"]');
   if (!sec || !K || K.off) return;
   const go = async () => {
+    const list_ = upcoming(); list_.catch(() => { });      // at the same moment as the words, not after them
     await data();
     if (!DATA) return;
     let all;
-    try { all = await upcoming(); } catch (x) { return; }
+    try { all = await list_; } catch (x) { return; }
     if (!all.length) return;
     const mine = myArea(), near = all.filter(g => areaOf(g) === mine), pick = (near.length ? near : all).slice(0, 3);
     const list = sec.querySelector('[data-mb-list]');
@@ -468,6 +574,7 @@ function initFrontBoard() {
 /* ------------------------------------------------------------------ gatherings/: the board */
 async function initBoard(box) {
   const body = box.querySelector('[data-mb-body]');
+  if (K && !K.off) upcoming().catch(() => { });      // asked at once; the words arrive at the same time
   await data();
   if (!DATA || !K || K.off) { body.setAttribute('aria-busy', 'false'); return; }
   let all;
@@ -491,12 +598,30 @@ async function initBoard(box) {
   sel.value = areas.includes(mine) ? mine : '';
   sel.addEventListener('change', () => { kept.set(KEY.filter, sel.value || null); draw(); });
   if (all.length) body.append(f);
-  body.append(list, empty, safety());
+  const safe = safety();
+  body.append(list, empty, safe);
   draw();
+  /* Gatherings that already happened and have photos or videos on their From the night wall: the board looks alive. */
+  const past = await pastNights().catch(() => []);
+  if (past.length) {
+    const ul = el('ul', 'mb-list mb-past');
+    past.forEach(g => ul.append(card(g)));
+    safe.before(el('h2', 'mb-h2', tt('From past nights')), ul);
+  }
+}
+async function pastNights() {
+  const { F, db } = await within(25000, fb());
+  const col = F.collection(db, 'gatherings'), before = F.Timestamp.fromMillis(Date.now() - 6 * 3600000);
+  let snap;
+  try { snap = await F.getDocs(F.query(col, F.where('hidden', '==', false), F.where('startAt', '<', before), F.orderBy('startAt', 'desc'), F.limit(30))); }
+  catch (e) { snap = await F.getDocs(F.query(col, F.where('hidden', '==', false), F.limit(200))); }      // the index is not there yet
+  return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
+    .filter(g => g.nightN > 0 && ms(g.startAt) < Date.now() - 6 * 3600000).sort((a, b) => ms(b.startAt) - ms(a.startAt)).slice(0, 12);
 }
 function safety() {
   const s = el('div', 'mb-safe');
-  s.append(el('p', null, IU ? tt('Only events that are already public, outside Iran. Nothing inside Iran is ever listed here.') : tt('A first meeting with people from here is always in a public place. Never a home address.')),
+  s.append(el('p', null, IU ? tt('Only events that are already public, outside Iran. Nothing inside Iran is ever listed here.') : tt('Meeting people you don\'t know yet? Do it somewhere public the first time.')),
+    ...(IU ? [] : [el('p', null, tt('A home address only goes to the guests the host says yes to.'))]),
     el('p', null, tt('Adults only: 18 and over.')),
     el('p', null, IU ? tt('I never send invitations or files. If someone says they are from here and sends you one, do not open it.') : tt('A gathering belongs to its host. I list it; I don\'t run it, pay for it or decide anything for it.')));
   if (DATA && DATA.safetyPage && !IU) s.append(el('a', null, tt('The safety page'), { href: page(DATA.safetyPage) }));
@@ -527,6 +652,110 @@ function signInFirst(body, text) {
   const b = btn('btn btn-key', tt('Sign in or make your account'), () => { K.open('auth', { opener: b }); fb().catch(() => { }); });
   body.append(el('p', 'mb-lede', text), b);
 }
+/* A picture made small in this browser: a JPEG cut to w by h (crop) or kept whole inside w by h, under most characters as a
+   data address. It never leaves the browser at its full size, and the database keeps it in a document (no file storage:
+   it needs billing). Returns '' when the file is not a picture it can read. */
+async function shrinkTo(file, wd, ht, most, crop) {
+  if (!file || !/^image\//.test(file.type || '')) throw { code: 'mb/notimage' };
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no({ code: 'mb/notimage' }); i.src = url; });
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    if (!iw || !ih) throw { code: 'mb/notimage' };
+    for (const scale of [1, 0.8, 0.6, 0.45]) {
+      let sx = 0, sy = 0, sw = iw, sh = ih, cw, ch;
+      if (crop) {
+        const want = wd / ht;
+        if (iw / ih > want) { sw = ih * want; sx = (iw - sw) / 2; } else { sh = iw / want; sy = (ih - sh) / 2; }
+        cw = Math.round(wd * scale); ch = Math.round(ht * scale);
+      } else {
+        const f = Math.min(1, wd / iw, ht / ih) * scale; cw = Math.max(1, Math.round(iw * f)); ch = Math.max(1, Math.round(ih * f));
+      }
+      const c = D.createElement('canvas'); c.width = cw; c.height = ch;
+      const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, cw, ch);
+      x.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+      for (const q of [0.82, 0.72, 0.6, 0.5, 0.4]) { const d = c.toDataURL('image/jpeg', q); if (d.length <= most && d.startsWith('data:image/jpeg;base64,')) return d; }
+    }
+    throw { code: 'mb/toobig' };
+  } finally { URL.revokeObjectURL(url); }
+}
+/* The cover: one file, two sizes. thumb (480 by 270, under 20,000 characters) rides on the gathering so the board stays one
+   quick read; big (1200 by 675, under 400,000) is cover/c, read only by the gathering's own page. */
+const COVER = { thumb: [480, 270, 19500], big: [1200, 675, 390000] };
+function coverPicker(g, line) {
+  const node = el('div', 'mb-f'), prev = el('div', 'mb-cover-prev');
+  let thumb = (g && g.thumb) || '', big = null;      // big null: unchanged
+  const paint = () => { prev.textContent = ''; prev.append(cover({ kind: (g && g.kind) || 'table', thumb })); };
+  paint();
+  const id = 'mb-' + Math.random().toString(36).slice(2, 9);
+  const file = el('input', null, null, { type: 'file', id, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-cover': '' });
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    say(line, tt('Making it small.'));
+    try {
+      const t = await shrinkTo(f, COVER.thumb[0], COVER.thumb[1], COVER.thumb[2], true);
+      const b = await shrinkTo(f, COVER.big[0], COVER.big[1], COVER.big[2], true);
+      thumb = t; big = b; paint(); say(line, tt('Ready.'));
+    } catch (e) { say(line, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
+  });
+  node.append(el('label', null, tt('A picture for the top'), { for: id }), prev, file,
+    el('p', 'mb-hint', tt('The place, the food, your last table: anything that makes people want to come. Without one, the card gets a drawing.')));
+  return { node, value: () => ({ thumb, big }) };
+}
+/* Where it is, who may join, why come, and a video: the parts the form and the host's edit box share. g: what is there now. */
+function detailFields(g, line) {
+  g = g || {};
+  const L = DATA.limits, out = el('div', 'mb-details');
+  let kind = IU ? 'public' : (g.placeKind === 'public' || g.placeKind === 'home' ? g.placeKind : (g.id ? 'home' : ''));
+  let join = g.join === 'ask' ? 'ask' : g.join === 'open' ? 'open' : '';
+  const venue = el('input', null, null, { type: 'text', maxlength: '80', autocomplete: 'organization', 'data-mb-venue': '' }); venue.value = g.venue || '';
+  const addr = el('input', null, null, { type: 'text', maxlength: '160', autocomplete: 'street-address', 'data-mb-address': '' }); addr.value = g.address || '';
+  const home = el('textarea', null, null, { maxlength: String(L.place), rows: '2', autocomplete: 'street-address', 'data-mb-home': '' }); home.value = g.homeText || '';
+  const pick = el('div', 'mb-chips mb-big', null, { role: 'group', 'aria-label': tt('Where is it?') });
+  const pubBox = el('div', 'mb-sub'), homeBox = el('div', 'mb-sub');
+  const joinPick = el('div', 'mb-chips', null, { role: 'group', 'aria-label': tt('Who can come?') });
+  const chips = (box, list, cur, set) => { box.textContent = ''; list.forEach(([v, t, sub]) => { const b = btn('mb-chip', null, () => set(v)); b.append(el('b', null, t)); if (sub) b.append(el('span', null, sub)); b.setAttribute('data-v', v); b.setAttribute('aria-pressed', String(cur === v)); box.append(b); }); };
+  const paint = () => {
+    chips(pick, [['public', tt('A public place'), tt('A cafe, bar, restaurant, library, park or hall')], ['home', tt('A home or private place'), tt('The address goes only to the guests you say yes to')]], kind, v => { kind = v; if (v === 'home') join = 'ask'; else if (!join) join = 'open'; paint(); });
+    chips(joinPick, [['open', tt('Anyone can join'), tt('They are in at once and see everything')], ['ask', tt('I say yes to each guest'), tt('You get a yes or no button for each one')]], join, v => { join = v; paint(); });
+    pubBox.hidden = kind !== 'public'; homeBox.hidden = kind !== 'home';
+  };
+  if (!kind && !IU) kind = 'public';
+  if (!join) join = kind === 'home' ? 'ask' : 'open';
+  pubBox.append(field(tt('Name of the place'), venue, tt('Like Cafe Medici, or the Riverside Library, room 2.')),
+    field(tt('Street address'), addr, tt('The full address. Everyone sees it, with a link to the map.')),
+    el('span', 'mb-l', tt('Who can come?')), joinPick);
+  homeBox.append(field(tt('The full address'), home, tt('Only you and the guests you say yes to see it. You say yes or no to each guest.')));
+  const wf = el('div', 'mb-f'); wf.append(el('span', 'mb-l', tt('Where is it?')));
+  if (!IU) wf.append(pick, el('p', 'mb-hint', tt('Meeting people you have not met before? Pick a public place the first time.')));
+  out.append(wf, pubBox, homeBox);
+  const about = el('textarea', null, null, { maxlength: '1000', rows: '5', 'data-mb-about': '' }); about.value = g.about || '';
+  const cnt = el('span', 'mb-count'), upd = () => { cnt.textContent = dig(1000 - about.value.length); }; about.addEventListener('input', upd); upd();
+  const af = field(tt('Tell people why they should come'), about, IU ? tt('What happens there, who it is for, what to bring.') : tt('What you will talk about or watch, who is coming, the food, the mood. Write it like you are inviting a friend.')); af.append(cnt);
+  const video = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-mb-video': '' }); video.value = g.video || '';
+  const pic = coverPicker(g, line);
+  out.append(af, pic.node, field(tt('A video about it'), video, tt('Optional. A YouTube, TikTok, Instagram or X link: a clip of the place, an invite, your last night.')));
+  paint();
+  return {
+    node: out, venue, addr, home, about, video,
+    read() {
+      const V = venue.value.trim().replace(/\s+/g, ' '), A = addr.value.trim().replace(/\s+/g, ' '), HM = home.value.trim().slice(0, L.place);
+      const AB = about.value.replace(/\r/g, '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+      let VD = video.value.trim(); if (VD && !/^https?:\/\//i.test(VD)) VD = 'https://' + VD; VD = VD.replace(/^http:/i, 'https:');
+      if (!kind) return { bad: tt('Pick where it is.'), node: pick };
+      if (kind === 'public' && V.length < 2) return { bad: tt('Type the name of the place.'), node: venue };
+      if (kind === 'public' && A.length < 5) return { bad: tt('Type the street address, so people can find it.'), node: addr };
+      if (kind === 'home' && HM.length < 5) return { bad: tt('Type the full address. Only the guests you say yes to will see it.'), node: home };
+      if (/[<>]/.test(V + A + HM + AB)) return { bad: tt('Leave out the < and > signs.') };
+      if (looksLikeAddress(AB.replace(/\n/g, ' '))) return { bad: tt('The address goes in its own box above, not in the description. Phone numbers stay out.'), node: about };
+      if (VD && !VIDEO_OK.test(VD)) return { bad: tt('The video link must be from YouTube, TikTok, Instagram or X.'), node: video };
+      const p = pic.value();
+      return { doc: { placeKind: kind, venue: kind === 'public' ? V : '', address: kind === 'public' ? A : '', join: kind === 'home' ? 'ask' : join, about: AB, video: VD, thumb: p.thumb },
+        home: kind === 'home' ? HM : '', big: p.big };
+    },
+  };
+}
 async function initNew(box) {
   const body = box.querySelector('[data-mb-body]');
   await data();
@@ -553,23 +782,25 @@ async function initNew(box) {
     DATA.formats.forEach(f => { const b = btn('mb-chip', w(f.name), () => { kind = f.id; fit(); }); b.setAttribute('data-k', f.id); chips.append(b); });
     fit();
     if (DATA.formats.length > 1) form.append(fmt);
-    const title = el('input', null, null, { type: 'text', maxlength: String(L.title), autocomplete: 'off' });
+    const title = el('input', null, null, { type: 'text', maxlength: String(L.title), autocomplete: 'off', 'data-mb-title': '' });
     const at = el('input', null, null, { type: 'datetime-local' });
-    const city = el('input', null, null, { type: 'text', maxlength: String(L.city), autocomplete: 'address-level2' });
-    const lineIn = el('input', null, null, { type: 'text', maxlength: String(L.line), autocomplete: 'off' });
+    const city = el('input', null, null, { type: 'text', maxlength: String(L.city), autocomplete: 'address-level2', 'data-mb-city': '' });
+    const lineIn = el('input', null, null, { type: 'text', maxlength: String(L.line), autocomplete: 'off', 'data-mb-line': '' });
     const link = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
-    const where = el('textarea', null, null, { maxlength: String(L.place), rows: '3' });
+    const more = detailFields(null, line);
     const t1 = tick(IU ? tt('This event is already public, and it is outside Iran.') : tt('If anyone coming is someone I haven\'t met, the first meeting is in a public place.'));
     const t2 = tick(tt('Everyone coming is 18 or over.'));
     const t3 = IU ? tick(tt('I am one of its organisers.')) : null;
     form.append(field(tt('Title'), title, IU ? tt('What it is, in a few words.') : tt('What you will talk about, or what you will watch.')),
-      field(tt('Day and time'), at, tt('Your own time. It is shown with your time zone.')),
-      field(tt('City'), city, tt('The city or town only. Never an address.')));
+      field(tt('Day and time'), at, tt('Your own time. It is shown with your time zone.')));
+    form.append(more.node.firstChild);      // where is it, right after the title and the time
+    [...more.node.querySelectorAll(':scope > .mb-sub')].forEach(n => form.append(n));
+    form.append(field(tt('City or town'), city, tt('It shows on the board, so people nearby find it.')));
     const pf = el('div', 'mb-f'); pf.append(el('span', 'mb-l', IU ? tt('Country') : tt('State, or country')), place.node); form.append(pf);
     form.append(field(IU ? tt('How many can come') : tt('How many guests'), size),
-      field(tt('One line about it'), lineIn, tt('Optional.')),
-      field(tt('Link to its own page'), link, tt('Optional. Your event page somewhere else, if it has one.')),
-      field(IU ? tt('Where to meet, for the people you accept') : tt('The place, for the guests you accept'), where, tt('Only you and the guests you say yes to see this. Use a public place for a first meeting.')));
+      field(tt('One line people see on the card'), lineIn, tt('The hook. Like: Five of us, one question, the best tacos in town.')));
+    [...more.node.children].forEach(n => form.append(n));
+    form.append(field(tt('Link to its own page'), link, tt('Optional. Your event page somewhere else, if it has one.')));
     form.append(t1.node, t2.node); if (t3) form.append(t3.node);
     const go = el('button', 'btn btn-key', IU ? tt('Post the event') : tt('Post the gathering'), { type: 'submit' });
     form.append(go, line, safety());
@@ -584,13 +815,15 @@ async function initNew(box) {
       if (T.length < 3) return bad(tt('Give it a title.'), title);
       if (!(start > Date.now() + 15 * 60000)) return bad(tt('Pick a day and time that is still ahead.'), at);
       if (start > Date.now() + (L.daysAhead - 1) * 86400000) return bad(tt('Pick a day within the next six months.'), at);
+      const M = more.read();
+      if (M.bad) return bad(M.bad, M.node);
       if (C.length < 2 || /[0-9<>]/.test(C)) return bad(tt('Type the city or town, with no numbers.'), city);
       if (!P.country) return bad(IU ? tt('Pick the country.') : tt('Pick the state or the country.'), place.top);
       if (P.country === 'IR') return bad(tt('Nothing inside Iran is ever listed here.'), place.top);
       if (f.us && P.country !== 'US') return bad(tt('This kind of gathering is for the US only.'));
       if (kind === 'registration' && P.state === 'fl') return bad(tt('A registration party is not offered in Florida.'));
       if (!(n >= f.min && n <= f.max)) return bad(tt('Pick between {a} and {b}.', { a: f.min, b: f.max }), size);
-      if ([T, LN, C].some(looksLikeAddress)) return bad(tt('That looks like an address or a phone number. Keep the place for the private box below.'));
+      if ([T, LN, C].some(looksLikeAddress)) return bad(tt('That looks like an address or a phone number. The address has its own box.'));
       if (/[<>]/.test(T + LN)) return bad(tt('Leave out the < and > signs.'));
       if (LK && !/^https:\/\/[^\s<>"']{4,}$/.test(LK)) return bad(tt('That link does not look right. Copy it from the address bar.'), link);
       if (!t1.input.checked || !t2.input.checked || (t3 && !t3.input.checked)) return bad(tt('Tick the boxes above to post it.'));
@@ -599,11 +832,13 @@ async function initNew(box) {
         const { F, db } = await within(25000, fb()), u = me();
         const ref = F.doc(F.collection(db, 'gatherings'));
         let tz = 'UTC'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (x) { }
-        await within(20000, F.setDoc(ref, { hostUid: u.uid, hostName: u.name, kind, title: T, line: LN, startAt: F.Timestamp.fromMillis(start), tz, city: C,
+        const b = F.writeBatch(db);
+        b.set(ref, Object.assign({ hostUid: u.uid, hostName: u.name, kind, title: T, line: LN, startAt: F.Timestamp.fromMillis(start), tz, city: C,
           country: P.country, state: P.state || '', size: n, taken: 0, link: LK, status: 'open', adult: true, publicPlace: true,
-          createdAt: F.serverTimestamp(), hidden: false, score: null }));
-        const pt = where.value.trim().slice(0, L.place);
-        if (pt) await within(20000, F.setDoc(F.doc(db, 'gatherings', ref.id, 'place', 'p'), { text: pt, at: F.serverTimestamp() }));
+          createdAt: F.serverTimestamp(), hidden: false, score: null, nightN: 0 }, M.doc));
+        if (M.home) b.set(F.doc(db, 'gatherings', ref.id, 'place', 'p'), { text: M.home, at: F.serverTimestamp() });
+        if (M.big) b.set(F.doc(db, 'gatherings', ref.id, 'cover', 'c'), { pic: M.big, at: F.serverTimestamp() });
+        await within(30000, b.commit());
         listAsk = null;
         location.href = page(DATA.paths.one + '?id=' + encodeURIComponent(ref.id));
       } catch (e) { go.disabled = false; say(line, words(e), true); }
@@ -643,14 +878,44 @@ function reportBox(tid, reasons) {
   wrap.append(open, line);
   return wrap;
 }
+/* The gathering page is one page for every gathering, built with a discussion whose key community.js reads from the address
+   (gatheringKey). Once the gathering is read, its discussion carries its title (what a post is filed under, the heading of
+   the discussion) and Share hands out this gathering's own address. A gathering that is not there has no discussion. */
+function nameTalk(g) {
+  const t = D.getElementById('talk'), h = D.getElementById('talk-h'), sh = D.getElementById('share'), title = String(g.title || '').slice(0, 80);
+  if (t && title) t.setAttribute('data-name', title);
+  if (t) t.toggleAttribute('data-public-place', g.placeKind === 'public');      // an address may be said in its discussion (firestore.rules goodGatheringPost)
+  if (h && title) h.textContent = title;
+  if (sh) { sh.setAttribute('data-url', location.origin + location.pathname + '?id=' + encodeURIComponent(g.id)); if (title) sh.setAttribute('data-title', title); }
+}
+function noTalk() {
+  const t = D.getElementById('talk');
+  if (t) t.setAttribute('data-on', '');
+  ['modes', 'band', 'discussion'].forEach(i => { const x = D.getElementById(i); if (x) x.hidden = true; });
+  if (location.hash === '#discussion') try { history.replaceState(null, '', location.pathname + location.search); } catch (x) { }
+}
 async function initOne(box) {
   const body = box.querySelector('[data-mb-body]'), h1 = box.querySelector('[data-mb-h]');
   await data();
   const id = new URLSearchParams(location.search).get('id') || '';
   if (!DATA || !K || K.off) { body.setAttribute('aria-busy', 'false'); return; }
-  if (!idOk(id)) { body.setAttribute('aria-busy', 'false'); body.append(el('p', 'mb-empty', tt('This gathering is not here any more.')), el('a', 'btn btn-line', tt('See the board'), { href: page(DATA.paths.board) })); return; }
+  if (!idOk(id)) { noTalk(); body.setAttribute('aria-busy', 'false'); body.append(el('p', 'mb-empty', tt('This gathering is not here any more.')), el('a', 'btn btn-line', tt('See the board'), { href: page(DATA.paths.board) })); return; }
   let G = null;
+  /* The gathering itself is public, so it is read over plain REST first: the page shows it without waiting for Firebase's own
+     code (15 October 2026, the same wait as the front page). Refused (hidden from the board, which its host and an admin may
+     still open) or not possible: through Firebase, signed in, as before. */
   async function load() {
+    if (K.restDoc && K.plain) {
+      let res = null;
+      try { res = await within(15000, fetch(K.restDoc('gatherings/' + id))); } catch (x) { res = null; }
+      if (res && res.status === 404) { G = null; return; }
+      if (res && res.ok) {
+        const got = await res.json(), g = K.plain({ mapValue: { fields: (got && got.fields) || {} } }) || {};
+        ['startAt', 'createdAt'].forEach(k => { const v = g[k]; if (typeof v === 'number') g[k] = { toMillis: () => v }; });
+        G = Object.assign(g, { id });
+        return;
+      }
+    }
     const { F, db } = await within(25000, fb());
     const s = await F.getDoc(F.doc(db, 'gatherings', id));
     G = s.exists() ? Object.assign({ id }, s.data()) : null;
@@ -658,37 +923,74 @@ async function initOne(box) {
   async function draw() {
     try { await load(); } catch (e) { G = null; }
     body.textContent = ''; body.setAttribute('aria-busy', 'false');
-    if (!G) { body.append(el('p', 'mb-empty', tt('This gathering is not here any more.')), el('a', 'btn btn-line', tt('See the board'), { href: page(DATA.paths.board) })); return; }
+    if (!G) { noTalk(); body.append(el('p', 'mb-empty', tt('This gathering is not here any more.')), el('a', 'btn btn-line', tt('See the board'), { href: page(DATA.paths.board) })); return; }
     h1.textContent = G.title;
+    nameTalk(G);
     try { D.title = G.title + (D.title.includes('|') ? ' |' + D.title.split('|').slice(1).join('|') : ''); } catch (x) { }
-    const top = el('div', 'mb-card');
+    const top = el('div', 'mb-card mb-one');
+    const cv = cover(G, true); top.append(cv);
+    bigCover(cv);
     top.append(el('span', 'mb-kind', fmtName(G.kind)));
-    const ab = aboutOf(G.kind); if (ab) top.append(el('p', 'mb-about', ab));
-    top.append(el('p', 'mb-when', when(G)), el('p', 'mb-where', whereOf(G)), el('p', 'mb-hint', tt('Only the guests the host says yes to get the exact place.')));
-    if (G.line) top.append(el('p', null, G.line));
-    const left = Math.max(0, G.size - (G.taken || 0));
-    top.append(el('p', 'mb-seats', G.status === 'cancelled' ? tt('Called off') : left ? tt('{n} of {size} seats left', { n: left, size: G.size }) : tt('Full')));
+    if (G.line) top.append(el('p', 'mb-hook', G.line));
+    top.append(el('p', 'mb-when', when(G)), whereBlock(G));
+    const left = Math.max(0, G.size - (G.taken || 0)), started = ms(G.startAt) <= Date.now();
+    top.append(el('p', 'mb-seats', G.status === 'cancelled' ? tt('Called off') : goingLine(G) + (started ? '' : ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: G.size }) : tt('Full')))));
     const host = el('p', 'mb-host mb-row'); host.append(face(G.hostName, G.hostUid), el('span', null, tt('Hosted by')), el('a', null, G.hostName, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(G.hostUid)) }));
     const r = ratingLine(G); if (r) host.append(el('span', null, r));
     top.append(host);
+    if (G.about) top.append(el('div', 'mb-desc', G.about));
+    else { const ab = aboutOf(G.kind); if (ab) top.append(el('p', 'mb-about', ab)); }
+    if (typeof G.video === 'string' && VIDEO_OK.test(G.video)) top.append(tvBox(G.video, tt('A video from the host')));
     if (G.link) top.append(el('a', null, tt('Its own page'), { href: G.link, target: '_blank', rel: 'noopener noreferrer nofollow' }));
+    const row = el('div', 'mb-acts');
+    if (talkKey(G.id)) row.append(el('a', 'talk-n', tt('Discuss'), { 'data-talk-n': talkKey(G.id), href: '#discussion' }));
+    row.append(shareBtn(G));
+    top.append(row);
     body.append(top);
-    const u = me(), started = ms(G.startAt) <= Date.now();
+    const u = me();
     const act = el('div', 'mb-f', null, { id: 'in' }), line = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
     body.append(act, line);
     const { F, db } = await within(25000, fb());
     if (u && u.uid === G.hostUid) await hostPanel(act, line, F, db, started);
     else await guestPanel(act, line, F, db, started, u);
+    if (started) await nightWall(F, db, u);
     body.append(safety());
-    if (u && u.uid !== G.hostUid) body.append(reportBox('g-' + id, [['address', tt('It shows an address')], ['abusive', tt('It is abusive')], ['fake', tt('It is not real')], ['advert', tt('It is an advert')]]));
+    if (u && u.uid !== G.hostUid) body.append(reportBox('g-' + id, [['address', tt('It shows a home address')], ['abusive', tt('It is abusive')], ['fake', tt('It is not real')], ['advert', tt('It is an advert')]]));
     if (location.hash === '#in') { const b = act.querySelector('button,input'); if (b) try { b.focus(); act.scrollIntoView({ block: 'center' }); } catch (x) { } }
+    if (location.hash === '#night') { const n = D.getElementById('night'); if (n) try { n.scrollIntoView(); } catch (x) { } }
+  }
+  /* The larger cover (cover/c), read only here; the card's small one shows until it arrives. */
+  async function bigCover(cv) {
+    if (!G.thumb) return;
+    try {
+      const { F, db } = await within(25000, fb());
+      const s = await F.getDoc(F.doc(db, 'gatherings', id, 'cover', 'c'));
+      const pic = s.exists() ? s.data().pic : '';
+      if (typeof pic === 'string' && /^data:image\/jpeg;base64,/.test(pic)) { const i = cv.querySelector('img'); if (i) { i.src = pic; i.width = 1200; i.height = 675; } }
+    } catch (x) { }
+  }
+  /* Who is going, by name: only the host and the guests who are in can read the list (the rules say the same). */
+  async function goingList(F, db) {
+    try {
+      const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'guests'), F.limit(100)));
+      const ins = s.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(g => g.status === 'in');
+      const ul = el('ul', 'mb-going');
+      const hl = el('li', 'mb-row'); hl.append(face(G.hostName, G.hostUid), el('span', null, G.hostName + ' · ' + tt('host'))); ul.append(hl);
+      ins.forEach(g => { const li = el('li', 'mb-row'); li.append(face(g.name, g.id), el('a', null, g.name, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(g.id)) })); ul.append(li); });
+      const box = el('div', 'mb-f'); box.append(el('h2', 'mb-h2', tt('Who is going')), ul);
+      return box;
+    } catch (x) { return null; }
   }
   async function guestPanel(act, line, F, db, started, u) {
+    const open = openJoin(G);
     if (!u) {
-      if (!started && G.status === 'open') { const b = btn('btn btn-key', tt('I\'m in'), () => { K.open('auth', { opener: b }); fb().catch(() => { }); }); act.append(b, el('p', 'mb-hint', tt('Sign in first. The host says yes or no, and only the guests they say yes to see the place.'))); }
+      if (!started && G.status === 'open') {
+        const b = btn('btn btn-key', tt('I\'m in'), () => { K.open('auth', { opener: b }); fb().catch(() => { }); });
+        act.append(b, el('p', 'mb-hint', open ? tt('Sign in first. Then one tap and you are in.') : isPublic(G) ? tt('Sign in first. The host says yes or no.') : tt('Sign in first. The host says yes or no, and the guests they say yes to get the address.')));
+      }
       return;
     }
-    const ref = F.doc(db, 'gatherings', id, 'guests', u.uid);
+    const ref = F.doc(db, 'gatherings', id, 'guests', u.uid), gref = F.doc(db, 'gatherings', id);
     let mine = null; try { const s = await F.getDoc(ref); mine = s.exists() ? s.data() : null; } catch (x) { }
     if (!mine) {
       if (started || G.status !== 'open') { act.append(el('p', 'mb-empty', started ? tt('This one has already started.') : tt('Called off'))); return; }
@@ -698,17 +1000,38 @@ async function initOne(box) {
       const b = btn('btn btn-key', tt('I\'m in'), async () => {
         if (!t.input.checked) { say(line, tt('Tick the box first.'), true); return; }
         b.disabled = true; say(line, tt('Sending.'));
-        try { await within(20000, F.setDoc(ref, { uid: u.uid, name: u.name, status: 'asked', adult: true, at: F.serverTimestamp() })); draw(); }
-        catch (e) { b.disabled = false; say(line, words(e), true); }
+        try {
+          if (open) {
+            /* in at once: their own guest document and one more seat, in one batch (the rules check each against the other) */
+            const bt = F.writeBatch(db);
+            bt.set(ref, { uid: u.uid, name: u.name, status: 'in', adult: true, at: F.serverTimestamp() });
+            bt.update(gref, { taken: F.increment(1) });
+            await within(20000, bt.commit());
+          } else await within(20000, F.setDoc(ref, { uid: u.uid, name: u.name, status: 'asked', adult: true, at: F.serverTimestamp() }));
+          listAsk = null; draw();
+        } catch (e) { b.disabled = false; say(line, words(e), true); }
       });
-      act.append(t.node, b, el('p', 'mb-hint', tt('The host says yes or no. Only the guests they say yes to see the place.')));
+      act.append(t.node, b, el('p', 'mb-hint', open ? tt('Anyone can join this one. One tap and you are in.') : isPublic(G) ? tt('The host says yes or no to each guest.') : tt('The host says yes or no. The guests they say yes to get the address.')));
       return;
     }
-    const drop = () => twoTap(tt('Take back my ask'), tt('Tap again to take it back'), async () => { try { await F.deleteDoc(ref); draw(); } catch (e) { say(line, words(e), true); } });
+    const leave = mine.status === 'in' && open;
+    const drop = () => twoTap(leave || mine.status === 'in' ? tt('I can\'t come any more') : tt('Take back my ask'), tt('Tap again to be sure'), async () => {
+      try {
+        if (leave) { const bt = F.writeBatch(db); bt.delete(ref); bt.update(gref, { taken: F.increment(-1) }); await bt.commit(); }
+        else await F.deleteDoc(ref);
+        listAsk = null; draw();
+      } catch (e) { say(line, words(e), true); }
+    });
     if (mine.status === 'asked') { act.append(el('p', 'mb-lede', tt('You asked. The host answers here.'))); if (!started) act.append(drop()); return; }
     if (mine.status === 'no') { act.append(el('p', 'mb-lede', tt('The host can\'t fit you in this time.'))); return; }
-    act.append(el('p', 'mb-lede', tt('You\'re in.')));
-    try { const p = await F.getDoc(F.doc(db, 'gatherings', id, 'place', 'p')); if (p.exists()) { act.append(el('p', 'mb-l', tt('Where')), el('p', 'mb-place', p.data().text)); } else act.append(el('p', 'mb-hint', tt('The host has not written the place yet. Look again closer to the day.'))); } catch (x) { }
+    act.append(el('p', 'mb-lede', tt('You\'re in. See you there.')));
+    try {
+      const p = await F.getDoc(F.doc(db, 'gatherings', id, 'place', 'p'));
+      const txt = p.exists() ? String(p.data().text || '') : '';
+      if (txt) { act.append(el('p', 'mb-l', isPublic(G) ? tt('A note from the host') : tt('The address')), el('p', 'mb-place', txt)); if (!isPublic(G)) act.append(mapsLink(tt('Open in Maps'), txt)); }
+      else if (!isPublic(G)) act.append(el('p', 'mb-hint', tt('The host has not written the address yet. Look again closer to the day.')));
+    } catch (x) { }
+    const gl = await goingList(F, db); if (gl) act.append(gl);
     if (!started) { act.append(drop()); return; }
     // after it started: the rating, once, and a private note to the host
     let rated = null; try { const s = await F.getDoc(F.doc(db, 'gatherings', id, 'ratings', u.uid)); rated = s.exists() ? s.data() : null; } catch (x) { }
@@ -733,14 +1056,14 @@ async function initOne(box) {
   }
   async function hostPanel(act, line, F, db, started) {
     act.append(el('h2', 'mb-h2', tt('Your guests')));
-    let guests = [];
-    try { const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'guests'), F.limit(100))); guests = s.docs.map(d => Object.assign({ id: d.id }, d.data())); } catch (e) { say(line, words(e), true); }
+    let guests = [], listed = false;
+    try { const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'guests'), F.limit(100))); guests = s.docs.map(d => Object.assign({ id: d.id }, d.data())); listed = true; } catch (e) { say(line, words(e), true); }
     const list = el('ul', 'mb-guests');
     const recount = async () => {
       const n = guests.filter(g => g.status === 'in').length;
       if (n !== G.taken && n <= G.size) { await F.updateDoc(F.doc(db, 'gatherings', id), { taken: n, hostName: me().name }); G.taken = n; }
     };
-    if (!guests.length) act.append(el('p', 'mb-hint', tt('Nobody has asked yet. When someone does, you say yes or no here.')));
+    if (!guests.length) act.append(el('p', 'mb-hint', openJoin(G) ? tt('Nobody has joined yet. Share it: people join with one tap.') : tt('Nobody has asked yet. When someone does, you say yes or no here.')));
     guests.sort((a, b) => ms(a.at) - ms(b.at)).forEach(g => {
       const li = el('li'), who = el('span', 'mb-row');
       who.append(face(g.name, g.id), el('a', null, g.name, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(g.id)) }));
@@ -755,16 +1078,46 @@ async function initOne(box) {
       li.append(who, st, row); list.append(li);
     });
     act.append(list);
-    // the place: only the host and the guests they said yes to read it
+    if (listed) try { await recount(); } catch (x) { }      // the seats follow who is in, whoever let them in
+    // place/p: the full address of a home (only the guests the host says yes to read it), or a note for the guests of a public place
     const pref = F.doc(db, 'gatherings', id, 'place', 'p');
     let ptext = ''; try { const p = await F.getDoc(pref); ptext = p.exists() ? p.data().text : ''; } catch (x) { }
-    const ta = el('textarea', null, null, { maxlength: String(DATA.limits.place), rows: '3' }); ta.value = ptext;
-    const saveP = btn('btn btn-line', tt('Save the place'), async () => {
-      say(line, tt('Saving.'));
-      try { await within(20000, F.setDoc(pref, { text: ta.value.trim().slice(0, DATA.limits.place), at: F.serverTimestamp() })); say(line, tt('Saved.')); } catch (e) { say(line, words(e), true); }
+    if (isPublic(G)) {
+      const ta = el('textarea', null, null, { maxlength: String(DATA.limits.place), rows: '2' }); ta.value = ptext;
+      const saveP = btn('btn btn-line', tt('Save the note'), async () => {
+        say(line, tt('Saving.'));
+        try { await within(20000, F.setDoc(pref, { text: ta.value.trim().slice(0, DATA.limits.place), at: F.serverTimestamp() })); say(line, tt('Saved.')); } catch (e) { say(line, words(e), true); }
+      });
+      const pf = el('div', 'mb-form'); pf.append(field(tt('A note only your guests see'), ta, tt('Optional. Like: ask for me at the bar, I have the red scarf.')), saveP);
+      act.append(pf);
+    }
+    // the host changes where it is, who may join, the picture, the words and the video
+    const edit = btn('btn btn-line', tt('Edit the gathering'), () => {
+      edit.hidden = true;
+      const form = el('form', 'mb-form mb-edit-g', null, { novalidate: '' }), eline = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
+      const lineIn = el('input', null, null, { type: 'text', maxlength: String(DATA.limits.line), autocomplete: 'off' }); lineIn.value = G.line || '';
+      const more = detailFields(Object.assign({}, G, { homeText: isPublic(G) ? '' : ptext }), eline);
+      const save = el('button', 'btn btn-key', tt('Save'), { type: 'submit' });
+      form.append(el('h2', 'mb-h2', tt('Edit the gathering')), field(tt('One line people see on the card'), lineIn), more.node, save, eline);
+      form.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const M = more.read(), LN = lineIn.value.trim().replace(/\s+/g, ' ');
+        if (M.bad) { say(eline, M.bad, true); if (M.node) try { M.node.focus(); } catch (x) { } return; }
+        if (looksLikeAddress(LN) || /[<>]/.test(LN)) { say(eline, tt('That looks like an address or a phone number. The address has its own box.'), true); return; }
+        save.disabled = true; say(eline, tt('Saving.'));
+        try {
+          const bt = F.writeBatch(db);
+          bt.update(F.doc(db, 'gatherings', id), Object.assign({ line: LN, hostName: me().name }, M.doc));
+          if (M.home) bt.set(pref, { text: M.home, at: F.serverTimestamp() });
+          if (M.big) bt.set(F.doc(db, 'gatherings', id, 'cover', 'c'), { pic: M.big, at: F.serverTimestamp() });
+          await within(30000, bt.commit());
+          listAsk = null; draw();
+        } catch (e) { save.disabled = false; say(eline, words(e), true); }
+      });
+      edit.after(form);
     });
-    const pf = el('div', 'mb-form'); pf.append(field(tt('The place, for the guests you accept'), ta, tt('Only you and the guests you say yes to see this. Use a public place for a first meeting.')), saveP);
-    act.append(pf);
+    act.append(edit);
+    if (!isPublic(G) && !ptext) act.append(el('p', 'mb-say bad', tt('Add the full address with Edit the gathering, so the guests you say yes to know where to go.')));
     if (started) {
       try {
         const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'notes'), F.limit(100)));
@@ -774,6 +1127,70 @@ async function initOne(box) {
     if (G.status === 'open' && !started) act.append(twoTap(tt('Call it off'), tt('Tap again to call it off'), async () => {
       try { await F.updateDoc(F.doc(db, 'gatherings', id), { status: 'cancelled', hostName: me().name }); listAsk = null; draw(); } catch (e) { say(line, words(e), true); }
     }));
+  }
+  /* "From the night": after it started, the host and the guests who were in post photos and video links; everyone sees them.
+     Each post is its own document, <account id>-<nightN>, and nightN on the gathering goes up by one in the same batch. */
+  async function nightWall(F, db, u) {
+    const sec = el('section', 'mb-night', null, { id: 'night' });
+    sec.append(el('h2', 'mb-h2', tt('From the night')));
+    let posts = [];
+    try { const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'night'), F.where('hidden', '==', false), F.limit(60))); posts = s.docs.map(d => Object.assign({ id: d.id }, d.data())); } catch (x) { }
+    posts.sort((a, b) => ms(a.at) - ms(b.at));
+    const ul = el('ul', 'mb-wall');
+    posts.forEach(p => {
+      const li = el('li', 'mb-shot');
+      if (p.pic && /^data:image\/jpeg;base64,/.test(p.pic)) li.append(el('img', null, null, { src: p.pic, alt: tt('A photo from the night, posted by {name}', { name: p.name }), loading: 'lazy', decoding: 'async' }));
+      if (p.video && VIDEO_OK.test(p.video)) li.append(tvBox(p.video, tt('A video from the night')));
+      const by = el('p', 'mb-row mb-hint'); by.append(face(p.name, p.uid), el('span', null, p.name)); li.append(by);
+      if (u && (u.uid === p.uid || u.uid === G.hostUid)) li.append(twoTap(tt('Take it down'), tt('Tap again to take it down'), async () => { try { await F.deleteDoc(F.doc(db, 'gatherings', id, 'night', p.id)); draw(); } catch (e) { } }));
+      else if (u) li.append(reportBox('n-' + id + '-' + p.id, [['picture', tt('Someone in it did not agree to be posted')], ['abusive', tt('It is abusive')], ['advert', tt('It is an advert')]]));
+      ul.append(li);
+    });
+    if (posts.length) sec.append(ul);
+    else sec.append(el('p', 'mb-hint', tt('No photos yet. The host and the guests who came can post theirs here.')));
+    // posting: the host or a guest who was in, for 30 days after it started
+    let can = false;
+    if (u && u.v && ms(G.startAt) + 30 * 86400000 > Date.now()) {
+      if (u.uid === G.hostUid) can = true;
+      else { try { const s = await F.getDoc(F.doc(db, 'gatherings', id, 'guests', u.uid)); can = s.exists() && s.data().status === 'in'; } catch (x) { } }
+    }
+    if (can) {
+      const form = el('div', 'mb-form'), pl = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
+      let pic = '';
+      const fid = 'mb-' + Math.random().toString(36).slice(2, 9);
+      const file = el('input', null, null, { type: 'file', id: fid, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-night': '' });
+      const prev = el('div', 'mb-shot-prev');
+      file.addEventListener('change', async () => {
+        const f = file.files && file.files[0]; if (!f) return;
+        say(pl, tt('Making it small.'));
+        try { pic = await shrinkTo(f, 1280, 1280, 390000, false); prev.textContent = ''; prev.append(el('img', null, null, { src: pic, alt: '' })); say(pl, tt('Ready.')); }
+        catch (e) { pic = ''; say(pl, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
+      });
+      const vid = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
+      const ok = tick(tt('Everyone in it is fine with being posted.'));
+      const post = btn('btn btn-key', tt('Post it'), async () => {
+        let V = vid.value.trim(); if (V && !/^https?:\/\//i.test(V)) V = 'https://' + V; V = V.replace(/^http:/i, 'https:');
+        if (!pic && !V) { say(pl, tt('Add a photo or a video link.'), true); return; }
+        if (V && !VIDEO_OK.test(V)) { say(pl, tt('The video link must be from YouTube, TikTok, Instagram or X.'), true); return; }
+        if (!ok.input.checked) { say(pl, tt('Tick the box first.'), true); return; }
+        post.disabled = true; say(pl, tt('Posting.'));
+        const tryOnce = async () => {
+          const gs = await F.getDoc(F.doc(db, 'gatherings', id));
+          const n = ((gs.exists() && gs.data().nightN) || 0) + 1;
+          const bt = F.writeBatch(db);
+          bt.set(F.doc(db, 'gatherings', id, 'night', u.uid + '-' + n), { uid: u.uid, name: u.name, pic, video: V, ok: true, at: F.serverTimestamp(), hidden: false });
+          bt.update(F.doc(db, 'gatherings', id), { nightN: F.increment(1) });
+          await within(30000, bt.commit());
+        };
+        try { try { await tryOnce(); } catch (e) { if (e && e.code === 'permission-denied') await tryOnce(); else throw e; } listAsk = null; draw(); }
+        catch (e) { post.disabled = false; say(pl, words(e), true); }
+      });
+      form.append(el('h3', null, tt('Post your photos and videos')), el('label', 'mb-l', tt('A photo'), { for: fid }), file, prev,
+        field(tt('Or a video link'), vid, tt('YouTube, TikTok, Instagram or X.')), ok.node, post, pl,
+        el('p', 'mb-hint', tt('Everyone can see what you post here. Only post people who said yes to it.')));
+      sec.append(form);
+    }
+    if (posts.length || can) body.append(sec);
   }
   await draw();
   K.sub(() => { draw().catch(() => { }); });
@@ -797,12 +1214,14 @@ async function shrink(file) {
     throw { code: 'mb/toobig' };
   } finally { URL.revokeObjectURL(url); }
 }
+/* The picture on a profile: an approved photo (the owner always sees their own), the drawn picture they chose, or the one
+   the site gave them (community.js face(), 15 October 2026). */
 function picOf(p, uid, name, own) {
   const box = el('div', 'mb-pic');
   const av = p && p.avatar && DATA.avatars.find(a => a.id === p.avatar);
   const photoOk = p && p.pic && (own || same(p.picOk, p.picAt));
-  if (photoOk) box.append(el('img', null, null, { src: p.pic, alt: '', width: '96', height: '96' }));
-  else if (av) box.append(el('img', null, null, { src: ROOT + av.src, alt: '', width: '96', height: '96' }));
+  if (photoOk) box.append(el('img', null, null, { src: p.pic, alt: '', width: '128', height: '128' }));
+  else if (av) box.append(el('img', null, null, { src: ROOT + av.src, alt: '', width: '128', height: '128' }));
   else box.append(face(name, uid));
   return box;
 }
@@ -811,14 +1230,29 @@ function levelOf(xp) {
   let i = 0; L.forEach((l, j) => { if (xp >= l.xp) i = j; });
   return { now: L[i], next: L[i + 1] || null };
 }
+const PEN = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm17.7-10.2a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+const UP = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path fill="currentColor" d="M12 3l5 5h-3v6h-4V8H7l5-5zm-7 14h14v3H5v-3z"/></svg>';
+const TICK = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>';
+function svgIn(node, svg) { node.insertAdjacentHTML('beforeend', svg); return node; }
+
+/* member/?u=: a profile (rebuilt 15 October 2026, Armin: "the way people's profiles look and the way they could edit it.
+   Significantly improve that: the look of it, the user interface, the ease of use, and the intuitiveness").
+   ONE card at the top says who this is: the picture, the name, the rank with how far to the next one, the one line. Three
+   numbers under it. The owner sees, until it is done, one short list of what is left (a picture, a line, the two questions),
+   each with its own button, in place of a row of separate buttons. Tapping their own picture or Edit your profile turns that
+   same card into the editor, in place: the picture with two tabs (the drawn pictures, grouped, the reader's own kind first,
+   the one they were given marked; or their own photo, one big button), the line with a live count, the name, and Save and
+   Cancel kept on screen at the foot. Then what they did: missions, gatherings, what they wrote. */
 async function initMember(box) {
   const body = box.querySelector('[data-mb-body]'), h1 = box.querySelector('[data-mb-h]');
   await data();
   if (!DATA || !K || K.off) { body.setAttribute('aria-busy', 'false'); return; }
   const q = new URLSearchParams(location.search).get('u') || '';
-  let editing = location.hash === '#edit';
+  let editing = location.hash === '#edit' ? 'all' : '';
   async function draw() {
     const u = me(), uid = idOk(q) ? q : (u ? u.uid : '');
+    if (h1.parentNode !== box.querySelector('.mb-wrap')) { const wrap = box.querySelector('.mb-wrap'); if (wrap) wrap.insertBefore(h1, wrap.firstChild); }
+    h1.classList.remove('mb-name');
     body.textContent = ''; body.setAttribute('aria-busy', 'false');
     if (!uid) { signInFirst(body, tt('Sign in to see your profile.')); return; }
     const own = !!u && u.uid === uid;
@@ -826,6 +1260,7 @@ async function initMember(box) {
     const get = p => F.getDoc(F.doc(db, ...p)).then(s => (s.exists() ? s.data() : null)).catch(() => null);
     const [P, X] = await Promise.all([get(['profiles', uid]), get(['xp', uid])]);
     if (own) { PROF = P; await loadMine(true); }
+    if (K.faceKnow && P) K.faceKnow(uid, P, own);
     const posts = await F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', uid), F.where('status', '==', 'live'), F.limit(30))).then(s => s.docs.map(d => Object.assign({ id: d.id }, d.data()))).catch(() => []);
     const hosted = await F.getDocs(F.query(F.collection(db, 'gatherings'), F.where('hostUid', '==', uid), F.where('hidden', '==', false), F.limit(50))).then(s => s.docs.map(d => Object.assign({ id: d.id }, d.data()))).catch(() => []);
     const name = (P && P.name) || (X && X.name) || (posts[0] && posts[0].name) || (own ? u.name : '');
@@ -833,105 +1268,202 @@ async function initMember(box) {
     if (P && P.hidden && !own) { body.append(el('p', 'mb-empty', tt('This profile is hidden.'))); return; }
     h1.textContent = name;
     try { D.title = name + (D.title.includes('|') ? ' |' + D.title.split('|').slice(1).join('|') : ''); } catch (x) { }
-    const prof = el('div', 'mb-prof'), top = el('div', 'mb-top'), whoBox = el('div', 'mb-who');
-    top.append(picOf(P, uid, name, own), whoBox);
-    if (P && P.bio) whoBox.append(el('p', 'mb-bio', P.bio));
-    else if (own) whoBox.append(el('p', 'mb-hint', tt('Add one line about you.')));
-    prof.append(top);
-    if (own && P && P.hidden) prof.append(el('p', 'mb-say bad', tt('Your profile is hidden from others while I look at a report about it.')));
-    if (own && P && P.pic && !same(P.picOk, P.picAt)) prof.append(el('p', 'mb-hint', tt('Only you see this photo until I have looked at it. Usually within a day.')));
-    // the rank
-    const xp = X && typeof X.xp === 'number' ? X.xp : 0, lv = levelOf(xp), rank = el('div', 'mb-rank');
-    rank.append(el('p', 'mb-kind', tt('Rank')), el('p', 'mb-when', w(lv.now.name) + ' · ' + tt('{n} XP', { n: xp })));
-    if (lv.now.line) rank.append(el('p', 'mb-hint', w(lv.now.line)));
-    if (lv.next) { const bar = el('div', 'mb-bar'), i = el('i'); i.style.width = Math.max(2, Math.min(100, Math.round(100 * (xp - lv.now.xp) / (lv.next.xp - lv.now.xp)))) + '%'; bar.append(i); rank.append(bar, el('p', 'mb-hint', tt('{n} XP to {level}', { n: lv.next.xp - xp, level: w(lv.next.name) }))); }
-    prof.append(rank);
-    // missions done
-    const done = new Set(), list = el('ul', 'mb-stats');
+
+    // ---- what they did, counted once for the numbers and the lists
+    const xp = X && typeof X.xp === 'number' ? X.xp : 0, lv = levelOf(xp);
+    const done = new Set();
     Object.values((X && X.reports) || {}).forEach(r => { if (r && r.state === 'accepted' && DATA.missions[r.mission]) done.add(w(DATA.missions[r.mission].title)); });
     if (own) Object.entries(DATA.missions).forEach(([, m]) => { if (m.auto && STATE[m.auto]) done.add(w(m.title)); });
     ((X && X.grants) || []).forEach(g => { if (g && g.what) done.add(g.what); });
-    if (done.size) { prof.append(el('h2', 'mb-h2', tt('Missions done'))); [...done].forEach(t => list.append(el('li', null, '✓ ' + t))); prof.append(list); }
-    // gatherings hosted
+
+    // ---- the card at the top
+    const prof = el('div', 'mb-prof'), hero = el('section', 'mb-hero'), heroPic = el('div', 'mb-hero-pic'), who = el('div', 'mb-hero-who');
+    const pic = picOf(P, uid, name, own);
+    if (own) {
+      const b = btn('mb-pic-btn', null, () => openEdit('pic'));
+      b.setAttribute('aria-label', tt('Change your picture'));
+      b.append(pic, svgIn(el('span', 'mb-pic-pen'), PEN));
+      heroPic.append(b);
+    } else heroPic.append(pic);
+    h1.classList.add('mb-name');
+    who.append(h1);
+    const rank = el('p', 'mb-rankline');
+    rank.append(el('span', 'mb-rankname', w(lv.now.name)), el('span', 'mb-xp', tt('{n} XP', { n: xp })));
+    who.append(rank);
+    if (P && P.bio) who.append(el('p', 'mb-bio', P.bio));
+    if (own) who.append(svgIn(btn('btn btn-line mb-editbtn', tt('Edit your profile'), () => openEdit('all')), PEN));
+    hero.append(heroPic, who);
+    if (lv.next) {
+      const prog = el('div', 'mb-prog'), bar = el('div', 'mb-bar'), i = el('i');
+      i.style.width = Math.max(3, Math.min(100, Math.round(100 * (xp - lv.now.xp) / (lv.next.xp - lv.now.xp)))) + '%';
+      bar.append(i);
+      prog.append(bar, el('p', 'mb-hint', tt('{n} XP to {level}', { n: lv.next.xp - xp, level: w(lv.next.name) })));
+      hero.append(prog);
+    }
+    if (lv.now.line) hero.append(el('p', 'mb-hint mb-rankmeaning', w(lv.now.line)));
+    prof.append(hero);
+    if (own && P && P.hidden) prof.append(el('p', 'mb-say bad', tt('Your profile is hidden from others while I look at a report about it.')));
+    if (own && P && P.pic && !same(P.picOk, P.picAt)) prof.append(el('p', 'mb-hint', tt('Only you see this photo until I have looked at it. Usually within a day.')));
+
+    // ---- three numbers
+    const nums = el('ul', 'mb-nums');
+    const num = (n, label) => { const li = el('li'); li.append(el('b', null, dig(n)), el('span', null, label)); nums.append(li); };
+    num(done.size, tt('Missions done'));
+    num(posts.length, tt('Posts'));
+    num(hosted.length, IU ? tt('Events posted') : tt('Gatherings hosted'));
+    prof.append(nums);
+
+    // ---- what is left, for the owner only, until it is done
+    if (own) {
+      const steps = [
+        { ok: !!(P && (P.avatar || P.pic)), text: tt('Pick your picture'), go: () => openEdit('pic') },
+        { ok: !!(P && P.bio && P.bio.trim()), text: tt('Write one line about you'), go: () => openEdit('bio') },
+      ];
+      if (!insideIran()) steps.push({ ok: questionsDone(PRIV), text: tt('Answer the two questions'), go: () => askQuestions(true) });
+      const left = steps.filter(s => !s.ok).length;
+      if (left) {
+        const todo = el('section', 'mb-todo'), ol = el('ol', 'mb-steps');
+        todo.append(el('h2', 'mb-h3', tt('Finish your profile')), el('p', 'mb-hint', tt('{n} of {m} done', { n: steps.length - left, m: steps.length })));
+        steps.forEach(s => {
+          const li = el('li', s.ok ? 'is-done' : '');
+          li.append(svgIn(el('span', 'mb-stepdot'), s.ok ? TICK : ''), el('span', 'mb-steptext', s.text));
+          if (!s.ok) li.append(btn('btn btn-key mb-btn-s', tt('Do it'), s.go));
+          ol.append(li);
+        });
+        todo.append(ol);
+        prof.append(todo);
+      }
+    }
+
+    // ---- what they did
+    if (done.size) {
+      prof.append(el('h2', 'mb-h2', tt('Missions done')));
+      const ul = el('ul', 'mb-badges');
+      [...done].forEach(t => { const li = svgIn(el('li'), TICK); li.append(el('span', null, t)); ul.append(li); });
+      prof.append(ul);
+    }
     if (hosted.length) {
       prof.append(el('h2', 'mb-h2', IU ? tt('Events posted') : tt('Gatherings hosted')));
       const ul = el('ul', 'mb-list'); hosted.sort((a, b) => ms(b.startAt) - ms(a.startAt)).forEach(g => ul.append(card(g))); prof.append(ul);
     }
-    // what they wrote
     if (posts.length) {
       prof.append(el('h2', 'mb-h2', tt('What they wrote')));
-      const ul = el('ul', 'mb-stats');
+      const ul = el('ul', 'mb-posts');
       posts.sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 10).forEach(p => {
         const path = K.pathOf ? K.pathOf(p.about) : null;
-        const li = el('li');
-        if (path != null) li.append(el('a', null, p.subject || tt('Open the page'), { href: ROOT + path + '#p-' + p.id }));
-        else li.append(el('span', null, p.subject || ''));
-        li.append(el('span', 'mb-hint', ' · ' + (K.ago ? K.ago(ms(p.createdAt)) : '')));
-        const t = String(p.text || '').trim(); if (t) li.append(el('p', 'mb-hint', t.length > 140 ? t.slice(0, 139) + '…' : t));
+        const li = el('li', 'mb-post'), head = el('p', 'mb-post-h');
+        if (path != null) head.append(el('a', null, p.subject || tt('Open the page'), { href: ROOT + path + '#p-' + p.id }));
+        else head.append(el('span', null, p.subject || ''));
+        head.append(el('span', 'mb-hint', K.ago ? K.ago(ms(p.createdAt)) : ''));
+        li.append(head);
+        const t = String(p.text || '').trim(); if (t) li.append(el('p', 'mb-post-t', t.length > 180 ? t.slice(0, 179) + '…' : t));
         ul.append(li);
       });
       prof.append(ul);
-    }
+    } else if (own) prof.append(el('p', 'mb-hint', tt('What you write in the discussions shows here.')));
     body.append(prof);
-    if (own) {
-      if (!questionsDone(PRIV) && !insideIran()) prof.before(btn('btn btn-line', tt('Answer the two questions'), () => askQuestions(true)));
-      const edit = btn('btn btn-key', tt('Edit your profile'), () => { editing = true; drawEdit(); });
-      prof.before(edit);
-      if (editing) drawEdit();
-      function drawEdit() {
-        edit.hidden = true;
-        if (body.querySelector('.mb-edit')) return;
-        if (!u.v) { prof.before(el('p', 'mb-say bad mb-edit', tt('Confirm your email first. The link is in your inbox.'))); return; }
-        const form = el('form', 'mb-form mb-edit', null, { novalidate: '' }), line = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
-        let pic = (P && P.pic) || '', avatar = (P && P.avatar) || '';
-        const prev = el('div', 'mb-top'), pv = () => { prev.textContent = ''; prev.append(picOf({ pic, avatar, picOk: null, picAt: null }, uid, name, true)); };
-        pv();
-        form.append(el('h2', 'mb-h2', tt('Your picture')), prev);
-        if (IU) form.append(el('p', 'mb-say bad', tt('A face photo can be seen by anyone who opens this page. A drawn picture is safer.')));
-        if (DATA.avatars.length) {
-          const grid = el('div', 'mb-avs', null, { role: 'group', 'aria-label': tt('Pick a drawn picture') });
-          DATA.avatars.forEach(a => {
-            const b = btn('mb-av', null, () => { avatar = a.id; pic = ''; grid.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); pv(); });
-            b.setAttribute('aria-pressed', String(a.id === avatar && !pic)); b.setAttribute('aria-label', w(a.alt) || a.id); b.setAttribute('data-av', a.id);
-            b.append(el('img', null, null, { src: ROOT + a.src, alt: '', width: '64', height: '64', loading: 'lazy' })); grid.append(b);
-          });
-          form.append(el('p', 'mb-l', tt('Pick a drawn picture')), grid);
-        }
-        const file = el('input', null, null, { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-file': '' });
-        file.addEventListener('change', async () => {
-          const f = file.files && file.files[0];
-          if (!f) return;
-          say(line, tt('Making it small.'));
-          try { pic = await shrink(f); avatar = ''; form.querySelectorAll('.mb-av').forEach(x => x.setAttribute('aria-pressed', 'false')); pv(); say(line, tt('Ready. Save to keep it.')); }
-          catch (e) { say(line, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
-        });
-        form.append(field(tt('Or use a photo'), file, tt('It is cut to a square and made small before it leaves your phone.')));
-        if (pic) form.append(btn('mb-text', tt('Remove the photo'), () => { pic = ''; pv(); }));
-        const bio = el('textarea', null, null, { maxlength: String(DATA.limits.bio), rows: '2' }); bio.value = (P && P.bio) || '';
-        const cnt = el('span', 'mb-count'), upd = () => { cnt.textContent = dig(DATA.limits.bio - bio.value.length); };
-        bio.addEventListener('input', upd); upd();
-        const bf = field(tt('One line about you'), bio, tt('What you care about, or what you would bring to a table. Never your address or your phone number.')); bf.append(cnt);
-        form.append(bf, btn('mb-text', tt('Change your name'), () => K.open('account', {})));
-        const save = el('button', 'btn btn-key', tt('Save'), { type: 'submit' });
-        form.append(save, line);
-        form.addEventListener('submit', async ev => {
-          ev.preventDefault();
-          const B = bio.value.trim().replace(/\s+/g, ' ');
-          if (B.length > DATA.limits.bio) { say(line, tt('One line: {n} characters at most.', { n: DATA.limits.bio }), true); return; }
-          if (looksLikeAddress(B) || /[<>]/.test(B)) { say(line, tt('Leave out addresses, phone numbers and the < and > signs.'), true); return; }
-          save.disabled = true; say(line, tt('Saving.'));
-          try {
-            const u2 = me(), changed = pic !== ((P && P.pic) || '');
-            const doc = { name: u2.name, bio: B, pic, avatar: pic ? '' : avatar, hidden: !!(P && P.hidden), updatedAt: F.serverTimestamp(),
-              picAt: changed ? (pic ? F.serverTimestamp() : null) : ((P && P.picAt) || null), picOk: changed ? null : ((P && P.picOk) || null) };
-            await within(20000, F.setDoc(F.doc(db, 'profiles', uid), doc));
-            editing = false; try { history.replaceState(null, '', location.pathname + location.search); } catch (x) { }
-            await draw();
-          } catch (e) { save.disabled = false; say(line, words(e), true); }
-        });
-        prof.before(form);
+    if (!own && u) body.append(reportBox('p-' + uid, [['picture', tt('The picture')], ['abusive', tt('It is abusive')], ['fake', tt('It pretends to be someone')], ['advert', tt('It is an advert')], ['address', tt('It shows an address')]]));
+    if (own && editing) openEdit(editing);
+
+    // ---- the editor: the top card becomes it, in place
+    function openEdit(focus) {
+      editing = focus || 'all';
+      if (body.querySelector('.mb-edit')) return;
+      if (!u.v) { hero.after(el('p', 'mb-say bad mb-edit', tt('Confirm your email first. The link is in your inbox.'))); return; }
+      const form = el('form', 'mb-form mb-edit', null, { novalidate: '' }), line = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
+      let photo = (P && P.pic) || '', avatar = (P && P.avatar) || '', given = null;
+      // the top: the picture as it will look, the name and the way to change it
+      const top = el('div', 'mb-ed-top'), prevBox = el('div', 'mb-hero-pic'), nameBox = el('div', 'mb-ed-name');
+      const pv = () => { prevBox.textContent = ''; prevBox.append(picOf({ pic: photo, avatar, picOk: null, picAt: null }, uid, name, true)); };
+      pv();
+      nameBox.append(el('p', 'mb-name-s', name), btn('mb-text', tt('Change your name'), () => K.open('account', {})));
+      top.append(prevBox, nameBox);
+      form.append(top);
+      // the picture: two tabs
+      const set = el('fieldset', 'mb-ed-pic'), tabs = el('div', 'mb-tabs', null, { role: 'tablist' });
+      set.append(el('legend', 'mb-l', tt('Your picture')));
+      const drawn = el('div', 'mb-tabpane'), mine = el('div', 'mb-tabpane');
+      const tab = (text, pane) => { const b = btn('mb-tab', text, () => show(pane)); b.setAttribute('role', 'tab'); return b; };
+      const tDrawn = tab(tt('Drawn pictures'), drawn), tMine = tab(tt('Your photo'), mine);
+      function show(pane) {
+        [[tDrawn, drawn], [tMine, mine]].forEach(([t, p]) => { const on = p === pane; t.setAttribute('aria-selected', String(on)); p.hidden = !on; });
       }
-    } else if (u) body.append(reportBox('p-' + uid, [['picture', tt('The picture')], ['abusive', tt('It is abusive')], ['fake', tt('It pretends to be someone')], ['advert', tt('It is an advert')], ['address', tt('It shows an address')]]));
+      tabs.append(tDrawn, tMine);
+      set.append(tabs, drawn, mine);
+      const press = () => form.querySelectorAll('.mb-av').forEach(x => x.setAttribute('aria-pressed', String(!photo && x.getAttribute('data-av') === avatar)));
+      const groups = { f: tt('Women'), m: tt('Men'), n: tt('Symbols') };
+      const paintGrid = () => {
+        drawn.textContent = '';
+        const first = given ? given.kind : 'n', order = [first].concat(['f', 'm', 'n'].filter(k => k !== first));
+        order.forEach(k => {
+          const list = DATA.avatars.filter(a => (a.kind || 'n') === k);
+          if (!list.length) return;
+          const grid = el('div', 'mb-avs', null, { role: 'group', 'aria-label': groups[k] });
+          list.forEach(a => {
+            const b = btn('mb-av', null, () => { avatar = a.id; photo = ''; press(); pv(); say(line, tt('Looks good. Save to keep it.')); });
+            b.setAttribute('aria-label', w(a.alt) || a.id); b.setAttribute('data-av', a.id); b.setAttribute('title', w(a.alt) || '');
+            b.append(el('img', null, null, { src: ROOT + a.src, alt: '', width: '72', height: '72', loading: 'lazy' }));
+            if (given && given.id === a.id && !(P && (P.avatar || P.pic))) b.append(el('span', 'mb-given', tt('Given to you')));
+            grid.append(b);
+          });
+          drawn.append(el('p', 'mb-group', groups[k]), grid);
+        });
+        press();
+      };
+      paintGrid();
+      // their own photo: one big button, the file box hidden inside it
+      const file = el('input', 'mb-file', null, { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-file': '' });
+      const drop = el('label', 'mb-drop');
+      svgIn(drop, UP); drop.append(el('b', null, tt('Upload a photo')), el('span', 'mb-hint', tt('It is cut to a square and made small before it leaves your phone.')), file);
+      const clear = btn('mb-text', tt('Remove the photo'), () => { photo = ''; clear.hidden = true; if (!avatar && given) avatar = given.id; press(); pv(); });
+      clear.hidden = !photo;
+      file.addEventListener('change', async () => {
+        const f = file.files && file.files[0];
+        if (!f) return;
+        say(line, tt('Making it small.'));
+        try { photo = await shrink(f); clear.hidden = false; press(); pv(); say(line, tt('Ready. Save to keep it.')); }
+        catch (e) { say(line, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
+      });
+      if (IU) mine.append(el('p', 'mb-say bad', tt('A face photo can be seen by anyone who opens this page. A drawn picture is safer.')));
+      mine.append(drop, clear);
+      show(photo ? mine : drawn);
+      form.append(set);
+      // the line
+      const bio = el('textarea', null, null, { maxlength: String(DATA.limits.bio), rows: '3', placeholder: tt('For example: I care about free speech, and I like to host.') }); bio.value = (P && P.bio) || '';
+      const cnt = el('span', 'mb-count'), upd = () => { const n = bio.value.length; cnt.textContent = dig(n) + ' / ' + dig(DATA.limits.bio); cnt.classList.toggle('near', DATA.limits.bio - n < 20); };
+      bio.addEventListener('input', upd); upd();
+      const bf = field(tt('One line about you'), bio, tt('What you care about, or what you would bring to a table. Never your address or your phone number.')); bf.append(cnt);
+      form.append(bf);
+      // Save and Cancel, kept on screen
+      const bar = el('div', 'mb-ed-bar'), save = el('button', 'btn btn-key', tt('Save'), { type: 'submit' });
+      const cancel = btn('btn btn-line', tt('Cancel'), () => { editing = ''; try { history.replaceState(null, '', location.pathname + location.search); } catch (x) { } draw().catch(() => { }); });
+      bar.append(save, cancel, line);
+      form.append(bar);
+      form.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const B = bio.value.trim().replace(/\s+/g, ' ');
+        if (B.length > DATA.limits.bio) { say(line, tt('One line: {n} characters at most.', { n: DATA.limits.bio }), true); return; }
+        if (looksLikeAddress(B) || /[<>]/.test(B)) { say(line, tt('Leave out addresses, phone numbers and the < and > signs.'), true); bio.focus(); return; }
+        save.disabled = true; say(line, tt('Saving.'));
+        try {
+          const u2 = me(), changed = photo !== ((P && P.pic) || '');
+          const doc = { name: u2.name, bio: B, pic: photo, avatar: photo ? '' : avatar, hidden: !!(P && P.hidden), updatedAt: F.serverTimestamp(),
+            picAt: changed ? (photo ? F.serverTimestamp() : null) : ((P && P.picAt) || null), picOk: changed ? null : ((P && P.picOk) || null) };
+          await within(20000, F.setDoc(F.doc(db, 'profiles', uid), doc));
+          if (K.faceKnow) K.faceKnow(uid, doc, true);
+          editing = ''; try { history.replaceState(null, '', location.pathname + location.search); } catch (x) { }
+          await draw();
+        } catch (e) { save.disabled = false; say(line, words(e), true); }
+      });
+      hero.hidden = true;
+      body.querySelectorAll('.mb-todo').forEach(t => { t.hidden = true; });
+      hero.after(form);
+      // the picture this member was given: marked in the grid, and saved as theirs when they save without choosing
+      if (K.faceGiven) K.faceGiven(name, uid).then(g => { if (!g || !form.isConnected) return; given = g; if (!avatar && !photo) { avatar = g.id; pv(); } paintGrid(); }).catch(() => { });
+      const go = focus === 'bio' ? bio : focus === 'pic' ? tDrawn : null;
+      try { form.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) { }
+      if (go) setTimeout(() => { try { go.focus({ preventScroll: true }); } catch (x) { } }, 50);
+    }
   }
   try { await draw(); } catch (e) { body.setAttribute('aria-busy', 'false'); body.append(el('p', 'mb-say bad', words(e))); }
   K.sub(() => { if (!body.querySelector('.mb-edit')) draw().catch(() => { }); });
@@ -947,7 +1479,8 @@ function start() {
       const del = r => F.deleteDoc(r).catch(() => { });
       try {
         const g = await F.getDocs(F.query(F.collection(db, 'gatherings'), F.where('hostUid', '==', uid), F.where('hidden', '==', false), F.limit(100)));
-        for (const d of g.docs) { await del(F.doc(db, 'gatherings', d.id, 'place', 'p')); await del(d.ref); }
+        /* a home keeps its address until the gathering itself goes, so the three go in one batch */
+        for (const d of g.docs) { const b = F.writeBatch(db); b.delete(F.doc(db, 'gatherings', d.id, 'place', 'p')); b.delete(F.doc(db, 'gatherings', d.id, 'cover', 'c')); b.delete(d.ref); await b.commit().catch(() => { }); }
       } catch (x) { }
       try { const f = await F.getDocs(F.query(F.collection(db, 'users', uid, 'flags'), F.limit(300))); for (const d of f.docs) await del(d.ref); } catch (x) { }
       await del(F.doc(db, 'profiles', uid)); await del(F.doc(db, 'private', uid));

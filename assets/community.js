@@ -212,6 +212,99 @@ function ago(ms) {
    reader looks the same everywhere. None of the six is a party's colour or a grade's. A name only the
    people who run the site can hold (reservedName) gets the site's own mark instead. A post by someone on
    the team (by the id of the account, TEAM) keeps its letter and gains a ring. */
+/* 15 October 2026 (Armin: "these letters look lame ... I assign a profile picture to people, and then people could go change
+   it"): the letter is now only what shows for the moment before the pictures load, or on a site with none. Everyone is GIVEN
+   one of the drawn pictures (assets/faces.json, written by build/members.py from data/ai-art.json and
+   ../name-gender.json): a first name on the list of women's names gets a woman, a man's name a man or a symbol, any other
+   name a symbol, never a guess. The account id picks which one, so a person looks the same on every page. Once their own
+   profile is read (one REST request for every face on the page, faceLook), the picture they chose, or their photo once it
+   has been looked at, takes its place. On the Iran site's quiet default that request is not made: the given picture stays. */
+const FACES = { d: null, ask: null, prof: new Map(), want: new Set(), live: [], timer: 0 };
+function facesData() {
+  if (!FACES.ask) FACES.ask = fetch(root + 'assets/faces.json').then(r => (r.ok ? r.json() : null)).catch(() => null)
+    .then(d => { if (d && Array.isArray(d.avatars) && d.avatars.length) { d.fs = new Set(d.f || []); d.ms = new Set(d.m || []); FACES.d = d; } return FACES.d; });
+  return FACES.ask;
+}
+function firstName(name) {
+  const w = String(name || '').trim().split(/[\s._@-]+/)[0] || '';
+  return w.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/[0-9'’]+/g, '');
+}
+function kindOf(name) { const d = FACES.d, n = firstName(name); return !d || !n ? 'n' : d.fs.has(n) ? 'f' : d.ms.has(n) ? 'm' : 'n'; }
+/* The picture a person is given: from the pool for their kind (a man's pool holds the symbols too, a woman's only women), the
+   account id (or the name, with no id) picks the place in it. */
+function givenFace(name, uid) {
+  const d = FACES.d; if (!d) return null;
+  const k = kindOf(name), ok = a => a.auto !== false;
+  let pool = d.avatars.filter(a => ok(a) && (k === 'f' ? a.kind === 'f' : k === 'm' ? (a.kind === 'm' || a.kind === 'n') : a.kind === 'n'));
+  if (!pool.length) pool = d.avatars.filter(ok);
+  let h = 7;
+  for (const c of String(uid || name || '?')) h = (h * 31 + c.codePointAt(0)) % 1000003;
+  return pool[h % pool.length];
+}
+/* What to draw for one person now: their approved photo, their chosen picture, or the one they were given. */
+function faceSrc(name, uid) {
+  const p = uid ? FACES.prof.get(uid) : null, d = FACES.d;
+  if (p && !p.hidden) {
+    if (p.photo) return p.photo;
+    const a = p.avatar && d && d.avatars.find(x => x.id === p.avatar);
+    if (a) return root + a.src;
+  }
+  const g = givenFace(name, uid);
+  return g ? root + g.src : '';
+}
+function paintFace(f) {
+  if (!f.isConnected && f.dataset.drawn) return;
+  const src = faceSrc(f.__name, f.__uid);
+  if (!src) return;
+  let img = f.querySelector('img');
+  if (!img) { img = el('img', null, null, { alt: '', decoding: 'async', loading: 'lazy' }); f.textContent = ''; f.append(img); f.classList.add('av-pic'); }
+  if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+  f.dataset.drawn = '1';
+}
+function repaintFaces() {
+  FACES.live = FACES.live.filter(f => f.isConnected || !f.dataset.drawn);
+  FACES.live.forEach(paintFace);
+  paintHeader();
+}
+/* The profiles of every face on the page, in ONE request (batchGet, the rules let anyone get a profile), first without the
+   photo; a second request fetches only the photos that have been looked at. */
+function faceLook(uid) {
+  if (!uid || OFF || QUIET || FACES.prof.has(uid) || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return;
+  FACES.want.add(uid);
+  if (!FACES.timer) FACES.timer = setTimeout(faceFetch, 60);
+}
+async function faceFetch() {
+  FACES.timer = 0;
+  const ids = [...FACES.want].slice(0, 100); ids.forEach(i => { FACES.want.delete(i); FACES.prof.set(i, null); });
+  if (FACES.want.size) FACES.timer = setTimeout(faceFetch, 60);
+  if (!ids.length) return;
+  const pid = (EMU ? DEMO : CFG.fb).projectId, docs = i => 'projects/' + pid + '/databases/(default)/documents/profiles/' + i;
+  const ask = async (list, fields) => {
+    const r = await within(15000, fetch(restBase('batchGet'), { method: 'POST', body: JSON.stringify({ documents: list.map(docs), mask: { fieldPaths: fields } }) }));
+    if (!r.ok) return [];
+    return (await r.json()).filter(x => x && x.found).map(x => ({ id: x.found.name.split('/').pop(), f: x.found.fields || {} }));
+  };
+  try {
+    const got = await ask(ids, ['avatar', 'picAt', 'picOk', 'hidden']), photos = [];
+    got.forEach(({ id, f }) => {
+      const at = f.picAt && f.picAt.timestampValue, okd = f.picOk && f.picOk.timestampValue;
+      FACES.prof.set(id, { avatar: (f.avatar && f.avatar.stringValue) || '', hidden: !!(f.hidden && f.hidden.booleanValue), photo: '' });
+      if (at && okd && at === okd) photos.push(id);
+    });
+    if (photos.length) (await ask(photos, ['pic'])).forEach(({ id, f }) => {
+      const s = f.pic && f.pic.stringValue, p = FACES.prof.get(id);
+      if (p && s && /^data:image\/jpeg;base64,/.test(s)) p.photo = s;
+    });
+  } catch (x) { }
+  repaintFaces();
+}
+/* members.js tells this file what a profile now says (the owner just saved it, or it read the whole profile). */
+function faceKnow(uid, p, own) {
+  if (!uid) return;
+  const ok = p && (own || (p.pic && p.picOk && p.picAt && typeof p.picOk.isEqual === 'function' && p.picOk.isEqual(p.picAt)));
+  FACES.prof.set(uid, p ? { avatar: p.avatar || '', hidden: !!p.hidden && !own, photo: ok && p.pic ? p.pic : '' } : null);
+  repaintFaces();
+}
 function face(name, uid) {
   const f = el('span', 'av', null, { 'aria-hidden': 'true' });
   if (uid && TEAM.has(uid) && !reservedName(name)) f.classList.add('av-team');
@@ -220,6 +313,10 @@ function face(name, uid) {
   for (const c of String(name)) h = (h * 31 + c.codePointAt(0)) % 9973;
   f.classList.add('av-' + (h % 6));
   f.textContent = ((LETTER.exec(name) || ['?'])[0]).toUpperCase();
+  f.__name = name; f.__uid = uid || '';
+  FACES.live.push(f);
+  if (FACES.d) paintFace(f); else facesData().then(() => { if (FACES.d) paintFace(f); });
+  faceLook(uid);
   return f;
 }
 /* The page a discussion belongs to, from its key. null when the key is not one of ours: the front page is
@@ -233,20 +330,26 @@ const SITE_KINDS = SITE.kinds || null, SITE_PAGES = SITE.pages || null, BASE = S
 /* 13 October 2026, the mission board (build/quests.js): its own discussion is page:act, and a mission report is a
    post about "quest:<mission id>". A report has no page of its own: it lives on the board, so its address is
    the board's (SITE.questPage, "act/" when a site hands in none) and its link opens that mission (hrefOf). */
+/* 15 October 2026 (Armin: "there needs to be an option to discuss each gathering"): a gathering has a discussion of its own,
+   "gathering:<the id the database gave it>" (twenty letters and digits, in both cases), the last two groups of KEY_OK. Its page
+   is the one gathering page, gatherings/g/?id=<id> (SITE.gatheringPage when a site hands in another). The rules take the
+   same key, only for a gathering that is on the board, and refuse an address in its words (looksLikeAddress below). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
-  ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + '))$')
-  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act))$/;
+  ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + ')|(gathering):([A-Za-z0-9]{20}))$')
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act)|(gathering):([A-Za-z0-9]{20}))$/;
+const GATHERING_PAGE = typeof SITE.gatheringPage === 'string' ? SITE.gatheringPage : 'gatherings/g/';
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
 /* 14 October 2026: a single page whose address is not its key (SITE.pageAt, used where SITE.pages is not handed in).
    On libertypolitics.com the Missions page is missions/ and its discussion is still page:act, the key the live rules know. */
 const PAGE_AT = SITE.pageAt && typeof SITE.pageAt === 'object' ? SITE.pageAt : {};
-function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] : ''; }
+function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] || m[7] : ''; }
 function pathOf(about) {
   const m = KEY_OK.exec(about || '');
   if (!m) return null;
   if (m[5]) return BASE + (SITE_KINDS && SITE_PAGES ? SITE_PAGES[m[6]] : (m[6] === 'home' ? '' : (typeof PAGE_AT[m[6]] === 'string' ? PAGE_AT[m[6]] : m[6] + '/')));
   if (m[1] === 'quest') return BASE + QUEST_PAGE;
+  if (m[7]) return BASE + GATHERING_PAGE + '?id=' + m[8];
   return BASE + DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
 }
 /* The address of one post, from the site root. A mission report opens its mission on the board (act/#<mission id>);
@@ -256,7 +359,12 @@ function hrefOf(about, id) {
   return root + pathOf(about) + (m && m[1] === 'quest' ? '#' + m[2] : '#p-' + id);
 }
 /* How a page is named inside a sentence when all we have is its key (the discussion page, the report menu). */
-function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : k === 'quest' ? tt('this mission') : tt('this page'); }
+function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : k === 'quest' ? tt('this mission') : k === 'gathering' ? tt('this gathering') : tt('this page'); }
+/* The words a reader puts in a gathering's discussion are public, and the place is only for the guests the host says yes
+   to: the same test the rules apply (noAddress in firestore.rules) and members.js applies to the gathering itself. */
+const ADDRESS = [/[0-9]+[a-z]?[ ,.]+([a-z.]+ ){0,3}(street|st|avenue|ave|road|rd|boulevard|blvd|lane|drive|highway|hwy|parkway|pkwy|terrace|crescent)([^a-z]|$)/,
+  /(apt|apartment|suite|unit|flat|po box)[ .#:]*[0-9]/, /[0-9]{5}/, /[0-9][0-9 ().-]{7,}[0-9]/];
+const looksLikeAddress = s => { const l = String(s || '').toLowerCase(); return ADDRESS.some(r => r.test(l)); };
 /* The tag on a post. The first three say what a plain post is; the other four are the kinds a reader picks
    in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
 const TAGS = { wrong: tt('Correction'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea'), report: tt('Mission report') };
@@ -298,6 +406,7 @@ function words(e) {
     'lp/offline': tt('No connection. Check your internet and try again. What you typed is still here.'),
     'lp/slow': tt('That is taking too long. Check your connection and try again.'),
     'lp/off': tt('Accounts are not switched on in this preview.'),
+    'lp/address': tt('Leave out addresses and phone numbers. This discussion is public, and the host gives the place only to the guests they say yes to.'),
     'lp/signedout': tt('You were signed out. Sign in again.'),
     'permission-denied': tt('That was not allowed. Reload the page and try again.'),
     'not-found': tt('That post is no longer here.')
@@ -717,6 +826,14 @@ function paintHeader() {
     /* Replies to you: a small count on the reader's own letter, which is on screen at every width (the name
        beside it is not). It sits over the corner of the letter and takes no room, so the bar is as wide as before. */
     const n = ryNew(), i = el('span', 'acct-i', (me.name.match(LETTER) || ['?'])[0].toUpperCase(), { 'aria-hidden': 'true' });
+    /* the reader's own picture in place of the letter (face() above): the one they chose, or the one they were given */
+    if (me.name) {
+      const mine = FACES.prof.get(me.uid), chose = mine && (mine.photo || mine.avatar);
+      const src = reservedName(me.name) && !chose ? root + (SITE.mark || 'assets/seal.png') : faceSrc(me.name, me.uid);
+      if (src) { i.textContent = ''; i.classList.add('acct-pic'); i.append(el('img', null, null, { src, alt: '', width: '32', height: '32', decoding: 'async' })); }
+      else facesData().then(d => { if (d) paintHeader(); });
+      faceLook(me.uid);
+    }
     if (n) i.append(el('b', 'acct-c', n > 9 ? dig(9) + '+' : dig(n)));
     a.append(i, el('span', 'acct-n', me.name || tt('Choose a name')));
     a.setAttribute('aria-label', !me.name ? tt('Finish signing in: choose your name')
@@ -1389,6 +1506,12 @@ function clearBox(b) {
    version of the rules; a plain post on a race or a member is still written without them, which both
    versions take, so that one needs no question about which version is live. */
 async function postIt(d) {
+  /* An address in the words of a gathering's discussion, where the place is private. Only the gathering's own page knows
+     (members.js marks its discussion data-public-place when the place is public); anywhere else it is refused here too. */
+  if (keyKind(d.on) === 'gathering' && looksLikeAddress(d.text)) {
+    const t = $('talk');
+    if (!(t && t.getAttribute('data-on') === d.on && t.hasAttribute('data-public-place'))) throw { code: 'lp/address' };
+  }
   const { A, F, db } = S;
   const kind = !d.url ? 'opinion' : (embedOf(d.url) ? 'video' : 'link');
   const commit = async () => {
@@ -1487,6 +1610,15 @@ function sentPost(b, post, made) {
    it shows the three most liked posts and the way to the rest. On talk/ it shows everything said on one
    page (?on=<key>), replies under the post they answer, or the newest across the site. */
 let T = null;
+/* The one gathering page is one page for every gathering (gatherings/g/?id=), so it is built with the key "gathering:" and
+   its own key is read from the address here, before anything reads it. An id of the wrong shape leaves no key: the page
+   says the gathering is not there (members.js), and nothing can be posted. */
+function gatheringKey() {
+  const sec = $('talk');
+  if (!sec || sec.getAttribute('data-on') !== 'gathering:') return;
+  const id = new URLSearchParams(location.search).get('id') || '';
+  sec.setAttribute('data-on', /^[A-Za-z0-9]{20}$/.test(id) ? 'gathering:' + id : '');
+}
 function initTalk() {
   const sec = $('talk');
   if (!sec) return;
@@ -1764,7 +1896,7 @@ function setCount(n) {
   if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = n === 1 ? tt('1 post so far. Read it, and say where you stand.') : tt('{n} posts so far. Read them, and say where you stand.', { n }); }
   /* The same number on the question high on the record. */
   const nn = $('nudge-n');
-  if (nn) { nn.hidden = !(n > 0); nn.textContent = n === 1 ? tt('1 post') : tt('{n} posts', { n: shown }); }
+  if (nn) { nn.hidden = !(n > 0); nn.textContent = T && !T.feed && T.people > 0 && n === T.peeked ? talkLine({ n, people: T.people, more: T.more }) : n === 1 ? tt('1 post') : tt('{n} posts', { n: shown }); }
   /* The words on the button at the end of the record, on the question near the top and on the switch:
      one place writes them, because a note the reader never sent changes all three (keptMark). */
   keptMark(kept);
@@ -1781,6 +1913,14 @@ function initPeek() {
   if (OFF || QUIET || hook('lpbreak')) return;
   const count = async () => {
     if (T.state !== 'idle') return;
+    /* A page about one thing (not All discussions) counts its people as well (talkCounts, shared with every card that
+       points at it, so it is one request). */
+    if (!T.feed) {
+      const [c] = await talkCounts([T.key]);
+      if (!c) return;
+      if (T.state === 'idle' || T.state === 'wait') { T.peeked = c.n; T.people = c.people; T.more = c.more; setCount(c.n); }
+      return;
+    }
     /* The limit is what the rules ask of every list of posts; a count under it still costs one read. */
     const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 300 }, aggregations: [{ alias: 'n', count: {} }] } };
     const res = await within(15000, fetch(restBase('runAggregationQuery'), { method: 'POST', body: JSON.stringify(q) }));
@@ -1825,6 +1965,90 @@ function initPeek() {
   }, { rootMargin: '500px 0px' });
   io.observe(band);
   if (nudge) io.observe(nudge);
+}
+/* ------------------------------------------------------------------ how many people, and how many comments
+   15 October 2026, Armin: "even if you're not on the page for the gathering, you should be able to see that there is an
+   option to discuss this. You should also be able to see the number of people who have discussed it and the number of
+   comments on it as a counter." So anything on a page that has a discussion of its own can carry a way into it:
+   an element with data-talk-n="<key>" (a gathering's card, a politician's or a race's line). This draws it (the icon,
+   "Discuss", the count) and fills in the count as soon as the browser is idle: not when it scrolls near, because a frame
+   that never scrolls (an app's own browser, a page inside another) would never ask. One small request covers up to thirty
+   keys, without Firebase's own code: the live posts about them, replies included, with only the page and the author's
+   id. Every post is one comment; the people are the different authors. A count that reached what one request can see
+   says so with a plus. */
+const TALK_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
+const TALLY = new Map();      // key -> a promise of { n, people, more }
+function talkCounts(keys) {
+  const want = [...new Set(keys)].filter(k => pathOf(k) != null && !TALLY.has(k));
+  for (let i = 0; i < want.length; i += 30) {
+    const part = want.slice(i, i + 30);
+    const ask = (async () => {
+      if (OFF || hook('lpbreak')) throw { code: 'lp/off' };
+      const q = { structuredQuery: { select: { fields: [{ fieldPath: 'about' }, { fieldPath: 'uid' }] }, from: [{ collectionId: 'posts' }],
+        where: { compositeFilter: { op: 'AND', filters: [
+          { fieldFilter: { field: { fieldPath: 'about' }, op: 'IN', value: { arrayValue: { values: part.map(k => ({ stringValue: k })) } } } },
+          { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } }] } }, limit: 300 } };
+      const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
+      if (!res.ok) throw { code: 'lp/offline' };
+      const got = await res.json(), rows = (Array.isArray(got) ? got : []).filter(r => r && r.document), by = new Map(part.map(k => [k, { n: 0, who: new Set() }]));
+      rows.forEach(r => {
+        const f = r.document.fields || {}, b = by.get(f.about && f.about.stringValue);
+        if (!b) return;
+        b.n++;
+        if (f.uid && f.uid.stringValue) b.who.add(f.uid.stringValue);
+      });
+      return { by, full: rows.length >= 300 };
+    })();
+    ask.catch(() => part.forEach(k => TALLY.delete(k)));      // asked again the next time, never a wrong zero
+    part.forEach(k => TALLY.set(k, ask.then(x => { const b = x.by.get(k); return { n: b.n, people: b.who.size, more: x.full }; })));
+  }
+  return Promise.all(keys.map(k => (TALLY.get(k) || Promise.resolve(null)).catch(() => null)));
+}
+/* "3 people · 7 comments", or the invitation when nobody has said anything yet. */
+function talkLine(c) {
+  if (!c || !(c.n > 0)) return tt('Be the first to say something');
+  const n = c.more ? dig(c.n) + '+' : c.n;
+  return (c.people === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: c.people })) + ' · ' + (c.n === 1 ? tt('{n} comment', { n: 1 }) : tt('{n} comments', { n }));
+}
+function dressTalkN(a) {
+  if (a.querySelector('.talk-n-w')) return;
+  a.classList.add('talk-n');
+  a.textContent = '';
+  const ic = el('span', 'talk-n-i'); ic.innerHTML = TALK_ICON;
+  a.append(ic, el('b', 'talk-n-w', tt('Discuss')), el('span', 'talk-n-c'));
+  a.setAttribute('aria-label', tt('Discuss'));
+}
+function paintTalkN(a, c) {
+  const t = a.querySelector('.talk-n-c');
+  if (!t || !c) return;
+  const line = talkLine(c);
+  t.textContent = line;
+  a.classList.toggle('talk-n-0', !(c.n > 0));
+  a.setAttribute('aria-label', tt('Discuss') + ': ' + line);
+}
+function initTalkN() {
+  if (!D.body) return;
+  const seen = new WeakSet(), queue = new Set();
+  let timer = 0;
+  const flush = () => {
+    timer = 0;
+    const els = [...queue]; queue.clear();
+    talkCounts(els.map(a => a.getAttribute('data-talk-n'))).then(cs => els.forEach((a, i) => paintTalkN(a, cs[i]))).catch(() => { });
+  };
+  const later = a => { queue.add(a); if (!timer) timer = setTimeout(flush, 80); };
+  const take = node => {
+    const all = node.matches && node.matches('[data-talk-n]') ? [node] : [];
+    if (node.querySelectorAll) all.push(...node.querySelectorAll('[data-talk-n]'));
+    all.forEach(a => {
+      if (seen.has(a)) return;
+      seen.add(a);
+      dressTalkN(a);
+      if (QUIET || pathOf(a.getAttribute('data-talk-n')) == null) return;      // the quiet default asks nothing before a tap
+      later(a);
+    });
+  };
+  take(D);
+  if ('MutationObserver' in window) new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) take(n); }))).observe(D.body, { childList: true, subtree: true });
 }
 /* ------------------------------------------------------------------ two languages in one room
    Only on a site that hands in two languages (ML). One discussion a page, both languages mixed: a small
@@ -2696,14 +2920,18 @@ function start() {
     /* What members.js (profiles, the front question, the gatherings board) is handed: Firebase once it is loaded, who is
        signed in, a call when that changes, the panel, the same words, faces and dates, and its two hooks (above viewAccount). */
     members: { fb: () => fb(), user: () => user, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
-      tt, dig, el, btn, tell, words, ago, niceDate, face, within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
+      tt, dig, el, btn, tell, words, ago, niceDate, face, faceKnow, faceGiven: (n, u) => facesData().then(() => givenFace(n, u)), within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
+      rest: what => restBase(what), plain: restPlain, looksLikeAddress,
+      restDoc: path => (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/' + path + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)),
       off: OFF, emu: EMU, quiet: QUIET, rtl: RTL, lang: LANG, safety: !!SITE.safety }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
   if (me && !OFF) ryWake();
+  gatheringKey();
   initHeader();
   initBox();
   initTalk();
   initLatest();
+  initTalkN();
   initMod();
   if (me && !OFF) fb().then(() => { if (user && user.emailVerified && !me.ok) settle(false).catch(() => { }); }, () => { });
   window.addEventListener('focus', quietCheck); D.addEventListener('visibilitychange', quietCheck);

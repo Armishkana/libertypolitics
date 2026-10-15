@@ -71,24 +71,87 @@
 .mb-tick input{width:22px;height:22px;flex:none;margin:2px 0 0;accent-color:var(--field)}
 .mb-count{color:var(--dim);font-size:.85rem;justify-self:end}
 
-/* ---- the profile */
+/* ---- the profile (rebuilt 15 October 2026, Armin: "Significantly improve that: the look of it, the user interface, the ease of
+   use, and the intuitiveness"). One card on top (.mb-hero: picture, name, rank, line, progress), three numbers, the owner's
+   short list of what is left (.mb-todo), then what they did. The editor (.mb-edit) takes the card's place, with Save and Cancel
+   held at the foot of the screen (.mb-ed-bar). Phone first: the card stacks under 560px, side by side from there. */
 .mb-prof{display:grid;gap:var(--s4)}
-.mb-top{display:flex;gap:var(--s4);align-items:center;min-width:0}
-.mb-pic{flex:none;width:96px;height:96px;border-radius:50%;overflow:hidden;background:var(--raise);display:grid;place-items:center}
-.mb-pic img{width:100%;height:100%;object-fit:cover}
-.mb-pic .av{width:96px;height:96px;font-size:2.4rem}
-.mb-who{display:grid;gap:4px;min-width:0}
-.mb-who h1{overflow-wrap:anywhere}
-.mb-bio{font-size:1.1rem;overflow-wrap:anywhere}
-.mb-rank{display:grid;gap:6px;padding:var(--s4);background:var(--panel);border-radius:var(--r)}
-.mb-bar{height:8px;border-radius:999px;background:var(--line);overflow:hidden}
-.mb-bar i{display:block;height:100%;background:var(--field)}
+.mb-hero{position:relative;display:grid;gap:var(--s4);justify-items:center;text-align:center;padding:var(--s5) var(--s4) var(--s4);background:radial-gradient(120% 90% at 50% 0%,color-mix(in oklab,var(--field) 16%,var(--panel)) 0%,var(--panel) 62%);border:1px solid color-mix(in oklab,var(--field) 26%,var(--line));border-radius:var(--r2,10px);overflow:hidden;min-width:0}
+.mb-hero[hidden]{display:none}
+@media(min-width:560px){.mb-hero{grid-template-columns:auto minmax(0,1fr);justify-items:start;text-align:start;align-items:center;padding:var(--s5)}.mb-hero > .mb-prog,.mb-hero > .mb-rankmeaning{grid-column:1/-1}}
+.mb-hero-pic{flex:none}
+.mb-pic{flex:none;width:128px;height:128px;border-radius:50%;overflow:hidden;background:var(--raise);display:grid;place-items:center;box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--field),0 10px 30px rgba(0,0,0,.45)}
+.mb-pic img{width:100%;height:100%;object-fit:cover;display:block}
+.mb-pic .av{width:100%;height:100%;font-size:3rem;box-shadow:none}
+.mb-pic-btn{position:relative;display:block;padding:0;border:0;background:none;border-radius:50%;cursor:pointer}
+.mb-pic-pen{position:absolute;right:2px;bottom:2px;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--field);color:var(--on-field);box-shadow:0 0 0 3px var(--bg)}
+.mb-pic-btn:hover .mb-pic,.mb-pic-btn:focus-visible .mb-pic{filter:brightness(1.08)}
+.mb-hero-who{display:grid;gap:var(--s2);justify-items:inherit;min-width:0;max-width:100%}
+h1.mb-name{margin:0;font-size:clamp(2rem,8vw,3rem);line-height:1;overflow-wrap:anywhere}
+.mb-rankline{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;justify-content:inherit;margin:0}
+.mb-hero{justify-content:center}
+.mb-rankname{display:inline-flex;align-items:center;min-height:28px;padding:2px 12px;border-radius:999px;background:var(--field);color:var(--on-field);font:800 .82rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase}
+.mb-xp{color:var(--dim);font-weight:700;font-variant-numeric:tabular-nums}
+.mb-bio{margin:0;font-size:1.12rem;line-height:1.45;overflow-wrap:anywhere;max-width:36rem}
+.mb-editbtn{display:inline-flex;gap:8px;align-items:center;min-height:44px}
+.mb-editbtn svg{order:-1}
+.mb-prog{display:grid;gap:6px;width:100%}
+.mb-bar{height:10px;border-radius:999px;background:var(--sunk);overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+.mb-bar i{display:block;height:100%;border-radius:inherit;background:var(--field)}
+.mb-rankmeaning{margin:0;width:100%}
+.mb-nums{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}
+.mb-nums li{display:grid;gap:2px;justify-items:center;align-content:start;text-align:center;padding:var(--s3) var(--s2);background:var(--panel);border-radius:var(--r2,10px);min-width:0}
+.mb-nums b{font:800 clamp(1.5rem,6vw,2rem)/1 var(--display);color:var(--field);font-variant-numeric:tabular-nums}
+.mb-nums span{color:var(--dim);font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
+.mb-todo{display:grid;gap:var(--s2);padding:var(--s4);background:var(--sunk);border:1px solid var(--line);border-inline-start:3px solid var(--field);border-radius:var(--r2,10px)}
+.mb-todo[hidden]{display:none}
+.mb-h3{margin:0;font-size:1.35rem}
+.mb-steps{list-style:none;margin:var(--s1) 0 0;padding:0;display:grid;gap:var(--s2)}
+.mb-steps li{display:flex;align-items:center;gap:var(--s3);min-height:48px}
+.mb-stepdot{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:2px solid var(--line);color:var(--on-field)}
+.mb-steps li.is-done .mb-stepdot{background:var(--field);border-color:var(--field)}
+.mb-steps li.is-done .mb-steptext{color:var(--dim);text-decoration:line-through}
+.mb-steptext{flex:1;font-weight:700;min-width:0}
+.mb-badges{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--s2)}
+.mb-badges li{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border-radius:999px;background:var(--panel);border:1px solid color-mix(in oklab,var(--field) 30%,var(--line));font-weight:600;overflow-wrap:anywhere}
+.mb-badges svg{color:var(--field);flex:none}
+.mb-posts{list-style:none;margin:0;padding:0;display:grid;gap:var(--s2)}
+.mb-post{display:grid;gap:4px;padding:var(--s3) var(--s4);background:var(--panel);border-radius:var(--r2,10px);min-width:0}
+.mb-post-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;margin:0}
+.mb-post-h a{display:inline-flex;align-items:center;min-height:44px;font-weight:700;overflow-wrap:anywhere}
+.mb-post-t{margin:0;color:var(--ink);opacity:.9;overflow-wrap:anywhere}
 .mb-stats{list-style:none;margin:0;padding:0;display:grid;gap:var(--s2)}
 .mb-stats li{overflow-wrap:anywhere}
-.mb-avs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:var(--s2)}
-.mb-av{min-height:64px;padding:0;border:2px solid transparent;border-radius:50%;background:var(--raise);overflow:hidden;cursor:pointer;aspect-ratio:1}
-.mb-av img{width:100%;height:100%;object-fit:cover}
-.mb-av[aria-pressed="true"]{border-color:var(--field)}
+/* the editor */
+.mb-edit.mb-form{max-width:none;padding:var(--s4);background:var(--panel);border:1px solid color-mix(in oklab,var(--field) 26%,var(--line));border-radius:var(--r2,10px);gap:var(--s5)}
+.mb-ed-top{display:flex;flex-wrap:wrap;gap:var(--s4);align-items:center}
+.mb-ed-name{display:grid;gap:2px;min-width:0}
+.mb-name-s{margin:0;font:800 clamp(1.5rem,6vw,2.1rem)/1.05 var(--display);overflow-wrap:anywhere}
+.mb-ed-pic{margin:0;padding:0;border:0;display:grid;gap:var(--s3);min-width:0}
+.mb-ed-pic legend{padding:0;margin-bottom:var(--s3);font-weight:800;font-size:1.1rem}
+.mb-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--sunk);border-radius:999px;max-width:26rem}
+.mb-tab{min-height:44px;border:0;border-radius:999px;background:none;color:var(--dim);font:700 .98rem/1.2 var(--body);cursor:pointer}
+.mb-tab[aria-selected="true"]{background:var(--field);color:var(--on-field)}
+.mb-tabpane{display:grid;gap:var(--s2);min-width:0}
+.mb-tabpane[hidden]{display:none}
+.mb-group{margin:var(--s2) 0 0;color:var(--dim);font:800 .78rem/1 var(--body);letter-spacing:.08em;text-transform:uppercase}
+.mb-avs{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:var(--s3)}
+.mb-av{position:relative;min-height:64px;padding:0;border:3px solid transparent;border-radius:50%;background:var(--raise);cursor:pointer;aspect-ratio:1;transition:transform .12s,border-color .12s}
+.mb-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.mb-av:hover{transform:scale(1.05)}
+.mb-av[aria-pressed="true"]{border-color:var(--field);box-shadow:0 0 0 3px color-mix(in oklab,var(--field) 30%,transparent)}
+.mb-av[aria-pressed="true"]::after{content:"\2713";position:absolute;right:-4px;top:-4px;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--field);color:var(--on-field);font:900 .85rem/1 var(--body);box-shadow:0 0 0 2px var(--panel)}
+.mb-given{position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);padding:2px 6px;border-radius:999px;background:var(--bg);color:var(--field);border:1px solid var(--field);font:700 .75rem/1.2 var(--body);white-space:nowrap}
+.mb-drop{position:relative;display:grid;gap:6px;justify-items:center;text-align:center;padding:var(--s5) var(--s4);border:2px dashed color-mix(in oklab,var(--field) 45%,var(--line));border-radius:var(--r2,10px);background:var(--sunk);color:var(--field);cursor:pointer}
+.mb-drop:hover,.mb-drop:focus-within{border-color:var(--field);background:var(--bg)}
+.mb-drop b{color:var(--ink);font-size:1.1rem}
+.mb-file{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.mb-count{color:var(--dim);font-size:.85rem;justify-self:end;font-variant-numeric:tabular-nums}
+.mb-count.near{color:var(--field)}
+.mb-ed-bar{position:sticky;bottom:0;z-index:2;display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin:0 calc(-1 * var(--s4)) calc(-1 * var(--s4));padding:var(--s3) var(--s4);background:var(--panel);border-top:1px solid var(--line);border-radius:0 0 var(--r2,10px) var(--r2,10px)}
+.mb-ed-bar .btn{min-width:7.5rem;justify-content:center}
+.mb-ed-bar .mb-say{flex:1 1 100%;margin:0;min-height:0}
+.mb-ed-bar .mb-say:empty{display:none}
 .mb-stars{display:flex;gap:var(--s1);flex-wrap:wrap}
 .mb-star{min-width:48px;min-height:48px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--ink);font:800 1.1rem/1 var(--body);cursor:pointer}
 .mb-star[aria-pressed="true"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
@@ -106,3 +169,53 @@
 [data-q-tick][data-q-tick-on]::before{content:"\2713\00a0"}
 /* a mission that ticks itself has nothing to open: quests.js gives its big card no data-q-go, so no empty yellow label */
 .q-big summary:not([data-q-go])::before{content:none;display:none}
+
+/* ---- the way into a thing's own discussion, with how many people and comments it holds (community.js initTalkN, 15 October
+   2026, Armin: "you should be able to see that there is an option to discuss this ... the number of people who have discussed
+   it and the number of comments on it as a counter"). On every gathering card and on the gathering's own page; any page can
+   carry one (data-talk-n="<key>"). A pill, 44px tall, that wraps on a narrow phone rather than running off the screen. */
+.talk-n{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;justify-self:start;max-width:100%;min-height:44px;padding:6px 14px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;font:600 .95rem/1.3 var(--body)}
+.talk-n:hover,.talk-n:focus-visible{background:var(--raise)}
+.talk-n-i{display:inline-flex;color:var(--field)}
+.talk-n-w{font-weight:800}
+.talk-n-c{color:var(--dim);font-weight:600;overflow-wrap:anywhere}
+.talk-n-c:empty{display:none}
+
+/* ---- a gathering people want to join (15 October 2026, Armin: "make the events fun. When people see the listing they would
+   want to join"). The picture at the top of every card (the host's, or a drawing for its kind, never a blank box), the hook,
+   the address of a public place with its map, how many are going, why come, the video, and the From the night wall. */
+.mb-cover{aspect-ratio:16/9;margin:calc(-1 * var(--s4)) calc(-1 * var(--s4)) var(--s1);border-radius:var(--r2,10px) var(--r2,10px) 0 0;overflow:hidden;background:var(--sunk)}
+.mb-cover img{display:block;width:100%;height:100%;object-fit:cover}
+.mb-cover-drawn{display:grid;place-items:center;color:var(--field);background:linear-gradient(135deg,var(--sunk),var(--raise))}
+.mb-cover-drawn svg{width:38%;height:auto;max-height:80%}
+.mb-cover-prev .mb-cover{margin:0;max-width:22rem;border-radius:var(--r)}
+.mb-hook{font-size:1.05rem;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.mb-whereb{display:grid;gap:2px;min-width:0}
+.mb-venue{font-weight:700;overflow-wrap:anywhere}
+.mb-map,.mb-vid{display:inline-flex;align-items:center;justify-self:start;min-height:44px;font-weight:700}
+.mb-desc{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;font-size:1.02rem}
+.mb-details,.mb-sub{display:grid;gap:var(--s4);min-width:0}
+.mb-sub[hidden]{display:none}
+.mb-chips.mb-big .mb-chip,.mb-sub .mb-chip{flex:1 1 13rem;border-radius:var(--r);text-align:start;padding:10px 14px}
+.mb-chip b{display:block}
+.mb-chip span{display:block;margin-top:2px;font-weight:500;font-size:.86rem;opacity:.85}
+.mb-going{list-style:none;margin:0;padding:0;display:grid;gap:var(--s1)}
+.mb-going a{display:inline-flex;align-items:center;min-height:44px}
+.mb-night{display:grid;gap:var(--s3)}
+.mb-wall{list-style:none;margin:0;padding:0;display:grid;gap:var(--s3)}
+@media(min-width:600px){.mb-wall{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.mb-shot{display:grid;gap:var(--s2);padding:var(--s3);background:var(--panel);border-radius:var(--r);min-width:0}
+.mb-shot img{display:block;width:100%;height:auto;border-radius:var(--r)}
+.mb-shot-prev img{display:block;max-width:100%;max-height:240px;border-radius:var(--r)}
+.mb-card .tv{min-width:0}
+
+/* ---- the front page's board is a glance, not the gathering (15 October 2026). The phone test caps the front page at 4,500px
+   and one gathering card had grown to over 1,100px (a cover, a hook, three buttons stacked, the Discuss counter). Here only:
+   the cover is a short band, the hook two lines, and the actions two across with the counter in the same grid. The board
+   (gatherings/) and the gathering's own page keep everything. */
+.mb-front .mb-cover{aspect-ratio:auto;height:112px}
+.mb-front .mb-hook{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mb-front .mb-acts{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+.mb-front .mb-acts>*{min-width:0}
+.mb-front .mb-acts .talk-n{justify-content:center;border-radius:var(--r,8px);padding:6px 10px;text-align:center}
+.mb-front .mb-acts .talk-n-c{flex-basis:100%;font-size:.82rem}
