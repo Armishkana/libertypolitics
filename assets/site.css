@@ -1332,7 +1332,6 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
   .hero-art .wrap{padding-top:72px;padding-bottom:72px}
   .hero-art .lede{max-width:36ch}
 }
-}
 .hero-page .wrap{padding-top:16px}
 .hero-page h1{font-size:clamp(2.4rem,10.4vw,4.6rem);margin-top:8px}
 @media(min-width:700px){.hero-page .wrap{padding-top:40px;padding-bottom:56px}.hero-page h1{max-width:13ch}}
@@ -1665,6 +1664,88 @@ footer .fine{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);f
   .foot-h{display:block;font:800 1.05rem/1 var(--display);text-transform:uppercase;letter-spacing:.08em;color:var(--seal)}
   footer .fine{margin-top:28px}
 }
+/* ---------------------------------------------------------------- THE COMPOSITION PASS (14 October 2026, late)
+   Armin: "Significantly improve the way LibertyPolitics.com looks ... Don't break anything." Nothing here adds a word, a
+   colour or a feature; it only places what was already there. Four things:
+   1. A COMPUTER USES ITS WIDTH. Every front-page section below the head used the left half of a 72rem column and left the
+      right half black. Each now has two sides: what it says on the left, what you do (or what you have) on the right.
+   2. THE HEAD'S THREE ANSWERS HAVE A FIRST ONE. They were three identical grey pills at ragged widths; the first is now
+      the gold button and the other two sit under it, all the same width on a phone.
+   3. THE HEADLINE READS ON A PHONE. The painting stays; the shade over it is heavier where the words are (left and
+      bottom) and lighter where the Acropolis is, and the lines have room between them.
+   4. THE PAGE HAS CHAPTERS. The missions and what readers posted sit on the deepest ground with a faint lamp-light at
+      their top edge (the seal's own tone, at 4%), so the long scroll reads as rooms, not one black sheet. Still no line
+      above a section: the ground changes, nothing is drawn. Nothing is hidden or animated in. */
+
+/* 2. the three answers in the head (members.css is shared with the Iran site, so this is said here, for this site only) */
+.fq .fq-a{gap:10px}
+.m-js .fq .fq-a{display:grid;grid-template-columns:minmax(0,1fr)}
+.fq .fq-b{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;text-align:center;background:rgba(16,16,16,.74);border-color:rgba(243,241,234,.26);transition:border-color .15s,background-color .15s,transform .15s}
+.fq .fq-b:hover{border-color:var(--field);background:rgba(16,16,16,.9)}
+.fq .fq-b:first-child{background:var(--field);border-color:var(--field);color:var(--on-field);font-weight:700}
+.fq .fq-b:first-child:hover{background:var(--field-hi);border-color:var(--field-hi)}
+.fq .fq-b:active{transform:translateY(1px)}
+.fq .fq-b[aria-pressed="true"],.fq .fq-b[aria-pressed="true"]:hover{background:var(--field);border-color:var(--field);color:var(--on-field);font-weight:700}
+/* once a reader has picked, the gold is theirs: the first answer steps back unless it is the one they picked */
+.fq .fq-a:has(.fq-b[aria-pressed="true"]) .fq-b:first-child:not([aria-pressed="true"]){background:rgba(16,16,16,.74);border-color:rgba(243,241,234,.26);color:var(--ink);font-weight:600}
+@media(min-width:560px){
+  .m-js .fq .fq-a{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fq .fq-b:first-child{grid-column:1/-1}
+  .fq .fq-b:not(:first-child){font-size:var(--t2);padding-left:12px;padding-right:12px}
+}
+
+/* 3. the head on a phone: a shade weighted to where the words are, and room between the lines */
+@media(max-width:699px){
+  .hero-art::after{background:linear-gradient(90deg,rgba(10,10,10,.6) 0%,rgba(10,10,10,.32) 70%,rgba(10,10,10,.16) 100%),linear-gradient(180deg,rgba(10,10,10,.22) 0%,rgba(10,10,10,.14) 28%,rgba(10,10,10,.58) 70%,rgba(10,10,10,.88) 100%)}
+  .hero-home h1{line-height:.95}
+  .hero-home .lede{margin-top:16px}
+  .hero-home .front-q{margin-top:24px}
+}
+/* a computer: the headline sits on its own line of text, not floated above a gap, and the answers keep their contrast
+   over the brightest part of the painting */
+@media(min-width:900px){
+  .hero-home .wrap{grid-template-rows:minmax(0,1fr) auto;row-gap:0}
+  .hero-home h1{align-self:end}
+  .hero-home .lede{margin-top:22px}
+  .hero-home::after{background:linear-gradient(90deg,rgba(10,10,10,.9) 0%,rgba(10,10,10,.72) 30%,rgba(10,10,10,.12) 62%,rgba(10,10,10,0) 100%),radial-gradient(ellipse 46% 62% at 80% 78%,rgba(10,10,10,.62) 0%,rgba(10,10,10,0) 100%),linear-gradient(180deg,transparent 78%,var(--bg) 100%)}
+}
+
+/* 4. chapters: the deepest ground and a lamp at its top edge, for the two rooms that hold pictures and people */
+.front-missions,.latest.on{background:radial-gradient(90% 280px at 50% 0%,rgba(233,217,166,.045),rgba(233,217,166,0) 100%),var(--sunk)}
+.front-missions{padding:48px 0 52px}
+@media(min-width:900px){.front-missions{padding:72px 0 76px}.latest.on{padding:64px 0 72px}}
+
+/* 1. a computer uses its width */
+@media(min-width:900px){
+  /* the gatherings board: what it is on the left, the way in on the right; the gatherings themselves across the whole row */
+  .mb-front .wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:56px;align-items:end}
+  .mb-front .mb-front-h{grid-column:1;grid-row:1}
+  .mb-front .mb-go{grid-column:2;grid-row:1;margin:0;justify-content:flex-end}
+  .mb-front .mb-list{grid-column:1/-1;grid-row:2;margin-top:28px}
+  /* the missions: the act's promise and your rank on the left, your next mission on the right, level with your rank */
+  .front-missions .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:56px}
+  .front-missions .wrap>*{grid-column:1/-1}
+  .front-missions .wrap>h2{grid-column:1;grid-row:1}
+  .front-missions .wrap>.sec-p{grid-column:1;grid-row:2}
+  .front-missions .wrap>.proof{grid-column:1;grid-row:3}
+  .front-missions .you-row{display:contents}
+  .front-missions .q-rank{grid-column:1;grid-row:4;margin-top:22px}
+  .front-missions .you-next-w{grid-column:2;grid-row:1/span 4;align-self:end}
+  .front-missions .you-next-w .you-h{margin-top:0}
+  .front-missions .acts{grid-row:5;margin-top:36px}
+  .front-missions .you-all{grid-row:6;margin-top:10px}
+  /* the three acts stand on one line, so Gather rises above its neighbours instead of hanging below them */
+  .front-missions .acts{align-items:end}
+  /* how to vote: the same two columns as the record above it, the question left and the picker under the record's doors */
+  .vg-front .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:56px;align-items:center}
+  .vg-front .statepick select{width:100%}
+  /* what readers posted: the heading and the way to all of it on one line, the three posts under them */
+  .latest.on .wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:56px;align-items:end}
+  .latest.on .wrap>h2{grid-column:1;grid-row:1}
+  .latest.on .latest-go{grid-column:2;grid-row:1;margin:0}
+  .latest.on .latest-list{grid-column:1/-1;grid-row:2;margin-top:24px;align-items:stretch}
+}
+
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
 /* The share panel (build/share.js): what opens when a reader taps Share. ONE FILE FOR BOTH SITES. Each site's
    render.py adds it to the end of its own site.css, so it is written with the names both stylesheets share
