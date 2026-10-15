@@ -317,7 +317,7 @@
 .ir-a-fine{margin:0;color:#8a887f;font-size:var(--t1);line-height:1.45}
 .ir-a-done p{margin:0;color:var(--dim);font-size:var(--t2);line-height:1.55}
 .ir-a-done p b{color:var(--field)}
-@media(max-width:560px){.ir-add,.ir-spot{width:100vw;max-width:100vw;max-height:100dvh;margin:auto 0 0;border-radius:18px 18px 0 0}.ir-a,.ir-a-done,.ir-s-in{padding:16px}}
+@media(max-width:560px){.ir-add,.ir-spot{width:100%;max-width:100%;max-height:100dvh;margin:auto 0 0;border-radius:18px 18px 0 0}.ir-a,.ir-a-done,.ir-s-in{padding:16px}}
 
 /* FULL SCREEN, for a stream. The room alone, filling the screen, big enough to read on a viewer's phone, the brand and a
    clock in US Eastern time at the top. */
@@ -349,3 +349,211 @@ html.ir-show .ir-hist{height:70px}
 .ir-p-list a{color:var(--ink);font-weight:650}
 .ir-p-list small{display:block;color:var(--dim);font-size:var(--t1)}
 .ir-p-list b{color:var(--field);font-weight:700;margin-right:6px}
+
+/* THE OPERATIONS ROOM (16 October 2026). Armin: "It needs to look like a CIA-like intelligence hub but without violating
+   the theme and brand of our website ... a mix of ancient Greek and futurism". The answer, in looks: the site's black and
+   gold kept, Athena present only as her owl (the emblem on the map's display and in the kicker), the Greek key along the
+   room's edges, and an operations room's language in hairlines: a globe with the real night side and a slow sweep, the
+   wire of the hottest stories across the top, a board of counts, gold corner marks on the display. The one set of
+   colours added is the platforms' own (PF in intel.js), because he asked that a mark's colour say where it was posted;
+   they are only ever on marks, dots and one thin bar, never on chrome. Corners stay the site's two sizes (8 and 14). */
+.ir{--mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;--hud:rgba(9,9,8,.8);--hair:rgba(244,196,48,.2);
+  --key:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='10'%3E%3Cpath d='M0 9H12M9 9V1H3v5h3V4' fill='none' stroke='%23F4C430' stroke-opacity='.42' stroke-width='1'/%3E%3C/svg%3E")}
+.ir-owl{width:22px;height:22px;flex:none;fill:none;stroke:var(--field);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.ir-owl .o-p{fill:var(--field);stroke:none}
+.ir-kick .ir-owl{width:24px;height:24px;margin-right:2px}
+.ir-kick-s{padding-left:10px;border-left:1px solid #3a3936;color:var(--dim);letter-spacing:.12em}
+@media(max-width:520px){.ir-kick-s{display:none}}
+.ir-top{padding-bottom:calc(var(--s4) + 12px);background:var(--key) left bottom/12px 10px repeat-x}
+
+/* the wire: the hottest of the last 24 hours, running */
+.ir-wire{display:flex;align-items:stretch;margin:0 0 var(--s4);border-radius:var(--r);background:#0B0B0A;box-shadow:inset 0 0 0 1px var(--hair);overflow:hidden}
+.ir-wire-l{flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--field);color:var(--on-field);font:800 var(--t2)/1 var(--display);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+.ir-wire-l i{width:8px;height:8px;border-radius:50%;background:#B3261E;box-shadow:0 0 0 2px rgba(179,38,30,.25);animation:irblink 1.2s ease-in-out infinite}
+.ir-wire-v{flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}
+.ir-wire-t{display:flex;width:max-content;animation:irwire 120s linear infinite}
+.ir-wire:hover .ir-wire-t,.ir-wire:focus-within .ir-wire-t{animation-play-state:paused}
+@keyframes irwire{to{transform:translateX(-50%)}}
+.w-set{display:flex}
+.ir-wire button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-right:1px solid rgba(244,196,48,.1);background:none;color:var(--ink);font:600 var(--t2)/1.2 var(--body);white-space:nowrap;cursor:pointer}
+.ir-wire button:hover,.ir-wire button:focus-visible{background:rgba(244,196,48,.08);outline:none}
+.w-h{display:inline-flex;align-items:center;gap:3px;color:var(--live);font:800 var(--t1)/1 var(--body)}
+.w-h svg{width:13px;height:13px;fill:currentColor}
+.w-m{width:13px;height:13px;flex:none}
+.w-s{color:var(--dim);font-weight:500;font-size:var(--t1)}
+@media(prefers-reduced-motion:reduce){.ir-wire-t{animation:none}.ir-wire-v{overflow-x:auto;-webkit-mask-image:none;mask-image:none}.w-set+.w-set{display:none}.ir-wire-l i{animation:none}}
+
+/* the lenses as tabs of one display */
+.ir-lens{border-radius:var(--r);border-color:#24231f}
+.ir-lens button{border-radius:6px}
+.ir-lens button[aria-selected="true"]{box-shadow:inset 0 -2px 0 var(--field),inset 0 0 0 1px #3a3833}
+.ir-lens-live[aria-selected="true"]{box-shadow:inset 0 -2px 0 var(--live),inset 0 0 0 1px #3a3833!important}
+
+/* the controls: a labelled row for where it was posted, one for the topic, then the tools */
+.ir-row{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.ir-row-l{font:800 var(--t1)/1 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--field)}
+@media(min-width:760px){.ir-row{grid-template-columns:86px minmax(0,1fr);align-items:center;gap:10px}}
+.ir-pf{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;padding-right:28px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 32px),transparent)}
+.ir-pf::-webkit-scrollbar{display:none}
+.ir-pfc{min-height:46px;gap:9px;padding:0 14px 0 12px;border-radius:var(--r)}
+.ir-pfc>span{display:grid;justify-items:start;line-height:1.15;text-align:left}
+.ir-pfc small{display:inline-flex;align-items:center;gap:3px;font:500 var(--t1)/1.2 var(--body);color:var(--dim)}
+.ir-pfc small svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2}
+.ir-pfd{flex:none;width:10px;height:10px;border-radius:2px;background:var(--pc);transform:rotate(45deg)}
+.ir-pfc[style][aria-pressed="true"]{background:var(--raise);border-color:var(--pc);color:var(--ink);box-shadow:inset 0 0 0 1px var(--pc)}
+.ir-pfc[style][aria-pressed="true"] i,.ir-pfc[style][aria-pressed="true"] small{color:var(--ink);opacity:1}
+.ir-pf-all{border-radius:var(--r)}
+.ir-segl{align-items:center}
+.ir-seg-l{display:flex;align-items:center;align-self:stretch;padding:0 8px;font:800 var(--t1)/1 var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--field)}
+#ir-heat button[aria-pressed="true"]{color:var(--live)}
+#ir-viral button[aria-pressed="true"]{color:var(--seal)}
+
+/* the board: what is in view, counted */
+.ir-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:var(--s3)}
+.ir-board:empty{display:none}
+.ir-b-t{position:relative;display:grid;align-content:start;gap:3px;min-width:0;padding:10px 12px 11px;border:0;border-radius:var(--r);background:linear-gradient(180deg,rgba(244,196,48,.06),rgba(244,196,48,0) 70%),var(--panel);color:var(--ink);text-align:left;font:inherit}
+.ir-b-k{font:800 var(--t1)/1 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--field)}
+.ir-b-t>b{font:800 clamp(1.45rem,2.4vw,2rem)/1.05 var(--display);letter-spacing:.01em;color:var(--ink)}
+.ir-b-t small{font:500 var(--t1)/1.3 var(--body);color:var(--dim)}
+.ir-b-top{grid-column:1/-1;cursor:pointer}
+.ir-b-top:hover{background:linear-gradient(180deg,rgba(244,196,48,.12),rgba(244,196,48,0) 80%),var(--raise)}
+.ir-b-tt{font:650 var(--t2)/1.3 var(--body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ir-b-mix{grid-column:1/-1;display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden}
+.ir-b-mix span{min-width:3px}
+@media(min-width:900px){.ir-board{grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,2.2fr)}.ir-b-top{grid-column:auto}}
+
+/* the display: a globe on a grid, gold corner marks, a slow sweep, the owl at the top left */
+.ir-mapbox{border-radius:var(--r2);
+  background:radial-gradient(70% 70% at 50% 46%,rgba(244,196,48,.06) 0%,rgba(244,196,48,0) 62%),
+    linear-gradient(rgba(244,196,48,.035) 1px,transparent 1px) 0 0/44px 44px,linear-gradient(90deg,rgba(244,196,48,.035) 1px,transparent 1px) 0 0/44px 44px,
+    radial-gradient(130% 100% at 50% 45%,#0F1014 0%,#050506 75%);
+  box-shadow:inset 0 0 0 1px #2a2822,0 30px 60px -40px #000}
+.ir-mapbox::before{content:"";position:absolute;inset:8px;z-index:2;pointer-events:none;
+  background:linear-gradient(var(--field),var(--field)) left top/16px 1.5px,linear-gradient(var(--field),var(--field)) left top/1.5px 16px,
+    linear-gradient(var(--field),var(--field)) right top/16px 1.5px,linear-gradient(var(--field),var(--field)) right top/1.5px 16px,
+    linear-gradient(var(--field),var(--field)) left bottom/16px 1.5px,linear-gradient(var(--field),var(--field)) left bottom/1.5px 16px,
+    linear-gradient(var(--field),var(--field)) right bottom/16px 1.5px,linear-gradient(var(--field),var(--field)) right bottom/1.5px 16px;
+  background-repeat:no-repeat;opacity:.55}
+.ir-mapbox::after{z-index:2}
+.ir-globe{position:absolute;left:0;top:0;display:block;pointer-events:none}
+.ir-map{position:absolute;inset:0;z-index:1}
+.ir-sweep{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+/* the turning disc is the layer's ::before, so it may be bigger than the box and is still clipped to it */
+.ir-sweep::before{content:"";position:absolute;left:calc(var(--sx,50%) - var(--sr,0px));top:calc(var(--sy,50%) - var(--sr,0px));width:calc(var(--sr,0px) * 2);height:calc(var(--sr,0px) * 2);border-radius:50%;
+  background:conic-gradient(from 0deg,rgba(244,196,48,0) 0deg,rgba(244,196,48,0) 318deg,rgba(244,196,48,.06) 350deg,rgba(255,226,154,.15) 359.5deg,rgba(255,226,154,0) 360deg);animation:irsweep 10s linear infinite}
+@keyframes irsweep{to{transform:rotate(1turn)}}
+@media(prefers-reduced-motion:reduce){.ir-sweep{display:none}}
+.ir-hud{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:10px;padding:8px 12px 8px 9px;border-radius:var(--r);background:var(--hud);box-shadow:inset 0 0 0 1px var(--hair);backdrop-filter:blur(6px);pointer-events:none}
+.ir-hud .ir-owl{width:30px;height:30px}
+.ir-hud-n{display:grid;gap:4px}
+.ir-hud-n b{font:800 var(--t1)/1 var(--display);letter-spacing:.18em;text-transform:uppercase;color:var(--field)}
+.ir-hud-c{font:500 var(--t1)/1 var(--mono);letter-spacing:.02em;color:var(--dim);white-space:pre}
+.ir-maphint{top:72px;z-index:3;border-radius:var(--r)}
+.ir-zoom{z-index:3}
+.ir-zoom button{border-radius:var(--r)}
+.ir-z-proj[data-mode="globe"] .i-globe,.ir-z-proj[data-mode="flat"] .i-flat{display:none}
+.ir-nowhere,.ir-legend,.ir-tip,.ir-lt{z-index:4}
+
+/* the marks: a count with a ring split by platform; or, where there is room, every item as its own shape */
+.ir-pin circle.seg{fill:none;stroke-width:3.2}
+.ir-pin.dim .seg{opacity:.35}
+.ir-cl{cursor:default}
+.ir-cl .cl-r{fill:rgba(8,8,7,.45);stroke:rgba(244,196,48,.4);stroke-width:1;stroke-dasharray:2 3}
+.ir-cl .cl-c{fill:var(--field)}
+.ir-cl.sel .cl-r{fill:rgba(244,196,48,.08);stroke:var(--field);stroke-dasharray:none;stroke-width:1.4}
+.ir-cl.live .cl-r{stroke:rgba(255,226,154,.55)}
+.ir-cl.dim{opacity:.4}
+.ir-cl .cl-more{fill:var(--dim);font:700 13px var(--body);text-anchor:middle;paint-order:stroke;stroke:#050506;stroke-width:3px}
+.ir-gl{cursor:pointer}
+.ir-gl path{stroke:#070707;stroke-width:1.4;paint-order:stroke}
+.ir-gl:hover path,.ir-gl:focus-visible path{stroke:#fff;stroke-width:1.8}
+.ir-gl:focus{outline:none}
+.ir-gl.big path{transform:scale(1.28)}
+.ir-gl .gl-hot{fill:none;stroke:var(--live);stroke-width:1.4;transform-box:fill-box;transform-origin:center;animation:irring 2.4s ease-out infinite;pointer-events:none}
+.ir-cl .pulse,.ir-pin .pulse{fill:none;stroke:var(--field);stroke-width:2;animation:irpulse 1.6s ease-out 3}
+@media(prefers-reduced-motion:reduce){.ir-gl .gl-hot{animation:none;opacity:.5}}
+/* what is on the far side of the globe: an arrow on the rim with the count, a tap turns the globe to it */
+.ir-edge{cursor:pointer}
+.ir-edge circle{fill:rgba(9,9,8,.88);stroke:var(--field);stroke-width:1.2}
+.ir-edge path{fill:var(--field)}
+.ir-edge text{fill:var(--ink);font:800 11px var(--body);text-anchor:middle;dominant-baseline:central;font-variant-numeric:tabular-nums}
+.ir-edge:hover circle,.ir-edge:focus-visible circle{fill:#2a2410}
+.ir-edge:focus{outline:none}
+.ir-edge.live circle{stroke:var(--live)}
+
+/* the key at the bottom left: shape is what it is, colour where it was posted */
+.ir-legend{display:grid;gap:4px}
+.ir-legend .lg-h{display:block}
+.ir-legend .lg-k{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--dim);font-weight:500}
+.ir-legend .lg-k>span{display:inline-flex;align-items:center;gap:5px}
+.ir-legend .lg-k svg{width:12px;height:12px;fill:var(--seal)}
+.ir-legend .lg-c{color:#8a887f}
+@media(max-width:520px){.ir-legend .lg-k>.lg-c{display:none}}
+.ir-tip.wide{white-space:normal;width:min(300px,72vw);font-weight:650}
+.ir-tip .tip-k{display:flex;align-items:center;gap:6px;margin-bottom:4px;color:var(--dim);font:600 var(--t1)/1.2 var(--body)}
+.ir-tip .tip-m{width:12px;height:12px;flex:none}
+
+/* the list: each thumbnail carries the map's mark; under each title, heat, viral and the platform's own counts */
+.ir-list{border-radius:var(--r2)}
+.ir-th{box-shadow:inset 0 -2px 0 var(--pc,transparent)}
+.ir-th i{font-style:normal}
+.ir-th .ir-mk{position:absolute;right:4px;top:4px;width:13px;height:13px;filter:drop-shadow(0 0 2px #000)}
+.ir-c-x{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:6px}
+.ir-c-x .hot{margin-top:0}
+.vir{display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 6px;border-radius:999px;font:700 var(--t1)/1 var(--body);color:var(--seal);
+  background:linear-gradient(90deg,rgba(233,217,166,.22) var(--h),rgba(255,255,255,.05) var(--h))}
+.vir svg{width:12px;height:12px;fill:currentColor}
+.vir b{color:var(--ink)}
+.ir-rch{display:inline-flex;flex-wrap:wrap;gap:4px 10px;color:var(--dim);font:600 var(--t1)/1.2 var(--body)}
+.ir-rch>span{display:inline-flex;align-items:center;gap:4px}
+.ir-rch svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.ir-rch b{color:var(--ink);font-weight:700}
+.ir-rch-x{font-weight:500;color:#8a887f}
+/* the spotlight */
+.ir-s-c .pfc{display:inline-flex;align-items:center;gap:6px;box-shadow:inset 0 0 0 1px var(--pc)}
+.ir-s-c .pfc .ir-mk{width:13px;height:13px}
+.ir-s-c .virc{background:rgba(233,217,166,.12);color:var(--seal)}
+.ir-s-c .virc svg{width:12px;height:12px;fill:currentColor;vertical-align:-1px;margin-right:4px}
+.ir-s-r{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0;padding:10px 12px;border-radius:var(--r);background:var(--sunk);font-size:var(--t2)}
+.ir-s-r>span{display:inline-flex;align-items:center;gap:6px}
+.ir-s-r svg{width:16px;height:16px;fill:none;stroke:var(--field);stroke-width:2;stroke-linejoin:round}
+.ir-s-r small{flex-basis:100%;color:var(--dim);font-size:var(--t1)}
+.ir-s-rx{color:var(--dim)}
+.ir-lt-m .ir-mk{width:12px;height:12px;margin-right:6px;vertical-align:-1px}
+.ir-lt .ir-rch{margin-top:2px}
+
+/* full screen: the room as a column that fills the screen, the map taking what is left */
+html.ir-show .ir{display:flex;flex-direction:column;gap:10px}
+html.ir-show .ir>*{flex:none}
+html.ir-show .ir-main{flex:1 1 auto;min-height:0}
+html.ir-show .ir-wire{margin:0}
+html.ir-show .ir-top{padding-bottom:12px}
+html.ir-show .ir-board{margin:0;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,2.2fr)}
+html.ir-show .ir-b-top{grid-column:auto}
+html.ir-show .ir-hud .ir-owl{width:40px;height:40px}
+html.ir-show .ir-hud-n b{font-size:var(--t3)}
+
+/* full screen keeps the globe big: the title, the ask box and the filters fold away behind one button (Filters), and the
+   lenses and the board stay, because they are what a viewer reads */
+.ir-ctl,.ir-exit{display:none}
+html.ir-show .ir-ctl,html.ir-show .ir-exit{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:var(--r);border:1px solid #4a4843;background:var(--panel);color:var(--ink);font:600 var(--t2) var(--body);letter-spacing:0;text-transform:none;cursor:pointer}
+html.ir-show .ir-ctl{margin-left:12px}
+html.ir-show .ir-ctl[aria-pressed="true"]{border-color:var(--field);color:var(--field)}
+html.ir-show .ir-exit svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+html.ir-show:not(.ir-ctl-on) .ir-top,html.ir-show:not(.ir-ctl-on) .ir-bar{display:none!important}
+html.ir-show .ir-lens button{min-height:44px}
+html.ir-show .ir-main{grid-template-columns:minmax(0,1fr) clamp(380px,27vw,520px)}
+
+/* on a phone the board is one row of four counts, then the hottest, so the globe is reached in one scroll */
+@media(max-width:599px){
+  .ir-board{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .ir-b-t{padding:8px 6px 9px 10px}
+  .ir-b-k{letter-spacing:.08em}
+  .ir-b-t>b{font-size:1.3rem}
+  .ir-b-t small{display:none}
+  .ir-b-top{grid-column:1/-1}
+  .ir-hud{left:8px;top:8px;padding:6px 10px 6px 7px;gap:8px}
+  .ir-hud .ir-owl{width:24px;height:24px}
+  .ir-maphint{top:auto;bottom:118px;left:8px;max-width:calc(100% - 16px)}
+}
+.ir-maphint{max-width:calc(100% - 92px)}

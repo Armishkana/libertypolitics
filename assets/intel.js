@@ -4,8 +4,18 @@
    presets, play), the topics, the place, the kind, top picks, explainers, saved views, the list, the spotlight (one item,
    big, with arrows to the next and a way to say it is weak), the ask box, adding a find (a mission report, see intel.py),
    copy notes, the tour and full screen. Data: data/intel.json (build/intel_data.py), data/intel-live.json
-   (build/intel_live.py), the readers' finds over plain REST. Words: build/intel.py and this file. Nothing is sent
-   anywhere except a find the reader sends, through community.js. */
+   (build/intel_live.py), data/intel-reach.json (build/intel_reach.py: each item's likes, views and replies on its own
+   platform), the readers' finds over plain REST. Words: build/intel.py and this file. Nothing is sent anywhere except a
+   find the reader sends, through community.js.
+
+   16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
+   Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
+   based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js) that also lays flat, with
+   the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
+   (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
+   viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
+   where an item's like count (views on Telegram) ranks among the items of the same platform in the room, 0 to 100. */
 (function () {
   'use strict';
   var root = document.getElementById('ir');
@@ -15,19 +25,34 @@
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var FIRST = '2023-10';          // the timeline runs from the month of 7 October; anything older is one bar, "Earlier"
   var PAGE_N = 40;
-  var MAXK = 600;          // deep enough that Gaza City, Khan Younis and Rafah come apart
+  var MAXK = 400;          // deep enough that Gaza City, Khan Younis and Rafah come apart
   var TOUR_MS = 12000;
+  // Where an item was posted: the key, the name a reader sees, the colour of its marks. The platforms' own colours, toned
+  // to sit on the room's black; News is the brand's gold and a website the seal's pale gold, so the chrome stays gold.
+  var PF = [['X', 'X', '#ECEAE3'], ['YouTube', 'YouTube', '#FF5348'], ['Telegram', 'Telegram', '#3FAEEA'], ['Instagram', 'Instagram', '#E8467F'],
+    ['Facebook', 'Facebook', '#5F8BF2'], ['Threads', 'Threads', '#A88DFF'], ['TikTok', 'TikTok', '#32E3DC'], ['News', 'News', '#F4C430'],
+    ['Web', 'Websites', '#D9C68C'], ['Document', 'Documents', '#D08A3C'], ['Other', 'Other video', '#8FC955']];
+  var PFC = {}; PF.forEach(function (p) { PFC[p[0]] = p; });
+  // What it is: one shape per kind, drawn about 0,0 (the list's thumbnails carry the same mark)
+  var SHAPE = { video: 'M-5 -6.2 6.8 0-5 6.2z', post: 'M0 -7 7 0 0 7-7 0z', article: 'M-5.4 -5.4h10.8v10.8h-10.8z', doc: 'M0 -6.8 5.9 -3.4v6.8L0 6.8-5.9 3.4v-6.8z' };
+  var KIND_N = { video: 'Video', post: 'Post', article: 'Article', doc: 'Document' };
+  var HIDES = { Instagram: 1, Facebook: 1, Threads: 1, TikTok: 1 };          // no public like count without a login: never guessed
   var MISSION = { find: 'send-intel', mine: 'send-your-own' };
   var XP = { find: +root.getAttribute('data-xp-find') || 40, mine: +root.getAttribute('data-xp-own') || 90 };
   // The map's own country names for the places' countries, where the two differ.
   var TOPO = { 'Gaza': 'Palestine', 'West Bank': 'Palestine', 'United States': 'United States of America' };
   var KINDS = [['', 'All'], ['video', 'Videos'], ['post', 'Posts'], ['article', 'Articles'], ['doc', 'Documents and data']];
   var LENS = { live: 'Last 24 hours', bank: 'The bank', readers: 'From readers' };
-  var SORTS = { live: [['hot', 'Hottest first'], ['new', 'Newest first']], bank: [['new', 'Newest first'], ['old', 'Oldest first'], ['top', 'Top picks first']], readers: [['new', 'Newest first']] };
+  // Each lens's orders; viral, likes and views stay only where the lens has a measured number (trimmed after loading).
+  var SORTS = { live: [['hot', 'Hottest first'], ['new', 'Newest first'], ['viral', 'Most viral'], ['likes', 'Most liked'], ['views', 'Most viewed']],
+    bank: [['new', 'Newest first'], ['old', 'Oldest first'], ['top', 'Top picks first'], ['viral', 'Most viral'], ['likes', 'Most liked'], ['views', 'Most viewed']], readers: [['new', 'Newest first']] };
+  var HEATS = [[0, 'Any heat'], [40, 'Warm 40+'], [70, 'Hot 70+'], [90, 'On fire 90+']];
+  var VIRALS = [[0, 'Any reach'], [50, 'Top half'], [75, 'Top quarter'], [90, 'Top 10%']];
+  var WITHIN = [[0, '24 hours'], [12, '12 h'], [6, '6 h'], [3, '3 h'], [1, '1 h']];
 
-  var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [];
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false };
-  var shown = [], limit = PAGE_N, spotAt = -1, world = null, hiLoaded = false, rdState = 'idle';
+  var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
+  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0 };
+  var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
@@ -78,14 +103,79 @@
   function flame() { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3-1-3 0-7 1-9.5z"/></svg>'; }
   function hotTag(it) { return it.hot != null ? '<span class="hot" style="--h:' + Math.max(4, it.hot) + '%" title="' + esc(it.hotWhy || '') + '">' + flame() + '<b class="num">' + it.hot + '</b> Hot</span>' : ''; }
 
-  /* ------------------------------------------------------------ the projection (the same as build time) */
-  var W = 2000, SC = W / (2 * Math.PI * 0.8707);
-  function proj(lon, lat) {
-    var l = lon * Math.PI / 180, p = lat * Math.PI / 180, p2 = p * p, p4 = p2 * p2;
-    var x = l * (0.8707 - 0.131979 * p2 + p4 * (-0.013791 + p4 * p2 * (0.003971 - 0.001529 * p2)));
-    var y = p * (1.007226 + p2 * (0.015085 + p4 * (-0.044475 + 0.028874 * p2 - 0.005916 * p4)));
-    return [x * SC + W / 2, -y * SC];
+  /* ------------------------------------------------------------ where it was posted, and how many liked it there */
+  function pfOf(it) {
+    if (it._pf) return it._pf;
+    var h = hostOf(it.u), s = it.src === 'News' ? 'News' : srcOf(it.u);
+    if (/(^|\.)threads\.(net|com)$/.test(h)) s = 'Threads';
+    else if (/^(drive|docs)\.google\.com$/.test(h)) s = 'Document';
+    else if (s === 'Rumble') s = 'Other';
+    if (!PFC[s]) s = 'Web';
+    return (it._pf = s);
   }
+  function pfColor(p) { return (PFC[p] || PFC.Web)[2]; }
+  function pfName(p) { return (PFC[p] || PFC.Web)[1]; }
+  // The counters, from data/intel-reach.json, or from the feed itself for a video of the last 24 hours (fresher).
+  function reachOf(it) {
+    if (it._r !== undefined) return it._r;
+    var r = REACH[norm(it.u)] || null;
+    if (it.lk != null || it.vw != null) { r = { pf: 'YouTube', at: it.d }; if (it.lk != null) r.lk = it.lk; if (it.vw != null) r.vw = it.vw; }
+    return (it._r = r);
+  }
+  // The one number each platform shows everyone: likes on X and YouTube, views on Telegram (it has no public likes).
+  function mainCount(it) { var r = reachOf(it); if (!r || r.x) return null; return pfOf(it) === 'Telegram' ? (r.vw != null ? r.vw : null) : (r.lk != null ? r.lk : null); }
+  function likesOf(it) { var r = reachOf(it); return r && !r.x && r.lk != null ? r.lk : null; }
+  function viewsOf(it) { var r = reachOf(it); return r && !r.x && r.vw != null ? r.vw : null; }
+  function fmtN(n) {
+    if (n == null) return '';
+    if (n < 1000) return String(n);
+    if (n < 1e6) { var k = n / 1e3; return (k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)) + 'K'; }
+    var m = n / 1e6; return (m < 10 ? m.toFixed(1).replace(/\.0$/, '') : Math.round(m)) + 'M';
+  }
+  // VIRAL: where the item's own number ranks among the items of the same platform in the room (both lenses), 0 to 100.
+  // A platform needs 8 measured items before it is ranked at all, so a score never rests on a handful.
+  var VN = {};
+  function computeViral() {
+    var by = {}, all = BANK.concat(LIVE);
+    all.forEach(function (it) { var m = mainCount(it); if (m != null) (by[pfOf(it)] = by[pfOf(it)] || []).push(m); });
+    Object.keys(by).forEach(function (p) { by[p].sort(function (a, b) { return a - b; }); VN[p] = by[p].length; });
+    all.forEach(function (it) {
+      var m = mainCount(it), a = by[pfOf(it)];
+      delete it._v;
+      if (m == null || !a || a.length < 8) return;
+      var lo = 0, hi = a.length;
+      while (lo < hi) { var mid = (lo + hi) >> 1; if (a[mid] < m) lo = mid + 1; else hi = mid; }
+      it._v = Math.max(0, Math.min(100, Math.round(100 * lo / (a.length - 1))));
+    });
+  }
+  function viralWhy(it) {
+    if (it._v == null) return '';
+    var p = pfOf(it), n = VN[p] || 0, w = p === 'Telegram' ? 'views' : 'likes';
+    return 'More ' + w + ' than ' + it._v + '% of the ' + n + ' ' + pfName(p) + ' items in the room with a count';
+  }
+  var ICO = {
+    like: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10z"/></svg>',
+    view: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>',
+    reply: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+    viral: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h3v-5H3zM10.5 20h3V10h-3zM18 20h3V4h-3z"/></svg>'
+  };
+  // A mark that says what it is and where it was posted: the map's shape in the platform's colour
+  function mark(it, cls) {
+    var k = kindOf(it), p = pfOf(it);
+    return '<svg class="' + (cls || 'ir-mk') + '" viewBox="-8 -8 16 16" aria-hidden="true"><path d="' + (SHAPE[k] || SHAPE.post) + '" fill="' + pfColor(p) + '"/></svg>';
+  }
+  function reachLine(it) {
+    var r = reachOf(it), p = pfOf(it), out = [];
+    if (r && r.x) return '<span class="ir-rch ir-rch-x">' + esc(pfName(p)) + ' hides this count now (deleted, private or behind a login)</span>';
+    if (r) {
+      if (r.lk != null) out.push('<span title="' + esc(r.lk.toLocaleString('en-US') + ' likes on ' + pfName(p)) + '">' + ICO.like + '<b class="num">' + fmtN(r.lk) + '</b></span>');
+      if (r.vw != null) out.push('<span title="' + esc((r['~'] ? 'About ' : '') + r.vw.toLocaleString('en-US') + ' views on ' + pfName(p)) + '">' + ICO.view + '<b class="num">' + (r['~'] ? '~' : '') + fmtN(r.vw) + '</b></span>');
+      if (r.rp != null) out.push('<span title="' + esc(r.rp.toLocaleString('en-US') + ' replies') + '">' + ICO.reply + '<b class="num">' + fmtN(r.rp) + '</b></span>');
+    }
+    return out.length ? '<span class="ir-rch">' + out.join('') + '</span>' : '';
+  }
+  function viralTag(it) { return it._v != null ? '<span class="vir" style="--h:' + Math.max(4, it._v) + '%" title="' + esc(viralWhy(it)) + '">' + ICO.viral + '<b class="num">' + it._v + '</b> Viral</span>' : ''; }
+  function reduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
 
   /* ------------------------------------------------------------ the three lenses */
   function setOf(l) { return l === 'live' ? LIVE : l === 'readers' ? RD : BANK; }
@@ -96,7 +186,7 @@
     S.lens = l; items = setOf(l);
     S.sort = SORTS[l][0][0];          // each lens opens on its own order (hottest, newest); the address can still name another
     var hint = $('ir-maphint');
-    if (hint) hint.textContent = l === 'live' ? 'The last 24 hours. Tap a circle to see what happened there.' : l === 'readers' ? 'Finds readers sent, not checked yet.' : BANK.length + ' items in the bank. Tap a gold circle.';
+    if (hint) hint.textContent = l === 'live' ? 'The last 24 hours. Drag to turn the globe, tap a mark.' : l === 'readers' ? 'Finds readers sent, not checked yet.' : BANK.length + ' items in the bank. Drag to turn the globe, tap a mark.';
     $('ir-sort').innerHTML = SORTS[l].map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('');
     $('ir-sort').value = S.sort;
     root.setAttribute('data-shows', l);
@@ -157,6 +247,10 @@
   function pass(it, skip) {
     if (skip !== 'tp' && S.tp.length && !S.tp.some(function (t) { return (it.tp || []).indexOf(t) >= 0; })) return false;
     if (skip !== 'kind' && S.kind && kindOf(it) !== S.kind) return false;
+    if (skip !== 'pf' && S.pf.length && S.pf.indexOf(pfOf(it)) < 0) return false;
+    if (S.heat && S.lens === 'live' && (it.hot || 0) < S.heat) return false;
+    if (skip !== 'viral' && S.vmin && (it._v == null || it._v < S.vmin)) return false;
+    if (S.within && S.lens === 'live') { var ms = Date.parse(it.d || ''); if (!(ms > Date.now() - S.within * 3600000)) return false; }
     if (S.top && S.lens === 'bank' && !it.q) return false;
     if (S.edu && !it.edu) return false;
     if (skip !== 'place' && !inPlace(it)) return false;
@@ -173,6 +267,11 @@
     if (S.sort === 'old') by = function (x, y) { return (x.d || '9999').localeCompare(y.d || '9999'); };
     if (S.sort === 'top') { var nb = by; by = function (x, y) { return ((y.q || 0) - (x.q || 0)) || nb(x, y); }; }
     if (S.sort === 'hot') { var nh = by; by = function (x, y) { return ((y.hot || 0) - (x.hot || 0)) || nh(x, y); }; }
+    // most viral, liked, viewed: what has no measured number goes after everything that has one, newest first
+    var num = function (f) { var nb2 = by; return function (x, y) { var a = f(x), b = f(y); return ((b == null ? -1 : b) - (a == null ? -1 : a)) || nb2(x, y); }; };
+    if (S.sort === 'viral') by = num(function (i) { return i._v; });
+    if (S.sort === 'likes') by = num(likesOf);
+    if (S.sort === 'views') by = num(viewsOf);
     return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || by(x, y); });      // an unlabelled post goes last, whatever the order
   }
 
@@ -186,6 +285,7 @@
     drawCountries();
     if (S.lens === 'bank') drawBars();
     drawChips();
+    drawBoard();
     drawState();
     drawLegend();
     liveNote();
@@ -204,16 +304,17 @@
     return b;
   }
   function thumb(it) {
-    var y = ytId(it.u);
-    if (it.th || y) return '<span class="ir-th yt" style="background-image:url(' + esc(it.th || 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg') + ')"></span>';
-    var s = it.src === 'Telegram' ? 'TG' : it.src === 'Document' ? 'DOC' : it.src === 'Facebook' ? 'FB' : it.src === 'Instagram' ? 'IG' : it.src === 'News' ? 'NEWS' : (it.src || '').length > 9 ? 'WEB' : it.src;
-    return '<span class="ir-th">' + esc(s) + '</span>';
+    var y = ytId(it.u), p = pfOf(it), m = mark(it), pc = ' style="--pc:' + pfColor(p) + '"';
+    if (it.th || y) return '<span class="ir-th yt" style="--pc:' + pfColor(p) + ';background-image:url(' + esc(it.th || 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg') + ')">' + m + '</span>';
+    var s = p === 'Telegram' ? 'TG' : p === 'Document' ? 'DOC' : p === 'Facebook' ? 'FB' : p === 'Instagram' ? 'IG' : p === 'News' ? 'NEWS' : p === 'Web' ? 'WEB' : p === 'Threads' ? 'THR' : p === 'Other' ? 'VIDEO' : p;
+    return '<span class="ir-th"' + pc + '><i>' + esc(s) + '</i>' + m + '</span>';
   }
   function card(it, i) {
     var where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
     var meta = '<span>' + esc(it.pend && !it.d ? 'Sent ' + ago(it.ms) : fmtDate(it.d)) + '</span> · ' + esc(where) + ' · ' + esc(it.h || it.src) + badges(it);
+    var tags = hotTag(it) + viralTag(it) + reachLine(it);
     return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
-      '<span><span class="ir-c-t">' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + hotTag(it) + '</span></button></li>';
+      '<span><span class="ir-c-t">' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
   }
   function drawList() {
     var ol = $('ir-items');
@@ -231,176 +332,365 @@
     $('ir-copy').hidden = !n; $('ir-tour').hidden = !n;
   }
 
-  /* ------------------------------------------------------------ the map */
-  var map = $('ir-map'), box = $('ir-mapbox'), gLand, gGrid, gPins, T = { k: 1, x: 0, y: 0 }, base = { s: 1, ox: 0, oy: 0 }, paths = {};
-  function fit() {
-    var cw = box.clientWidth, ch = box.clientHeight;
-    var s = Math.min(cw / W, ch / world.h);
-    base.s = s; base.ox = (cw - W * s) / 2; base.oy = (ch - world.h * s) / 2;
+  /* ------------------------------------------------------------ the map: a globe that also lays flat
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js): the globe is orthographic, the flat map Natural Earth,
+     and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
+     marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
+  var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
+  var map = $('ir-map'), box = $('ir-mapbox'), cv = null, ctx = null, gPins = null;
+  var V = { mode: 'globe', lon: 32, lat: 28, k: 1 }, moving = 0, LAND = null, LAND_HI = null, hiLoaded = false, dpr = 1, CW = 0, CH = 0, PJ = null;
+  var BYNAME = {}, BYNAME_HI = {}, HEAT = {}, SELC = '', GRAT = null, EQ = { type: 'LineString', coordinates: [[-180, 0], [-90, 0], [0, 0], [90, 0], [180, 0]] };
+  var HEATC = ['', '#2B271D', '#36301C', '#46391B', '#5E4A1C'];
+
+  // TopoJSON (world-atlas, Natural Earth) to features, the same as topojson-client's feature(): arcs undone, rings joined.
+  function topoFeatures(t, byName) {
+    var tf = t.transform, sx = tf ? tf.scale[0] : 1, sy = tf ? tf.scale[1] : 1, tx = tf ? tf.translate[0] : 0, ty = tf ? tf.translate[1] : 0;
+    var arcs = t.arcs.map(function (a) { var x = 0, y = 0; return a.map(function (p) { if (!tf) return [p[0], p[1]]; x += p[0]; y += p[1]; return [x * sx + tx, y * sy + ty]; }); });
+    function ring(ids) {
+      var pts = [];
+      ids.forEach(function (i) { var a = i < 0 ? arcs[~i].slice().reverse() : arcs[i]; pts = pts.length ? pts.concat(a.slice(1)) : a.slice(); });
+      return pts;
+    }
+    var out = [];
+    t.objects.countries.geometries.forEach(function (g) {
+      var polys = g.type === 'Polygon' ? [g.arcs] : g.type === 'MultiPolygon' ? g.arcs : null;
+      if (!polys) return;
+      var f = { type: 'Feature', properties: { name: g.properties.name }, geometry: { type: 'MultiPolygon', coordinates: polys.map(function (p) { return p.map(ring); }) } };
+      out.push(f);
+      (byName[f.properties.name] = byName[f.properties.name] || []).push(f);
+    });
+    return out;
   }
-  function scr(X, Y) { var s = base.s * T.k; return [base.ox + (X * s) + T.x, base.oy + (Y - world.top) * s + T.y]; }
-  function setT(k, x, y) {
-    var cw = box.clientWidth, ch = box.clientHeight;
-    k = Math.max(1, Math.min(MAXK, k));
-    var s = base.s * k, mw = W * s, mh = world.h * s;
-    // keep some of the world on screen: the map cannot be thrown away
-    x = Math.max(cw - base.ox - mw - cw * 0.3, Math.min(-base.ox + cw * 0.3, x));
-    y = Math.max(ch - base.oy - mh - ch * 0.3, Math.min(-base.oy + ch * 0.3, y));
-    T.k = k; T.x = x; T.y = y;
-    var tr = 'translate(' + (base.ox + T.x) + ' ' + (base.oy + T.y) + ') scale(' + s + ') translate(0 ' + (-world.top) + ')';
-    gLand.setAttribute('transform', tr); gGrid.setAttribute('transform', tr);
-    if (k >= 2.5 && !hiLoaded) loadHi();
-    drawPins();
+  function baseR() { return V.mode === 'globe' ? Math.min(CW, CH) * 0.46 : Math.min(CW / 5.6, CH / 2.9); }
+  function makeProj() {
+    var p = V.mode === 'globe' ? G.geoOrthographic().clipAngle(90).rotate([-V.lon, -V.lat]) : G.geoNaturalEarth1().rotate([-V.lon, 0]);
+    p.scale(baseR() * V.k).translate([CW / 2, CH / 2]).precision(V.k > 12 ? 0.25 : 0.6);
+    if (V.mode !== 'globe') { var c = p([V.lon, V.lat]); p.translate([CW - c[0], CH - c[1]]); }
+    return p;
+  }
+  function seen(lon, lat) { return V.mode !== 'globe' || G.geoDistance([lon, lat], [V.lon, V.lat]) < Math.PI / 2 - 0.02; }
+  function sizeCanvas() {
+    CW = box.clientWidth; CH = box.clientHeight; dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.max(1, Math.round(CW * dpr)); cv.height = Math.max(1, Math.round(CH * dpr));
+    cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+  }
+  // Where the sun is overhead now, and so the middle of the night opposite it (declination by day of year; the equation
+  // of time is left out, so the line can sit up to 4 degrees off: it is a picture of night, not a clock).
+  function nightAt() {
+    var d = new Date(), day = (d - Date.UTC(d.getUTCFullYear(), 0, 0)) / 864e5;
+    var decl = -23.44 * Math.cos(2 * Math.PI / 365 * (day + 10)), lon = (12 - d.getUTCHours() - d.getUTCMinutes() / 60) * 15 + 180;
+    return [((lon + 540) % 360) - 180, -decl];
+  }
+
+  var drawQ = 0, drawT = 0;
+  function requestDraw() {
+    if (drawQ) return;
+    drawQ = requestAnimationFrame(function () { drawQ = 0; drawNow(); });
+    clearTimeout(drawT);
+    drawT = setTimeout(function () { if (drawQ) { cancelAnimationFrame(drawQ); drawQ = 0; drawNow(); } }, 140);      // a tab in the background gets no frames
+  }
+  function drawNow() {
+    if (!ctx || !LAND) return;
+    if (box.clientWidth !== CW || box.clientHeight !== CH) sizeCanvas();
+    if (!CW || !CH) return;
+    PJ = makeProj();
+    var path = G.geoPath(PJ, ctx), globe = V.mode === 'globe', R = PJ.scale(), cx = CW / 2, cy = CH / 2, land = LAND_HI && (V.k >= 8 || (V.k >= 2.5 && !moving)) ? LAND_HI : LAND;          // the light outline while it moves, the fine one once it stops
+    var byName = land === LAND_HI ? BYNAME_HI : BYNAME;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, CW, CH);
+    if (globe && R < Math.hypot(CW, CH)) {          // the haze round the rim
+      var hz = ctx.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.18);
+      hz.addColorStop(0, 'rgba(244,196,48,0.26)'); hz.addColorStop(0.3, 'rgba(244,196,48,0.08)'); hz.addColorStop(1, 'rgba(244,196,48,0)');
+      ctx.fillStyle = hz; ctx.beginPath(); ctx.arc(cx, cy, R * 1.18, 0, 2 * Math.PI); ctx.fill();
+    }
+    ctx.beginPath(); path({ type: 'Sphere' });
+    if (globe) { var sg = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.42, R * 0.05, cx, cy, R); sg.addColorStop(0, '#171A21'); sg.addColorStop(0.7, '#0B0D12'); sg.addColorStop(1, '#050608'); ctx.fillStyle = sg; }
+    else ctx.fillStyle = '#0A0B0F';
+    ctx.fill();
+    ctx.lineWidth = 0.6; ctx.strokeStyle = 'rgba(233,217,166,0.08)';
+    ctx.beginPath(); path(GRAT); ctx.stroke();
+    ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(244,196,48,0.2)'; ctx.beginPath(); path(EQ); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); land.forEach(function (f) { path(f); }); ctx.fillStyle = '#25231E'; ctx.fill();
+    Object.keys(HEAT).forEach(function (n) {          // each country glows by how much of what is shown is about it
+      if (!byName[n] || n === SELC) return;
+      ctx.beginPath(); byName[n].forEach(function (f) { path(f); }); ctx.fillStyle = HEATC[HEAT[n]]; ctx.fill();
+    });
+    ctx.beginPath(); land.forEach(function (f) { path(f); }); ctx.strokeStyle = 'rgba(138,126,98,0.55)'; ctx.lineWidth = 0.6; ctx.stroke();
+    if (SELC && byName[SELC]) { ctx.beginPath(); byName[SELC].forEach(function (f) { path(f); }); ctx.fillStyle = 'rgba(244,196,48,0.1)'; ctx.fill(); ctx.strokeStyle = '#F4C430'; ctx.lineWidth = 1.4; ctx.stroke(); }
+    ctx.beginPath(); path(G.geoCircle().center(nightAt()).radius(90)()); ctx.fillStyle = 'rgba(0,0,0,0.24)'; ctx.fill();
+    if (globe) { ctx.beginPath(); path({ type: 'Sphere' }); ctx.strokeStyle = 'rgba(244,196,48,0.5)'; ctx.lineWidth = 1.1; ctx.stroke(); }
+    var sw = $('ir-sweep');
+    if (sw) {          // the sweep sits on the globe; once the globe is bigger than the box it covers the box
+      var big = !globe || R * 2 > Math.hypot(CW, CH);
+      sw.style.cssText = '--sx:' + cx.toFixed(1) + 'px;--sy:' + cy.toFixed(1) + 'px;--sr:' + R.toFixed(1) + 'px';
+      sw.hidden = big;
+    }
+    var hud = $('ir-hud-c');
+    if (hud) hud.textContent = Math.abs(V.lat).toFixed(1) + '°' + (V.lat >= 0 ? 'N' : 'S') + ' ' + Math.abs(V.lon).toFixed(1) + '°' + (V.lon >= 0 ? 'E' : 'W') + '  ×' + (V.k < 10 ? V.k.toFixed(1) : Math.round(V.k));
+    drawPinsNow();
+  }
+  function setView(lon, lat, k, now) {
+    V.k = Math.max(1, Math.min(MAXK, k));
+    V.lat = Math.max(V.mode === 'globe' ? -80 : -58, Math.min(80, lat));
+    V.lon = ((lon % 360) + 540) % 360 - 180;
+    if (V.k >= 2.5 && !hiLoaded) loadHi();
+    if (now) drawNow(); else requestDraw();
+  }
+  // Move the Earth by dx, dy screen pixels, so the ground under a finger follows it.
+  function panBy(dx, dy) {
+    if (!PJ) PJ = makeProj();
+    var s = PJ.scale(), deg = 180 / Math.PI;
+    if (V.mode === 'globe') { setView(V.lon - dx / s * deg / Math.max(0.2, Math.cos(V.lat / deg)), V.lat + dy / s * deg, V.k); return; }
+    var a = PJ.invert([CW / 2, CH / 2]), b = PJ.invert([CW / 2 - dx, CH / 2 - dy]);
+    if (!a || !b || !isFinite(a[0]) || !isFinite(b[0])) return;
+    var dl = b[0] - a[0]; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
+    setView(V.lon + dl, V.lat + (b[1] - a[1]), V.k);
   }
   function zoomAt(f, px, py) {
-    var k = Math.max(1, Math.min(MAXK, T.k * f)); f = k / T.k;
-    var gx = px - base.ox, gy = py - base.oy;
-    setT(k, gx - (gx - T.x) * f, gy - (gy - T.y) * f);
+    if (!PJ) PJ = makeProj();
+    var k = Math.max(1, Math.min(MAXK, V.k * f));
+    if (k === V.k) return;
+    var at = PJ.invert([px, py]);
+    V.k = k; PJ = makeProj();
+    if (at && isFinite(at[0]) && isFinite(at[1]) && seen(at[0], at[1])) {
+      var to = PJ(at);
+      if (to && isFinite(to[0])) { panBy(px - to[0], py - to[1]); return; }
+    }
+    setView(V.lon, V.lat, k);
   }
   var anim = 0;
-  function flyTo(k, cx, cy) {          // cx, cy: the world point (projected) to bring to the middle
-    var cw = box.clientWidth, ch = box.clientHeight;
-    var k0 = T.k, x0 = T.x, y0 = T.y, t0 = performance.now(), dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 700;
+  function flyTo(k, lon, lat) {
+    if (!G || !LAND) return;
+    k = Math.max(1, Math.min(MAXK, k));
+    var k0 = V.k, a = [V.lon, V.lat], b = [lon, lat], ip = G.geoInterpolate(a, b), dist = G.geoDistance(a, b);
+    var t0 = performance.now(), dur = reduced() ? 0 : Math.min(1700, 600 + dist * 650 + Math.abs(Math.log(k / k0)) * 90), landed = 0;
+    var dip = Math.min(Math.log(Math.max(k0, k)), dist * 1.4);          // a long way out on the way to somewhere far, like a camera
     cancelAnimationFrame(anim);
-    var landed = 0;
     (function step(now) {
-      var t = dur ? Math.min(1, (now - t0) / dur) : 1, e = 1 - Math.pow(1 - t, 3);
-      var k_ = Math.exp(Math.log(k0) + (Math.log(k) - Math.log(k0)) * e);      // zoom in log space so the move feels even
-      var s0 = base.s * k0, sk = base.s * k_;
-      var c0x = (cw / 2 - base.ox - x0) / s0, c0y = (ch / 2 - base.oy - y0) / s0 + world.top;
-      var mx = c0x + (cx - c0x) * e, my = c0y + (cy - c0y) * e;
-      setT(k_, cw / 2 - base.ox - mx * sk, ch / 2 - base.oy - (my - world.top) * sk);
-      if (t < 1) anim = requestAnimationFrame(step);
-      else landed = 1;
+      var t = dur ? Math.min(1, (now - t0) / dur) : 1, e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      var c = ip(e), lk = Math.log(k0) + (Math.log(k) - Math.log(k0)) * e - 4 * e * (1 - e) * dip;
+      moving = t < 1 ? 1 : 0;
+      setView(c[0], c[1], Math.exp(lk), true);
+      if (t < 1) anim = requestAnimationFrame(step); else landed = 1;
     })(t0);
-    // A tab in the background gets no animation frames: the move must still land where it was going.
     var mine = anim;
-    setTimeout(function () { if (!landed && anim === mine) { cancelAnimationFrame(anim); var sk = base.s * k; setT(k, cw / 2 - base.ox - cx * sk, ch / 2 - base.oy - (cy - world.top) * sk); } }, dur + 120);
+    setTimeout(function () { if (!landed && anim === mine) { cancelAnimationFrame(anim); moving = 0; setView(lon, lat, k, true); } }, dur + 150);
   }
-  function drawGrid() {
-    // Lines of latitude and longitude every 15 degrees: the sea reads as a globe laid flat, not as a black box.
-    var d = '', lon, lat, q, i;
-    for (lon = -180; lon <= 180; lon += 15) { for (lat = -80, i = 0; lat <= 84; lat += 4, i++) { q = proj(lon, lat); d += (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); } }
-    for (lat = -75; lat <= 75; lat += 15) { for (lon = -180, i = 0; lon <= 180; lon += 5, i++) { q = proj(lon, lat); d += (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); } }
-    var p = document.createElementNS(SVGNS, 'path'); p.setAttribute('d', d); p.setAttribute('class', 'gr');
-    var eq = document.createElementNS(SVGNS, 'path'), e0 = proj(-180, 0), e1 = proj(180, 0);
-    eq.setAttribute('d', 'M' + e0[0] + ' ' + e0[1] + 'L' + e1[0] + ' ' + e1[1]); eq.setAttribute('class', 'gr eq');
-    gGrid.innerHTML = ''; gGrid.appendChild(p); gGrid.appendChild(eq);
-  }
-  function drawWorld(geo) {
-    world = geo;
-    gLand.innerHTML = '';
-    paths = {};
-    geo.c.forEach(function (c) {
-      var p = document.createElementNS(SVGNS, 'path');
-      p.setAttribute('d', c.d); p.setAttribute('class', 'c');
-      gLand.appendChild(p);
-      (paths[c.n] = paths[c.n] || []).push(p);
-    });
-    drawCountries();
-  }
+  function home() { if (V.mode === 'globe') flyTo(1, 32, 28); else flyTo(1, 12, 12); }          // the flat map's middle sits in the Atlantic so America and Asia both show
   function loadHi() {
     hiLoaded = true;
-    fetch(root.getAttribute('data-geo-hi')).then(function (r) { return r.json(); }).then(function (g) {
-      var top = world.top, h = world.h;
-      drawWorld(g); world.top = top; world.h = h;          // same projection, same frame: only the detail changes
-      setT(T.k, T.x, T.y);
+    fetch(root.getAttribute('data-geo-hi')).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (t) {
+      LAND_HI = topoFeatures(t, BYNAME_HI); requestDraw();
     }).catch(function () { hiLoaded = false; });
   }
   function drawCountries() {
-    if (!world) return;
-    // Each country glows by how much of what is shown is about it: four steps of the brand's gold, never a new colour.
-    var n = {}, sel = {}, max = 0;
-    (S.lens === 'readers' ? [] : shown).forEach(function (it) { var seen = {}; keysOf(it).forEach(function (k) { if (P[k] && P[k][1]) { var c = TOPO[P[k][1]] || P[k][1]; if (!seen[c]) { seen[c] = 1; n[c] = (n[c] || 0) + 1; } } }); });
+    // four steps of the brand's gold, by how much of what is shown is about the country; never a new colour
+    var n = {}, max = 0;
+    HEAT = {};
+    (S.lens === 'readers' ? [] : shown).forEach(function (it) { var seen1 = {}; keysOf(it).forEach(function (k) { if (P[k] && P[k][1]) { var c = TOPO[P[k][1]] || P[k][1]; if (!seen1[c]) { seen1[c] = 1; n[c] = (n[c] || 0) + 1; } } }); });
     Object.keys(n).forEach(function (c) { if (n[c] > max) max = n[c]; });
-    if (S.place.indexOf('c:') === 0) sel[TOPO[S.place.slice(2)] || S.place.slice(2)] = 1;
-    Object.keys(paths).forEach(function (c) {
-      var r = n[c] ? n[c] / max : 0, h = !r ? '' : r > 0.6 ? ' h4' : r > 0.3 ? ' h3' : r > 0.1 ? ' h2' : ' h1';
-      paths[c].forEach(function (p) { p.setAttribute('class', 'c' + (sel[c] ? ' sel' : h)); });
-    });
+    Object.keys(n).forEach(function (c) { var r = n[c] / max; HEAT[c] = r > 0.6 ? 4 : r > 0.3 ? 3 : r > 0.1 ? 2 : 1; });
+    SELC = S.place.indexOf('c:') === 0 ? (TOPO[S.place.slice(2)] || S.place.slice(2)) : '';
+    requestDraw();
   }
 
-  // One circle per place; places whose circles would overlap at this zoom become one circle.
-  var pinData = [];
+  /* The marks. Each place holds what is shown there. A place with few items shows every one of them, a shape for what it
+     is in the colour of where it was posted, packed round the place like seeds in a sunflower; a crowded place, or places
+     that would touch, show one gold circle with the count and a ring split by platform. A place picked shows up to 48. */
+  var PG = [], pinData = [], glyphs = [], edges = [], PULSE = null, pinSig = '', GR = 6.2;
+  function expandMax() { return CW < 520 ? 8 : 12; }
+  function footR(n) { return n <= 1 ? GR + 3 : GR * 2.05 * Math.sqrt(n - 0.4) + GR + 3; }
   function pinR(n) { return Math.min(30, 9 + 3.2 * Math.sqrt(n)); }
-  function drawPins() {
-    if (!world || !gPins) return;
-    // A find nobody has checked yet is listed, never put on the map: the map is what holds up.
-    if (S.lens === 'readers') { gPins.innerHTML = ''; pinData = []; $('ir-nowhere').hidden = true; return; }
-    var counts = {}, hot = {};
-    items.forEach(function (it) { if (pass(it, 'place')) keysOf(it).forEach(function (k) { if (k !== 'global' && P[k] && P[k][2] != null) { counts[k] = (counts[k] || 0) + 1; if ((it.hot || 0) > (hot[k] || 0)) hot[k] = it.hot; } }); });
-    var nw = items.filter(function (it) { return it.p === 'global' && pass(it, 'place'); }).length;
+  function seed(j, n) { if (n === 1) return [0, 0]; var r = GR * 2.05 * Math.sqrt(j + 0.6), a = j * 2.39996 - Math.PI / 2; return [r * Math.cos(a), r * Math.sin(a)]; }
+  function groupPins() {
+    var at = {};
+    PG = [];
+    if (S.lens !== 'readers') sortList(items.filter(function (it) { return pass(it, 'place'); })).forEach(function (it) {
+      keysOf(it).forEach(function (k) { if (k !== 'global' && P[k] && P[k][2] != null) (at[k] = at[k] || []).push(it); });
+    });
+    Object.keys(at).forEach(function (k) {
+      var its = at[k], pc = {}, hot = 0;
+      its.forEach(function (it) { var p = pfOf(it); pc[p] = (pc[p] || 0) + 1; if ((it.hot || 0) > hot) hot = it.hot; });
+      PG.push({ k: k, its: its, n: its.length, hot: hot, pc: pc, lon: P[k][3], lat: P[k][2] });
+    });
+    PG.sort(function (a, b) { return b.n - a.n; });
+    var nw = S.lens === 'readers' ? 0 : items.filter(function (it) { return it.p === 'global' && pass(it, 'place'); }).length;
     var b = $('ir-nowhere'); b.hidden = !nw && !S.nowhere; b.textContent = 'No single place (' + nw + ')'; b.setAttribute('aria-pressed', S.nowhere ? 'true' : 'false');
-    var sel = S.place && S.place.indexOf('c:') !== 0 ? S.place.split(',') : [];
-    var pts = Object.keys(counts).map(function (k) { var q = proj(P[k][3], P[k][2]), s = scr(q[0], q[1]); return { keys: [k], n: counts[k], hot: hot[k] || 0, x: s[0], y: s[1], wx: q[0], wy: q[1] }; });
-    pts.sort(function (a, b) { return b.n - a.n; });
+  }
+  function drawPins() { groupPins(); pinSig = ''; requestDraw(); }
+  function ringSegs(pc, n, r) {
+    var C = 2 * Math.PI * r, acc = 0, out = '';
+    Object.keys(pc).sort(function (a, b) { return pc[b] - pc[a]; }).forEach(function (p) {
+      var len = C * pc[p] / n;
+      out += '<circle class="seg" r="' + r.toFixed(1) + '" stroke="' + pfColor(p) + '" stroke-dasharray="' + Math.max(0.1, len - (n > 1 && len > 3 ? 1.2 : 0)).toFixed(2) + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + (-acc).toFixed(2) + '"/>';
+      acc += len;
+    });
+    return '<g transform="rotate(-90)">' + out + '</g>';
+  }
+  function drawPinsNow() {
+    if (!gPins || !PJ) return;
+    var sel = S.place && S.place.indexOf('c:') !== 0 ? S.place.split(',') : [], selC = S.place.indexOf('c:') === 0 ? S.place.slice(2) : '';
+    var live = S.lens === 'live', rd = S.lens === 'readers', pts = [];
+    PG.forEach(function (g) {
+      if (!seen(g.lon, g.lat)) return;
+      var s = PJ([g.lon, g.lat]);
+      if (!s || !isFinite(s[0])) return;
+      var isSel = sel.indexOf(g.k) >= 0 || (!!selC && P[g.k][1] === selC), cap = isSel ? 48 : expandMax(), exp = g.n <= cap || (isSel && sel.length === 1);
+      var m = Math.min(g.n, cap);
+      pts.push({ keys: [g.k], gs: [g], n: g.n, hot: g.hot, x: s[0], y: s[1], r: exp ? footR(m) : pinR(g.n), exp: exp, m: m, sel: isSel, pc: g.pc });
+    });
+    // what would touch becomes one circle; a place picked never does, it is what the reader asked to see
     var merged = [];
     pts.forEach(function (p) {
-      for (var i = 0; i < merged.length; i++) {
-        var m = merged[i], dx = m.x - p.x, dy = m.y - p.y;
-        if (Math.sqrt(dx * dx + dy * dy) < pinR(m.n) + pinR(p.n) - 4) { m.keys = m.keys.concat(p.keys); m.n += p.n; m.hot = Math.max(m.hot, p.hot); return; }
+      if (!p.sel) for (var i = 0; i < merged.length; i++) {
+        var q = merged[i];
+        if (q.sel) continue;
+        if (Math.hypot(q.x - p.x, q.y - p.y) < q.r + p.r - 2) {
+          q.keys = q.keys.concat(p.keys); q.gs = q.gs.concat(p.gs); q.n += p.n; q.hot = Math.max(q.hot, p.hot); q.exp = false; q.r = pinR(q.n);
+          var pc = {}; [q.pc, p.pc].forEach(function (o) { Object.keys(o).forEach(function (k) { pc[k] = (pc[k] || 0) + o[k]; }); }); q.pc = pc;
+          return;
+        }
       }
-      merged.push({ keys: p.keys.slice(), n: p.n, hot: p.hot, x: p.x, y: p.y, wx: p.wx, wy: p.wy });
+      merged.push(p);
     });
-    pinData = merged;
-    var cw = box.clientWidth, ch = box.clientHeight, html = '', live = S.lens === 'live', rd = S.lens === 'readers';
-    merged.forEach(function (m, i) {
-      if (m.x < -40 || m.y < -40 || m.x > cw + 40 || m.y > ch + 40) return;
-      var r = pinR(m.n), isSel = sel.length && m.keys.some(function (k) { return sel.indexOf(k) >= 0; }), dim = sel.length && !isSel;
-      var name = m.keys.length === 1 ? placeName(m.keys[0]) : m.keys.length + ' places';
-      var cls = 'ir-pin' + (live ? ' live' + (m.hot >= 70 ? ' hot' : '') : rd ? ' rd' : '') + (isSel ? ' sel' : dim ? ' dim' : '');
-      html += '<g class="' + cls + '" data-p="' + i + '" tabindex="0" role="button" aria-label="' + esc(name + ', ' + m.n + (m.n === 1 ? ' item' : ' items')) + '" transform="translate(' + m.x.toFixed(1) + ' ' + m.y.toFixed(1) + ')">' +
-        (live ? '<circle class="ring" r="' + r.toFixed(1) + '"/><circle class="ring r2" r="' + r.toFixed(1) + '"/>' : '') +
-        (m.pulse ? '<circle class="pulse" r="10"/>' : '') +
-        '<circle class="halo" r="' + (r + 9).toFixed(1) + '"/><circle class="core" r="' + r.toFixed(1) + '"/><circle class="shine" r="' + (r * 0.55).toFixed(1) + '" cx="' + (-r * 0.25).toFixed(1) + '" cy="' + (-r * 0.3).toFixed(1) + '"/><text>' + m.n + '</text></g>';
+    merged.sort(function (a, b) { return a.sel - b.sel; });          // a place picked is drawn last, over its neighbours
+    var vis = merged.filter(function (m) { return m.x > -80 && m.y > -80 && m.x < CW + 80 && m.y < CH + 80; });
+    // what the globe hides behind it: one arrow on the rim for each direction it lies in (bins of 20 degrees), with its count
+    var bins = {}, rdn = Math.PI / 180, Rr = PJ.scale() - 16;
+    edges = [];
+    // only while the rim is on the screen: zoomed in, the far side is simply off the edge, like everything else
+    if (V.mode === 'globe' && !rd && PJ.scale() * 2 <= Math.hypot(CW, CH) * 0.9) PG.forEach(function (g) {
+      if (seen(g.lon, g.lat)) return;
+      var f1 = V.lat * rdn, f2 = g.lat * rdn, dl = (g.lon - V.lon) * rdn;
+      var th = Math.atan2(Math.sin(dl) * Math.cos(f2), Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl));
+      var bk = Math.round(th / (Math.PI / 9)), e = bins[bk] || (bins[bk] = { bk: bk, n: 0, ts: 0, big: -1, hot: 0, lon: 0, lat: 0 });
+      e.n += g.n; e.ts += th * g.n; e.hot = Math.max(e.hot, g.hot);
+      if (g.n > e.big) { e.big = g.n; e.lon = g.lon; e.lat = g.lat; }
+    });
+    Object.keys(bins).sort(function (a, b) { return a - b; }).forEach(function (bk) {
+      var e = bins[bk]; e.th = e.ts / e.n; e.x = CW / 2 + Math.sin(e.th) * Rr; e.y = CH / 2 - Math.cos(e.th) * Rr; edges.push(e);
+    });
+    var pulseK = PULSE && Date.now() - PULSE.at < 5000 ? PULSE.k : '';
+    var sig = S.lens + '|' + S.place + '|' + pulseK + '|' + vis.map(function (m) { return m.keys.join(',') + ':' + m.n + (m.exp ? 'e' + m.m : ''); }).join(';') +
+      '|' + edges.map(function (e) { return e.bk + ':' + e.n; }).join(';');
+    pinData = vis; glyphs = [];
+    vis.forEach(function (m) {          // where each item's mark is on the screen, for taps and the tip
+      if (!m.exp) return;
+      m.gs[0].its.slice(0, m.m).forEach(function (it, j) { var o = seed(j, m.m); glyphs.push({ it: it, k: m.keys[0], x: m.x + o[0], y: m.y + o[1], m: m }); });
+    });
+    if (sig === pinSig) {          // the same marks as last frame: only move them, so their rings keep pulsing
+      var gs = gPins.childNodes;
+      for (var i = 0; i < gs.length && i < vis.length; i++) gs[i].setAttribute('transform', 'translate(' + vis[i].x.toFixed(1) + ' ' + vis[i].y.toFixed(1) + ')');
+      for (var j = 0; j < edges.length && vis.length + j < gs.length; j++) gs[vis.length + j].setAttribute('transform', 'translate(' + edges[j].x.toFixed(1) + ' ' + edges[j].y.toFixed(1) + ')');
+      return;
+    }
+    pinSig = sig;
+    var html = '';
+    vis.forEach(function (m, i) {
+      var dim = (sel.length || selC) && !m.sel, name = m.keys.length === 1 ? placeName(m.keys[0]) : m.keys.length + ' places';
+      var cls = (live ? ' live' + (m.hot >= 70 ? ' hot' : '') : rd ? ' rd' : '') + (m.sel ? ' sel' : dim ? ' dim' : '');
+      var pul = pulseK && m.keys.indexOf(pulseK) >= 0 ? '<circle class="pulse" r="10"/>' : '';
+      var tr = ' transform="translate(' + m.x.toFixed(1) + ' ' + m.y.toFixed(1) + ')"';
+      if (!m.exp) {
+        var r = pinR(m.n);
+        html += '<g class="ir-pin' + cls + '" data-p="' + i + '" tabindex="0" role="button" aria-label="' + esc(name + ', ' + m.n + (m.n === 1 ? ' item' : ' items')) + '"' + tr + '>' +
+          (live ? '<circle class="ring" r="' + r.toFixed(1) + '"/><circle class="ring r2" r="' + r.toFixed(1) + '"/>' : '') + pul +
+          '<circle class="halo" r="' + (r + 10).toFixed(1) + '"/>' + ringSegs(m.pc, m.n, r + 3.6) + '<circle class="core" r="' + r.toFixed(1) + '"/>' +
+          '<circle class="shine" r="' + (r * 0.55).toFixed(1) + '" cx="' + (-r * 0.25).toFixed(1) + '" cy="' + (-r * 0.3).toFixed(1) + '"/><text>' + m.n + '</text></g>';
+        return;
+      }
+      var its = m.gs[0].its.slice(0, m.m), body = '';
+      its.forEach(function (it, j) {
+        var o = seed(j, m.m), hotI = (it.hot || 0) >= 70 || (it._v || 0) >= 90;
+        body += '<g class="ir-gl' + (hotI ? ' big' : '') + '" data-g="' + esc(String(it.id)) + '" transform="translate(' + o[0].toFixed(1) + ' ' + o[1].toFixed(1) + ')" role="button" tabindex="0" aria-label="' + esc(KIND_N[kindOf(it)] + ' on ' + pfName(pfOf(it)) + ': ' + it.t) + '">' +
+          (hotI ? '<circle class="gl-hot" r="9"/>' : '') + '<path d="' + (SHAPE[kindOf(it)] || SHAPE.post) + '" fill="' + pfColor(pfOf(it)) + '"/></g>';
+      });
+      html += '<g class="ir-cl' + cls + '" data-p="' + i + '"' + tr + '>' + pul + (m.m > 1 ? '<circle class="cl-r" r="' + (footR(m.m) - 1).toFixed(1) + '"/>' : '') +
+        (m.m > 1 ? '<circle class="cl-c" r="2.4"/>' : '') + body + (m.n > m.m ? '<text class="cl-more" y="' + (footR(m.m) + 12).toFixed(1) + '">+' + (m.n - m.m) + ' in the list</text>' : '') + '</g>';
+    });
+    edges.forEach(function (e, i) {
+      html += '<g class="ir-edge' + (live ? ' live' : '') + '" data-e="' + i + '" tabindex="0" role="button" aria-label="' + esc(e.n + (e.n === 1 ? ' item' : ' items') + ' on the far side of the globe. Turn the globe to them.') + '" transform="translate(' + e.x.toFixed(1) + ' ' + e.y.toFixed(1) + ')">' +
+        '<path d="M0 -21 5.5 -14.5h-11z" transform="rotate(' + (e.th / rdn).toFixed(1) + ')"/><circle r="12.5"/><text>' + e.n + '</text></g>';
     });
     gPins.innerHTML = html;
+    $('ir-tip').hidden = true;
   }
   function drawLegend() {
-    var el = $('ir-legend'), n = shown.length;
-    if (S.lens === 'live') el.innerHTML = '<i class="lg-live"></i> Last 24 hours · <b class="num">' + n + '</b> ' + (n === 1 ? 'story' : 'stories') + (LIVE_AT ? ' · updated ' + esc(ago(LIVE_AT)) : '') + '<span class="lg-s">The faster a circle pulses, the hotter the story</span>';
-    else if (S.lens === 'readers') el.innerHTML = '<i class="lg-rd"></i> Sent by readers, being checked · <b class="num">' + n + '</b>';
-    else el.innerHTML = '<i class="lg-bank"></i> The bank · <b class="num">' + n + '</b> ' + (n === 1 ? 'item' : 'items') + (fullRange() ? '' : ' · ' + esc($('ir-range').textContent));
+    var el = $('ir-legend'), n = shown.length, sh = '';
+    if (S.lens !== 'readers') ['video', 'post', 'article', 'doc'].forEach(function (k) {
+      if (items.some(function (it) { return kindOf(it) === k; })) sh += '<span><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="' + SHAPE[k] + '"/></svg>' + KIND_N[k] + '</span>';
+    });
+    var head = S.lens === 'live' ? '<i class="lg-live"></i> Last 24 hours · <b class="num">' + n + '</b> ' + (n === 1 ? 'story' : 'stories') + (LIVE_AT ? ' · updated ' + esc(ago(LIVE_AT)) : '')
+      : S.lens === 'readers' ? '<i class="lg-rd"></i> Sent by readers, being checked · <b class="num">' + n + '</b>'
+      : '<i class="lg-bank"></i> The bank · <b class="num">' + n + '</b> ' + (n === 1 ? 'item' : 'items') + (fullRange() ? '' : ' · ' + esc($('ir-range').textContent));
+    el.innerHTML = '<span class="lg-h">' + head + '</span>' + (sh ? '<span class="lg-k">' + sh + '<span class="lg-c">Colour: where it was posted</span></span>' : '');
     el.hidden = false;
   }
-  function pinAt(el) { var g = el && el.closest && el.closest('.ir-pin'); return g ? pinData[+g.getAttribute('data-p')] : null; }
-  // Which circle a tap landed on, from the circles' own positions (a captured pointer's target is the map itself).
+  function pinAt(el) {
+    var ed = el && el.closest && el.closest('.ir-edge');
+    if (ed) { var e = edges[+ed.getAttribute('data-e')]; return e ? { edge: e, x: e.x, y: e.y } : null; }
+    var g = el && el.closest && el.closest('.ir-gl');
+    if (g) { var id = g.getAttribute('data-g'); for (var i = 0; i < glyphs.length; i++) if (String(glyphs[i].it.id) === id) return glyphs[i]; }
+    g = el && el.closest && el.closest('.ir-pin,.ir-cl');
+    return g ? pinData[+g.getAttribute('data-p')] : null;
+  }
+  // What a tap landed on, from the marks' own positions (a captured pointer's target is the map itself): an item's mark
+  // first, then a place's middle, then a circle.
   function pinHit(cx, cy) {
     var r = box.getBoundingClientRect(), x = cx - r.left, y = cy - r.top, best = null, bd = 1e9;
-    pinData.forEach(function (m) { var d = Math.hypot(m.x - x, m.y - y); if (d <= pinR(m.n) + 6 && d < bd) { bd = d; best = m; } });
+    edges.forEach(function (e) { var d = Math.hypot(e.x - x, e.y - y); if (d <= 18 && d < bd) { bd = d; best = { edge: e, x: e.x, y: e.y }; } });
+    if (best) return best;
+    glyphs.forEach(function (g) { var d = Math.hypot(g.x - x, g.y - y); if (d <= GR + 6 && d < bd) { bd = d; best = g; } });
+    if (best) return best;
+    pinData.forEach(function (m) { var d = Math.hypot(m.x - x, m.y - y), reach = m.exp ? (m.m > 1 ? 7 : GR + 6) : pinR(m.n) + 6; if (d <= reach && d < bd) { bd = d; best = m; } });
     return best;
   }
+  function openGlyph(g) {
+    var i = shown.indexOf(g.it);
+    if (i < 0) {          // a mark of another place while one is picked: go to that place, then open it
+      S.place = g.k; S.nowhere = false; $('ir-place').value = S.place; render(); i = shown.indexOf(g.it);
+    }
+    if (i >= 0) openSpot(i);
+  }
+  function fitTo(pts, kmin, kmax) {
+    if (!G || !LAND || !CW) return;
+    if (!pts.length) { home(); return; }
+    var x = 0, y = 0, z = 0, rd = Math.PI / 180;
+    pts.forEach(function (p) { var la = p[1] * rd, lo = p[0] * rd; x += Math.cos(la) * Math.cos(lo); y += Math.cos(la) * Math.sin(lo); z += Math.sin(la); });
+    var c = Math.hypot(x, y, z) < 1e-6 ? pts[0] : [Math.atan2(y, x) / rd, Math.atan2(z, Math.hypot(x, y)) / rd], far = 0;
+    pts.forEach(function (p) { far = Math.max(far, G.geoDistance(c, p)); });
+    var half = Math.min(CW, CH) / 2 * 0.78, k;
+    if (far < 0.0004) k = kmax;
+    else if (V.mode === 'globe') k = far >= Math.PI / 2 ? 1 : half / (baseR() * Math.sin(far));
+    else k = half / (baseR() * far * 0.95);
+    flyTo(Math.max(kmin, Math.min(kmax, k)), c[0], c[1]);
+  }
+  function placePts(keys) { var o = {}; keys.forEach(function (k) { if (P[k] && P[k][2] != null) o[k] = [P[k][3], P[k][2]]; }); return Object.keys(o).map(function (k) { return o[k]; }); }
   function openPin(m) {
     if (!m) return;
     stopTour();
-    if (m.keys.length > 1) {          // several places under one circle: go closer, so they come apart
-      var xs = m.keys.map(function (k) { return proj(P[k][3], P[k][2]); });
-      var minx = Math.min.apply(null, xs.map(function (q) { return q[0]; })), maxx = Math.max.apply(null, xs.map(function (q) { return q[0]; }));
-      var miny = Math.min.apply(null, xs.map(function (q) { return q[1]; })), maxy = Math.max.apply(null, xs.map(function (q) { return q[1]; }));
-      var span = Math.max(maxx - minx, (maxy - miny) * 1.6, 0.4);
-      var k = Math.min(MAXK, Math.max(T.k * 2, box.clientWidth * 0.55 / (span * base.s)));
-      flyTo(k, (minx + maxx) / 2, (miny + maxy) / 2);
-      return;
-    }
+    if (m.edge) { flyTo(V.k, m.edge.lon, m.edge.lat); return; }
+    if (m.it) { openGlyph(m); return; }
+    if (m.keys.length > 1) { fitTo(placePts(m.keys), Math.min(MAXK, V.k * 2), MAXK); return; }          // several places under one circle: go closer, so they come apart
     S.place = S.place === m.keys[0] ? '' : m.keys[0];
     S.nowhere = false;
     $('ir-place').value = S.place;
     render();
-    say(S.place ? 'Showing ' + shown.length + ' from ' + placeName(S.place) + '. Tap the circle again to show every place.' : '');
+    say(S.place ? 'Showing ' + shown.length + ' from ' + placeName(S.place) + '. Tap the place again to show every place.' : '');
   }
 
-  // Drag, pinch, scroll, double tap.
+  // Drag (turns the globe, moves the flat map), pinch, scroll, double tap.
   var ptrs = {}, last = null, moved = 0, pinch = null;
   function onDown(ev) {
     if (ev.button > 0) return;
-    stopTour();
+    stopTour(); cancelAnimationFrame(anim); poke();
     ptrs[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
     try { map.setPointerCapture(ev.pointerId); } catch (e) { /* a pointer the browser no longer tracks: dragging still works without it */ }
     var ids = Object.keys(ptrs);
     if (ids.length === 1) { last = { x: ev.clientX, y: ev.clientY }; moved = 0; map.classList.add('drag'); }
     if (ids.length === 2) {
       var a = ptrs[ids[0]], b = ptrs[ids[1]];
-      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), k: T.k };
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), k: V.k };
     }
   }
   function onMove(ev) {
@@ -408,9 +698,10 @@
     if (!ptrs[ev.pointerId]) { hover(ev, r); return; }
     ptrs[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
     var ids = Object.keys(ptrs);
+    poke(); moving = 1;
     if (ids.length === 2 && pinch) {
       var a = ptrs[ids[0]], b = ptrs[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
-      zoomAt(pinch.k * d / pinch.d / T.k, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      if (pinch.d > 0) zoomAt(pinch.k * d / pinch.d / V.k, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
       moved = 99;
       return;
     }
@@ -418,7 +709,7 @@
       var dx = ev.clientX - last.x, dy = ev.clientY - last.y;
       moved += Math.abs(dx) + Math.abs(dy);
       last = { x: ev.clientX, y: ev.clientY };
-      if (moved > 4) setT(T.k, T.x + dx, T.y + dy);
+      if (moved > 4) { panBy(dx, dy); $('ir-tip').hidden = true; }
     }
   }
   var lastTap = 0;
@@ -428,7 +719,8 @@
     if (Object.keys(ptrs).length < 2) pinch = null;
     if (!Object.keys(ptrs).length) {
       map.classList.remove('drag'); last = null;
-      if (was && moved <= 4) {
+      if (moving) { moving = 0; requestDraw(); }
+      if (was && moved <= 4 && ev.type === 'pointerup') {
         var m = pinHit(ev.clientX, ev.clientY);
         if (m) openPin(m);
         else {
@@ -442,9 +734,49 @@
   function hover(ev, r) {
     var tip = $('ir-tip'), m = pinAt(ev.target);
     if (!m) { tip.hidden = true; return; }
+    if (m.edge) {
+      tip.classList.remove('wide');
+      tip.innerHTML = m.edge.n + (m.edge.n === 1 ? ' item' : ' items') + ' on the far side<small>Tap to turn the globe to them.</small>';
+      tip.style.left = m.x + 'px'; tip.style.top = (m.y - 14) + 'px'; tip.hidden = false;
+      return;
+    }
+    if (m.it) {
+      var it = m.it, rc = reachOf(it), nums = [];
+      if (rc && !rc.x) { if (rc.lk != null) nums.push(fmtN(rc.lk) + ' likes'); if (rc.vw != null) nums.push((rc['~'] ? '~' : '') + fmtN(rc.vw) + ' views'); }
+      if (it.hot != null) nums.push('Hot ' + it.hot);
+      if (it._v != null) nums.push('Viral ' + it._v);
+      tip.innerHTML = '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + '. Tap to open.</small>';
+      tip.classList.add('wide');
+      tip.style.left = m.x + 'px'; tip.style.top = (m.y - 10) + 'px'; tip.hidden = false;
+      return;
+    }
+    tip.classList.remove('wide');
     var names = m.keys.map(placeName);
-    tip.innerHTML = esc(names.length > 3 ? names.slice(0, 3).join(', ') + ' and ' + (names.length - 3) + ' more' : names.join(', ')) + '<small>' + m.n + (m.n === 1 ? ' item. ' : ' items. ') + (m.hot ? 'Hottest ' + m.hot + '. ' : '') + (m.keys.length > 1 ? 'Tap to go closer.' : 'Tap to show them.') + '</small>';
-    tip.style.left = m.x + 'px'; tip.style.top = (m.y - pinR(m.n)) + 'px'; tip.hidden = false;
+    tip.innerHTML = esc(names.length > 3 ? names.slice(0, 3).join(', ') + ' and ' + (names.length - 3) + ' more' : names.join(', ')) + '<small>' + m.n + (m.n === 1 ? ' item. ' : ' items. ') + (m.hot ? 'Hottest ' + m.hot + '. ' : '') + (m.keys.length > 1 ? 'Tap to go closer.' : m.exp && m.m > 1 ? 'Tap the middle to show only these.' : 'Tap to show them.') + '</small>';
+    tip.style.left = m.x + 'px'; tip.style.top = (m.y - (m.exp ? footR(m.m) : pinR(m.n))) + 'px'; tip.hidden = false;
+  }
+
+  // The globe turns by itself on the full screen (a stream), after 8 seconds with no hand on it; never with reduced motion.
+  var spinF = 0, idleAt = 0;
+  function poke() { idleAt = Date.now(); }
+  function spin() {
+    cancelAnimationFrame(spinF);
+    var lastT = 0;
+    (function step(t) {
+      if (!document.documentElement.classList.contains('ir-show')) { spinF = 0; return; }
+      if (V.mode === 'globe' && !tourT && !Object.keys(ptrs).length && Date.now() - idleAt > 8000 && !reduced() && V.k < 2.5 && !document.hidden && lastT)
+        setView(V.lon + Math.min(50, t - lastT) * 0.0035, V.lat, V.k, true);
+      lastT = t;
+      spinF = requestAnimationFrame(step);
+    })(0);
+  }
+  function setMode(m) {
+    if (!G || m === V.mode) return;
+    V.mode = m; store('ir-proj', m); pinSig = '';
+    var b = $('ir-proj');
+    if (b) { b.setAttribute('aria-label', m === 'globe' ? 'Lay the map flat' : 'Show the globe'); b.setAttribute('data-mode', m); }
+    root.setAttribute('data-map', m);
+    setView(V.lon, V.lat, V.k, true);
   }
 
   /* ------------------------------------------------------------ the timeline (the bank) */
@@ -518,6 +850,72 @@
     var anyEdu = items.some(function (it) { return it.edu; });
     $('ir-edu').hidden = !anyEdu && !S.edu; $('ir-edu').setAttribute('aria-pressed', S.edu ? 'true' : 'false');
     $('ir-sort').value = S.sort;
+    // Where it was posted: each platform with its count in what is shown, and the likes measured there (views on Telegram)
+    var pc = {}, lk = {}, vw = {}, has = {};
+    items.forEach(function (it) {
+      var p = pfOf(it); has[p] = 1;
+      if (!pass(it, 'pf')) return;
+      pc[p] = (pc[p] || 0) + 1;
+      var r = reachOf(it); if (r && !r.x) { if (r.lk != null) lk[p] = (lk[p] || 0) + r.lk; if (r.vw != null) vw[p] = (vw[p] || 0) + r.vw; }
+    });
+    var po = PF.map(function (x) { return x[0]; }).filter(function (p) { return has[p] || S.pf.indexOf(p) >= 0; });
+    po.sort(function (a, b) { return (pc[b] || 0) - (pc[a] || 0); });
+    $('ir-pf').innerHTML = '<button class="ir-chip ir-pfc ir-pf-all" type="button" data-pf="" aria-pressed="' + (S.pf.length ? 'false' : 'true') + '">Every platform</button>' + po.map(function (p) {
+      var sub = p === 'Telegram' && vw[p] != null ? ICO.view + fmtN(vw[p]) + ' views' : lk[p] != null ? ICO.like + fmtN(lk[p]) + ' likes' : HIDES[p] ? 'likes not public' : '';
+      return '<button class="ir-chip ir-pfc" type="button" data-pf="' + p + '" aria-pressed="' + (S.pf.indexOf(p) >= 0) + '" style="--pc:' + pfColor(p) + '"><b class="ir-pfd" aria-hidden="true"></b><span>' + esc(pfName(p)) + ' <i>' + (pc[p] || 0) + '</i>' + (sub ? '<small>' + sub + '</small>' : '') + '</span></button>';
+    }).join('');
+    seg('ir-heat', 'heat', 'Heat', HEATS, S.lens === 'live');
+    seg('ir-within', 'within', 'Within', WITHIN, S.lens === 'live');
+    seg('ir-viral', 'vmin', 'Viral', VIRALS, items.some(function (it) { return it._v != null; }) || !!S.vmin);
+  }
+  function seg(id, key, label, list, show) {
+    var el = $(id); if (!el) return;
+    el.hidden = !show;
+    if (!show) return;
+    el.innerHTML = '<span class="ir-seg-l">' + label + '</span>' + list.map(function (o) { return '<button type="button" data-seg="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (S[key] === o[0]) + '">' + o[1] + '</button>'; }).join('');
+  }
+  /* The board over the map: what is in view, counted. Every number is a count of what the list holds now. */
+  var BOARD_IT = null;
+  function drawBoard() {
+    var el = $('ir-board'); if (!el) return;
+    var places = {}, lk = 0, nl = 0, vw = 0, nv = 0, pc = {}, best = null, bestN = -1, live = S.lens === 'live';
+    shown.forEach(function (it) {
+      keysOf(it).forEach(function (k) { if (k !== 'global' && P[k]) places[k] = 1; });
+      var r = reachOf(it); if (r && !r.x) { if (r.lk != null) { lk += r.lk; nl++; } if (r.vw != null) { vw += r.vw; nv++; } }
+      var p = pfOf(it); pc[p] = (pc[p] || 0) + 1;
+      var score = live ? (it.hot != null ? it.hot : -1) : (it._v != null ? it._v : -1);
+      if (score > bestN) { bestN = score; best = it; }
+    });
+    BOARD_IT = bestN >= 0 ? best : null;
+    var n = shown.length, tile = function (k, v, sub) { return '<div class="ir-b-t"><span class="ir-b-k">' + k + '</span><b class="num">' + v + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; };
+    var mix = Object.keys(pc).sort(function (a, b) { return pc[b] - pc[a]; });
+    var html = tile('In view', n.toLocaleString('en-US'), S.lens === 'live' ? (n === 1 ? 'story' : 'stories') : S.lens === 'readers' ? 'sent in' : (n === 1 ? 'item' : 'items')) +
+      tile('Places', Object.keys(places).length, 'on the map') +
+      tile('Likes', nl ? fmtN(lk) : '\u2013', nl ? 'on ' + nl + ' with a count' : 'none counted here') +
+      tile('Views', nv ? fmtN(vw) : '\u2013', nv ? 'on ' + nv + ' with a count' : 'none counted here');
+    if (BOARD_IT) html += '<button type="button" class="ir-b-t ir-b-top" data-board><span class="ir-b-k">' + (live ? 'Hottest' : 'Most viral') + ' \u00b7 ' + bestN + '</span><span class="ir-b-tt">' + esc(BOARD_IT.t) + '</span></button>';
+    html += '<div class="ir-b-mix" role="img" aria-label="' + esc('Where it was posted: ' + mix.map(function (p) { return pfName(p) + ' ' + pc[p]; }).join(', ')) + '">' +
+      mix.map(function (p) { return '<span style="flex:' + pc[p] + ';background:' + pfColor(p) + '" title="' + esc(pfName(p) + ': ' + pc[p]) + '"></span>'; }).join('') + '</div>';
+    el.innerHTML = html; el.hidden = !n && S.lens === 'readers';
+  }
+  /* The wire: the hottest of the last 24 hours, running across the top. A headline opens it. */
+  function drawWire() {
+    var el = $('ir-wire'); if (!el) return;
+    if (!liveShown() || LIVE.length < 3) { el.hidden = true; return; }
+    var top = LIVE.slice().sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); }).slice(0, 14);
+    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + it.hot + '</b></span>' + mark(it, 'w-m') + '<span class="w-t">' + esc(it.t) + '</span><span class="w-s">' + esc(it.h || it.src) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
+    $('ir-wire-t').innerHTML = '<span class="w-set">' + top.map(function (it) { return one(it); }).join('') + '</span><span class="w-set" aria-hidden="true">' + top.map(function (it) { return one(it, 1); }).join('') + '</span>';
+    $('ir-wire-t').style.animationDuration = Math.max(60, top.length * 9) + 's';
+    el.hidden = false;
+  }
+  function openWire(id) {
+    var it = null; LIVE.forEach(function (x) { if (String(x.id) === id) it = x; });
+    if (!it) return;
+    stopTour();
+    if (S.lens !== 'live') useLens('live');
+    var i = shown.indexOf(it);
+    if (i < 0) { clearAll(); i = shown.indexOf(it); }
+    if (i >= 0) openSpot(i);
   }
   function placeOptions(list, withAll) {
     var byC = {}, n = {};
@@ -547,7 +945,7 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>Clear</button>' : '') : '';
   }
   function clearAll() {
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
     say('');
     render();
@@ -561,6 +959,10 @@
     if (S.tp.length) q.push('topic=' + S.tp.join('.'));
     if (S.nowhere) q.push('place=global'); else if (S.place) q.push('place=' + encodeURIComponent(S.place));
     if (S.kind) q.push('kind=' + S.kind);
+    if (S.pf.length) q.push('pf=' + S.pf.map(encodeURIComponent).join('.'));
+    if (S.heat && S.lens === 'live') q.push('heat=' + S.heat);
+    if (S.within && S.lens === 'live') q.push('within=' + S.within);
+    if (S.vmin) q.push('viral=' + S.vmin);
     if (S.top) q.push('top=1');
     if (S.edu) q.push('edu=1');
     if (S.lens === 'bank' && !fullRange()) q.push('from=' + buckets[S.from] + '&to=' + buckets[S.to]);
@@ -583,6 +985,9 @@
     if (p === 'global') S.nowhere = true; else if (p.indexOf('c:') === 0 || (p && p.split(',').every(function (k) { return P[k]; }))) S.place = p;
     S.kind = ['video', 'post', 'article', 'doc'].indexOf(u.get('kind')) >= 0 ? u.get('kind') : '';
     S.top = u.get('top') === '1'; S.edu = u.get('edu') === '1';
+    S.pf = (u.get('pf') || '').split('.').filter(function (x) { return PFC[x]; });
+    var pick = function (list, v) { v = +v || 0; return list.some(function (o) { return o[0] === v; }) ? v : 0; };
+    S.heat = pick(HEATS, u.get('heat')); S.within = pick(WITHIN, u.get('within')); S.vmin = pick(VIRALS, u.get('viral'));
     if (SORTS[S.lens].some(function (s) { return s[0] === u.get('sort'); })) S.sort = u.get('sort');
     S.from = 0; S.to = buckets.length - 1;
     var f = buckets.indexOf(u.get('from')), t = buckets.indexOf(u.get('to'));
@@ -629,13 +1034,15 @@
     [/islamis|jihad|radical islam|sharia|caliphate/, 'Radical Islam'], [/child (soldier|fighter)|children (fight|soldier)|kids with guns/, 'Child fighters'], [/journalist/, 'Journalists'],
     [/double standard|hypocris/, 'Double standards'], [/\bqatar/, 'Qatar'], [/\biran/, 'Iran'], [/campus|academi|professor|universit/, 'Campuses'], [/far.right|nazi|fascis/, 'Far-right extremism'],
     [/jewish voice|anti.?zionist jew|neturei/, 'Anti-Israel Jewish voices'], [/in context|out of context|quote/, 'Israeli quotes in context'], [/israel and the us|us aid|us.israel|american aid/, 'Israel and the US']];
+  var PF_WORDS = [[/\b(?:on|from|in) x\b|\btwitter\b|\btweets?\b|\bx posts?\b|\bx only\b/, 'X'], [/\byoutube\b/, 'YouTube'], [/\btelegram\b/, 'Telegram'],
+    [/\binstagram\b|\binsta\b/, 'Instagram'], [/\bfacebook\b/, 'Facebook'], [/\bthreads\b/, 'Threads'], [/\btiktok\b/, 'TikTok']];
   var STOP = /\b(happened|happen|happening|going|at|say|said|says|told|tell|show|me|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|is|are|was|were|i|want|need|please|some|can|you|to|and|or|by|it|this|these|those|evidence|proof|proves|prove|items?|things?|stuff|posts?|anything|everything|related|showing|where|who|how|did|do|does|uses?|using|used|has|have|had|they|their|them)\b/g;
   function ask(text) {
     var raw = String(text || '').trim().slice(0, 200);
     if (!raw) { clearAll(); return; }
     stopTour();
     var t = ' ' + raw.toLowerCase().replace(/[“”"’]/g, "'") + ' ', said = [];
-    var ns = { q: '', tp: [], place: '', kind: '', sort: SORTS[S.lens][0][0], from: 0, to: buckets.length - 1 };
+    var ns = { q: '', tp: [], place: '', kind: '', pf: [], sort: SORTS[S.lens][0][0], from: 0, to: buckets.length - 1 };
     var eat = function (rx) { t = t.replace(rx, ' '); };
     // "today", "breaking", "right now": the last 24 hours, when there is a feed
     if (/\b(today|breaking|right now|last 24|past 24|24 hours|this morning|tonight|live)\b/.test(t) && liveShown()) { if (S.lens !== 'live') useLens('live', true); ns.sort = 'hot'; eat(/\b(today|breaking|right now|last 24 hours|past 24 hours|24 hours|this morning|tonight|live|news)\b/g); said.push('in the last 24 hours'); }
@@ -658,6 +1065,12 @@
         eat(m[0]);
       }
     }
+    // where it was posted: "on X", "YouTube only", "Telegram and Instagram"
+    PF_WORDS.forEach(function (pw) { if (pw[0].test(t)) { if (ns.pf.indexOf(pw[1]) < 0) ns.pf.push(pw[1]); eat(new RegExp(pw[0].source, 'g')); } });
+    if (ns.pf.length) eat(/\b(only|just)\b/g);
+    // the new orders: liked, viewed, viral
+    var want = /\b(most liked|liked|likes)\b/.test(t) ? 'likes' : /\b(most viewed|most watched|views)\b/.test(t) ? 'views' : /\b(viral|reach|spread)\b/.test(t) ? 'viral' : '';
+    if (want) { eat(/\b(most liked|liked|likes|most viewed|most watched|views|viral|reach|spread|most)\b/g); }
     // kind and quality
     if (/\b(videos?|clips?|footage|watch|interviews?)\b/.test(t)) { ns.kind = 'video'; eat(/\b(videos?|clips?|footage|watch|interviews?)\b/g); }
     else if (/\barticles?|reports?|stor(y|ies)\b/.test(t)) { ns.kind = 'article'; eat(/\barticles?|reports?|stor(y|ies)\b/g); }
@@ -680,7 +1093,8 @@
     var rest = t.replace(STOP, ' ').replace(/[^a-z0-9֐-ۿ' -]/g, ' ').replace(/\s+/g, ' ').trim();
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
-    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to;
+    if (want) ns.sort = want;
+    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.within = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to;
     if (!SORTS[S.lens].some(function (s) { return s[0] === S.sort; })) S.sort = SORTS[S.lens][0][0];
     $('ir-from').value = S.from; $('ir-to').value = S.to;
     render();
@@ -693,6 +1107,7 @@
       let_go.push('"' + (best ? all.replace(best, '').trim() : all) + '"');
     }
     if (S.q && S.tp.length) { var withT = count(), keep = S.tp; S.tp = []; if (count() <= withT * 2) S.tp = keep; }
+    if (!count() && S.pf.length) { let_go.push(S.pf.map(pfName).join(' and ') + ' only'); S.pf = []; }
     if (!count() && S.kind) { let_go.push({ video: 'videos only', article: 'articles only', doc: 'documents only', post: 'posts only' }[S.kind]); S.kind = ''; }
     if (!count() && S.tp.length > 1) S.tp = S.tp.slice(0, 1);
     if (!count() && S.lens === 'bank' && !fullRange()) { let_go.push('the time'); said = []; S.from = 0; S.to = buckets.length - 1; $('ir-from').value = 0; $('ir-to').value = S.to; }
@@ -703,38 +1118,36 @@
     var parts = [shown.length + ' ' + kindW];
     if (S.tp.length) parts.push('on ' + S.tp.map(function (x) { var w = topics[x]; return /^(Hamas|UN|Qatar|Iran|Israel|Anti-Israel)\b/.test(w) ? w : w.charAt(0).toLowerCase() + w.slice(1); }).join(' or '));
     if (S.q) parts.push('that mention "' + S.q + '"');
+    if (S.pf.length) parts.push('on ' + S.pf.map(pfName).join(' or '));
     if (S.place) parts.push('in ' + (S.place.indexOf('c:') === 0 ? S.place.slice(2) : placeName(S.place)));
     parts = parts.concat(said);
     var line = parts.join(' ') + '.';
     if (S.sort === 'top') line += ' Top picks first.';
     if (S.sort === 'hot') line += ' Hottest first.';
+    if (S.sort === 'viral') line += ' Most viral first.';
+    if (S.sort === 'likes') line += ' Most liked first.';
+    if (S.sort === 'views') line += ' Most viewed first.';
     if (let_go.length) line = 'Nothing matched all of it, so I let go of ' + let_go.join(' and ') + '. ' + line;
     if (!shown.length || (let_go.length && shown.length === items.length)) line = 'Nothing here matches that yet. Try a place, a topic or a year, like: videos from Gaza in 2024. Or add what is missing.';
     say(line, true);
     if (S.place && shown.length) focusPlace(S.place);
     $('ir-items').scrollTop = 0;
   }
-  // Frame what is shown: the smallest view that holds every circle, with room round it, never closer than a region.
+  // Frame what is shown: the smallest view that holds every place, with room round it, never closer than a region.
   function frameShown() {
-    if (!world) return;
-    var q = [];
-    shown.forEach(function (it) { keysOf(it).forEach(function (k) { if (P[k] && P[k][2] != null) q.push(proj(P[k][3], P[k][2])); }); });
-    if (!q.length) { flyTo(1, W / 2, world.top + world.h / 2); return; }
-    var xs = q.map(function (a) { return a[0]; }), ys = q.map(function (a) { return a[1]; });
-    var minx = Math.min.apply(null, xs), maxx = Math.max.apply(null, xs), miny = Math.min.apply(null, ys), maxy = Math.max.apply(null, ys);
-    var cw = box.clientWidth, ch = box.clientHeight, pad = 1.5;
-    var k = Math.max(1, Math.min(4, Math.min(cw / ((maxx - minx || 200) * pad * base.s), ch / ((maxy - miny || 120) * pad * base.s))));
-    flyTo(k, (minx + maxx) / 2, (miny + maxy) / 2);
+    var keys = [];
+    shown.forEach(function (it) { keys = keys.concat(keysOf(it)); });
+    fitTo(placePts(keys), 1, 4);
   }
   function focusPlace(v) {
     var ks = v.indexOf('c:') === 0 ? Object.keys(P).filter(function (k) { return P[k][1] === v.slice(2) && P[k][2] != null; }) : v.split(',');
-    ks = ks.filter(function (k) { return P[k] && P[k][2] != null; });
-    if (!ks.length) return;
-    var q = ks.map(function (k) { return proj(P[k][3], P[k][2]); });
-    var minx = Math.min.apply(null, q.map(function (a) { return a[0]; })), maxx = Math.max.apply(null, q.map(function (a) { return a[0]; }));
-    var miny = Math.min.apply(null, q.map(function (a) { return a[1]; })), maxy = Math.max.apply(null, q.map(function (a) { return a[1]; }));
-    var span = Math.max(maxx - minx, (maxy - miny) * 1.6, 2);
-    flyTo(Math.min(40, Math.max(2, box.clientWidth * 0.5 / (span * base.s))), (minx + maxx) / 2, (miny + maxy) / 2);
+    var pts = placePts(ks);
+    // a whole country: frame the country itself (its outline's corners), not only the places in it
+    if (v.indexOf('c:') === 0 && G) {
+      var cn = TOPO[v.slice(2)] || v.slice(2);
+      (BYNAME[cn] || []).forEach(function (f) { var b = G.geoBounds(f); if (b[1][0] - b[0][0] < 90) pts.push(b[0], b[1], [b[0][0], b[1][1]], [b[1][0], b[0][1]]); });
+    }
+    if (pts.length) fitTo(pts, 2, 40);
   }
 
   /* ------------------------------------------------------------ the spotlight */
@@ -743,7 +1156,8 @@
     spotAt = i;
     var y = ytId(it.u), dlg = $('ir-spot');
     var srcName = it.src === 'Document' ? 'the document' : it.src === 'News' ? (it.h || 'the news site') : it.src;
-    var chips = (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
+    var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc(KIND_N[kindOf(it)] + ' on ' + pfName(pfOf(it))) + '</span>' +
+      (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + 'Viral ' + it._v + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
       (it.edu ? '<span class="ed">Explainer</span>' : '') + (it.own ? '<span class="own">Creator\'s own</span>' : '') + (it.pend ? '<span class="pend">Being checked</span>' : '') +
       (it.tp || []).map(function (t) { return '<span>' + esc(topics[t]) + '</span>'; }).join('');
     var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? ' (the date it shows)' : '') : it.pend ? 'Sent ' + ago(it.ms) : 'No date on it';
@@ -754,6 +1168,7 @@
       '<h2 id="ir-spot-t">' + esc(it.t) + '</h2>' +
       '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + esc(it.h && it.src !== 'News' ? it.h + ' on ' + it.src : it.h || it.src) + by + '</p>' +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
+      spotReach(it) +
       (it.hotWhy ? '<p class="ir-s-o">Why it is hot: ' + esc(it.hotWhy) + (it.also && it.also.length ? '. Also carried by ' + esc(it.also.join(', ')) : '') + '.</p>' : '') +
       (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : '') +
       (it.n ? '<p class="ir-s-n">' + esc(it.n) + '</p>' : '') +
@@ -767,15 +1182,22 @@
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
   }
+  function spotReach(it) {
+    var r = reachOf(it), p = pfOf(it), nm = pfName(p), bits = [];
+    if (r && r.x) return '<p class="ir-s-r">' + esc(nm) + ' no longer shows this one\'s counts: it was deleted, made private or put behind a login.</p>';
+    if (!r) return HIDES[p] ? '<p class="ir-s-r ir-s-rx">' + esc(nm) + ' does not show its like counts without a login, so none is shown here.</p>' : '';
+    if (r.lk != null) bits.push('<span>' + ICO.like + '<b class="num">' + r.lk.toLocaleString('en-US') + '</b> likes</span>');
+    if (r.vw != null) bits.push('<span>' + ICO.view + '<b class="num">' + (r['~'] ? 'about ' : '') + r.vw.toLocaleString('en-US') + '</b> views</span>');
+    if (r.rp != null) bits.push('<span>' + ICO.reply + '<b class="num">' + r.rp.toLocaleString('en-US') + '</b> replies</span>');
+    if (!bits.length) return '';
+    var when = r.at ? (Date.parse(r.at) ? ' Counted ' + ago(Date.parse(r.at)) + '.' : '') : '';
+    return '<p class="ir-s-r">' + bits.join('') + '<small>On ' + esc(nm) + ', as ' + esc(nm) + ' shows them.' + when + (it._v != null ? ' ' + esc(viralWhy(it)) + '.' : '') + '</small></p>';
+  }
   function closeSpot() { var d = $('ir-spot'); spotAt = -1; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
   function pulseAt(k) {
-    var q = proj(P[k][3], P[k][2]);
-    flyTo(Math.max(T.k, 6), q[0], q[1]);
-    setTimeout(function () { pinData.forEach(function (m) { if (m.keys.indexOf(k) >= 0) m.pulse = 1; }); drawPinsKeep(); }, 760);
-  }
-  function drawPinsKeep() {          // redraw the circles without re-merging, so a pulse survives
-    var g = gPins.querySelectorAll('.ir-pin');
-    [].forEach.call(g, function (el) { var m = pinData[+el.getAttribute('data-p')]; if (m && m.pulse) { var c = document.createElementNS(SVGNS, 'circle'); c.setAttribute('class', 'pulse'); c.setAttribute('r', '10'); el.insertBefore(c, el.firstChild); m.pulse = 0; } });
+    if (!P[k] || P[k][2] == null) return;
+    flyTo(Math.max(V.k, 6), P[k][3], P[k][2]);
+    setTimeout(function () { PULSE = { k: k, at: Date.now() }; pinSig = ''; requestDraw(); }, 760);
   }
 
   /* ------------------------------------------------------------ the tour: one item every 12 seconds, the map flying to it */
@@ -786,7 +1208,7 @@
     var y = ytId(it.u), th = it.th || (y ? 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg' : '');
     lt.innerHTML = (th ? '<span class="ir-lt-th" style="background-image:url(' + esc(th) + ')"></span>' : '') +
       '<span class="ir-lt-b"><span class="ir-lt-k">' + esc(LENS[S.lens]) + (it.hot != null ? ' · <b>' + flame() + 'Hot ' + it.hot + '</b>' : it.q ? ' · <b>&#9733; Top pick</b>' : '') + '</span>' +
-      '<span class="ir-lt-t">' + esc(it.t) + '</span><span class="ir-lt-m">' + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + ' · ' + esc(it.h || it.src) + '</span></span>' +
+      '<span class="ir-lt-t">' + esc(it.t) + '</span><span class="ir-lt-m">' + mark(it, 'ir-mk') + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + ' · ' + esc(it.h || it.src) + '</span>' + reachLine(it) + '</span>' +
       '<span class="ir-lt-n num">' + (tourAt + 1) + '/' + Math.min(shown.length, 30) + '</span>';
     lt.hidden = false;
   }
@@ -822,26 +1244,23 @@
     var h = document.documentElement;
     if (on === undefined) on = !h.classList.contains('ir-show');
     h.classList.toggle('ir-show', on);
+    if (!on) { h.classList.remove('ir-ctl-on'); $('ir-ctl').setAttribute('aria-pressed', 'false'); }
     $('ir-stream').querySelector('span').textContent = on ? 'Leave full screen' : 'Full screen';
     $('ir-stream').setAttribute('aria-pressed', on ? 'true' : 'false');
-    if (on) { clock(); clockT = setInterval(clock, 15000); } else { clearInterval(clockT); }
+    if (on) { clock(); clockT = setInterval(clock, 15000); poke(); spin(); } else { clearInterval(clockT); }
     if (on && h.requestFullscreen && !document.fullscreenElement) h.requestFullscreen().catch(function () {});
     if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
     setTimeout(function () { refit(); }, 90);
     setTimeout(function () { refit(); }, 400);
   }
-  function refit() {
-    if (!world) return;
-    var c = (box.clientWidth / 2 - base.ox - T.x) / (base.s * T.k), d = (box.clientHeight / 2 - base.oy - T.y) / (base.s * T.k) + world.top;
-    var ow = base.s; fit(); if (!isFinite(c) || !ow) { setT(T.k, T.x, T.y); return; }
-    var s = base.s * T.k; setT(T.k, box.clientWidth / 2 - base.ox - c * s, box.clientHeight / 2 - base.oy - (d - world.top) * s);
-  }
+  function refit() { pinSig = ''; requestDraw(); }          // the view is a place and a zoom, so a new size only redraws it
 
   /* ------------------------------------------------------------ copy notes: the list as text, for show prep */
   function copyNotes() {
     var head = 'Intel Room, ' + LENS[S.lens].toLowerCase() + ($('ir-said').textContent ? ': ' + $('ir-said').textContent.replace(/\s*Clear$/, '') : '') + '\n' + location.href + '\n\n';
     var txt = head + shown.slice(0, 40).map(function (it, i) {
-      return (i + 1) + '. ' + it.t + '\n   ' + [fmtDate(it.d), it.p === 'global' && it.pw ? it.pw : placeName(it.p), it.h || it.src, it.hot != null ? 'Hot ' + it.hot + ' (' + (it.hotWhy || '') + ')' : ''].filter(Boolean).join(' · ') + '\n   ' + it.u + (it.n ? '\n   ' + it.n : '');
+      var r = reachOf(it), n = r && !r.x ? [r.lk != null ? r.lk.toLocaleString('en-US') + ' likes' : '', r.vw != null ? (r['~'] ? '~' : '') + r.vw.toLocaleString('en-US') + ' views' : ''].filter(Boolean).join(', ') : '';
+      return (i + 1) + '. ' + it.t + '\n   ' + [fmtDate(it.d), it.p === 'global' && it.pw ? it.pw : placeName(it.p), it.h || it.src, pfName(pfOf(it)) + (n ? ': ' + n : ''), it.hot != null ? 'Hot ' + it.hot + ' (' + (it.hotWhy || '') + ')' : '', it._v != null ? 'Viral ' + it._v : ''].filter(Boolean).join(' · ') + '\n   ' + it.u + (it.n ? '\n   ' + it.n : '');
     }).join('\n\n');
     var done = function () { say('Copied ' + Math.min(40, shown.length) + ' items with their links. Paste them into your show notes.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallbackCopy(txt, done); });
@@ -1074,6 +1493,14 @@
       var b;
       if ((b = t.closest('[data-clear]'))) { clearAll(); return; }
       if ((b = t.closest('button[data-lens]'))) { useLens(b.getAttribute('data-lens')); say(''); return; }
+      if ((b = t.closest('button[data-pf]'))) {
+        var pv = b.getAttribute('data-pf');
+        if (pv === '') S.pf = []; else { var pa = S.pf.indexOf(pv); if (pa >= 0) S.pf.splice(pa, 1); else S.pf.push(pv); }
+        say(''); render(); return;
+      }
+      if ((b = t.closest('button[data-seg]'))) { S[b.getAttribute('data-seg')] = +b.getAttribute('data-v') || 0; render(); return; }
+      if ((b = t.closest('button[data-wire]'))) { openWire(b.getAttribute('data-wire')); return; }
+      if ((b = t.closest('button[data-board]'))) { var bi = shown.indexOf(BOARD_IT); if (bi >= 0) { stopTour(); openSpot(bi); } return; }
       if ((b = t.closest('.ir-chip'))) {
         var v = b.getAttribute('data-t');
         if (v === '') S.tp = []; else { v = +v; var at = S.tp.indexOf(v); if (at >= 0) S.tp.splice(at, 1); else S.tp.push(v); }
@@ -1083,6 +1510,8 @@
       if ((b = t.closest('#ir-top'))) { S.top = !S.top; render(); return; }
       if ((b = t.closest('#ir-edu'))) { S.edu = !S.edu; render(); return; }
       if ((b = t.closest('#ir-stream'))) { stream(); return; }
+      if ((b = t.closest('#ir-exit'))) { stream(false); return; }
+      if ((b = t.closest('#ir-ctl'))) { var on = !document.documentElement.classList.contains('ir-ctl-on'); document.documentElement.classList.toggle('ir-ctl-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); setTimeout(refit, 60); return; }
       if ((b = t.closest('#ir-save'))) { drawViews(true); return; }
       if ((b = t.closest('[data-view]'))) { var vw = views()[+b.getAttribute('data-view')]; if (vw) { readUrl(vw.q); render(); if (S.place) focusPlace(S.place); say('Showing your view "' + vw.n + '".'); } return; }
       if ((b = t.closest('[data-unview]'))) { var vs = views(); vs.splice(+b.getAttribute('data-unview'), 1); store(VKEY, vs); drawViews(); return; }
@@ -1095,7 +1524,9 @@
         var z = b.getAttribute('data-z');
         if (z === 'full') { stream(); return; }
         stopTour();
-        if (z === 'home') flyTo(1, W / 2, world.top + world.h / 2);
+        poke();
+        if (z === 'home') home();
+        else if (z === 'proj') setMode(V.mode === 'globe' ? 'flat' : 'globe');
         else zoomAt(z === 'in' ? 1.8 : 1 / 1.8, box.clientWidth / 2, box.clientHeight / 2);
         return;
       }
@@ -1174,7 +1605,7 @@
         if (ev.key === '+' || ev.key === '=') zoomAt(1.5, box.clientWidth / 2, box.clientHeight / 2);
         if (ev.key === '-') zoomAt(1 / 1.5, box.clientWidth / 2, box.clientHeight / 2);
       }
-      if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.closest && ev.target.closest('.ir-pin')) { ev.preventDefault(); openPin(pinAt(ev.target)); }
+      if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.closest && ev.target.closest('.ir-pin,.ir-gl,.ir-edge')) { ev.preventDefault(); openPin(pinAt(ev.target)); }
     });
     document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && document.documentElement.classList.contains('ir-show')) stream(false); });
     map.addEventListener('pointerdown', onDown);
@@ -1182,7 +1613,7 @@
     map.addEventListener('pointerup', onUp);
     map.addEventListener('pointercancel', onUp);
     map.addEventListener('pointerleave', function () { $('ir-tip').hidden = true; });
-    map.addEventListener('wheel', function (ev) { ev.preventDefault(); stopTour(); var r = box.getBoundingClientRect(); zoomAt(Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.0018)), ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
+    map.addEventListener('wheel', function (ev) { ev.preventDefault(); stopTour(); poke(); var r = box.getBoundingClientRect(); zoomAt(Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.0018)), ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
     var rt = 0;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(refit, 120); });
     window.addEventListener('hashchange', function () { if (location.hash === '#add') openAdd(); });
@@ -1206,38 +1637,56 @@
     it.k = it.k === 'video' ? 'video' : 'article';
     return it;
   }
-  var liveUrl = root.getAttribute('data-live');
+  var liveUrl = root.getAttribute('data-live'), reachUrl = root.getAttribute('data-reach');
+  function soft(u, opt) { return u ? fetch(u, opt).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null); }
   Promise.all([fetch(root.getAttribute('data-src')).then(function (r) { if (!r.ok) throw r; return r.json(); }),
-               fetch(root.getAttribute('data-geo')).then(function (r) { if (!r.ok) throw r; return r.json(); }),
-               liveUrl ? fetch(liveUrl, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null)]).then(function (res) {
+               G ? soft(root.getAttribute('data-geo')) : Promise.resolve(null),
+               soft(liveUrl, { cache: 'no-cache' }), soft(reachUrl, { cache: 'no-cache' })]).then(function (res) {
     D = res[0]; BANK = D.items; P = D.places; topics = D.topics;
     if (res[2] && Array.isArray(res[2].items)) { LIVE_AT = Date.parse(res[2].at) || 0; LIVE = res[2].items.filter(function (it) { return it && it.u && it.t; }).map(normLive); }
+    if (res[3] && res[3].by && typeof res[3].by === 'object') { REACH = res[3].by; REACH_AT = Date.parse(res[3].at) || 0; }
+    computeViral();
+    // an order with nothing to order by is not offered (no like counts read yet, say)
+    ['live', 'bank'].forEach(function (l) {
+      var set = setOf(l);
+      SORTS[l] = SORTS[l].filter(function (o) { var f = o[0] === 'viral' ? function (it) { return it._v; } : o[0] === 'likes' ? likesOf : o[0] === 'views' ? viewsOf : null; return !f || set.some(function (it) { return f(it) != null; }); });
+    });
     // The glow behind each circle: gold for the bank and the readers, a warmer white gold for the last 24 hours.
     map.insertAdjacentHTML('afterbegin', '<defs><radialGradient id="irg"><stop offset="0" stop-color="#F4C430" stop-opacity=".5"/><stop offset="1" stop-color="#F4C430" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="irl"><stop offset="0" stop-color="#FFE7A8" stop-opacity=".65"/><stop offset="1" stop-color="#FFB547" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="irs"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>');
-    gGrid = document.createElementNS(SVGNS, 'g'); gGrid.setAttribute('class', 'grid');
-    gLand = document.createElementNS(SVGNS, 'g'); gPins = document.createElementNS(SVGNS, 'g');
-    map.appendChild(gGrid); map.appendChild(gLand); map.appendChild(gPins);
-    drawWorld(res[1]); drawGrid();
+    gPins = document.createElementNS(SVGNS, 'g'); gPins.setAttribute('class', 'pins');
+    map.appendChild(gPins);
+    cv = $('ir-globe');
+    if (G && res[1] && res[1].objects && cv && cv.getContext) {
+      ctx = cv.getContext('2d');
+      GRAT = G.geoGraticule().step([15, 15])();
+      LAND = topoFeatures(res[1], BYNAME);
+      if (store('ir-proj') === 'flat') V.mode = 'flat';
+      root.setAttribute('data-map', V.mode);
+      var pb = $('ir-proj'); if (pb) { pb.setAttribute('data-mode', V.mode); pb.setAttribute('aria-label', V.mode === 'globe' ? 'Lay the map flat' : 'Show the globe'); }
+      sizeCanvas();
+      V.lon = -50; V.lat = 18;          // the first view turns in from the west
+    } else $('ir-maphint').textContent = 'The map could not load. Everything is in the list.';
     $('ir-kind').innerHTML = KINDS.map(function (k) { return '<button type="button" data-k="' + k[0] + '" aria-pressed="false">' + k[1] + '</button>'; }).join('');
     makeBuckets();
     defLens = liveFresh() ? 'live' : 'bank';
     readUrl(location.search);
-    $('ir-bar').hidden = false; $('ir-zoom').hidden = false;
-    fit();
-    // a phone's box is near square: open on the Middle East and Europe, where most of the bank is
-    if (box.clientWidth < 700) { var q = proj(28, 38); setT(1, 0, 0); var s = base.s * 3.2; setT(3.2, box.clientWidth / 2 - base.ox - q[0] * s, box.clientHeight / 2 - base.oy - (q[1] - world.top) * s); }
-    else setT(1, 0, 0);
+    $('ir-bar').hidden = false; $('ir-zoom').hidden = !LAND;
+    if (LAND) setView(V.lon, V.lat, V.k, true);
     wire();
     render();
     drawViews();
+    drawWire();
+    // a phone's box is near square: open on the Middle East and Europe, where most of the bank is
     if (S.place) focusPlace(S.place);
     else if (box.clientWidth >= 700) frameShown();
+    else flyTo(V.mode === 'globe' ? 1.25 : 3, 36, 31);
     // What intel-prep.js (show prep) is handed: what the room shows now, and the room's own words for a date and a place.
     window.IRoom = { shown: function () { return shown.slice(); }, lens: function () { return S.lens; }, said: function () { return $('ir-said').textContent; },
       topicsOn: function () { return S.tp.map(function (i) { return topics[i]; }); }, when: function (it) { return fmtDate(it.d); },
-      where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); } };
+      where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); },
+      reach: function (it) { var r = reachOf(it); return r && !r.x ? { likes: r.lk, views: r.vw, replies: r.rp, platform: pfName(pfOf(it)), viral: it._v } : null; } };
     if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();

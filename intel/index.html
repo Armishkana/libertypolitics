@@ -39,11 +39,12 @@
 <main id="main">
 <div class="pane" id="record">
 <link rel="stylesheet" href="../assets/intel.css">
-<section class="ir" id="ir" data-src="../assets/intel.json" data-live="../assets/intel-live.json" data-geo="../assets/intel-world-110.json" data-geo-hi="../assets/intel-world-50.json" data-xp-find="40" data-xp-own="90">
-<div class="ir-brand" aria-hidden="true"><img src="../assets/seal.png" alt="" width="40" height="40"><span><b>Liberty Politics</b> Intel Room</span><time class="ir-clock" id="ir-clock"></time></div>
+<section class="ir" id="ir" data-src="../assets/intel.json" data-live="../assets/intel-live.json" data-reach="../assets/intel-reach.json" data-geo="../assets/intel-topo-110.json" data-geo-hi="../assets/intel-topo-50.json" data-xp-find="40" data-xp-own="90">
+<div class="ir-brand"><img src="../assets/seal.png" alt="" width="40" height="40"><span><b>Liberty Politics</b> Intel Room</span><time class="ir-clock" id="ir-clock"></time><button class="ir-ctl" id="ir-ctl" type="button" aria-pressed="false">Filters</button><button class="ir-exit" id="ir-exit" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Leave full screen</span></button></div>
+<div class="ir-wire scroll" id="ir-wire" hidden><span class="ir-wire-l"><i aria-hidden="true"></i>The wire</span><div class="ir-wire-v"><div class="ir-wire-t" id="ir-wire-t"></div></div></div>
 <div class="ir-top">
 <div class="ir-title">
-<p class="ir-kick"><span class="ir-dot" aria-hidden="true"></span>Intel Room<span class="ir-kick-l" id="ir-kick-l"></span></p>
+<p class="ir-kick"><svg class="ir-owl" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 4.5l4.2 4.3M25 4.5l-4.2 4.3"/><path d="M6.2 7.5C4.6 13 5 19.8 9 24.6c3.6 4.3 10.4 4.3 14 0 4-4.8 4.4-11.6 2.8-17.1C22 9.6 19 10.2 16 10.2s-6-.6-9.8-2.7z"/><circle cx="11.6" cy="15" r="3.9"/><circle cx="20.4" cy="15" r="3.9"/><circle class="o-p" cx="11.6" cy="15" r="1.5"/><circle class="o-p" cx="20.4" cy="15" r="1.5"/><path d="M16 17.4l-1.5 2.7 1.5 1.7 1.5-1.7z"/><path d="M11 24.2l2 1.4M21 24.2l-2 1.4M16 23.6v2.6"/></svg>Intel Room<span class="ir-kick-s">Open-source intelligence</span><span class="ir-kick-l" id="ir-kick-l"></span></p>
 <h1>The evidence, on one map</h1>
 <p class="ir-lede">Clips, documents, numbers and the news of the last 24 hours on Israel, Gaza, Iran and the war of words around them. <b class="num">635</b> pieces of evidence, each linked to where it was first posted, and built by the people who use it.</p>
 <div class="ir-cta">
@@ -63,10 +64,14 @@
 </div>
 <div class="ir-lens" id="ir-lens" role="tablist" aria-label="What the map shows" hidden></div>
 <div class="ir-bar" id="ir-bar" hidden>
-<div class="ir-topics scroll" id="ir-topics" role="group" aria-label="Topics"></div>
+<div class="ir-row"><span class="ir-row-l">Platform</span><div class="ir-pf scroll" id="ir-pf" role="group" aria-label="Where it was posted"></div></div>
+<div class="ir-row"><span class="ir-row-l">Topic</span><div class="ir-topics scroll" id="ir-topics" role="group" aria-label="Topics"></div></div>
 <div class="ir-tools">
 <label class="ir-sel"><span class="vh">Place</span><select id="ir-place"><option value="">Every place</option></select></label>
 <div class="ir-seg" id="ir-kind" role="group" aria-label="Kind"></div>
+<div class="ir-seg ir-segl" id="ir-heat" role="group" aria-label="Heat" hidden></div>
+<div class="ir-seg ir-segl" id="ir-within" role="group" aria-label="Within the last" hidden></div>
+<div class="ir-seg ir-segl" id="ir-viral" role="group" aria-label="Viral" hidden></div>
 <button class="ir-tog" id="ir-top" type="button" aria-pressed="false">Top picks</button>
 <button class="ir-tog ir-edu" id="ir-edu" type="button" aria-pressed="false" hidden>Explainers</button>
 <button class="ir-tool" id="ir-save" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Save view</span></button>
@@ -74,15 +79,19 @@
 </div>
 <div class="ir-views" id="ir-views" hidden></div>
 </div>
+<div class="ir-board" id="ir-board"></div>
 <div class="ir-main">
 <div class="ir-mapbox" id="ir-mapbox">
-<svg class="ir-map" id="ir-map" role="img" aria-label="World map of the evidence. Drag to move, scroll or pinch to zoom."></svg>
-<div class="ir-zoom" id="ir-zoom" hidden><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">&minus;</button><button type="button" data-z="home" aria-label="Show the whole world"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button><button type="button" data-z="full" class="ir-z-full" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
+<canvas class="ir-globe" id="ir-globe" aria-hidden="true"></canvas>
+<div class="ir-sweep" id="ir-sweep" hidden aria-hidden="true"></div>
+<svg class="ir-map" id="ir-map" role="img" aria-label="Globe of the evidence. Drag to turn it, scroll or pinch to zoom. Each mark is one item: its shape says what it is, its colour where it was posted."></svg>
+<div class="ir-hud" aria-hidden="true"><svg class="ir-owl" viewBox="0 0 32 32" aria-hidden="true"><path d="M7 4.5l4.2 4.3M25 4.5l-4.2 4.3"/><path d="M6.2 7.5C4.6 13 5 19.8 9 24.6c3.6 4.3 10.4 4.3 14 0 4-4.8 4.4-11.6 2.8-17.1C22 9.6 19 10.2 16 10.2s-6-.6-9.8-2.7z"/><circle cx="11.6" cy="15" r="3.9"/><circle cx="20.4" cy="15" r="3.9"/><circle class="o-p" cx="11.6" cy="15" r="1.5"/><circle class="o-p" cx="20.4" cy="15" r="1.5"/><path d="M16 17.4l-1.5 2.7 1.5 1.7 1.5-1.7z"/><path d="M11 24.2l2 1.4M21 24.2l-2 1.4M16 23.6v2.6"/></svg><span class="ir-hud-n"><b>Intel Room</b><span class="ir-hud-c num" id="ir-hud-c"></span></span></div>
+<div class="ir-zoom" id="ir-zoom" hidden><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">&minus;</button><button type="button" data-z="home" aria-label="Show the whole world"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button><button type="button" data-z="proj" id="ir-proj" class="ir-z-proj" data-mode="globe" aria-label="Lay the map flat"><svg class="i-flat" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 12h18M9 5v14M15 5v14"/></svg><svg class="i-globe" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button><button type="button" data-z="full" class="ir-z-full" aria-label="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
 <button class="ir-nowhere" id="ir-nowhere" type="button" hidden></button>
 <p class="ir-legend" id="ir-legend" hidden></p>
 <div class="ir-tip" id="ir-tip" hidden></div>
 <div class="ir-lt" id="ir-lt" hidden></div>
-<p class="ir-maphint" id="ir-maphint">635 items in 38 places. Tap a gold circle.</p>
+<p class="ir-maphint" id="ir-maphint">635 items in 38 places. Drag to turn the globe, tap a mark.</p>
 </div>
 <aside class="ir-list" aria-label="Items">
 <div class="ir-list-h"><p class="ir-count" id="ir-count"><b class="num">505</b> newest dated items</p>
@@ -114,6 +123,7 @@
 </section>
 <dialog class="ir-spot" id="ir-spot" aria-labelledby="ir-spot-t"></dialog>
 <dialog class="ir-add" id="ir-add" aria-labelledby="ir-add-h"></dialog>
+<script src="../assets/intel-geo.js" defer></script>
 <script src="../assets/intel.js" defer></script>
 <section class="field call band" id="band"><div class="wrap">
 <h2>Which piece of evidence here hits hardest, and which is weak?</h2>
