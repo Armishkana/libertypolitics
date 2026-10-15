@@ -905,6 +905,9 @@ footer{padding-bottom:84px}
 .replies .said blockquote{margin-top:8px}
 .replies .said-bar{margin-top:6px}
 .replies .vt{min-width:52px;background:none}
+/* a reply to the signed-in reader that they have not seen yet: its own colour inside the thread (community.js ryHere) */
+.said.ry-new,.replies .said.ry-new{padding:10px 12px;background:rgba(217,180,90,.13);background:color-mix(in srgb,var(--field) 14%,transparent);border:0;border-inline-start:3px solid var(--field);border-radius:var(--r)}
+.said .meta .tag.new{color:var(--on-field);background:var(--field-hi);border-color:var(--field-hi)}
 .thread-more{display:inline-flex;align-items:center;min-height:44px;margin:6px 0 0 14px;padding:0;background:none;border:0;color:var(--field);font:700 .92rem/1 var(--body);cursor:pointer}
 .thread-more:hover{text-decoration:underline;text-underline-offset:3px}
 .reply-f{margin-top:10px}

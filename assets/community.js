@@ -518,7 +518,7 @@ function ryRow(r) {
   if (!r || typeof r.id !== 'string' || !/^[A-Za-z0-9]{1,40}$/.test(r.id) || pathOf(r.about) == null || typeof r.text !== 'string' || typeof r.ms !== 'number') return null;
   return { id: r.id, about: r.about, name: typeof r.name === 'string' && NAME_OK.test(r.name) ? r.name : tt('A reader'), text: r.text.slice(0, 200), ms: r.ms };
 }
-function ryDrop() { ry = null; ryAsk = null; rySeenAt = 0; ryKept.set(null); }
+function ryDrop() { ry = null; ryAsk = null; rySeenAt = 0; ryKept.set(null); try { sessionStorage.removeItem('lp-ry-go'); } catch (x) { } }
 /* What the tab kept from the last page, painted before Firebase's code has loaded. */
 function ryWake() {
   const k = ryKept.get();
@@ -568,6 +568,47 @@ function ryOpen(id) {
   if (e.open.indexOf(id) < 0) e.open.push(id);
   ryKeep({ at: Math.max(e.at, rySeenAt), open: e.open.slice(-200) });
 }
+/* New replies in their own colour, inside the thread (15 October 2026: plan unread-replies on
+   iranuncensored.com, post rry7Zu64sQ0MpcdK2IYp, "a new answer to you looks like every other post").
+   A reply to the signed-in reader that is still New in Replies to you is drawn lit (class ry-new, a New
+   tag) wherever its thread is drawn, and a folded thread holding one opens. Seeing it on the screen clears
+   New, the same as opening it from the list, so the count on the reader's letter goes down. It stays lit
+   for the rest of this visit to the page, so the colour never goes away under the reader's eyes; the next
+   visit draws it like every other reply. */
+const ryLit = new Set(), RY_GO = 'lp-ry-go';
+/* The reply a reader picked in Replies to you is marked opened as they tap it, before the page it is on has
+   loaded; the tab keeps its id for the next page alone, so it still arrives in its colour. */
+function ryGo(id) { try { if (id) sessionStorage.setItem(RY_GO, id); else sessionStorage.removeItem(RY_GO); } catch (x) { } }
+function ryHere(p) {
+  if (!p || !p.parent || !me || !ry || ry.uid !== me.uid) return false;
+  if (ryLit.has(p.id)) return true;
+  const r = ry.rows.find(x => x.id === p.id);
+  if (!r) return false;
+  let went = '';
+  try { went = sessionStorage.getItem(RY_GO) || ''; } catch (x) { }
+  if (went === p.id) { ryGo(''); ryLit.add(p.id); return true; }
+  if (!ryIsNew(r, rySeen(), ryOpened())) return false;
+  ryLit.add(p.id);
+  return true;
+}
+let ryIO = null;
+const ryDwell = new Map();
+/* Seen means half of it on the screen for a second and a half, so a reply scrolled past is not taken as read. */
+function ryWatch(li, id) {
+  if (!('IntersectionObserver' in window)) return;
+  if (!ryIO) ryIO = new IntersectionObserver(es => es.forEach(e => {
+    const t = e.target;
+    if (!e.isIntersecting) { clearTimeout(ryDwell.get(t)); ryDwell.delete(t); return; }
+    if (ryDwell.has(t)) return;
+    ryDwell.set(t, setTimeout(() => { ryDwell.delete(t); ryIO.unobserve(t); if (t.isConnected) ryOpen(t.getAttribute('data-ry')); }, 1500));
+  }), { threshold: 0.5 });
+  li.setAttribute('data-ry', id);
+  ryIO.observe(li);
+}
+/* The answer about replies arrived after the discussion was drawn: draw it again when it lights a reply on it. */
+function ryRelight() {
+  if (T && T.state === 'ok' && T.list && T.posts.some(p => !ryLit.has(p.id) && ryHere(p))) drawTalk();
+}
 async function ryFind(uid, myName) {
   const { F, db } = S, P = F.collection(db, 'posts');
   const own = (await F.getDocs(F.query(P, F.where('uid', '==', uid), F.limit(300)))).docs.map(d => shape(d.id, d.data()));
@@ -610,6 +651,7 @@ function ryCheck() {
   const p = within(25000, ryFind(uid, user.displayName || '')).then(rows => {
     if (!user || user.uid !== uid) return null;
     ry = { uid, at: Date.now(), rows }; ryKept.set(ry); paintHeader();
+    try { ryRelight(); } catch (x) { }
     return ry;
   });
   const done = () => { if (ryAsk && ryAsk.p === p) ryAsk = null; };
@@ -638,7 +680,7 @@ function ryView() {
       a.append(who, el('span', 'ry-t', cut(r.text), ML ? { dir: 'auto' } : null));
       /* Opening a reply clears New on that reply only. The panel must not stay over the page the link opens,
          when that page is this one. */
-      a.addEventListener('click', () => { ryOpen(r.id); closeSheet(); });
+      a.addEventListener('click', () => { if (ryIsNew(r, rySeen(), ryOpened())) { ryGo(r.id); ryLit.add(r.id); } ryOpen(r.id); closeSheet(); });
       li.append(a); ul.append(li);
     });
     box.append(ul);
@@ -658,7 +700,8 @@ function landOn() {
   if (!T || location.hash.indexOf('#p-') !== 0 || T.state !== 'ok') return;
   const t = find(location.hash.slice(3));
   if (!t) { reloadTalk(); return; }
-  if (ry && me && ry.uid === me.uid && ry.rows.some(r => r.id === t.id)) ryOpen(t.id);
+  /* Lit before it is marked opened, so the reply the reader came for still shows in its colour (ryHere). */
+  if (ry && me && ry.uid === me.uid && ry.rows.some(r => r.id === t.id)) { ryHere(t); ryGo(''); ryOpen(t.id); }
   if (t.parent && !T.open.has(t.parent)) { T.open.add(t.parent); drawTalk(); }
   const r = $(location.hash.slice(1));
   if (r) r.scrollIntoView({ block: 'center' });
@@ -1906,6 +1949,11 @@ function row(p, best) {
   if (!p.parent && (p.tag || p.kind !== 'opinion')) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
   if (p.mine) meta.append(el('span', 'tag', tt('Made it')));
   if (best) meta.append(el('span', 'tag best', tt('Most liked')));
+  if (p.status === 'live' && ryHere(p)) {
+    li.classList.add('ry-new');
+    meta.append(el('span', 'tag new', tt('New')));
+    ryWatch(li, p.id);
+  }
   head.append(face(p.name, p.uid), meta);
   li.append(head);
   if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: hrefOf(p.about, p.id) }));
@@ -2035,14 +2083,14 @@ function hang(li, p) {
     /* A long thread shows its first two replies and a way to the rest, so one argument does not bury the
        posts under it. It is open once the reader asks, while they are answering in it, and whenever one of
        its replies is their own new one or one only they can see. */
-    const whole = rs.length <= 3 || T.open.has(p.id) || (T.replying && T.replying.id === p.id) || rs.some(r => r.fresh || r.status !== 'live');
+    const whole = rs.length <= 3 || T.open.has(p.id) || (T.replying && T.replying.id === p.id) || rs.some(r => r.fresh || r.status !== 'live' || ryHere(r));
     const ul = el('ul', 'replies');
     (whole ? rs : rs.slice(0, 2)).forEach(r => ul.append(row(r, false)));
     li.append(ul);
     if (!whole) li.append(btn('thread-more', tt('Show {n} more replies', { n: rs.length - 2 }), () => { T.open.add(p.id); redraw(p); }));
     return;
   }
-  const mine = rs.filter(r => r.fresh || r.status !== 'live');
+  const mine = rs.filter(r => r.fresh || r.status !== 'live' || ryHere(r));
   if (mine.length) { const ul = el('ul', 'replies'); mine.forEach(r => ul.append(row(r, false))); li.append(ul); }
   const rest = rs.length - mine.length;
   if (rest) li.append(el('a', 'said-more', mine.length ? (rest === 1 ? tt('And 1 more reply') : tt('And {n} more replies', { n: rest })) : (rest === 1 ? tt('Read 1 reply') : tt('Read {n} replies', { n: rest })), { href: root + 'talk/?on=' + encodeURIComponent(p.about) + '#p-' + p.id }));
