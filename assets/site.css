@@ -1451,6 +1451,9 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 /* THE BUBBLE IS ON SCREEN FROM THE FIRST PIXEL (14 October 2026, evening). It no longer steps aside; the page keeps room at
    its foot instead, so the bubble never sits on the last line of the footer. */
 body:has(#calls:not(.off)){padding-bottom:120px}
+/* The body already keeps 120px for the bubble, so the footer does not keep its own 96px as well (15 October 2026: the two
+   together pushed the front page past its 4,500px on a phone). */
+body:has(#calls:not(.off)) footer{padding-bottom:40px}
 
 /* ---------------------------------------------------------------- the Missions page */
 .q-head .wrap{padding-top:16px;padding-bottom:14px}

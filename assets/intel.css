@@ -158,6 +158,7 @@
 html.ir-show,html.ir-show body{background:#070707}
 html.ir-show header.top,html.ir-show .subnav,html.ir-show footer,html.ir-show #calls,html.ir-show .ir-foot,html.ir-show .ir-lede,html.ir-show .stagebar,html.ir-show .vh[href="#main"]{display:none!important}
 html.ir-show body{padding:0!important}
+html.ir-show .modes,html.ir-show #record>:not(#ir):not(dialog):not(link):not(script){display:none!important}
 html.ir-show .ir{max-width:none;height:100vh;padding:18px 24px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:10px}
 html.ir-show .ir-top{margin:0;grid-template-columns:auto minmax(420px,640px);align-items:center}
 html.ir-show .ir h1{font-size:clamp(1.8rem,3vw,2.8rem);margin:0}

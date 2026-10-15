@@ -336,7 +336,7 @@ const SITE_KINDS = SITE.kinds || null, SITE_PAGES = SITE.pages || null, BASE = S
    same key, only for a gathering that is on the board, and refuse an address in its words (looksLikeAddress below). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
   ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + ')|(gathering):([A-Za-z0-9]{20}))$')
-  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act)|(gathering):([A-Za-z0-9]{20}))$/;
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job)|(gathering):([A-Za-z0-9]{20}))$/;
 const GATHERING_PAGE = typeof SITE.gatheringPage === 'string' ? SITE.gatheringPage : 'gatherings/g/';
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
