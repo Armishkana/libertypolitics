@@ -1682,29 +1682,17 @@ footer .fine{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);f
    1. A COMPUTER USES ITS WIDTH. Every front-page section below the head used the left half of a 72rem column and left the
       right half black. Each now has two sides: what it says on the left, what you do (or what you have) on the right.
    2. THE HEAD'S THREE ANSWERS HAVE A FIRST ONE. They were three identical grey pills at ragged widths; the first is now
-      the gold button and the other two sit under it, all the same width on a phone.
+      the gold button and the other two sit under it, all the same width on a phone. (Since 15 October 2026 the head has
+      one button only, "Join the fight"; the answers are the first question after sign-up.)
    3. THE HEADLINE READS ON A PHONE. The painting stays; the shade over it is heavier where the words are (left and
       bottom) and lighter where the Acropolis is, and the lines have room between them.
    4. THE PAGE HAS CHAPTERS. The missions and what readers posted sit on the deepest ground with a faint lamp-light at
       their top edge (the seal's own tone, at 4%), so the long scroll reads as rooms, not one black sheet. Still no line
       above a section: the ground changes, nothing is drawn. Nothing is hidden or animated in. */
 
-/* 2. the three answers in the head (members.css is shared with the Iran site, so this is said here, for this site only) */
-.fq .fq-a{gap:10px}
-.m-js .fq .fq-a{display:grid;grid-template-columns:minmax(0,1fr)}
-.fq .fq-b{display:flex;align-items:center;justify-content:center;width:100%;min-height:50px;text-align:center;background:rgba(16,16,16,.74);border-color:rgba(243,241,234,.26);transition:border-color .15s,background-color .15s,transform .15s}
-.fq .fq-b:hover{border-color:var(--field);background:rgba(16,16,16,.9)}
-.fq .fq-b:first-child{background:var(--field);border-color:var(--field);color:var(--on-field);font-weight:700}
-.fq .fq-b:first-child:hover{background:var(--field-hi);border-color:var(--field-hi)}
-.fq .fq-b:active{transform:translateY(1px)}
-.fq .fq-b[aria-pressed="true"],.fq .fq-b[aria-pressed="true"]:hover{background:var(--field);border-color:var(--field);color:var(--on-field);font-weight:700}
-/* once a reader has picked, the gold is theirs: the first answer steps back unless it is the one they picked */
-.fq .fq-a:has(.fq-b[aria-pressed="true"]) .fq-b:first-child:not([aria-pressed="true"]){background:rgba(16,16,16,.74);border-color:rgba(243,241,234,.26);color:var(--ink);font-weight:600}
-@media(min-width:560px){
-  .m-js .fq .fq-a{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .fq .fq-b:first-child{grid-column:1/-1}
-  .fq .fq-b:not(:first-child){font-size:var(--t2);padding-left:12px;padding-right:12px}
-}
+/* 2. the head's answers became ONE gold button, "Join the fight" (15 October 2026, Armin: "at the top we should just have
+   one call to action"): it is drawn in members.css for both sites; over the painting it carries the lede's shadow */
+.hero-art .fq .fq-go{box-shadow:0 8px 30px rgba(0,0,0,.55)}
 
 /* 3. the head on a phone: a shade weighted to where the words are, and room between the lines */
 @media(max-width:699px){

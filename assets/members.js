@@ -9,14 +9,16 @@
    levels, the avatars. Without community.js the pages say what they are and nothing breaks.
 
    WHAT IT DOES, BY PART
-   [data-fq]                the front question. A tap is counted once per browser (front/<day>-<answer>, no name, no
-                            account) and the count of everyone who picked it is shown, then ONE button: make your account.
-                            On Liberty Politics the answer is kept on this device and written to the reader's private
-                            document when they sign in. On the Iran site it is NEVER kept against an account: "Go home"
-                            says where someone lives. Its count is anonymous and that is all.
-   after sign-in            the second question, and (Liberty Politics only) the state or country, one tap each, skippable,
-                            in a panel of its own once the sign-in panel has closed. Never asked of a reader who said they
-                            are inside Iran. Asked again from the reader's own profile until answered.
+   [data-fq]                the front page's ONE call to action (15 October 2026, Armin: "at the top we should just have
+                            one call to action, which is 'Join the Fight'"). Signed out it opens the sign-up panel; signed
+                            in it leads to where the reader chose to fight, or opens the questions below at the first one.
+   after sign-in            how will you fight (the front question, data/front-ask.json "front": its line and a button to
+                            where it leads), then the second question, and (Liberty Politics only) the state or country,
+                            one tap each, skippable, in a panel of its own once the sign-in panel has closed. A tap on the
+                            first is counted once per browser (front/<day>-<answer>, no name, no account). On the Iran site
+                            the answer that says a reader is inside Iran ("free") is never offered here, so it is never
+                            kept against an account. Never asked of a reader who said they are inside Iran. Asked again
+                            from the reader's own profile until answered.
    [data-mb="front-board"]  the next three gatherings on the front page, or only the one button to host the first.
    [data-mb="board"]        gatherings/: every upcoming gathering, a filter by state or country.
    [data-mb="new"]          gatherings/new/: the host's form. No address field: the place is private and only accepted
@@ -157,66 +159,61 @@ async function counts() {
   snap.docs.forEach(d => { const v = d.data(); if (typeof v.a === 'string' && typeof v.n === 'number' && d.id !== '_total') out[v.a] = (out[v.a] || 0) + v.n; });
   return out;
 }
+/* The front answers a reader can be offered after sign-up: never one marked "free" (on the Iran site, the answer that says
+   the reader is inside Iran is never kept against an account, so it is never asked for here). */
+const frontField = () => (DATA && DATA.front && DATA.front.field) || (IU ? 'role' : 'fight');
+const frontAnswers = () => ((DATA && DATA.front && DATA.front.answers) || []).filter(a => a && a.id && !a.free);
+/* Where a front answer leads ("path"): a page of the site, or "#discussion", the front page's discussion. */
+function frontDest(a) {
+  const p = String((a && a.path) || '');
+  if (!p) return '';
+  if (p.charAt(0) === '#') return D.getElementById(p.slice(1)) ? p : page('') + p;
+  return page(p);
+}
+/* The answer's line ("line": what the account gets them) once the account exists: the sentence that asks them to make
+   one is left out, so the reader is never told to make the account they just made. */
+function lineAfter(a) {
+  return w(a && a.line).split(/(?<=[.!?؟])\s+/).filter(s => s && !/\baccounts?\b|حساب/i.test(s)).join(' ');
+}
 function initFront() {
   const box = D.querySelector('[data-fq]');
-  if (!box) return;
-  const btns = [...box.querySelectorAll('[data-fq-a]')], line = box.querySelector('[data-fq-n]'), go = box.querySelector('[data-fq-keep]');
-  const wbox = box.querySelector('[data-fq-box]'), other = wbox && wbox.querySelector('input');
-  const keepText = go ? go.textContent : '', keepHref = go ? go.getAttribute('href') : '';
-  /* 15 October 2026, second pass (community-strategy.md, "THE RECRUITMENT SCREEN"): the question asks HOW the reader will
-     fight. Each answer carries the line shown on its tap (data-fq-line: what the account gets them) and where its button
-     leads once they are signed in (data-fq-go, data-fq-href). data-fq-free leads there with no account and is NEVER kept:
-     on the Iran site that answer says the reader is inside Iran. data-fq-field is the private document's field the answer
-     is kept in (Liberty Politics: fight; the Iran site: role, outside answers only, and only once there is an account). */
-  const ord = box.querySelector('[data-fq-o]'), oneW = box.getAttribute('data-fq-one'), manyW = box.getAttribute('data-fq-many');
-  const FIELD = box.getAttribute('data-fq-field') || (IU ? 'role' : 'freedom');
-  const btnOf = a => btns.find(x => x.getAttribute('data-fq-a') === a);
-  const isFree = a => { const b = btnOf(a); return !!(b && b.hasAttribute('data-fq-free')); };
-  function showLine(a) {
-    if (!ord) return;
-    const b = btnOf(a), t = b ? b.getAttribute('data-fq-line') || '' : '';
-    ord.textContent = t; ord.hidden = !t;
-  }
-  const was = kept.get(KEY.front) || {};
-  let pick = was.a && btnOf(was.a) && (was.f || 'freedom') === FIELD ? was.a : '';      // a pick from an older question is not this question's answer
-  const press = a => btns.forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-fq-a') === a)));
+  const go = box && box.querySelector('[data-fq-keep]');
+  if (!go) return;
+  /* 15 October 2026, Armin: "When I select these buttons, nothing really changes ... I think at the top we should just have
+     one call to action, which is 'Join the Fight'". The answers left the front page for the questions after sign-up (the
+     first step of askQuestions). ONE button, on screen from the first paint:
+       signed out                     opens the sign-up panel (its href, the sign-in page, is the way with scripts off);
+       signed in, answered            leads where that answer leads ("go", "path"); an answer that is not one of the front
+                                      answers (an older question's) leads where the first one does, the discussion;
+       signed in, not answered yet    opens the questions after sign-up at how-will-you-fight. A reader who said they are
+                                      inside Iran is never asked: the button leads to the discussion. */
+  const keepText = go.textContent, keepHref = go.getAttribute('href');
+  const FIELD = box.getAttribute('data-fq-field') || frontField();
+  let lead = null, fetching = false;      // lead: where the button goes for this reader; null: it opens a panel
   function paintGo() {
-    if (!go) return;
-    const u = me(), b = btnOf(pick);
-    go.hidden = !pick;
-    if (!pick || !b) return;
-    if ((u || isFree(pick)) && b.getAttribute('data-fq-go')) { go.textContent = b.getAttribute('data-fq-go'); go.href = b.getAttribute('data-fq-href') || '#discussion'; return; }
-    go.textContent = keepText; go.href = keepHref;
-  }
-  async function showCount(a) {
-    line.hidden = false;
-    try {
-      const c = await counts(), n = c[a] || 0;
-      const t = n <= 1 ? (oneW || tt('You\'re the first to pick this.')) : manyW ? manyW.replace('{n}', dig(n)) : tt('{n} people picked this.', { n });
-      line.textContent = t + (me() && !IU ? ' ' + tt('Your answer is kept on your account.') : '');
-    } catch (x) { line.textContent = me() && !IU ? tt('Your answer is kept on your account.') : ''; line.hidden = !line.textContent; }
-  }
-  if (pick) { press(pick); showLine(pick); if (other) { other.value = was.other || ''; if (wbox) wbox.hidden = !btns.some(b => b.hasAttribute('data-fq-write') && b.getAttribute('data-fq-a') === pick); } paintGo(); if (!QUIET) showCount(pick).catch(() => { }); }
-  btns.forEach(b => b.addEventListener('click', async () => {
-    const a = b.getAttribute('data-fq-a');
-    pick = a; press(a); showLine(a);
-    if (wbox) { wbox.hidden = !b.hasAttribute('data-fq-write'); if (!wbox.hidden) setTimeout(() => { try { other.focus(); } catch (x) { } }, 30); }
-    /* the free answer (inside Iran) leaves nothing on the device: the page forgets any earlier pick too */
-    if (isFree(a)) kept.set(KEY.front, null);
-    else kept.set(KEY.front, { a, f: FIELD, other: other && a === 'other' ? other.value.trim().slice(0, 80) : '' });
-    paintGo();
-    if (K && !K.off) {
-      if (!kept.get(KEY.counted)) { try { await countTap(a); kept.set(KEY.counted, 1); } catch (x) { } }
-      if (me() && !isFree(a)) keepAnswer(FIELD, a, other && a === 'other' ? other.value.trim().slice(0, 80) : '').catch(() => { });
-      showCount(a).catch(() => { });
+    const u = me();
+    lead = null;
+    if (u && !DATA && !fetching) { fetching = true; data().then(paintGo); }
+    if (u && DATA) {
+      const ans = frontAnswers(), had = mineFor === u.uid && PRIV ? PRIV[FIELD] : '';
+      const a = (had && ans.find(x => x.id === had)) || (had || insideIran() ? ans.find(x => x.go && x.path) : null);
+      if (a && a.go && a.path) lead = { text: w(a.go), href: frontDest(a) };
     }
-  }));
-  if (other) other.addEventListener('change', () => {
-    const v = other.value.trim().slice(0, 80);
-    kept.set(KEY.front, { a: pick, f: FIELD, other: v });
-    if (me() && pick === 'other') keepAnswer(FIELD, 'other', v).catch(() => { });
+    go.textContent = lead ? lead.text : keepText;
+    go.setAttribute('href', lead ? lead.href : keepHref);
+  }
+  go.addEventListener('click', async ev => {
+    if (!K) return;      // no accounts on this build: the link to the sign-in page
+    if (!me()) { ev.preventDefault(); K.open('auth', { opener: go }); if (!K.off) fb().catch(() => { }); return; }
+    if (lead) return;      // a link: it goes where the reader chose
+    ev.preventDefault();
+    try { await data(); await loadMine(); } catch (x) { }
+    paintGo();
+    if (lead) { window.location.assign(go.href); return; }
+    askQuestions(true).catch(() => { });
   });
-  if (go) go.addEventListener('click', ev => { if (!K || me() || isFree(pick)) return; ev.preventDefault(); K.open('auth', { opener: go }); if (!K.off) fb().catch(() => { }); });
+  paintGo();
+  D.addEventListener('lp:members', paintGo);
   if (K) K.sub(paintGo);
 }
 /* One answer onto the reader's private document, in the field its question names. The Iran site keeps the role and nothing
@@ -266,13 +263,51 @@ async function askQuestions(force) {
   await data();
   if (!DATA) return;
   await loadMine();
-  const needQ = !questionsDone(PRIV), needPlace = !IU && DATA.place && DATA.place.ask && !(PRIV && PRIV.country);
-  if (!needQ && !needPlace) return;
+  /* 15 October 2026 (Armin: one call to action at the top; the how-will-you-fight choice moved to right after the account):
+     the steps are how will you fight (the front question, "fight"), the second question ("q"), the place (Liberty Politics
+     only), then "done". Each is asked only while its answer is missing. On the Iran site the front question and the second
+     one keep the same field (role), so a reader who answered the first is not asked the second. */
+  const FF = frontField(), FA = frontAnswers(), S2 = DATA.second, SF = (S2 && S2.field) || (IU ? 'role' : 'freedom');
+  const needFight = () => !!FA.length && !(PRIV && PRIV[FF]);
+  const needSecond = () => !!(S2 && S2.answers && S2.answers.length) && !(PRIV && PRIV[SF]);
+  const needPlace = !IU && DATA.place && DATA.place.ask && !(PRIV && PRIV.country);
+  const after = () => (needSecond() ? 'q' : needPlace ? 'place' : 'done');
+  if (!needFight() && !needSecond() && !needPlace) return;
   if (!force && kept.get(KEY.skip)) return;
   const O = onbDialog();
   const step = which => {
     O.body.textContent = '';
-    if (which === 'q') {
+    if (which === 'fight') {
+      O.h.textContent = tt('One more question');
+      const F = DATA.front, line = el('p', 'mb-say', '', { role: 'status' }), res = el('div', 'mb-res', null, { 'data-mb-res': '' });
+      res.hidden = true;
+      O.body.append(el('p', 'sheet-lead', w(F.q)));
+      const chips = el('div', 'mb-chips', null, { role: 'group', 'data-mb-fight': '' });
+      FA.forEach(a => {
+        const b = btn('mb-chip', w(a.text), async () => {
+          chips.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+          res.hidden = true;
+          say(line, tt('Saving.'));
+          /* the tap is counted once per browser, with no name and no account (front/<day>-<answer>), as on the front page before */
+          if (K && !K.off && !kept.get(KEY.counted)) { kept.set(KEY.counted, 1); countTap(a.id).catch(() => kept.set(KEY.counted, null)); }
+          try { await keepAnswer(FF, a.id, ''); } catch (e) { say(line, words(e), true); return; }
+          say(line, '');
+          res.textContent = '';
+          const t = lineAfter(a);
+          if (t) res.append(el('p', 'mb-res-l', t));
+          const row = el('div', 'mb-res-go');
+          if (a.go && a.path) { const g = el('a', 'btn btn-key', w(a.go), { href: frontDest(a) }); g.addEventListener('click', () => O.close()); row.append(g); }
+          row.append(btn('btn btn-line', tt('Continue'), () => step(after())));
+          res.append(row);
+          res.hidden = false;
+        });
+        b.setAttribute('data-mb-a', a.id);
+        b.setAttribute('aria-pressed', 'false');
+        chips.append(b);
+      });
+      O.body.append(chips, line, res, el('p', 'sheet-hint', tt('Only you and I see your answers. I use them to suggest the right missions, never sell them, and delete them when you ask.')),
+        btn('mb-text', tt('Not now'), () => { kept.set(KEY.skip, 1); O.close(); }));
+    } else if (which === 'q') {
       O.h.textContent = tt('One more question');
       const S = DATA.second, line = el('p', 'mb-say', '', { role: 'status' });
       O.body.append(el('p', 'sheet-lead', w(S.q)));
@@ -280,7 +315,7 @@ async function askQuestions(force) {
       S.answers.forEach(a => chips.append(btn('mb-chip', w(a.text), async ev => {
         chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === ev.currentTarget)));
         say(line, tt('Saving.'));
-        try { await keepAnswer(S.field || (IU ? 'role' : 'fight'), a.id, ''); step(needPlace ? 'place' : 'done'); }
+        try { await keepAnswer(SF, a.id, ''); step(needPlace ? 'place' : 'done'); }
         catch (e) { say(line, words(e), true); }
       })));
       chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', 'false'));
@@ -305,7 +340,7 @@ async function askQuestions(force) {
     }
     try { O.h.focus({ preventScroll: true }); } catch (x) { }
   };
-  step(needQ ? 'q' : 'place');
+  step(needFight() ? 'fight' : needSecond() ? 'q' : 'place');
   if (!O.dlg.open) { if (O.dlg.showModal) O.dlg.showModal(); else O.dlg.setAttribute('open', ''); }
 }
 /* After sign-in the sign-in panel may still be open (check your email, you are in). The questions wait for it to close. */

@@ -1,27 +1,19 @@
-/* The members engine (build/members.js, build/members.py): the front question, the gatherings board, profiles. ONE file for
+/* The members engine (build/members.js, build/members.py): the front call to action, the gatherings board, profiles. ONE file for
    both sites. It uses only the tokens both sites' site.css define (--field, --on-field, --bg, --panel, --sunk, --raise,
    --ink, --dim, --line, --r, --s1 to --s7, --display, --body) and their .btn, .sheet and .av, so each site keeps its own
    look. Phone first: every control is at least 44px tall, nothing is wider than the screen, nothing is hidden and animated in. */
 
-/* ---- the front question */
+/* ---- the front page's ONE call to action (15 October 2026, Armin: "at the top we should just have one call to action, which
+   is 'Join the Fight'"). One gold button, on screen from the first paint: the whole width of its column on a phone, its own
+   width from 560px, lined up with the line above it. The how-will-you-fight question is the first step of the panel after
+   sign-up (.mb-res below). */
 .fq{display:grid;gap:var(--s4);margin-top:var(--s5)}
-.fq-q{font-size:clamp(1.6rem,6.4vw,2.6rem);line-height:1.02}
-.fq-a{display:none;flex-wrap:wrap;gap:var(--s2)}
-.m-js .fq-a{display:flex}
-.fq-b{min-height:48px;padding:10px 16px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font:600 1rem/1.25 var(--body);cursor:pointer;text-align:start;max-width:100%;overflow-wrap:anywhere}
-.fq-b:hover{border-color:var(--field)}
-.fq-b[aria-pressed="true"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
-.fq-w{display:grid;gap:6px;max-width:28rem}
-.fq-w label{font-weight:700}
-.fq-w input,.mb-form input[type=text],.mb-form input[type=url],.mb-form input[type=number],.mb-form input[type=datetime-local],.mb-form select,.mb-form textarea,.mb-sheet select,.mb-filter select{display:block;width:100%;min-height:48px;padding:10px 14px;font:500 1rem/1.4 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);caret-color:var(--field)}
-.mb-form textarea{min-height:96px;resize:vertical}
-.fq-w input:focus-visible,.mb-form :is(input,select,textarea):focus-visible{border-color:var(--field)}
 .fq-lead{margin:0;font:700 clamp(1.05rem,3.6vw,1.3rem)/1.35 var(--body);color:var(--ink);max-width:34rem}
-.fq-o{margin:0;max-width:34rem}
-.fq-n{color:var(--dim);font-weight:600}
-.fq-n b{color:var(--ink)}
-.fq-go{justify-self:start}
-.fq-ns a{font-weight:700}
+.fq .fq-go{justify-self:stretch;min-height:56px;padding:0 32px;font-size:1.125rem;letter-spacing:.01em;box-shadow:0 8px 28px rgba(0,0,0,.38)}
+@media(min-width:560px){.fq .fq-go{justify-self:start;min-width:17rem}}
+.mb-form input[type=text],.mb-form input[type=url],.mb-form input[type=number],.mb-form input[type=datetime-local],.mb-form select,.mb-form textarea,.mb-sheet select,.mb-filter select{display:block;width:100%;min-height:48px;padding:10px 14px;font:500 1rem/1.4 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);caret-color:var(--field)}
+.mb-form textarea{min-height:96px;resize:vertical}
+.mb-form :is(input,select,textarea):focus-visible{border-color:var(--field)}
 
 /* ---- pages and the board */
 .mb-page{padding-top:var(--s6)}
@@ -94,6 +86,10 @@
 .mb-sheet .sheet-body{display:grid;gap:var(--s4)}
 .mb-sheet .mb-chips{flex-direction:column}
 .mb-sheet .mb-chip{text-align:start;border-radius:var(--r)}
+/* after a tap on how-will-you-fight: what it gets them, the way there, and the way on to the next question */
+.mb-res:not([hidden]){display:grid;gap:var(--s3);padding:var(--s4);background:var(--sunk);border-inline-start:3px solid var(--field);border-radius:var(--r)}
+.mb-res-l{margin:0;color:var(--ink);font-weight:600;line-height:1.45}
+.mb-res-go{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center}
 .mb-acct{display:flex;align-items:center;justify-content:center;width:100%}
 /* every link that stands on its own is a tap target of 44px, like the buttons */
 .mb-host a,.mb-stats li > a,.mb-guests a,.mb-card h3 a,.mb-safe a,.mb-card > a:not(.btn),.mb-f > a:not(.btn){display:inline-flex;align-items:center;min-height:44px}
