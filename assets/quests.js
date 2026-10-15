@@ -379,7 +379,7 @@ function run() {
   }
   /* A mission that ticks itself: no Start and no report. One way to do it while it is not done, a tick once it is. */
   const AUTO_HOW = {
-    account: () => tt('Make your account and this ticks itself.'),
+    account: () => tt('Create your account and this ticks itself.'),
     questions: () => tt('Answer the two questions and this ticks itself.'),
     profile: () => tt('Add a picture and one line about you on your profile, and this ticks itself.'),
     post: () => tt('Post your take in any discussion, and this ticks itself.'),
@@ -396,7 +396,7 @@ function run() {
         ? el('a', 'btn btn-key', tt('Open the discussion'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + '#discussion', 'data-q-auto-go': '' })
         : m.auto === 'profile'
         ? el('a', 'btn btn-key', tt('Open your profile'), { href: '#', 'data-q-auto-go': '' })
-        : el('button', 'btn btn-key', m.auto === 'account' ? tt('Make your account') : tt('Answer them now'), { type: 'button', 'data-q-auto-go': '' });
+        : el('button', 'btn btn-key', m.auto === 'account' ? tt('Create your account') : tt('Answer them now'), { type: 'button', 'data-q-auto-go': '' });
       go.addEventListener('click', ev => {
         const u = me();
         if (!u) { ev.preventDefault(); if (L) L.open('auth', { opener: go }); return; }

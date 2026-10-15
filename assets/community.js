@@ -259,7 +259,7 @@ function hrefOf(about, id) {
 function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : k === 'quest' ? tt('this mission') : tt('this page'); }
 /* The tag on a post. The first three say what a plain post is; the other four are the kinds a reader picks
    in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
-const TAGS = { wrong: tt('Something is wrong'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea'), report: tt('Mission report') };
+const TAGS = { wrong: tt('Correction'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea'), report: tt('Mission report') };
 const PLAIN = { opinion: tt('Opinion'), video: tt('Video'), link: tt('Link') };
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
