@@ -1409,19 +1409,40 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
 .act-t b{align-self:end;font:800 2.1rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em;color:var(--ink)}
 .act-l{color:var(--ink);font-size:var(--t2);line-height:1.35}
 .act-x{align-self:start;color:var(--seal);font-size:var(--t1);font-weight:700}
-/* GATHER IS THE MAIN MISSION, AND THE BIGGEST DOOR (14 October 2026, evening: "meeting in person should be the main thing") */
-.act-gather .act-c,.act-gather .act-t{min-height:184px}
-.act-gather .act-t b{font-size:2.6rem}
-.act-gather .act-c{box-shadow:inset 0 0 0 1px rgba(244,196,48,.35)}
+/* THE MAIN MISSION IS THE BIGGEST DOOR. The act marked "main" in data/missions.json carries act-main (missions.front_missions):
+   Scout, the Intel Room, since 15 October 2026 (Armin: "This should be the main mission"); Gather until then. Four acts: one
+   column on a phone, two from 800px, one row of four from 1100px with the main one, second, the widest. */
+.act-main .act-c,.act-main .act-t{min-height:184px}
+.act-main .act-t b{font-size:2.6rem}
+.act-main .act-c{box-shadow:inset 0 0 0 1px rgba(244,196,48,.35)}
+/* On a phone the other three doors are rows, not posters (15 October 2026): four acts at the old height put the front page past
+   its 4,500px, and the main door has to stand out by size anyway. */
+@media(max-width:799px){
+  .acts{gap:6px;margin-top:10px}
+  .acts .act-l{font-size:var(--t1)}
+  .acts .act-c,.acts .act-t{min-height:88px}
+  .acts .act-t{padding:10px 16px;column-gap:12px}
+  .acts .act-n{font-size:2.5rem}
+  .acts .act-t b{font-size:1.7rem}
+  .acts .act-main .act-c,.acts .act-main .act-t{min-height:150px}
+  .acts .act-main .act-t b{font-size:2.4rem}
+  .acts .act-main .act-n{font-size:3.4rem}
+}
 @media(min-width:800px){
-  .acts{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);gap:16px}
-  .act-gather .act-c,.act-gather .act-t{min-height:340px}
-  .act-gather .act-t b{font-size:3.2rem}
-  .act-c,.act-t{min-height:300px}
+  .acts{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .act-main .act-c,.act-main .act-t{min-height:300px}
+  .act-main .act-t b{font-size:3.2rem}
+  .act-c,.act-t{min-height:260px}
   .act-c::after{background:linear-gradient(180deg,rgba(10,10,10,0) 0%,rgba(10,10,10,0) 42%,rgba(10,10,10,.78) 72%,rgba(10,10,10,.94) 100%)}
   .act-t{grid-template-columns:1fr;align-content:end;row-gap:4px;padding:24px}
   .act-n{grid-row:auto;width:auto;text-align:left;font-size:4rem}
   .act-t b{font-size:2.6rem}
+}
+@media(min-width:1100px){
+  .acts{grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr)}
+  .act-c,.act-t{min-height:300px}
+  .act-main .act-c,.act-main .act-t{min-height:340px}
+  .act-t b{font-size:2.2rem}
 }
 
 /* the record, as one calm door */
@@ -1536,11 +1557,16 @@ html.q-js-on span.q-js:not([hidden]){display:inline}
 .q-list{margin-top:16px;gap:10px}
 @media(min-width:700px){.q-act-h,.q-act-t{min-height:210px}.q-act-t{padding:28px 32px}.q-act-n{font-size:5rem}.q-list{gap:12px}}
 @media(min-width:1100px){.q-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.q-tier-gather .q-act-h,.q-tier-gather .q-act-t{min-height:124px}
-.q-tier-gather .q-act-t h2{font-size:clamp(2.9rem,13vw,4.4rem)}
-.q-tier-gather .q-act-h{box-shadow:inset 0 0 0 1px rgba(244,196,48,.35)}
-@media(min-width:700px){.q-tier-gather .q-act-h,.q-tier-gather .q-act-t{min-height:280px}}
-@media(min-width:1100px){.q-tier-gather .q-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* the main act (q-tier-main: Scout, the Intel Room, since 15 October 2026) has the biggest band */
+.q-tier-main .q-act-h,.q-tier-main .q-act-t{min-height:124px}
+.q-tier-main .q-act-t h2{font-size:clamp(2.9rem,13vw,4.4rem)}
+.q-tier-main .q-act-h{box-shadow:inset 0 0 0 1px rgba(244,196,48,.35)}
+@media(min-width:700px){.q-tier-main .q-act-h,.q-tier-main .q-act-t{min-height:280px}}
+/* Four acts on a phone (15 October 2026): the three that are not the main one take a smaller name and a tighter gap, so the
+   Missions page stays under its 4,500px with everything closed. */
+@media(max-width:699px){.q-tier:not(.q-tier-main) .q-act-t h2{font-size:2rem}.q-tier:not(.q-tier-main) .q-act-t{padding:6px 16px}.q-act-p{margin-top:6px;font-size:var(--t1)}}
+/* two on show in Scout and four in Gather: two columns each, so no row holds a hole */
+@media(min-width:1100px){.q-tier-gather .q-list,.q-tier-intel .q-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
 /* what a mission does for liberty: the first line of an open card (14 October 2026, evening) */
 .q-for{margin:0 0 12px;padding-left:12px;border-left:2px solid var(--field);color:var(--ink);font-size:var(--t3);line-height:1.45;max-width:60ch}
 /* a mission that ticks itself (the account, the two answers, the profile) */
@@ -1751,7 +1777,7 @@ footer .fine{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);f
   .front-missions .you-next-w .you-h{margin-top:0}
   .front-missions .acts{grid-row:5;margin-top:36px}
   .front-missions .you-all{grid-row:6;margin-top:10px}
-  /* the three acts stand on one line, so Gather rises above its neighbours instead of hanging below them */
+  /* the acts stand on one line (two from 800px, four from 1100px), so the main act rises above its neighbours instead of hanging below them */
   .front-missions .acts{align-items:end}
   /* how to vote: the same two columns as the record above it, the question left and the picker under the record's doors */
   .vg-front .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:56px;align-items:center}

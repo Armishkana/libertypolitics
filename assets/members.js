@@ -95,11 +95,15 @@ const ms = t => (t && typeof t.toMillis === 'function' ? t.toMillis() : 0);
 const same = (a, b) => !!(a && b && typeof a.isEqual === 'function' && a.isEqual(b));
 
 /* ------------------------------------------------------------------ the reader's own account, as this file sees it */
-let PRIV = null, PROF = null, mineFor = '', MYPOSTS = { post: false, reply: false };
+let PRIV = null, PROF = null, mineFor = '', MYPOSTS = { post: false, reply: false, warroom: false };
+/* warroom (15 October 2026): the reader has a live post or reply of their own in the War Room's discussion. The Lead mission
+   "Bring a plan to the War Room" ticks itself from it, and build/people.py grants its XP from the same posts. The key is
+   the room's discussion on each site (build/room.py, KEY_OF). */
+const ROOM_KEY = IU ? 'page:room' : 'page:build';
 /* post and reply (15 October 2026, community-strategy.md "THE RECRUITMENT SCREEN"): the reader has a live post of their own
    that starts a thread, and one that answers somebody. The Enlist missions "Carry out your first order" and "Answer another
    member" tick themselves from these, and build/people.py grants their XP from the same posts. */
-const STATE = { account: false, questions: false, profile: false, post: false, reply: false };
+const STATE = { account: false, questions: false, profile: false, post: false, reply: false, warroom: false };
 function questionsDone(p) { return !!p && (IU ? !!p.role : !!(p.freedom && p.fight)); }
 function profileDone(p) { return !!p && !!(p.bio && p.bio.trim()) && !!(p.avatar || p.pic); }
 function paintState() {
@@ -109,13 +113,16 @@ function paintState() {
   STATE.profile = !!u && profileDone(PROF);
   STATE.post = !!u && MYPOSTS.post;
   STATE.reply = !!u && MYPOSTS.reply;
+  STATE.warroom = !!u && MYPOSTS.warroom;
   D.querySelectorAll('[data-q-tick]').forEach(t => { if (STATE[t.getAttribute('data-q-tick')]) t.setAttribute('data-q-tick-on', ''); else t.removeAttribute('data-q-tick-on'); });
   try { D.dispatchEvent(new CustomEvent('lp:members', { detail: Object.assign({}, STATE) })); } catch (x) { }
 }
 async function loadMine(force) {
   const u = me();
-  if (!u) { PRIV = PROF = null; mineFor = ''; MYPOSTS = { post: false, reply: false }; paintState(); return; }
+  if (!u) { PRIV = PROF = null; mineFor = ''; MYPOSTS = { post: false, reply: false, warroom: false }; paintState(); return; }
   if (mineFor === u.uid && !force) return;
+  /* a forced read for the same reader keeps what is already known: a post just sent may not be in the query yet */
+  const was = mineFor === u.uid ? MYPOSTS : {};
   mineFor = u.uid;
   try {
     const { F, db } = await within(25000, fb());
@@ -123,7 +130,7 @@ async function loadMine(force) {
       F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', u.uid), F.where('status', '==', 'live'), F.limit(50))).catch(() => null)]);
     PRIV = a && a.exists() ? a.data() : null;
     PROF = b && b.exists() ? b.data() : null;
-    if (c) { const ps = c.docs.map(d => d.data()).filter(p => p.tag !== 'report' && !/^quest:/.test(String(p.about || ''))); MYPOSTS = { post: ps.some(p => !p.parent), reply: ps.some(p => !!p.parent) }; }
+    if (c) { const ps = c.docs.map(d => d.data()).filter(p => p.tag !== 'report' && !/^quest:/.test(String(p.about || ''))); MYPOSTS = { post: !!was.post || ps.some(p => !p.parent), reply: !!was.reply || ps.some(p => !!p.parent), warroom: !!was.warroom || ps.some(p => p.about === ROOM_KEY) }; }
   } catch (x) { }
   paintState();
 }
@@ -1200,19 +1207,111 @@ async function initOne(box) {
 /* A photo made small in this browser: the middle square, 256 pixels, a JPEG of at most limits.picBytes. It never leaves
    the browser at its full size, and the database keeps it in the profile document (no file storage). */
 async function shrink(file) {
-  const L = DATA.limits, px = L.picPx || 256, most = 'data:image/jpeg;base64,'.length + Math.ceil(L.picBytes / 3) * 4;
+  const { img, url } = await loadPic(file);
+  try {
+    const s = Math.min(img.naturalWidth, img.naturalHeight);
+    return squareJpeg(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s);
+  } finally { URL.revokeObjectURL(url); }
+}
+/* The chosen file as a picture in this browser. The caller revokes url when it is done with it. */
+async function loadPic(file) {
   if (!file || !/^image\//.test(file.type || '')) throw { code: 'mb/notimage' };
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no({ code: 'mb/notimage' }); i.src = url; });
-    const s = Math.min(img.naturalWidth, img.naturalHeight);
-    if (!s) throw { code: 'mb/notimage' };
-    const c = D.createElement('canvas'); c.width = c.height = px;
-    const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, px, px);
-    x.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, px, px);
-    for (const q of [0.86, 0.78, 0.7, 0.6, 0.5, 0.4, 0.3]) { const d = c.toDataURL('image/jpeg', q); if (d.length <= most && d.startsWith('data:image/jpeg;base64,')) return d; }
-    throw { code: 'mb/toobig' };
-  } finally { URL.revokeObjectURL(url); }
+    if (!img.naturalWidth || !img.naturalHeight) throw { code: 'mb/notimage' };
+    return { img, url };
+  } catch (e) { URL.revokeObjectURL(url); throw e; }
+}
+/* One square of a picture (sx, sy, side, in the picture's own pixels) as the small JPEG a profile keeps. */
+function squareJpeg(img, sx, sy, s) {
+  const L = DATA.limits, px = L.picPx || 256, most = 'data:image/jpeg;base64,'.length + Math.ceil(L.picBytes / 3) * 4;
+  if (!(s > 0)) throw { code: 'mb/notimage' };
+  const c = D.createElement('canvas'); c.width = c.height = px;
+  const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, px, px);
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(img, sx, sy, s, s, 0, 0, px, px);
+  for (const q of [0.86, 0.78, 0.7, 0.6, 0.5, 0.4, 0.3]) { const d = c.toDataURL('image/jpeg', q); if (d.length <= most && d.startsWith('data:image/jpeg;base64,')) return d; }
+  throw { code: 'mb/toobig' };
+}
+/* 16 October 2026 (Armin: "when I uploaded my picture, it didn't let me select which part of the picture is going to be my
+   profile picture"): the chooser. The photo fills a square with the round picture marked on it; the reader drags it (finger
+   or mouse), zooms with the slider, two fingers or the mouse wheel, or uses the arrow keys and + and -. It opens on the
+   middle square, so doing nothing gives what the site gave before. get() is the small JPEG of exactly the part in the circle. */
+function cropper(img) {
+  const W = img.naturalWidth, H = img.naturalHeight, MIN = Math.min(W, H), ZMAX = Math.max(1, Math.min(6, MIN / 64));
+  let z = 1, side = MIN, sx = (W - MIN) / 2, sy = (H - MIN) / 2;
+  const wrap = el('div', 'mb-crop');
+  const stage = el('div', 'mb-crop-stage', null, { tabindex: '0', role: 'group', 'aria-label': tt('The part of the photo that will be your picture. Drag it, or use the arrow keys. Plus and minus zoom.') });
+  const pic = el('img', null, null, { src: img.src, alt: '', draggable: 'false' });
+  stage.append(pic, el('span', 'mb-crop-ring', null, { 'aria-hidden': 'true' }));
+  const zid = 'mb-zoom-' + Math.random().toString(36).slice(2, 8);
+  const zoom = el('input', 'mb-crop-zoom', null, { type: 'range', id: zid, 'aria-label': tt('Zoom'), min: '1', max: String(ZMAX), step: '0.01', value: '1' });
+  const zl = el('div', 'mb-crop-zl');
+  zl.append(el('span', 'mb-crop-sm', '−', { 'aria-hidden': 'true' }), zoom, el('span', 'mb-crop-lg', '+', { 'aria-hidden': 'true' }));
+  wrap.append(stage, el('p', 'mb-hint mb-crop-how', tt('Drag the photo to put your face in the circle. Slide to zoom.')), zl);
+  const S = () => stage.clientWidth || 280;
+  function clamp() { side = MIN / z; sx = Math.min(Math.max(0, sx), W - side); sy = Math.min(Math.max(0, sy), H - side); }
+  function paint() {
+    clamp();
+    const k = S() / side;
+    pic.style.width = W + 'px'; pic.style.height = H + 'px';
+    pic.style.transform = 'translate(' + (-sx * k) + 'px,' + (-sy * k) + 'px) scale(' + k + ')';
+    if (+zoom.value !== z) zoom.value = String(z);
+  }
+  /* zoom to nz keeping the point (fx, fy) of the square (0..1, the middle by default) where it is */
+  function zoomTo(nz, fx, fy) {
+    nz = Math.min(ZMAX, Math.max(1, nz)); if (fx == null) { fx = 0.5; fy = 0.5; }
+    const px = sx + fx * side, py = sy + fy * side, ns = MIN / nz;
+    z = nz; sx = px - fx * ns; sy = py - fy * ns; paint();
+  }
+  function move(dx, dy) { const k = S() / side; sx -= dx / k; sy -= dy / k; paint(); }
+  const pts = new Map(); let pinch = 0;
+  const span = () => { const [a, b] = [...pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  stage.addEventListener('pointerdown', ev => {
+    pts.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    try { stage.setPointerCapture(ev.pointerId); } catch (x) { }
+    if (pts.size === 2) pinch = span();
+    stage.classList.add('on'); ev.preventDefault();
+    try { stage.focus({ preventScroll: true }); } catch (x) { }   // preventDefault keeps the focus off it otherwise
+  });
+  stage.addEventListener('pointermove', ev => {
+    const p = pts.get(ev.pointerId); if (!p) return;
+    const dx = ev.clientX - p.x, dy = ev.clientY - p.y;
+    p.x = ev.clientX; p.y = ev.clientY;
+    if (pts.size === 1) move(dx, dy);
+    else if (pts.size === 2 && pinch) {
+      const n = span(), r = stage.getBoundingClientRect(), [a, b] = [...pts.values()];
+      zoomTo(z * n / pinch, ((a.x + b.x) / 2 - r.left) / S(), ((a.y + b.y) / 2 - r.top) / S()); pinch = n;
+      move(dx / 2, dy / 2);
+    }
+  });
+  const up = ev => { pts.delete(ev.pointerId); if (pts.size < 2) pinch = 0; if (!pts.size) stage.classList.remove('on'); };
+  stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up); stage.addEventListener('lostpointercapture', up);
+  stage.addEventListener('wheel', ev => {
+    ev.preventDefault();
+    const r = stage.getBoundingClientRect();
+    zoomTo(z * Math.exp(-ev.deltaY * 0.0015), (ev.clientX - r.left) / S(), (ev.clientY - r.top) / S());
+  }, { passive: false });
+  stage.addEventListener('keydown', ev => {
+    const step = ev.shiftKey ? 40 : 10, c = ev.code || '';
+    const k = c === 'NumpadAdd' || c === 'Equal' ? '+' : c === 'NumpadSubtract' || c === 'Minus' ? '-' : ev.key;
+    if (k === 'ArrowLeft') move(step, 0); else if (k === 'ArrowRight') move(-step, 0);
+    else if (k === 'ArrowUp') move(0, step); else if (k === 'ArrowDown') move(0, -step);
+    else if (k === '+' || k === '=') zoomTo(z * 1.15); else if (k === '-' || k === '_') zoomTo(z / 1.15);
+    else return;
+    ev.preventDefault();
+  });
+  zoom.addEventListener('input', () => zoomTo(+zoom.value));
+  /* the square's size follows the screen (a phone turned on its side) */
+  let ro = null;
+  if (typeof ResizeObserver === 'function') { ro = new ResizeObserver(() => paint()); ro.observe(stage); }
+  requestAnimationFrame(paint); paint();
+  return {
+    node: wrap,
+    get: () => { clamp(); return squareJpeg(img, sx, sy, side); },
+    stop: () => { if (ro) ro.disconnect(); }
+  };
 }
 /* The picture on a profile: an approved photo (the owner always sees their own), the drawn picture they chose, or the one
    the site gave them (community.js face(), 15 October 2026). */
@@ -1400,7 +1499,7 @@ async function initMember(box) {
           if (!list.length) return;
           const grid = el('div', 'mb-avs', null, { role: 'group', 'aria-label': groups[k] });
           list.forEach(a => {
-            const b = btn('mb-av', null, () => { avatar = a.id; photo = ''; press(); pv(); say(line, tt('Looks good. Save to keep it.')); });
+            const b = btn('mb-av', null, () => { avatar = a.id; photo = ''; if (crop) { dropCrop(); drop.hidden = false; clear.hidden = true; } press(); pv(); say(line, tt('Looks good. Save to keep it.')); });
             b.setAttribute('aria-label', w(a.alt) || a.id); b.setAttribute('data-av', a.id); b.setAttribute('title', w(a.alt) || '');
             b.append(el('img', null, null, { src: ROOT + a.src, alt: '', width: '72', height: '72', loading: 'lazy' }));
             if (given && given.id === a.id && !(P && (P.avatar || P.pic))) b.append(el('span', 'mb-given', tt('Given to you')));
@@ -1414,18 +1513,44 @@ async function initMember(box) {
       // their own photo: one big button, the file box hidden inside it
       const file = el('input', 'mb-file', null, { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-file': '' });
       const drop = el('label', 'mb-drop');
-      svgIn(drop, UP); drop.append(el('b', null, tt('Upload a photo')), el('span', 'mb-hint', tt('It is cut to a square and made small before it leaves your phone.')), file);
-      const clear = btn('mb-text', tt('Remove the photo'), () => { photo = ''; clear.hidden = true; if (!avatar && given) avatar = given.id; press(); pv(); });
+      svgIn(drop, UP); drop.append(el('b', null, tt('Upload a photo')), el('span', 'mb-hint', tt('You choose which part shows. It is made small before it leaves your phone.')), file);
+      /* 16 October 2026: a chosen photo opens in the chooser (cropper above); Use this part makes the picture, and the
+         chooser is kept so Change which part shows reopens it where it was left. Save while it is open uses what it shows. */
+      let crop = null, cropUrl = '';
+      const cropBox = el('div', 'mb-crop-box'), cropActs = el('div', 'mb-crop-acts');
+      cropBox.hidden = true;
+      const dropCrop = () => { if (crop) crop.stop(); crop = null; if (cropUrl) URL.revokeObjectURL(cropUrl); cropUrl = ''; cropBox.hidden = true; cropBox.textContent = ''; adjust.hidden = true; };
+      const useCrop = () => {
+        if (!crop || cropBox.hidden) return true;
+        try { photo = crop.get(); } catch (e) { say(line, tt('That picture could not be made small enough. Try another one.'), true); return false; }
+        cropBox.hidden = true; drop.hidden = false; clear.hidden = false; adjust.hidden = false; press(); pv();
+        return true;
+      };
+      const useIt = el('button', 'btn btn-key', tt('Use this part'), { type: 'button' });
+      useIt.addEventListener('click', () => { if (useCrop()) { say(line, tt('Ready. Save to keep it.')); try { prevBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (x) { } } });
+      const another = btn('mb-text', tt('Choose another photo'), () => file.click());
+      cropActs.append(useIt, another);
+      const adjust = btn('mb-text', tt('Change which part shows'), () => { if (!crop) return; cropBox.hidden = false; drop.hidden = true; say(line, ''); try { cropBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (x) { } });
+      adjust.hidden = true;
+      const clear = btn('mb-text', tt('Remove the photo'), () => { photo = ''; dropCrop(); drop.hidden = false; clear.hidden = true; if (!avatar && given) avatar = given.id; press(); pv(); });
       clear.hidden = !photo;
       file.addEventListener('change', async () => {
         const f = file.files && file.files[0];
+        file.value = '';
         if (!f) return;
-        say(line, tt('Making it small.'));
-        try { photo = await shrink(f); clear.hidden = false; press(); pv(); say(line, tt('Ready. Save to keep it.')); }
-        catch (e) { say(line, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
+        say(line, tt('Opening it.'));
+        try {
+          const { img, url } = await loadPic(f);
+          dropCrop(); cropUrl = url;
+          crop = cropper(img);
+          cropBox.append(crop.node, cropActs);
+          cropBox.hidden = false; drop.hidden = true; show(mine);
+          say(line, tt('Move it until your face is in the circle, then press Use this part.'));
+          try { cropBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (x) { }
+        } catch (e) { say(line, tt('That file is not a picture.'), true); }
       });
       if (IU) mine.append(el('p', 'mb-say bad', tt('A face photo can be seen by anyone who opens this page. A drawn picture is safer.')));
-      mine.append(drop, clear);
+      mine.append(drop, cropBox, adjust, clear);
       show(photo ? mine : drawn);
       form.append(set);
       // the line
@@ -1441,6 +1566,7 @@ async function initMember(box) {
       form.append(bar);
       form.addEventListener('submit', async ev => {
         ev.preventDefault();
+        if (!useCrop()) return;
         const B = bio.value.trim().replace(/\s+/g, ' ');
         if (B.length > DATA.limits.bio) { say(line, tt('One line: {n} characters at most.', { n: DATA.limits.bio }), true); return; }
         if (looksLikeAddress(B) || /[<>]/.test(B)) { say(line, tt('Leave out addresses, phone numbers and the < and > signs.'), true); bio.focus(); return; }
@@ -1498,7 +1624,13 @@ function start() {
   let was = !!me();
   if (was && needs) loadMine().then(carryFront).catch(() => { });
   paintState();
-  D.addEventListener('lp:posted', ev => { if (ev && ev.detail && ev.detail.report) return; MYPOSTS[ev && ev.detail && ev.detail.reply ? 'reply' : 'post'] = true; paintState(); });
+  D.addEventListener('lp:posted', ev => {
+    if (ev && ev.detail && ev.detail.report) return;
+    MYPOSTS[ev && ev.detail && ev.detail.reply ? 'reply' : 'post'] = true; paintState();
+    /* the event does not say which discussion the post was in (community.js), so the War Room's tick reads the reader's own
+       posts again, once, until it is done (15 October 2026) */
+    if (!MYPOSTS.warroom) setTimeout(() => { loadMine(true).catch(() => { }); }, 1500);
+  });
   if (K) K.sub(() => {
     const now = !!me(), came = now && !was; was = now;
     if (!now) { PRIV = PROF = null; mineFor = ''; paintState(); return; }

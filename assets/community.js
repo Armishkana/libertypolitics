@@ -63,7 +63,11 @@ if (LOCAL) {
 }
 const DEMO = SITE.demo || { apiKey: 'demo-key', authDomain: 'demo-lp.firebaseapp.com', projectId: 'demo-lp', appId: 'demo-lp' };
 /* A build made with no real project (data/firebase-config.json missing) never talks to the network. */
-const OFF = !CFG || (!EMU && /^demo-/.test(String(CFG.fb && CFG.fb.projectId)));
+/* A page served from this PC (the phone test at every publish, the browser pane) never reads the live project unless it is
+   pointed at the emulators. 15 October 2026: the live database ran out of its free daily reads, two days running, and every
+   publish's phone test loads about 110 pages that each read it. On libertypolitics.com itself LOCAL is false, so nothing
+   changes for a reader. */
+const OFF = !CFG || (!EMU && (LOCAL || /^demo-/.test(String(CFG.fb && CFG.fb.projectId))));
 /* "Continue with Google" is behind one switch in the build ("google" in data/firebase-config.json, read by
    render.py). Off, the panel is email and password only and nothing here mentions Google sign-in. */
 const GOOGLE = !!(CFG && CFG.google === true);
@@ -268,8 +272,14 @@ function repaintFaces() {
 }
 /* The profiles of every face on the page, in ONE request (batchGet, the rules let anyone get a profile), first without the
    photo; a second request fetches only the photos that have been looked at. */
+/* 16 October 2026 (Armin: "I changed my profile picture, but now when I go to other pages, it shows me the old profile
+   picture"): a new photo waits to be looked at before OTHER people see it, and this request used to apply that wait to its
+   owner too, so only their own profile page showed it. The signed-in reader's own face now always carries their own photo,
+   approved or not, exactly as members.js picOf(own) and faceKnow(own) already did; nobody else's changes. An entry read
+   before the reader was known is read again as theirs (paintHeader). The quiet default still asks for nobody else. */
+function isMine(uid) { return !!(me && me.uid && uid === me.uid); }
 function faceLook(uid) {
-  if (!uid || OFF || QUIET || FACES.prof.has(uid) || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return;
+  if (!uid || OFF || (QUIET && !isMine(uid)) || FACES.prof.has(uid) || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) return;
   FACES.want.add(uid);
   if (!FACES.timer) FACES.timer = setTimeout(faceFetch, 60);
 }
@@ -287,9 +297,9 @@ async function faceFetch() {
   try {
     const got = await ask(ids, ['avatar', 'picAt', 'picOk', 'hidden']), photos = [];
     got.forEach(({ id, f }) => {
-      const at = f.picAt && f.picAt.timestampValue, okd = f.picOk && f.picOk.timestampValue;
-      FACES.prof.set(id, { avatar: (f.avatar && f.avatar.stringValue) || '', hidden: !!(f.hidden && f.hidden.booleanValue), photo: '' });
-      if (at && okd && at === okd) photos.push(id);
+      const at = f.picAt && f.picAt.timestampValue, okd = f.picOk && f.picOk.timestampValue, own = isMine(id);
+      FACES.prof.set(id, { avatar: (f.avatar && f.avatar.stringValue) || '', hidden: !own && !!(f.hidden && f.hidden.booleanValue), photo: '', own });
+      if (at && (own || (okd && at === okd))) photos.push(id);
     });
     if (photos.length) (await ask(photos, ['pic'])).forEach(({ id, f }) => {
       const s = f.pic && f.pic.stringValue, p = FACES.prof.get(id);
@@ -302,7 +312,7 @@ async function faceFetch() {
 function faceKnow(uid, p, own) {
   if (!uid) return;
   const ok = p && (own || (p.pic && p.picOk && p.picAt && typeof p.picOk.isEqual === 'function' && p.picOk.isEqual(p.picAt)));
-  FACES.prof.set(uid, p ? { avatar: p.avatar || '', hidden: !!p.hidden && !own, photo: ok && p.pic ? p.pic : '' } : null);
+  FACES.prof.set(uid, p ? { avatar: p.avatar || '', hidden: !!p.hidden && !own, photo: ok && p.pic ? p.pic : '', own: !!own } : null);
   repaintFaces();
 }
 function face(name, uid) {
@@ -828,6 +838,8 @@ function paintHeader() {
     const n = ryNew(), i = el('span', 'acct-i', (me.name.match(LETTER) || ['?'])[0].toUpperCase(), { 'aria-hidden': 'true' });
     /* the reader's own picture in place of the letter (face() above): the one they chose, or the one they were given */
     if (me.name) {
+      /* read before the reader was known (a post of theirs drew first): read again as their own */
+      const was = FACES.prof.get(me.uid); if (was && !was.own) FACES.prof.delete(me.uid);
       const mine = FACES.prof.get(me.uid), chose = mine && (mine.photo || mine.avatar);
       const src = reservedName(me.name) && !chose ? root + (SITE.mark || 'assets/seal.png') : faceSrc(me.name, me.uid);
       if (src) { i.textContent = ''; i.classList.add('acct-pic'); i.append(el('img', null, null, { src, alt: '', width: '32', height: '32', decoding: 'async' })); }
@@ -2891,7 +2903,9 @@ async function questReport(d, opener) {
     if (!user.displayName) { openSheet('name', { why: tt('Your report is saved. Choose a name to send it.'), opener }); return { ok: false, code: 'lp/name', text: '' }; }
     if (!(await within(20000, isV2())) || !(await within(20000, isV3()))) return { ok: false, code: 'lp/closed', text: '' };
     const url = typeof d.url === 'string' && URL_OK.test(d.url) ? cleanUrl(d.url) : '';
-    const post = await within(30000, postIt({ text: String(d.text || '').slice(0, MAX), url, made: false, on: d.about, subject: String(d.subject || d.about), tag: 'report', v2: true }));
+    /* made: the reader says the link is their own work (the Intel Room's "I made it", 15 October 2026). postIt keeps it only
+       for a video, which is all the rules take it for, and marks the account a creator, as a discussion post already did. */
+    const post = await within(30000, postIt({ text: String(d.text || '').slice(0, MAX), url, made: !!(url && d.made), on: d.about, subject: String(d.subject || d.about), tag: 'report', v2: true }));
     return { ok: true, post: { id: post.id, status: post.status } };
   } catch (e) {
     const code = (e && e.code) || '';

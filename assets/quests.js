@@ -22,10 +22,13 @@
         "time":   ["5m","1h","weekly"],         the time ids, shortest first
         "missions": [{"id","tier":"main|quest|side","chain"?, "stage"?, "title","time","who":[ids],"can":[ids],
                       "where":"state|any","xp":N,"until"?:"YYYY-MM-DD","proof":"link|words|none","ask":"...","report":true,
-                      "repeat"?:true}]
+                      "repeat"?:true|"each"}]
       }</script>
       "repeat" (optional, added 13 October 2026): the mission can be reported again after it was accepted. The database
       takes one accepted report a reader a mission a week, so Report again is offered seven days after the last one.
+      "repeat": "each" (added 15 October 2026, the Intel Room missions): every accepted report pays, at most ten a reader a
+      mission a day (quests.EACH_PER_DAY in build/quests.py judges it). The card is never stuck at accepted: its button reads
+      "Send another" at once, and no "again in N days" line is drawn.
       Order matters: when two missions fit a reader equally, the one printed first wins.
 
    3. One card per mission, anywhere inside the board
@@ -86,8 +89,10 @@
                                  carries the data and no chooser: what a reader chose on the board still decides what
                                  that page shows them (someone who said they are not a citizen is never offered a
                                  mission that leaves them out, on any page)
-      "tier" is any word now (join, gather, lead): only "main" still gets its small lead in fit()
-      a mission's "auto": "account" | "questions" | "profile"      (14 October 2026, evening) it ticks itself from the reader's
+      "tier" is any word now (join, intel, gather, lead): only "main" still gets its small lead in fit()
+      a mission's "auto": "account" | "questions" | "profile" | "post" | "reply" | "warroom"      (14 October 2026, evening;
+                                 post and reply 15 October; warroom 15 October: a live post or reply of the reader's own in
+                                 the War Room's discussion, page:build) it ticks itself from the reader's
                                  own account (build/members.js tells this file through window.LPMembers and "lp:members"):
                                  no Start, no report, one button to do it, and [data-q-tick] inside the card gets
                                  data-q-tick-on once done. Its XP is never claimed here: build/quests.py grants it.
@@ -255,8 +260,9 @@ function run() {
      no XP claimed from this page: build/quests.py grants its XP from what build/people.py reads. With members.js missing,
      the account is still known (signed in) and the other two simply wait. */
   /* post and reply (15 October 2026): a live post of the reader's own that starts a thread, and one that answers somebody */
-  const AUTO_KINDS = ['account', 'questions', 'profile', 'post', 'reply'];
-  let AUTO = { account: false, questions: false, profile: false, post: false, reply: false };
+  /* warroom (15 October 2026): a live post or reply of the reader's own in the War Room's discussion (members.js reads it) */
+  const AUTO_KINDS = ['account', 'questions', 'profile', 'post', 'reply', 'warroom'];
+  let AUTO = { account: false, questions: false, profile: false, post: false, reply: false, warroom: false };
   /* the card says it too (data-q-auto, printed by missions.py): either one is enough */
   MS.forEach(m => { if (!m.auto) { const c = D.getElementById(m.id), a = c && c.getAttribute('data-q-auto'); if (AUTO_KINDS.includes(a)) m.auto = a; } });
   try { if (window.LPMembers && window.LPMembers.state) AUTO = Object.assign(AUTO, window.LPMembers.state()); } catch (x) { }
@@ -273,9 +279,11 @@ function run() {
     if (v && v.n) return 'accepted';
     return l && l.s === 'started' ? 'started' : '';
   }
-  /* Accepted, may be done again, and the week since the last accepted report is up. */
-  const again = id => { const m = BY.get(id), v = VER[id]; return !!(m.repeat && v && v.n && status(id) === 'accepted' && Date.now() - v.last >= WEEK); };
-  const daysLeft = id => { const v = VER[id]; return v ? Math.max(1, Math.ceil((v.last + WEEK - Date.now()) / 86400000)) : 0; };
+  /* Accepted, may be done again, and the week since the last accepted report is up. A mission that pays each time
+     ("repeat": "each") may be sent again at once: the ten a day are judged by build/quests.py, never counted here. */
+  const each = m => !!(m && m.repeat === 'each');
+  const again = id => { const m = BY.get(id), v = VER[id]; return !!(m.repeat && v && v.n && status(id) === 'accepted' && (each(m) || Date.now() - v.last >= WEEK)); };
+  const daysLeft = id => { const v = VER[id]; return v && !each(BY.get(id)) ? Math.max(1, Math.ceil((v.last + WEEK - Date.now()) / 86400000)) : 0; };
   /* A report written and not sent: it is kept on this device, and the card must say so. */
   const draft = id => !!(ST.m[id] && ST.m[id].text && ST.m[id].text.trim());
   const expired = m => typeof m.until === 'string' && m.until < today;
@@ -365,14 +373,14 @@ function run() {
     B.start.hidden = st !== '' || kept || ask;
     B.drop.hidden = st !== 'started';
     B.report.hidden = formOpen || !can || (st === 'accepted' && !more) || (ask && !st && !kept);
-    B.report.textContent = kept ? tt('Finish your report') : st === 'back' || more ? tt('Report again') : st === 'reported' ? tt('Send another report') : tt('Report back');
+    B.report.textContent = kept ? tt('Finish your report') : each(m) && (more || st === 'reported') ? tt('Send another') : st === 'back' || more ? tt('Report again') : st === 'reported' ? tt('Send another report') : tt('Report back');
     B.report.className = 'btn ' + (st === 'started' || st === 'back' || kept ? 'btn-key' : 'btn-line');
     if (!B.say.hasAttribute('data-q-keep')) {
       let line = st === 'accepted' ? LABEL.accepted(id) + '.' + (v && v.why && v.state === 'accepted' ? ' ' + v.why : '')
         : st === 'back' ? (v && v.why ? tt('Sent back: {why}', { why: v.why }) : tt('Sent back. Read what counts as proof, then report again.'))
         : st === 'reported' ? tt('Report sent. I read every report. XP lands when it is accepted.')
         : st === 'started' ? tt('Started. Come back and report when it is done.') : '';
-      if (st === 'accepted' && m.repeat) { const d = daysLeft(id); line += ' ' + (more ? tt('You can report it again now.') : d === 1 ? tt('You can report it again tomorrow.') : tt('You can report it again in {n} days.', { n: d })); }
+      if (st === 'accepted' && m.repeat && !each(m)) { const d = daysLeft(id); line += ' ' + (more ? tt('You can report it again now.') : d === 1 ? tt('You can report it again tomorrow.') : tt('You can report it again in {n} days.', { n: d })); }
       if (kept) line = (line ? line + ' ' : '') + tt('Your report is kept on this device. It has not been sent.');
       B.say.textContent = line; B.say.classList.remove('bad');
     }
@@ -383,7 +391,8 @@ function run() {
     questions: () => tt('Answer the two questions and this ticks itself.'),
     profile: () => tt('Add a picture and one line about you on your profile, and this ticks itself.'),
     post: () => tt('Post your take in any discussion, and this ticks itself.'),
-    reply: () => tt('Reply to another member in any discussion, and this ticks itself.')
+    reply: () => tt('Reply to another member in any discussion, and this ticks itself.'),
+    warroom: () => tt('Post one idea in the War Room, or answer one, and this ticks itself.')
   };
   function paintAuto(card, m, B, done) {
     B.start.hidden = B.report.hidden = B.drop.hidden = true;
@@ -392,7 +401,10 @@ function run() {
       const me = () => who();
       const L = window.LP && window.LP.open ? window.LP : null;
       const talk = m.auto === 'post' || m.auto === 'reply';
-      const go = talk
+      /* the War Room is Liberty Politics' warroom/ (build/room.py); its discussion is page:build */
+      const go = m.auto === 'warroom'
+        ? el('a', 'btn btn-key', tt('Open the War Room'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + 'warroom/#discussion', 'data-q-auto-go': '' })
+        : talk
         ? el('a', 'btn btn-key', tt('Open the discussion'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + '#discussion', 'data-q-auto-go': '' })
         : m.auto === 'profile'
         ? el('a', 'btn btn-key', tt('Open your profile'), { href: '#', 'data-q-auto-go': '' })
