@@ -60,7 +60,10 @@
     function shape() {
       var k = K[kind()];
       /* While the reader is giving an opinion the box asks the page's own question ("What do you make of this race?"). */
-      msglab.textContent = (kind() === 'opinion' && !ctx.value && fb.getAttribute('data-ask')) || k.lab; msg.placeholder = k.ph; msg.required = k.min > 0;
+      /* A show picked on the side of All discussions (community.js drawJump) is talked about as a show, not as a page. */
+      var show = kind() === 'opinion' && /\[show:/.test(ctx.value);
+      msglab.textContent = show ? tt('What do you make of it?') : (kind() === 'opinion' && !ctx.value && fb.getAttribute('data-ask')) || k.lab;
+      msg.placeholder = show ? tt('Who got it right on the show, and who got it wrong? Say it in your own words.') : (kind() === 'opinion' && !ctx.value && fb.getAttribute('data-ph')) || k.ph; msg.required = k.min > 0;
       radios.forEach(function (r) { var l = r.closest('label'); if (l) l.classList.toggle('on', r.checked); });
       linkrow.hidden = !k.link;
       if (k.link) { linklab.textContent = k.linklab; linkhint.textContent = k.linkhint; }

@@ -116,6 +116,8 @@ function inRoom() {
   roomAsk = { uid, p };
   return p;
 }
+/* The owner may take his own name from the first moment, before any admin doc can exist for his account.
+   Only a hash of his email is on the page; the rules hold the address itself (isOwner() in firestore.rules). */
 const OWNER_HASH = 'e810e7aabce15ef8fccbd2e2fcad55309815f35c24e5d95859774d664ffeca24';
 let ownerIs = false;
 async function ownerEmail(em) {
@@ -1634,6 +1636,7 @@ function drawTalk() {
     else (T.all ? rows : rows.slice(0, 3)).forEach(p => L.append(row(p, p === best)));
     if (T.full) { drawCtl(every); setCount(n); }
   }
+  if (T.feed && T.full) drawJump();
   /* The way to the whole discussion, once there is one. */
   if (!T.all) {
     const go = T.el.querySelector('.talk-go');
@@ -2105,6 +2108,59 @@ async function sendReply(id, raw) {
     return say(tt('That did not send. {why} Your reply is kept.', { why: words(e) }), true);
   }
 }
+/* ------------------------------------------------------------------ jump in (All discussions only)
+   Armin, 15 October 2026, on the policy question that sat over the box here ("Should officials be free to press
+   platforms to delete posts?"): "such a dumb way to get people involved ... think about your strategy". A blank box
+   under a question nobody on the page is talking about asks a stranger to write an essay to nobody. What gets a
+   newcomer talking is a person who is waiting for an answer, and the show they came from YouTube to talk about.
+   So the side of All discussions (#jump, printed by render.py disc_pane only on the feed) shows, in this order:
+   the show that is live right now (whatson.js sets window.LPOn.live), then up to three posts from other readers
+   that nobody has answered yet, newest first (the most answered of the last week when every post has an answer),
+   each with one button that opens the reply box under that post. The box to start a new thread comes last. */
+function drawJump() {
+  const J = $('jump');
+  if (!J) return;
+  J.textContent = '';
+  const live = window.LPOn && window.LPOn.live;
+  if (live && live.the) {
+    const go = el('a', 'jump-live', null, { href: '#feedback' });
+    go.append(el('b', null, tt('Live now: {show}', { show: live.the })), el('span', null, tt('Watching? Say what you think of it here.')));
+    go.addEventListener('click', ev => {
+      ev.preventDefault();
+      if (window.LPBox) { window.LPBox.subject(live.the, 'show:' + (live.id || ''), ''); window.LPBox.pick('opinion'); }
+      const m = $('fbmsg'); if (m) try { m.focus(); } catch (x) { }
+    });
+    J.append(go);
+  }
+  if (T.state !== 'ok') { J.hidden = !J.firstChild; return; }
+  const me = user && user.uid, top = T.posts.filter(p => !p.gone && !p.parent && p.status === 'live' && p.text && p.uid !== me && !p.tag && p.text.length >= 30 && p.score >= 0);      // what a reader says or shares: a note to the site (a tag) is mine to answer
+  let picks = top.filter(p => !repliesTo(p.id).length).sort((a, b) => b.ms - a.ms).slice(0, 3), head = tt('Waiting for an answer');
+  if (!picks.length) {
+    const week = Date.now() - 7 * 86400000;
+    picks = top.filter(p => p.ms > week && repliesTo(p.id).length).sort((a, b) => repliesTo(b.id).length - repliesTo(a.id).length).slice(0, 3);
+    head = tt('Where the argument is');
+  }
+  if (picks.length) {
+    J.append(el('h3', 'jump-h', head, { id: 'jump-h' }));
+    const ul = el('ul', 'jump-list');
+    const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
+    picks.forEach(p => {
+      const li = el('li');
+      const nr = repliesTo(p.id).length;
+      li.append(el('p', 'jump-who', p.name + ' · ' + niceDate(p.ms) + (nr ? ' · ' + (nr === 1 ? tt('1 reply') : tt('{n} replies', { n: dig(nr) })) : '')), el('p', 'jump-t', cut(p.text, 140), ML ? { dir: 'auto' } : null));
+      li.append(btn('btn btn-line jump-b', tt('Answer {name}', { name: p.name }), () => {
+        /* A filter that hides the post would leave the reply box nowhere: show everything first. */
+        if (T.only || T.where || T.lang) { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); }
+        if (T.v2 && hasPost(p.id)) { T.replying = { id: p.id, at: '', pre: '', text: '' }; redraw(p, 'reply-in'); }
+        else location.href = hrefOf(p.about, p.id);
+      }));
+      ul.append(li);
+    });
+    J.append(ul);
+  }
+  J.hidden = !J.firstChild;
+}
+window.addEventListener('lp:onnow', () => { if (T && T.feed && T.full) drawJump(); });
 function redraw(p, keep) {
   const old = $('p-' + p.id);
   if (!old) return;

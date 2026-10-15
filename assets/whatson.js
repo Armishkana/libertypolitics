@@ -123,6 +123,11 @@
       a.className = 'calls-a' + (list[i].on ? ' live' : '');
       if (lines && lines.firstChild !== a) lines.insertBefore(a, lines.firstChild);      // what is on now, or next, goes on top
     }
+    /* The show on air right now, for the side of All discussions (community.js drawJump): a reader who came from
+       YouTube is offered the show they were watching as the first thing to talk about. */
+    var onAir = list.filter(function (q) { return q.on && byId[q.id] && byId[q.id].row === 'show'; })[0], was = root.LPOn.live;
+    root.LPOn.live = onAir ? { id: onAir.id, the: byId[onAir.id].the || byId[onAir.id].short || '' } : null;
+    if ((was && was.id) !== (onAir && onAir.id)) { try { window.dispatchEvent(new CustomEvent('lp:onnow')); } catch (x) { } }
     /* A WAY IN THAT IS TRUE AT EVERY HOUR (14 October 2026: the front page's first way in is the live chat). A link that
        carries data-on-way="<row>" holds one [data-on-say]: as the build printed it, a true sentence in U.S. Eastern.
        Here it becomes what the bubble's top row would say for that row, in one line: a show that is on reads as live

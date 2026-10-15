@@ -23,11 +23,11 @@
     if (!list.length) return;
     var q = list[Math.floor(Date.now() / 86400000) % list.length];
     if (typeof q !== 'string' || !q) return;
-    var b = nd && nd.querySelector('.nudge-q b'), h = document.querySelector('#band h2'), f = document.getElementById('fbform'), t = document.getElementById('talk');
+    var b = nd && nd.querySelector('.nudge-q b'), h = document.querySelector('#band h2');
     if (b) b.textContent = q;
     if (h) h.textContent = q;
-    if (f) f.setAttribute('data-ask', q);
-    if (t) t.setAttribute('data-name', q);
+    /* The box and the discussion's name are no longer set from this list (15 October 2026): All discussions starts a
+       reader on people waiting for an answer (community.js drawJump), not on a question nobody there is talking about. */
   })();
 
   /* ---- the invitation to the daily call: a reader can put it away for this visit ---- */
