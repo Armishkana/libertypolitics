@@ -116,10 +116,18 @@ function inRoom() {
   roomAsk = { uid, p };
   return p;
 }
+const OWNER_HASH = 'e810e7aabce15ef8fccbd2e2fcad55309815f35c24e5d95859774d664ffeca24';
+let ownerIs = false;
+async function ownerEmail(em) {
+  try {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(em || '').trim().toLowerCase()));
+    return Array.from(new Uint8Array(b), x => x.toString(16).padStart(2, '0')).join('') === OWNER_HASH;
+  } catch (x) { return false; }
+}
 function nameProblem(n) {
   if (!n) return tt('Type the name you want shown with your posts.');
   if (!NAME_OK.test(n)) return tt('Use only letters, numbers, spaces and . _ \' @ - in the name, 40 at most.');
-  if (reservedName(n) && !adminIs) return tt('That name is kept for the people who run the site. Choose another.');
+  if (reservedName(n) && !adminIs && !ownerIs) return tt('That name is kept for the people who run the site. Choose another.');
   return '';
 }
 /* The browsers built into the Facebook, Instagram, X, TikTok, Telegram and Line apps, and Android apps that
@@ -350,13 +358,14 @@ function onUser(u) {
     me = { uid: u.uid, name: u.displayName || '', email: u.email || '', v: !!u.emailVerified, last: (same && was.last) || 0, ok: !!(same && was.ok && u.emailVerified) };
     store.set(KEY.me, me); store.set(KEY.seen, 1);
     if (!same) { profile = null; adminIs = false; ryDrop(); }
+    ownerEmail(u.email).then(v => { ownerIs = v; });
   } else {
     /* On a site whose readers may have their phone looked through (SITE.safety, the Iran site), nothing
        that names the account stays on the device after it: every post carries the id of its author, so an
        id left here would tie this phone to what was written from it. The price is that replies already
        seen count as new after the next sign-in. Elsewhere the id is kept, so they do not. */
     if (SITE.safety && was && was.uid) { const all = rySeenAll(); if (all[was.uid] != null) { delete all[was.uid]; store.set(KEY.rseen, Object.keys(all).length ? all : null); } }
-    me = null; profile = null; adminIs = false; store.set(KEY.me, null); ryDrop();
+    me = null; profile = null; adminIs = false; ownerIs = false; store.set(KEY.me, null); ryDrop();
   }
   changed();
   /* Firebase's code is loaded and a reader is signed in: the one moment "replies to you" may be asked for. */
@@ -824,6 +833,7 @@ function viewAuth(opts) {
     form.addEventListener('submit', async ev => {
       ev.preventDefault();
       const nm = name.value.trim().replace(/\s+/g, ' '), em = email.value.trim(), pass = pw.value;
+      if (mode === 'new') ownerIs = await ownerEmail(em);
       if (mode === 'new' && nameProblem(nm)) { tell(line, nameProblem(nm), true); name.focus(); return; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)) { tell(line, tt('That email does not look right. Check it and try again.'), true); email.focus(); return; }
       if (!pass) { tell(line, tt('Type your password.'), true); pw.focus(); return; }
