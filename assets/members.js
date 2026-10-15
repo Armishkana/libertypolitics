@@ -400,11 +400,17 @@ function ratingLine(g) {
   return s.n === 1 ? tt('Rated {avg} out of 5 by 1 guest', { avg: dig(avg) }) : tt('Rated {avg} out of 5 by {n} guests', { avg: dig(avg), n: s.n });
 }
 function face(name, uid) { return K && K.face ? K.face(name, uid) : el('span', 'av', String(name || '?').slice(0, 1).toUpperCase()); }
+/* What a kind of gathering is, in one line ('about' on a format in data/members.json). A stranger reads the kind's
+   name on a card and has no idea what a Liberty Table is without it (Armin, 15 October 2026). */
+function aboutOf(kind) { const f = DATA && DATA.formats.find(x => x.id === kind); return f && f.about ? w(f.about) : ''; }
+/* A card: the whole card opens the gathering (the title's link is stretched over it, members.css .mb-open), and it says
+   where you actually go: the city here, the exact spot only to the guests the host accepts. */
 function card(g) {
-  const li = el('li', 'mb-card');
+  const li = el('li', 'mb-card'), href = page(DATA.paths.one + '?id=' + encodeURIComponent(g.id));
   li.append(el('span', 'mb-kind', fmtName(g.kind)));
-  const h = el('h3'); h.append(el('a', null, g.title, { href: page(DATA.paths.one + '?id=' + encodeURIComponent(g.id)) })); li.append(h);
-  li.append(el('p', 'mb-when', when(g)), el('p', 'mb-where', whereOf(g)));
+  const h = el('h3'); h.append(el('a', 'mb-open', g.title, { href })); li.append(h);
+  const ab = aboutOf(g.kind); if (ab) li.append(el('p', 'mb-about', ab));
+  li.append(el('p', 'mb-when', when(g)), el('p', 'mb-where', whereOf(g)), el('p', 'mb-hint', tt('Only the guests the host says yes to get the exact place.')));
   if (g.line) li.append(el('p', null, g.line));
   const left = Math.max(0, g.size - (g.taken || 0));
   li.append(el('p', 'mb-seats', g.status === 'cancelled' ? tt('Called off') : left ? tt('{n} of {size} seats left', { n: left, size: g.size }) : tt('Full')));
@@ -412,7 +418,10 @@ function card(g) {
   host.append(face(g.hostName, g.hostUid), el('a', null, g.hostName, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(g.hostUid)) }));
   const r = ratingLine(g); if (r) host.append(el('span', null, r));
   li.append(host);
-  if (g.status === 'open' && left && ms(g.startAt) > Date.now()) li.append(el('a', 'btn btn-key mb-btn-s', tt('I\'m in'), { href: page(DATA.paths.one + '?id=' + encodeURIComponent(g.id)) + '#in' }));
+  const acts = el('div', 'mb-acts');
+  if (g.status === 'open' && left && ms(g.startAt) > Date.now()) acts.append(el('a', 'btn btn-key mb-btn-s', tt('I\'m in'), { href: href + '#in' }));
+  acts.append(el('a', 'btn btn-line mb-btn-s', tt('See the details'), { href }));
+  li.append(acts);
   return li;
 }
 let listAsk = null;
@@ -653,7 +662,9 @@ async function initOne(box) {
     h1.textContent = G.title;
     try { D.title = G.title + (D.title.includes('|') ? ' |' + D.title.split('|').slice(1).join('|') : ''); } catch (x) { }
     const top = el('div', 'mb-card');
-    top.append(el('span', 'mb-kind', fmtName(G.kind)), el('p', 'mb-when', when(G)), el('p', 'mb-where', whereOf(G)));
+    top.append(el('span', 'mb-kind', fmtName(G.kind)));
+    const ab = aboutOf(G.kind); if (ab) top.append(el('p', 'mb-about', ab));
+    top.append(el('p', 'mb-when', when(G)), el('p', 'mb-where', whereOf(G)), el('p', 'mb-hint', tt('Only the guests the host says yes to get the exact place.')));
     if (G.line) top.append(el('p', null, G.line));
     const left = Math.max(0, G.size - (G.taken || 0));
     top.append(el('p', 'mb-seats', G.status === 'cancelled' ? tt('Called off') : left ? tt('{n} of {size} seats left', { n: left, size: G.size }) : tt('Full')));

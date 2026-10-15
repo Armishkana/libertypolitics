@@ -29,6 +29,15 @@
 .mb-card{display:grid;gap:var(--s2);padding:var(--s4);background:var(--panel);border-radius:var(--r2,10px);min-width:0}
 .mb-card h3{font-size:1.35rem;overflow-wrap:anywhere}
 .mb-card h3 a{text-decoration:none}
+/* the whole card opens the gathering: the title's link covers it, and the card's other links and buttons sit above that */
+.mb-card{position:relative}
+.mb-card .mb-open::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.mb-card a:not(.mb-open),.mb-card button{position:relative;z-index:1}
+.mb-card:has(.mb-open):hover{background:var(--raise)}
+.mb-card:has(.mb-open):hover h3 a{text-decoration:underline;text-underline-offset:4px}
+.mb-about{color:var(--ink);font-size:.98rem}
+.mb-acts{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.mb-acts .btn{flex:1 1 9rem;justify-content:center}
 .mb-kind{color:var(--field);font:800 .8rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase}
 .mb-when{font-weight:700}
 .mb-where,.mb-seats,.mb-host{color:var(--dim);overflow-wrap:anywhere}
