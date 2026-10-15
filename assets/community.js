@@ -381,10 +381,33 @@ const TAGS = { wrong: tt('Correction'), source: tt('Something missing'), bug: tt
 const PLAIN = { opinion: tt('Opinion'), video: tt('Video'), link: tt('Link') };
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
+/* When the database's daily allowance starts again: the next midnight in California, said on the reader's own clock. */
+function backBy() {
+  try {
+    const now = new Date(), p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' })
+      .formatToParts(now).forEach(x => { p[x.type] = +x.value; });
+    const left = ((24 - (p.hour % 24)) * 3600 - p.minute * 60 - p.second) * 1000;
+    return new Date(now.getTime() + left + 60000).toLocaleTimeString(LANG === 'fa' ? 'fa-IR' : [], { hour: 'numeric', minute: '2-digit' });
+  } catch (x) { return tt('tomorrow'); }
+}
+/* What a plain request's answer means, so no failure is reported as another: a limit (429) is not a lost connection. */
+function httpErr(res) {
+  const s = res && res.status;
+  return { code: s === 429 ? 'lp/busy' : s === 403 ? 'permission-denied' : s === 404 ? 'not-found' : 'lp/offline', status: s };
+}
 function words(e) {
   const c = (e && e.code) || '';
   const wrongPw = GOOGLE ? tt('That password is not right. Try again, tap "Forgot your password?", or tap Continue with Google if that is how you made the account.') : tt('That password is not right. Try again, or tap "Forgot your password?".');
-  const noAcct = GOOGLE ? tt('That email and password do not match an account. Check both, tap "Forgot your password?", or tap Continue with Google if that is how you made the account.') : tt('That email and password do not match an account. Check both, or tap "Forgot your password?".');
+  /* 15 October 2026: the database ran out of its daily reads, and every page told readers to check their internet while
+     their internet was fine. "No connection" is said only when the browser itself says it is offline. A database that
+     answers "too many" (429, resource-exhausted) is a limit on our side, with the hour it lifts (midnight in California,
+     when the free allowance starts again) in the reader's own time. */
+  const offline = (typeof navigator !== 'undefined' && navigator.onLine === false)
+    ? tt('No connection. Check your internet and try again. What you typed is still here.')
+    : tt('The site could not be reached. Try again in a minute. What you typed is still here.');
+  const busy = tt('This part of the site has reached its limit for today. It is back by {time}. What you typed is still here.', { time: backBy() });
+  const noAcct = GOOGLE ?tt('That email and password do not match an account. Check both, tap "Forgot your password?", or tap Continue with Google if that is how you made the account.') : tt('That email and password do not match an account. Check both, or tap "Forgot your password?".');
   const T = {
     'auth/email-already-in-use': tt('That email already has an account. Sign in with it instead.'),
     'auth/invalid-email': tt('That email does not look right. Check it and try again.'),
@@ -410,10 +433,12 @@ function words(e) {
     'auth/user-disabled': tt('This account has been switched off. Tell me through the box at the bottom of any page.'),
     'auth/requires-recent-login': tt('For your safety, type your password again.'),
     'auth/operation-not-allowed': tt('Accounts are not switched on yet. Try again later.'),
-    'auth/network-request-failed': tt('No connection. Check your internet and try again. What you typed is still here.'),
+    'auth/network-request-failed': offline,
     'auth/user-token-expired': tt('You were signed out. Sign in again.'),
-    'unavailable': tt('No connection. Check your internet and try again.'),
-    'lp/offline': tt('No connection. Check your internet and try again. What you typed is still here.'),
+    'unavailable': offline,
+    'lp/offline': offline,
+    'resource-exhausted': busy,
+    'lp/busy': busy,
     'lp/slow': tt('That is taking too long. Check your connection and try again.'),
     'lp/off': tt('Accounts are not switched on in this preview.'),
     'lp/address': tt('Leave out addresses and phone numbers. This discussion is public, and the host gives the place only to the guests they say yes to.'),
@@ -2001,7 +2026,7 @@ function talkCounts(keys) {
           { fieldFilter: { field: { fieldPath: 'about' }, op: 'IN', value: { arrayValue: { values: part.map(k => ({ stringValue: k })) } } } },
           { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } }] } }, limit: 300 } };
       const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
-      if (!res.ok) throw { code: 'lp/offline' };
+      if (!res.ok) throw httpErr(res);
       const got = await res.json(), rows = (Array.isArray(got) ? got : []).filter(r => r && r.document), by = new Map(part.map(k => [k, { n: 0, who: new Set() }]));
       rows.forEach(r => {
         const f = r.document.fields || {}, b = by.get(f.about && f.about.stringValue);
@@ -2884,7 +2909,7 @@ async function isV3() {
   const base = (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/';
   let res;
   try { res = await within(15000, fetch(base + 'xp/_board' + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)))); } catch (x) { throw { code: 'lp/offline' }; }
-  if (res.status >= 500) throw { code: 'lp/offline' };
+  if (res.status >= 500 || res.status === 429) throw httpErr(res);
   v3 = res.ok || res.status === 404;
   if (v3 && !EMU) store.set('lp-v3', 1);
   return v3;
@@ -2935,7 +2960,7 @@ function start() {
        signed in, a call when that changes, the panel, the same words, faces and dates, and its two hooks (above viewAccount). */
     members: { fb: () => fb(), user: () => user, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
       tt, dig, el, btn, tell, words, ago, niceDate, face, faceKnow, faceGiven: (n, u) => facesData().then(() => givenFace(n, u)), within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
-      rest: what => restBase(what), plain: restPlain, looksLikeAddress,
+      rest: what => restBase(what), plain: restPlain, looksLikeAddress, httpErr,
       restDoc: path => (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/' + path + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)),
       off: OFF, emu: EMU, quiet: QUIET, rtl: RTL, lang: LANG, safety: !!SITE.safety }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);

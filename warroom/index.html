@@ -126,6 +126,8 @@
 
 </div></div></section>
 <script>(function(C){
+/* A copy opened on this PC (the phone test, a preview) never reads the live database: 15 October 2026 it ran out of its free daily reads. */
+if(/^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname)||location.protocol==="file:")return;
 var base="https://firestore.googleapis.com/v1/projects/"+C.p+"/databases/(default)/documents";
 function val(f){if(!f)return null;return f.stringValue!==undefined?f.stringValue:f.integerValue!==undefined?+f.integerValue:null}
 var cards=[].slice.call(document.querySelectorAll(".wr-card[data-thread]"));

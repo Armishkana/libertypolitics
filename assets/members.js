@@ -520,11 +520,11 @@ async function restUpcoming() {
     const q = { structuredQuery: Object.assign({ from: [{ collectionId: 'gatherings' }], where, limit: lim }, ordered ? { orderBy: [{ field: { fieldPath: 'startAt' }, direction: 'ASCENDING' }] } : {}) };
     return within(15000, fetch(K.rest('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
   };
+  const fail = r => (K.httpErr ? K.httpErr(r) : { code: r.status === 429 ? 'lp/busy' : r.status === 403 ? 'permission-denied' : 'lp/offline' });
   let res = await ask(true);
-  if (res.status === 403) throw { code: 'permission-denied' };
+  if (res.status === 403 || res.status === 429) throw fail(res);      // a limit is not a missing index: asking again only spends more
   if (!res.ok) res = await ask(false);      // the index is not there yet
-  if (res.status === 403) throw { code: 'permission-denied' };
-  if (!res.ok) throw { code: 'lp/offline' };
+  if (!res.ok) throw fail(res);
   const got = await res.json();
   const stamp = v => (typeof v === 'number' ? { toMillis: () => v } : v);
   return (Array.isArray(got) ? got : []).filter(r => r && r.document).map(r => {

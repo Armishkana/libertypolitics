@@ -13,7 +13,7 @@ var t=C.t,ref=q.get('ref')||'',from=(q.get('from')||'').toLowerCase();
 if(C.ref&&/^[A-Za-z0-9_-]{1,64}$/.test(ref))t+=(t.indexOf('?')<0?'?':'&')+'ref='+encodeURIComponent(ref);
 var local=location.hostname==='127.0.0.1'||location.hostname==='localhost',emu=local&&q.get('lpemu')==='1';
 try{
-if(emu||!/^demo-/.test(C.p)){
+if(emu||(!local&&!/^demo-/.test(C.p))){
 var f=[{fieldPath:C.l,increment:{integerValue:'1'}}];
 if(from)f.push({fieldPath:C.l+'_'+(C.tags.indexOf(from)<0?'other':from),increment:{integerValue:'1'}});
 var db='projects/'+(emu?'demo-lp':C.p)+'/databases/(default)/documents';
