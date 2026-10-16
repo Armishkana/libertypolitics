@@ -1684,12 +1684,16 @@ async function initCrew(box) {
   if (!DATA || !K || K.off) { body.setAttribute('aria-busy', 'false'); return; }
   const { F, db } = await within(25000, fb());
   const hostId = DATA.host && DATA.host.uid;
-  const [ids, rows] = await Promise.all([within(12000, K.team()).catch(() => new Set()), (K.live ? within(20000, K.live()) : Promise.resolve(null)).catch(() => null)]);
+  /* mods/ itself, not only its ids: build/team.py writes the name each person is known by there, so someone on the team
+     who has not posted or made a profile yet is still on the page (16 October 2026: five on the team, two shown). */
+  const [mods, rows] = await Promise.all([within(12000, F.getDocs(F.query(F.collection(db, 'mods'), F.limit(100))))
+    .then(s => s.docs.map(d => ({ id: d.id, name: String((d.data() || {}).name || '') }))).catch(() => []),
+  (K.live ? within(20000, K.live()) : Promise.resolve(null)).catch(() => null)]);
   const mine = uid => (rows ? rows.filter(r => r.uid === uid && r.status === 'live') : null);
-  const people = await Promise.all([...ids].filter(id => id !== hostId && idOk(id)).map(async id => {
-    const P = await F.getDoc(F.doc(db, 'profiles', id)).then(s => (s.exists() ? s.data() : null)).catch(() => null);
+  const people = await Promise.all(mods.filter(m => m.id !== hostId && idOk(m.id)).map(async m => {
+    const id = m.id, P = await F.getDoc(F.doc(db, 'profiles', id)).then(s => (s.exists() ? s.data() : null)).catch(() => null);
     const posts = mine(id), last = posts && posts.length ? posts.slice().sort((a, b) => (b.ms || 0) - (a.ms || 0))[0] : null;
-    return { id, P, n: posts ? posts.length : null, name: (P && P.name) || (last && last.name) || '' };
+    return { id, P, n: posts ? posts.length : null, name: (P && P.name) || (last && last.name) || m.name };
   }));
   body.textContent = ''; body.setAttribute('aria-busy', 'false');
   const ul = el('ul', 'mb-crew');
@@ -1710,6 +1714,9 @@ async function initCrew(box) {
     .forEach(x => ul.append(cardFor(x.id, x.name, x.P && x.P.bio, picOf(x.P, x.id, x.name, false), 'team', x.n)));
   body.append(ul);
   if (ul.children.length < 2) body.append(el('p', 'mb-hint', tt('Nobody else is on the team yet.')));
+  /* The way onto it: the join form on panel/ (teamjoin.js, the Team session's). Liberty Politics only: Iran Uncensored has
+     no join form, and its team is marked quietly. */
+  if (!IU) { const go = el('p', 'mb-go'); go.append(el('a', 'btn btn-key', tt('Join the team'), { href: page('panel/#join') })); body.append(go); }
 }
 
 /* member/?u=: a profile (rebuilt 15 October 2026, Armin: "the way people's profiles look and the way they could edit it.
