@@ -51,9 +51,33 @@
   var WITHIN = [[0, '24 hours'], [12, '12 h'], [6, '6 h'], [3, '3 h'], [1, '1 h']];
   // How credible the SOURCE is, 0 to 100, from the room's own table (intel_live.py for news and video, intel_x.py for X)
   var CREDS = [[0, 'Any source'], [50, '50+'], [70, '70+'], [85, '85+']];
+  // A floor on the likes an item has on its own platform (views on Telegram do not count as likes).
+  var LIKES = [[0, 'Any'], [100, '100+'], [1000, '1K+'], [10000, '10K+'], [100000, '100K+']];
+  /* FOCUS (Armin, 17 October 2026: "I should be able to filter it based on country or based on topic. If I wanted to
+     focus on Islam, the Middle East, Iran, Israel, China, the United States"). One row of quick picks, for everyone, on
+     every lens. A pick matches an item placed in one of its countries, or whose own headline names it. Several picks
+     widen the view (Iran OR Israel). A pick nothing in the room matches stays on the row, greyed, so a reader can see
+     the room does not cover it yet rather than wonder whether the button is missing. */
+  var FOCUS = [
+    ['me', 'Middle East', ['Israel', 'Gaza', 'West Bank', 'Lebanon', 'Syria', 'Egypt', 'Jordan', 'Iran', 'Iraq', 'Yemen', 'Qatar', 'Saudi Arabia', 'United Arab Emirates', 'Turkey', 'Bahrain', 'Kuwait', 'Oman'], /\b(middle east|mideast|persian gulf|arab (world|states|league))\b/i],
+    ['iran', 'Iran', ['Iran'], /\b(iran\w*|tehran|irgc|khamenei|pezeshkian|araghchi|hormuz|pahlavi|mullahs?|ayatollah\w*|islamic republic)\b/i],
+    ['israel', 'Israel', ['Israel'], /\b(israel\w*|idf|netanyahu|knesset|jerusalem|tel aviv|zionis\w*)\b/i],
+    ['gaza', 'Gaza and Hamas', ['Gaza', 'West Bank'], /\b(gaza\w*|hamas|palestin\w*|west bank|rafah|unrwa)\b/i],
+    ['lebanon', 'Lebanon', ['Lebanon'], /\b(leban\w*|hezbollah|beirut)\b/i],
+    ['yemen', 'Yemen', ['Yemen'], /\b(yemen\w*|houthis?|red sea)\b/i],
+    ['syria', 'Syria', ['Syria'], /\b(syria\w*|damascus|assad|druze)\b/i],
+    ['islam', 'Islam', [], /\b(islam\w*|muslims?|jihad\w*|sharia|mosques?|imams?|caliphate|quran|koran)\b/i],
+    ['us', 'United States', ['United States'], /\bU\.S\.|\b(USA|US|America|American|Americans|Trump|White House|Congress|Pentagon|Washington|Rubio|Vance|Hegseth|Democrats?|Democratic|Republicans?|GOP|Biden)\b/],
+    ['europe', 'Europe', ['United Kingdom', 'France', 'Germany', 'Sweden', 'Ireland', 'Spain', 'Italy', 'Netherlands', 'Belgium', 'Switzerland', 'Norway', 'Denmark'], /\b(Europe\w*|EU|Britain|British|UK|London|France|French|Paris|Germany|German|Berlin|Sweden|Swedish|Ireland|Irish|Spain|Italy|Brussels|Geneva)\b/],
+    ['russia', 'Russia and Ukraine', ['Russia', 'Ukraine'], /\b(Russia\w*|Putin|Kremlin|Moscow|Ukrain\w*|Zelensk\w*)\b/],
+    ['china', 'China', ['China', 'Taiwan'], /\b(China|Chinese|Beijing|Xi Jinping|Taiwan\w*|CCP)\b/]
+  ];
+  var FXI = {}; FOCUS.forEach(function (f, i) { FXI[f[0]] = i; });
+  var HOT_MIN = 50, HOT_TOP = 6;          // "Hot topics": every story at 50+ heat; its row of sub-topics: the six hottest
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0 };
+  var PACKS = null, WORDS = null, HOTS = [], HOTALL = {}, STORY_OF = {}, RHOOK = [];
+  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '' };
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -249,7 +273,65 @@
       (it.tp || []).map(function (i) { return topics[i]; }).join(' ')).toLowerCase();
     return it._w;
   }
+  // The focus picks an item answers to: its place's country, or its own headline and note naming one (never the outlet's
+  // name, or every post by "Iran International" would count as Iran).
+  function fxOf(it) {
+    if (it._fx) return it._fx;
+    var c = P[it.p] ? P[it.p][1] : (it.pw || ''), cs = keysOf(it).map(function (k) { return P[k] ? P[k][1] : ''; }).concat([c]);
+    var txt = (it.t || '') + ' ' + (it.n || '');
+    var tps = (it.tp || []).map(function (i) { return topics[i]; });
+    it._fx = FOCUS.filter(function (f) {
+      return f[2].some(function (x) { return cs.indexOf(x) >= 0; }) || f[3].test(txt) || (f[0] === 'islam' && tps.indexOf('Radical Islam') >= 0);
+    }).map(function (f) { return f[0]; });
+    return it._fx;
+  }
+  function likesN(it) { var l = likesOf(it); return l != null ? l : (typeof it.lk === 'number' ? it.lk : null); }
+  /* HOT TOPICS (Armin, 17 October 2026: "If I click on hot topics, then it filters it to hot topics, but then I should be
+     able to filter it further ... 5 or 6 things that are the most trending news. I could click on one of them, which will
+     filter it down even more to only ... the tweets, for example, about that"). A hot topic is a story of the last hours
+     as data/show-packs.json groups it (build/show_packs.py: the news, the videos and the X posts on one event), when that
+     file was built on the same hour of the feed; otherwise the room groups the hours itself by country and topic. Its name
+     is the one data/show-words.json gives it, else its own headline, cut. */
+  function cut(t, n) { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).replace(/[\s,:;.'"-]+\S*$/, '') + '…' : t; }
+  function makeHots() {
+    HOTS = []; HOTALL = {}; STORY_OF = {};
+    if (!LIVE.length) return;
+    var byId = {}; LIVE.forEach(function (it) { byId[it.id] = it; });
+    var list = [];
+    var fresh = PACKS && Array.isArray(PACKS.stories) && PACKS.from && LIVE_AT && Math.abs(Date.parse(PACKS.from) - LIVE_AT) < 3 * 3600000;
+    if (fresh) {
+      PACKS.stories.forEach(function (s) {
+        var its = (s.items || []).map(function (id) { return byId['L' + id]; }).filter(Boolean);
+        if (its.length) list.push({ id: String(s.id), lead: String(s.lead), hot: +s.hot || 0, its: its, title: s.title || its[0].t, s: s });
+      });
+    } else {
+      var by = {};
+      LIVE.forEach(function (it) { var c = P[it.p] ? P[it.p][1] : 'global'; var k = c + '|' + ((it.tp || [])[0] != null ? it.tp[0] : ''); (by[k] = by[k] || []).push(it); });
+      Object.keys(by).forEach(function (k) {
+        var its = by[k].sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); });
+        list.push({ id: 'g' + k.replace(/[^a-z0-9]/gi, '').toLowerCase(), lead: String(its[0].id).slice(1), hot: its[0].hot || 0, its: its, title: its[0].t, s: null });
+      });
+    }
+    list.forEach(function (h) {
+      var w = WORDS && WORDS.stories && WORDS.stories[h.lead];
+      h.name = w && w.name ? w.name : cut(h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, ''), 44);
+      h.w = w || null;
+      h.score = h.hot * (0.6 + 0.4 * Math.min(1, h.its.length / 3));
+      h.ids = {}; h.its.forEach(function (it) { h.ids[it.id] = 1; STORY_OF[it.id] = h; });
+    });
+    list.sort(function (a, b) { return b.score - a.score; });
+    list.filter(function (h) { return h.hot >= HOT_MIN; }).forEach(function (h) { h.its.forEach(function (it) { HOTALL[it.id] = 1; }); });
+    HOTS = list;
+  }
+  function hotTop() { return HOTS.filter(function (h) { return h.hot >= HOT_MIN; }).slice(0, HOT_TOP); }
+  function hotById(id) { return HOTS.filter(function (h) { return h.id === id; })[0] || null; }
   function pass(it, skip) {
+    if (skip !== 'hot' && S.hot && S.lens === 'live') {
+      if (S.hot === 'all') { if (!HOTALL[it.id]) return false; }
+      else { var hs = hotById(S.hot); if (hs && !hs.ids[it.id]) return false; }
+    }
+    if (skip !== 'fx' && S.fx.length) { var fx = fxOf(it); if (!S.fx.some(function (k) { return fx.indexOf(k) >= 0; })) return false; }
+    if (skip !== 'likes' && S.lmin && !(likesN(it) >= S.lmin)) return false;
     if (skip !== 'tp' && S.tp.length && !S.tp.some(function (t) { return (it.tp || []).indexOf(t) >= 0; })) return false;
     if (skip !== 'kind' && S.kind && kindOf(it) !== S.kind) return false;
     if (skip !== 'pf' && S.pf.length && S.pf.indexOf(pfOf(it)) < 0) return false;
@@ -297,6 +379,7 @@
     liveNote();
     writeUrl();
     if (!keepSpot && $('ir-spot').open) closeSpot();
+    RHOOK.forEach(function (f) { try { f(); } catch (e) { /* the creator tools never break the room */ } });
   }
 
   function badges(it) {
@@ -887,6 +970,61 @@
     seg('ir-within', 'within', 'Within', WITHIN, S.lens === 'live');
     seg('ir-viral', 'vmin', 'Viral', VIRALS, items.some(function (it) { return it._v != null; }) || !!S.vmin);
     seg('ir-cred', 'crmin', 'Credible', CREDS, items.some(function (it) { return crOf(it) != null; }) || !!S.crmin);
+    seg('ir-likes', 'lmin', 'Likes', LIKES, items.some(function (it) { return likesN(it) != null; }) || !!S.lmin);
+    drawHot();
+    drawFocus();
+  }
+  // The hot row: Everything, Hot topics, and once Hot topics is on, its six hottest stories. Live lens only.
+  function drawHot() {
+    var row = $('ir-hotrow'), el = $('ir-hots'); if (!row || !el) return;
+    var top = hotTop();
+    row.hidden = !(LIVE.length && liveShown() && top.length);
+    if (row.hidden) return;
+    var onLive = S.lens === 'live', all = 0;
+    LIVE.forEach(function (it) { if (HOTALL[it.id] && (S.lens !== 'live' || pass(it, 'hot'))) all++; });
+    var html = '<button class="ir-chip ir-hc" type="button" data-hot="" aria-pressed="' + !(onLive && S.hot) + '">Everything</button>' +
+      '<button class="ir-chip ir-hc ir-hc-all" type="button" data-hot="all" aria-pressed="' + (onLive && !!S.hot) + '">' + flame() + '<span>Hot topics</span> <i>' + all + '</i></button>';
+    if (onLive && S.hot) {
+      html += '<span class="ir-hc-sep" aria-hidden="true"></span>' + top.map(function (h) {
+        var n = h.its.filter(function (it) { return pass(it, 'hot'); }).length;
+        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (S.hot === h.id) + '" title="' + esc(h.title) + '"><b class="num">' + h.hot + '</b><span>' + esc(h.name) + '</span> <i>' + n + '</i></button>';
+      }).join('');
+    }
+    el.innerHTML = html;
+  }
+  function drawFocus() {
+    var el = $('ir-fx'); if (!el) return;
+    var c = {}; FOCUS.forEach(function (f) { c[f[0]] = 0; });
+    items.forEach(function (it) { if (pass(it, 'fx')) fxOf(it).forEach(function (k) { c[k]++; }); });
+    var order = FOCUS.map(function (f) { return f[0]; });
+    order.sort(function (a, b) { return ((c[b] > 0 || S.fx.indexOf(b) >= 0) - (c[a] > 0 || S.fx.indexOf(a) >= 0)) || FXI[a] - FXI[b]; });
+    el.innerHTML = '<button class="ir-chip ir-fc" type="button" data-fx="" aria-pressed="' + !S.fx.length + '">Everywhere</button>' + order.map(function (k) {
+      var on = S.fx.indexOf(k) >= 0, zero = !c[k] && !on;
+      return '<button class="ir-chip ir-fc' + (zero ? ' is-zero' : '') + '" type="button" data-fx="' + k + '" aria-pressed="' + on + '"' + (zero ? ' disabled title="Nothing in this view yet"' : '') + '>' + esc(FOCUS[FXI[k]][1]) + ' <i>' + c[k] + '</i></button>';
+    }).join('');
+  }
+  // In plain words, what the filters leave: the creator tools head their show with it.
+  function filterLine() {
+    var b = [];
+    if (S.lens === 'live') {
+      var h = S.hot && S.hot !== 'all' ? hotById(S.hot) : null;
+      b.push(h ? 'Hot topic: ' + h.name : S.hot === 'all' ? 'Hot topics' : 'Last 24 hours');
+      if (S.within) b.push('last ' + S.within + ' h');
+    } else if (S.lens === 'bank') b.push(fullRange() ? 'The bank, all time' : 'The bank, ' + bLabel(S.from) + (S.to !== S.from ? ' to ' + bLabel(S.to) : ''));
+    else b.push('From readers');
+    if (S.fx.length) b.push(S.fx.map(function (k) { return FOCUS[FXI[k]][1]; }).join(' or '));
+    if (S.tp.length) b.push(S.tp.map(function (i) { return topics[i]; }).join(' or '));
+    if (S.place) b.push(S.place.indexOf('c:') === 0 ? S.place.slice(2) : S.place.split(',').map(placeName).join(', '));
+    if (S.pf.length) b.push(S.pf.map(pfName).join(' or '));
+    if (S.kind) b.push(KINDS.filter(function (k) { return k[0] === S.kind; })[0][1]);
+    if (S.lmin) b.push(fmtN(S.lmin) + '+ likes');
+    if (S.heat && S.lens === 'live') b.push('heat ' + S.heat + '+');
+    if (S.vmin) b.push('viral ' + S.vmin + '+');
+    if (S.crmin) b.push('credibility ' + S.crmin + '+');
+    if (S.top) b.push('top picks');
+    if (S.edu) b.push('explainers');
+    if (S.q) b.push('"' + S.q + '"');
+    return b.join(' · ');
   }
   function seg(id, key, label, list, show) {
     var el = $(id); if (!el) return;
@@ -965,7 +1103,7 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>Clear</button>' : '') : '';
   }
   function clearAll() {
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
     say('');
     render();
@@ -984,6 +1122,9 @@
     if (S.within && S.lens === 'live') q.push('within=' + S.within);
     if (S.vmin) q.push('viral=' + S.vmin);
     if (S.crmin) q.push('cred=' + S.crmin);
+    if (S.lmin) q.push('likes=' + S.lmin);
+    if (S.fx.length) q.push('focus=' + S.fx.join('.'));
+    if (S.hot && S.lens === 'live') q.push('hot=' + encodeURIComponent(S.hot));
     if (S.top) q.push('top=1');
     if (S.edu) q.push('edu=1');
     if (S.lens === 'bank' && !fullRange()) q.push('from=' + buckets[S.from] + '&to=' + buckets[S.to]);
@@ -1009,6 +1150,10 @@
     S.pf = (u.get('pf') || '').split('.').filter(function (x) { return PFC[x]; });
     var pick = function (list, v) { v = +v || 0; return list.some(function (o) { return o[0] === v; }) ? v : 0; };
     S.heat = pick(HEATS, u.get('heat')); S.within = pick(WITHIN, u.get('within')); S.vmin = pick(VIRALS, u.get('viral')); S.crmin = pick(CREDS, u.get('cred'));
+    S.lmin = pick(LIKES, u.get('likes'));
+    S.fx = (u.get('focus') || '').split('.').filter(function (k, i, a) { return FXI[k] != null && a.indexOf(k) === i; });
+    var hv = u.get('hot') || '';
+    S.hot = S.lens === 'live' && (hv === 'all' || hotById(hv)) ? hv : '';
     if (SORTS[S.lens].some(function (s) { return s[0] === u.get('sort'); })) S.sort = u.get('sort');
     S.from = 0; S.to = buckets.length - 1;
     var f = buckets.indexOf(u.get('from')), t = buckets.indexOf(u.get('to'));
@@ -1522,6 +1667,17 @@
       }
       if ((b = t.closest('button[data-seg]'))) { S[b.getAttribute('data-seg')] = +b.getAttribute('data-v') || 0; render(); return; }
       if ((b = t.closest('button[data-wire]'))) { openWire(b.getAttribute('data-wire')); return; }
+      if ((b = t.closest('button[data-hot]'))) {
+        var hv = b.getAttribute('data-hot');
+        if (hv && S.lens !== 'live') useLens('live', true);
+        S.hot = !hv ? '' : hv === 'all' ? (S.hot === 'all' ? '' : 'all') : (S.hot === hv ? 'all' : hv);
+        say(''); render(); if (!S.place) frameShown(); return;
+      }
+      if ((b = t.closest('button[data-fx]'))) {
+        var fv = b.getAttribute('data-fx');
+        if (!fv) S.fx = []; else { var fa = S.fx.indexOf(fv); if (fa >= 0) S.fx.splice(fa, 1); else S.fx.push(fv); }
+        say(''); render(); return;
+      }
       if ((b = t.closest('button[data-board]'))) { var bi = shown.indexOf(BOARD_IT); if (bi >= 0) { stopTour(); openSpot(bi); } return; }
       if ((b = t.closest('.ir-chip'))) {
         var v = b.getAttribute('data-t');
@@ -1676,9 +1832,13 @@
   function soft(u, opt) { return u ? fetch(u, opt).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null); }
   Promise.all([fetch(root.getAttribute('data-src')).then(function (r) { if (!r.ok) throw r; return r.json(); }),
                G ? soft(root.getAttribute('data-geo')) : Promise.resolve(null),
-               soft(liveUrl, { cache: 'no-cache' }), soft(reachUrl, { cache: 'no-cache' })]).then(function (res) {
+               soft(liveUrl, { cache: 'no-cache' }), soft(reachUrl, { cache: 'no-cache' }),
+               soft(root.getAttribute('data-packs'), { cache: 'no-cache' }), soft(root.getAttribute('data-words'), { cache: 'no-cache' })]).then(function (res) {
     D = res[0]; BANK = D.items; P = D.places; topics = D.topics;
     if (res[2] && Array.isArray(res[2].items)) { LIVE_AT = Date.parse(res[2].at) || 0; LIVE = res[2].items.filter(function (it) { return it && it.u && it.t; }).map(normLive); }
+    PACKS = res[4] && Array.isArray(res[4].stories) ? res[4] : null;
+    WORDS = res[5] && res[5].stories && typeof res[5].stories === 'object' ? res[5] : null;
+    makeHots();
     if (res[3] && res[3].by && typeof res[3].by === 'object') { REACH = res[3].by; REACH_AT = Date.parse(res[3].at) || 0; }
     computeViral();
     // an order with nothing to order by is not offered (no like counts read yet, say)
@@ -1727,7 +1887,13 @@
       topics: function () { return topics.slice(); }, topicsOn: function () { return S.tp.map(function (i) { return topics[i]; }); },
       when: function (it) { return fmtDate(it.d); }, where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); },
       code: function (it) { return it._code || String(it.id); }, pf: pfOf, kind: kindOf, mark: function (it) { return mark(it); }, fmt: fmtN, yt: ytId,
-      reach: function (it) { var r = reachOf(it); return r && !r.x ? { likes: r.lk, views: r.vw, replies: r.rp, platform: pfName(pfOf(it)), viral: it._v } : null; } };
+      reach: function (it) { var r = reachOf(it); return r && !r.x ? { likes: r.lk, views: r.vw, replies: r.rp, platform: pfName(pfOf(it)), viral: it._v } : null; },
+      // for the show maker: the stories (hot topics) and their written words, which story an item is in, the filters in
+      // words, and a call after every redraw
+      packs: function () { return PACKS; }, words: function () { return WORDS; }, hots: function () { return HOTS.slice(); },
+      storyOf: function (it) { return STORY_OF[it.id] || null; }, filterLine: filterLine, likes: likesN, fx: fxOf,
+      focusName: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : ''; }, focusOn: function () { return S.fx.slice(); },
+      placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); } };
     if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();

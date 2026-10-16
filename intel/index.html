@@ -39,7 +39,7 @@
 <main id="main">
 <div class="pane" id="record">
 <link rel="stylesheet" href="../assets/intel.css">
-<section class="ir" id="ir" data-src="../assets/intel.json" data-live="../assets/intel-live.json" data-reach="../assets/intel-reach.json" data-packs="../assets/show-packs.json" data-geo="../assets/intel-topo-110.json" data-geo-hi="../assets/intel-topo-50.json" data-xp-find="40" data-xp-own="90">
+<section class="ir" id="ir" data-src="../assets/intel.json" data-live="../assets/intel-live.json" data-reach="../assets/intel-reach.json" data-packs="../assets/show-packs.json" data-words="../assets/show-words.json" data-geo="../assets/intel-topo-110.json" data-geo-hi="../assets/intel-topo-50.json" data-xp-find="40" data-xp-own="90">
 <div class="ir-brand"><img src="../assets/seal.png" alt="" width="40" height="40"><span><b>Liberty Politics</b> Intel Room</span><time class="ir-clock" id="ir-clock"></time><button class="ir-ctl" id="ir-ctl" type="button" aria-pressed="false">Filters</button><button class="ir-exit" id="ir-exit" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Leave full screen</span></button></div>
 <div class="ir-wire scroll" id="ir-wire" hidden><span class="ir-wire-l"><i aria-hidden="true"></i>The wire</span><div class="ir-wire-v"><div class="ir-wire-t" id="ir-wire-t"></div></div></div>
 <div class="ir-top">
@@ -64,6 +64,8 @@
 </div>
 <div class="ir-lens" id="ir-lens" role="tablist" aria-label="What the map shows" hidden></div>
 <div class="ir-bar" id="ir-bar" hidden>
+<div class="ir-row ir-hotrow" id="ir-hotrow" hidden><span class="ir-row-l">Trending</span><div class="ir-hots scroll" id="ir-hots" role="group" aria-label="Hot topics"></div></div>
+<div class="ir-row"><span class="ir-row-l">Focus</span><div class="ir-fx scroll" id="ir-fx" role="group" aria-label="Country or theme"></div></div>
 <div class="ir-row"><span class="ir-row-l">Platform</span><div class="ir-pf scroll" id="ir-pf" role="group" aria-label="Where it was posted"></div></div>
 <div class="ir-row"><span class="ir-row-l">Topic</span><div class="ir-topics scroll" id="ir-topics" role="group" aria-label="Topics"></div></div>
 <div class="ir-tools">
@@ -73,6 +75,7 @@
 <div class="ir-seg ir-segl" id="ir-within" role="group" aria-label="Within the last" hidden></div>
 <div class="ir-seg ir-segl" id="ir-viral" role="group" aria-label="Viral" hidden></div>
 <div class="ir-seg ir-segl" id="ir-cred" role="group" aria-label="How credible the source is" hidden></div>
+<div class="ir-seg ir-segl" id="ir-likes" role="group" aria-label="At least this many likes" hidden></div>
 <button class="ir-tog" id="ir-top" type="button" aria-pressed="false">Top picks</button>
 <button class="ir-tog ir-edu" id="ir-edu" type="button" aria-pressed="false" hidden>Explainers</button>
 <button class="ir-tool" id="ir-save" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Save view</span></button>

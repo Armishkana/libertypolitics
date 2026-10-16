@@ -1,27 +1,19 @@
 /* The Intel Room's creator tools and its show screen (intel/). Loaded by intel.js once the room is ready; everything it
    knows about an item comes from intel.js through window.IRoom.
 
-   Armin, 16 October 2026: a creator who goes live, or makes a video, should be able to plan a show from the room: "only x
-   and youtube" for a live show (his rule to his producer, 11 October), the count, the hours, the topics, the platform,
-   the type, the length, the category, the order and how credible a source must be, and get back three recommended shows,
-   each with a title, a description, a 30-second intro to read and the rundown in order. And one tab to show it all on a
-   stream: "Intuitive design is the most important thing." People who do not make shows must never meet any of this
-   ("If they come there and see that this seems to be a tool for content creators ... they're going to get confused"), so
-   it all sits behind one quiet switch, off by default, and turning it on needs an account (that is how creators are
-   found: users/{uid}.creator is set to true, a field the rules already take).
+   WHO MEETS IT. People who do not make shows must never meet any of this (Armin, 16 October 2026: "If they come there and
+   see that this seems to be a tool for content creators ... they're going to get confused"), so it sits behind one quiet
+   switch, off by default, and turning it on needs an account (users/{uid}.creator is set to true: that is how creators are
+   found).
 
-   THE WORDS. Each story's title, description, intro and hook come from data/show-packs.json (build/show_packs.py, every
-   hour, from what the feed measured). While they are its templates they are marked "Working title". Those words are never
-   a source: every claim in a show is one of the linked items, and a slot nothing in the room fills (the other side, a
-   telling silence) says so and links a search instead of inventing an answer.
-
-   THE RUNDOWN, two shapes from the producer's own packs (projects/brand/site/research/kaveh-pack-study-2026-10-16.md):
-   the story pack (the report, the subject's own words, the clip, reactions, the other side or the silence, the proof)
-   and the ranked roundup (the hour's most liked, each marked on the story or related).
+   WHAT IT DOES (rebuilt 17 October 2026, see "the show maker" below). The room's own filters, which everyone has, decide
+   what is in the show; the switch adds one bar that turns what is left into a show: titles, cover text, descriptions, the
+   intro, the run order and the show screen.
 
    THE SHOW SCREEN is the same page with ?show= in the address: the room steps aside and one item fills the screen, with
    previous and next, what is next, a counter, the intro card first and libertypolitics.com/intel always on it. Made for
-   a 1920x1080 screen share and for a phone. */
+   a 1920x1080 screen share and for a phone. The maker hands it its picks: t (title), c (cover text, the intro card's
+   kicker), i (the intro or hook for the host's notes). */
 (function () {
   'use strict';
   var R = window.IRoom, root = document.getElementById('ir');
@@ -29,7 +21,6 @@
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
-  function copy(o) { return JSON.parse(JSON.stringify(o)); }
   var SITE_MARK = 'libertypolitics.com/intel';
   var ICON = {
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4M10 9l4 2-4 2z"/></svg>',
@@ -40,161 +31,229 @@
     notes: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h4"/></svg>',
     back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6l-6 6 6 6M4 12h16"/></svg>',
     flame: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3-1-3 0-7 1-9.5z"/></svg>',
+    redo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
     search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>'
   };
 
-  /* ---------------------------------------------------------------- what an item is, for planning */
+  /* ---------------------------------------------------------------- what an item is */
   // The type a creator picks: a text post, an image, a video, an article (a document counts as an article here).
   function typeOf(it) { var k = R.kind(it); return it.k === 'image' ? 'image' : k === 'doc' ? 'article' : k; }
-  function pfOf(it) { var p = R.pf(it); return p === 'X' || p === 'YouTube' || p === 'News' ? p : p === 'Web' || p === 'Document' ? 'News' : p; }
-  function catOf(it) {
-    if (it.cat) return it.cat === 'reaction' ? 'commentary' : it.cat;
-    if (it.edu) return 'educational';
-    if (it.src === 'News') return 'news';
-    if (/\b(explain|explainer|explained|history|how |why |lesson)/i.test(it.t)) return 'educational';
-    if (/\b(analysis|breakdown|deep dive|what it means)\b/i.test(it.t)) return 'analysis';
-    return it.hot == null ? 'news' : 'commentary';
-  }
-  // How credible the source is: the table's number (build/intel_live.py and build/intel_x.py), and the bank's checked
-  // items count as 70. An item with no number passes only "Any".
-  function crOf(it) { return it.cr != null ? it.cr : (it.hot == null && !it.pend ? 70 : null); }
-  function durOf(it) { if (it.dur != null) return it.dur; if (/\/shorts\//.test(it.u || '')) return 45; return null; }
   function likes(it) { var r = R.reach(it); return r && r.likes != null ? r.likes : (it.lk != null ? it.lk : null); }
-  function engaged(it) { var r = R.reach(it) || {}; var n = (r.likes || it.lk || 0) + 2 * (it.rp || 0) + (r.replies || 0); return n || null; }
-  function ageH(it) { var ms = Date.parse(it.d || ''); if (isNaN(ms)) return null; if ((it.d || '').length === 10) ms += 12 * 3600000; return (Date.now() - ms) / 3600000; }
 
-  /* ---------------------------------------------------------------- the plan */
-  var KEY = 'ir-creator';
-  var DEF = {
-    live: { n: 10, win: 24, pf: ['X', 'YouTube'], ty: [], len: '', cat: [], sort: 'hot', cr: 0, tp: [], shape: 'pack' },
-    video: { n: 10, win: 48, pf: ['X', 'YouTube', 'News'], ty: [], len: '', cat: [], sort: 'hot', cr: 0, tp: [], shape: 'pack' }
-  };
-  var OPT = {
-    n: [[3, '3'], [10, '10'], [20, '20']],
-    win: [[2, '2 h'], [6, '6 h'], [24, '24 h'], [48, '48 h']],
-    pf: [['X', 'X'], ['YouTube', 'YouTube'], ['News', 'News']],
-    ty: [['post', 'Text posts'], ['image', 'Images'], ['video', 'Videos'], ['article', 'Articles']],
-    len: [['', 'Any length'], ['short', 'Under 1 min'], ['mid', '1 to 10 min'], ['long', 'Over 10 min']],
-    cat: [['news', 'News'], ['analysis', 'Analysis'], ['commentary', 'Commentary'], ['educational', 'Educational']],
-    sort: [['hot', 'Hottest'], ['liked', 'Most liked'], ['engaged', 'Most engaged'], ['credible', 'Most credible'], ['new', 'Newest']],
-    cr: [[0, 'Any source'], [50, '50+'], [70, '70+'], [85, '85+']],
-    shape: [['pack', 'Story pack'], ['roundup', 'Ranked roundup']]
-  };
-  var st = store(KEY);
-  if (!st || typeof st !== 'object') st = {};
-  st = { on: st.on === true, kind: st.kind === 'video' ? 'video' : 'live', plan: { live: Object.assign(copy(DEF.live), (st.plan || {}).live || {}), video: Object.assign(copy(DEF.video), (st.plan || {}).video || {}) } };
-  function save() { store(KEY, st); }
-  function plan() { return st.plan[st.kind]; }
+  /* ---------------------------------------------------------------- the show maker
+     Armin, 17 October 2026, after the first version dropped a wall of text on the page: "Whatever filter I use (time,
+     topic, geography, country, whatever), those remaining things that are left over based on every filter that I have on
+     should be able to turn that into a show ... It will give me a title, a description, and small text that I could use
+     either in a banner or under the cover ... multiple titles, multiple short texts, and multiple descriptions that I could
+     choose from ... Should the text be more engaging or more descriptive? ... whether I want the highest engagement or the
+     highest clicks." So there is no second set of filters here any more: the room's own filters (for everyone) decide what
+     is in the show, and this is one quiet bar under them that opens a compact maker: three dials, four tabs, a handful of
+     one-line options to pick from, and the show screen.
 
-  function inPlan(it, p) {
-    var h = ageH(it);
-    if (h == null || h > p.win || h < -1) return false;
-    if (p.pf.length && p.pf.indexOf(pfOf(it)) < 0) return false;
-    if (p.ty.length && p.ty.indexOf(typeOf(it)) < 0) return false;
-    if (p.len) {
-      if (typeOf(it) === 'video') { var d = durOf(it); if (d == null) return false; if (p.len === 'short' ? d >= 60 : p.len === 'mid' ? (d < 60 || d > 600) : d <= 600) return false; }
-    }
-    if (p.cat.length && p.cat.indexOf(catOf(it)) < 0) return false;
-    if (p.cr) { var c = crOf(it); if (c == null || c < p.cr) return false; }
-    return true;
-  }
-  function onTopic(it, p) { return !p.tp.length || (it.tp || []).some(function (t) { return p.tp.indexOf(t) >= 0; }); }
-  function pool(p) {
-    var seen = {};
-    return R.live().concat(R.bank()).filter(function (it) { if (seen[it.u]) return false; seen[it.u] = 1; return inPlan(it, p); });
-  }
-  function score(it, sort) {
-    if (sort === 'liked') return likes(it);
-    if (sort === 'engaged') return engaged(it);
-    if (sort === 'credible') return crOf(it);
-    if (sort === 'new') { var h = ageH(it); return h == null ? null : -h; }
-    return it.hot != null ? it.hot : it._v != null ? it._v : null;
-  }
-  function ranked(list, sort) {
-    return list.slice().sort(function (a, b) {
-      var x = score(a, sort), y = score(b, sort);
-      return ((y == null ? -1e12 : y) - (x == null ? -1e12 : x)) || ((b.hot || 0) - (a.hot || 0));
-    });
-  }
-
-  /* ---------------------------------------------------------------- the stories and the three shows */
-  var PACKS = null;
-  function storyItems(s) { return s.items.map(function (id) { return R.byId('L' + id); }).filter(Boolean); }
-  // When the packs file is missing or from another hour of the feed, the room groups what it has by place and topic, and
-  // words each group with the same plain template (the page says "Working title").
-  function fallbackStories() {
-    var by = {};
-    R.live().forEach(function (it) { var k = it.p + '|' + ((it.tp || [])[0] != null ? it.tp[0] : ''); (by[k] = by[k] || []).push(it); });
-    return Object.keys(by).map(function (k) {
-      var its = by[k].sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); }), lead = its.filter(function (i) { return i.src === 'News'; })[0] || its[0];
-      return { id: 'f' + k.replace(/[^a-z0-9]/gi, ''), local: its, lead: lead, hot: lead.hot || 0, tp: (lead.tp || []).slice(0, 3), p: lead.p, kw: '', bank: [], wt: true,
-        title: lead.t.length > 90 ? lead.t.slice(0, 88).replace(/\s+\S*$/, '') : lead.t, desc: lead.t + '. On the show: ' + its.length + (its.length === 1 ? ' source' : ' sources') + ', each linked below.',
-        intro: 'Welcome in. Here is the story right now: ' + lead.t.replace(/\.$/, '') + '. We are going to go through it source by source, and then I want to know what you make of it. Put it in the chat.',
-        hook: lead.t.replace(/\.$/, '') + '. Here is what it shows, and what it does not.' };
-    });
-  }
-  function stories() {
-    var fresh = PACKS && PACKS.stories && PACKS.stories.length && PACKS.from && R.liveAt() && Math.abs(Date.parse(PACKS.from) - R.liveAt()) < 3 * 3600000;
-    if (!fresh) return fallbackStories();
-    return PACKS.stories.map(function (s) { return Object.assign({}, s, { local: storyItems(s), lead: R.byId('L' + s.lead) }); }).filter(function (s) { return s.local.length; });
-  }
-  function recommend() {
-    var p = plan(), P = pool(p), inP = {};
-    P.forEach(function (it) { inP[it.id] = 1; });
-    var out = [];
-    stories().forEach(function (s) {
-      var its = s.local.filter(function (it) { return inP[it.id]; });
-      if (!its.length) return;
-      if (p.tp.length && !(s.tp || []).some(function (t) { return p.tp.indexOf(t) >= 0; }) && !its.some(function (it) { return onTopic(it, p); })) return;
-      out.push({ s: s, its: its, sc: (s.hot || 0) * (0.6 + 0.4 * Math.min(1, its.length / 3)) });
-    });
-    out.sort(function (a, b) { return b.sc - a.sc; });
-    return { shows: out.slice(0, 3).map(function (o) { return { s: o.s, run: rundown(o.s, o.its, P, p) }; }), pool: P };
-  }
-  function nameWords(it) { return String((it.nm || '') + ' ' + (it.h || '')).toLowerCase().replace(/[@_]/g, ' ').split(/\s+/).filter(function (w) { return w.length > 3; }); }
-  // A rundown is a list of rows: {role, it} or {role: 'other', search} (the slot nothing in the room fills).
-  function rundown(s, its, P, p) {
-    var rows = [], used = {}, n = p.n;
-    function take(role, it) { if (!it || used[it.id] || rows.length >= n) return; used[it.id] = 1; rows.push({ role: role, it: it, on: true }); }
-    var byCr = function (a, b) { return (crOf(b) || 0) - (crOf(a) || 0) || (b.hot || 0) - (a.hot || 0); };
-    if (p.shape === 'roundup') {
-      var onS = {}; its.forEach(function (it) { onS[it.id] = 1; });
-      ranked(P.filter(function (it) { return onTopic(it, p); }), p.sort).slice(0, n).forEach(function (it) {
-        rows.push({ role: 'rank', it: it, on: !!onS[it.id] || (it.tp || []).some(function (t) { return (s.tp || []).indexOf(t) >= 0; }) });
-      });
-      return rows;
-    }
-    var title = String(s.title || '').toLowerCase();
-    take('report', its.filter(function (it) { return typeOf(it) === 'article'; }).sort(byCr)[0] || its.filter(function (it) { return it.src === 'X' && catOf(it) === 'news'; }).sort(byCr)[0]);
-    take('own', its.filter(function (it) { return it.src === 'X' && !used[it.id] && nameWords(it).some(function (w) { return title.indexOf(w) >= 0; }); })[0]);
-    take('clip', ranked(its.filter(function (it) { return typeOf(it) === 'video' && !used[it.id]; }), 'liked')[0]);
-    ranked(its.filter(function (it) { return it.src === 'X' && !used[it.id]; }), p.sort).slice(0, 3).forEach(function (it) { take('reaction', it); });
-    ranked(its.filter(function (it) { return !used[it.id]; }), p.sort).forEach(function (it) { take('more', it); });
-    if (rows.length < n) rows.push({ role: 'other', search: s.kw || s.title, on: true });
-    (s.bank || []).slice(0, 2).forEach(function (id) { if (rows.length < n + 1) { var b = R.byId('B' + id); if (b) take('proof', b); } });
-    // the rest of the count: related items in the plan, the same topic or place first
-    var rel = P.filter(function (it) { return !used[it.id] && ((it.tp || []).some(function (t) { return (s.tp || []).indexOf(t) >= 0; }) || it.p === s.p) && onTopic(it, p); });
-    ranked(rel, p.sort).forEach(function (it) { if (rows.length < n + 1) { used[it.id] = 1; rows.push({ role: 'related', it: it, on: false }); } });
-    return rows.slice(0, n + 1);
-  }
+     THE WORDS. For a hot story, data/show-words.json (build/intel_words.py, written for the hottest stories each hour) has
+     agency-grade titles, cover lines, descriptions, an intro and a hook in three styles and two aims. When the show is mostly
+     one such story, those are used. Otherwise (a mix of stories, the bank, a reader's finds) the words are built here from
+     what the items measurably are: the named people and countries in their headlines, the story names, the counts, the
+     outlets and the hours. Never a claim the items do not carry: every fact in a show is one of its linked items. */
   var ROLE = { report: 'The report', own: 'In their own words', clip: 'The clip', reaction: 'Reaction', more: 'More on it', other: 'The other side, or the silence',
     proof: 'Background, from the bank', related: 'Related', rank: '' };
-  function searchUrl(q) { return 'https://x.com/search?q=' + encodeURIComponent(q) + '&f=live'; }
-  function codeOf(it) { return R.code(it); }          // L (the last hours), B (the bank), R (a reader's find)
-  function showUrl(sh, i) {
-    var parts = sh.run.filter(function (r) { return r.it; }).map(function (r) { return (r.role === 'rank' ? (r.on ? 'on' : 'rel') : r.role) + '~' + codeOf(r.it); });
-    return '?show=' + parts.join('.') + '&st=' + encodeURIComponent(sh.s.id) + '&kind=' + st.kind + '&t=' + encodeURIComponent(String(sh.s.title).slice(0, 90)) + (i != null ? '&n=' + (i + 1) : '');
+  var PACKS = null;
+  var KEY = 'ir-creator', MAXN = 25;
+  var TONES = [['plain', 'Descriptive'], ['mid', 'Balanced'], ['bold', 'Engaging']], AIMS = [['clicks', 'Clicks'], ['watch', 'Watch time']], KINDS2 = [['live', 'Live show'], ['video', 'Video']];
+  var st = store(KEY);
+  if (!st || typeof st !== 'object') st = {};
+  st = { on: st.on === true, kind: st.kind === 'video' ? 'video' : 'live', tone: ['plain', 'mid', 'bold'].indexOf(st.tone) >= 0 ? st.tone : 'mid', aim: st.aim === 'watch' ? 'watch' : 'clicks' };
+  function save() { store(KEY, st); }
+  var ui = { open: false, tab: 'titles', pick: { titles: '', covers: '', descs: '' }, page: { titles: 0, covers: 0, descs: 0 }, sig: '', pack: null, set: [] };
+
+  // Named people, groups and places, most specific first. FOE: the stance's adversaries, the only names a "losing
+  // control?" style question is ever asked about.
+  var ENT = [
+    ['Khamenei', 'KHAMENEI', /\bkhamenei\b/i, 1], ['the IRGC', 'IRGC', /\birgc\b|revolutionary guards?/i, 1], ['Pezeshkian', 'PEZESHKIAN', /\bpezeshkian\b/i, 1],
+    ['Araghchi', 'ARAGHCHI', /\baraghchi\b/i, 1], ['Hezbollah', 'HEZBOLLAH', /\bhezbollah\b/i, 1], ['Hamas', 'HAMAS', /\bhamas\b/i, 1], ['the Houthis', 'HOUTHIS', /\bhouthis?\b/i, 1],
+    ['Netanyahu', 'NETANYAHU', /\bnetanyahu\b/i, 0], ['Trump', 'TRUMP', /\btrump\b/i, 0], ['Rubio', 'RUBIO', /\brubio\b/i, 0], ['Vance', 'VANCE', /\bvance\b/i, 0],
+    ['Hegseth', 'HEGSETH', /\bhegseth\b/i, 0], ['Putin', 'PUTIN', /\bputin\b/i, 0], ['Erdogan', 'ERDOGAN', /\berdo[gğ]an\b/i, 0], ['Pahlavi', 'PAHLAVI', /\bpahlavi\b/i, 0],
+    ['the Strait of Hormuz', 'HORMUZ', /\bhormuz\b/i, 0, 1], ['the West Bank', 'WEST BANK', /west bank/i, 0, 1], ['Gaza', 'GAZA', /\bgaza\b/i, 0, 1], ['Iran', 'IRAN', /\biran\w*|\btehran\b|islamic republic/i, 0],
+    ['Israel', 'ISRAEL', /\bisrael\w*|\bidf\b/i, 0], ['Lebanon', 'LEBANON', /\bleban\w*/i, 0], ['Syria', 'SYRIA', /\bsyria\w*/i, 0], ['Yemen', 'YEMEN', /\byemen\w*/i, 0],
+    ['Qatar', 'QATAR', /\bqatar\w*/i, 0], ['the UN', 'UN', /\bU\.N\.|\bUN\b|United Nations|UNRWA/, 0], ['China', 'CHINA', /\bchin(a|ese)\b/i, 0], ['Russia', 'RUSSIA', /\brussia\w*/i, 0],
+    ['Europe', 'EUROPE', /\beurope\w*/i, 0], ['the US', 'USA', /\bU\.S\.|\bUSA?\b|White House|Pentagon|\bAmerica\b/, 0]
+  ];
+  var SMALL = /^(a|an|and|as|at|but|by|for|in|of|on|or|the|to|vs|via|with|from|into|over)$/i;
+  function titleCase(t) {
+    var ws = String(t).split(' ');
+    return ws.map(function (w, i) {
+      if (/[A-Z].*[A-Z]/.test(w) || /\d/.test(w)) return w;          // IRGC, U.S., 2026, PLAYING stay as written
+      if (i && SMALL.test(w) && !/[:?!.]$/.test(ws[i - 1])) return w.toLowerCase();          // "Iran: The Part", never "Iran: the Part"
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  }
+  function noDash(t) { return String(t).replace(/\s*[–—]\s*/g, ', ').replace(/\s+-\s+/g, ', '); }
+  // A headline as a title: no "LIVE:" or outlet tail, no dashes, cut at a clause when long, title case.
+  function headline(it) {
+    var t = String(it.t || '').replace(/\s+/g, ' ').trim();
+    t = t.replace(/^(LIVE|WATCH|BREAKING|TRENDING|JUST IN|NEW)\b[!:|\s-]*/i, '');
+    t = t.replace(/\s+[|–—-]\s+[^|–—-]{2,40}$/, '').replace(/[.!]+$/, '');
+    t = t.replace(/^['"\u2018\u201c]+/, '').replace(/['"\u2019\u201d]+$/, '');          // a quote that is the whole headline: the words, not the marks
+    t = noDash(t);
+    return titleCase(clip(t, 70));
+  }
+  function clip(t, n) {
+    t = String(t).trim();
+    if (t.length <= n) return t;
+    var rx = /[:,;]\s|\s(as|after|while|amid|but|over)\s/g, m, at = -1;
+    while ((m = rx.exec(t))) if (m.index >= 24 && m.index <= n) at = m.index;
+    if (at > 0) return t.slice(0, at).replace(/[\s,:;]+$/, '');
+    return t.slice(0, n).replace(/\s+\S*$/, '').replace(/[\s,:;]+$/, '');
+  }
+  function listOf(xs) { xs = xs.filter(Boolean); return xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
+  function words(n) { return String(n).split(/\s+/).filter(Boolean).length; }
+  function bare(name) { return name.replace(/^the /, ''); }
+  function cap1(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  // What the set measurably is.
+  function analyse(set) {
+    var n = set.length, by = {}, ents = {}, outlets = {}, kinds = { video: 0, post: 0, article: 0, image: 0 }, views = 0, maxLike = 0, t0 = Infinity, t1 = 0;
+    set.forEach(function (it, i) {
+      var h = R.storyOf ? R.storyOf(it) : null;
+      if (h) { (by[h.id] = by[h.id] || { h: h, n: 0 }).n++; }
+      var r = R.reach(it) || {}, lk = R.likes ? R.likes(it) : likes(it);
+      var w = 1 + (it.hot || 0) / 50 + (lk ? Math.log(1 + lk) / Math.LN10 / 2 : 0) + (i < 3 ? 0.5 : 0);
+      var txt = (it.t || '') + ' ' + (it.n || '');
+      ENT.forEach(function (e) { if (e[2].test(txt)) ents[e[0]] = (ents[e[0]] || 0) + w; });
+      var o = it.h || it.nm || ''; if (o) outlets[o] = (outlets[o] || 0) + w;
+      kinds[typeOf(it)] = (kinds[typeOf(it)] || 0) + 1;
+      if (r.views) views += r.views;
+      if (lk && lk > maxLike) maxLike = lk;
+      var ms = Date.parse(it.d || ''); if (!isNaN(ms)) { t0 = Math.min(t0, ms); t1 = Math.max(t1, ms); }
+    });
+    var stories = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.n - a.n || b.h.score - a.h.score; });
+    var dom = stories.length && stories[0].n / n >= 0.5 ? stories[0].h : null;
+    // the story's own title (one event, worded once for the whole group) names its subject better than any one headline
+    if (dom && dom.title) ENT.forEach(function (e) { if (e[2].test(dom.title)) ents[e[0]] = (ents[e[0]] || 0) + 3; });
+    var E = Object.keys(ents).sort(function (a, b) { return ents[b] - ents[a]; });
+    // a story is about the first name its own title gives, most specific first (the IRGC before Iran)
+    if (dom && dom.title) { var first = ENT.filter(function (e) { return e[2].test(dom.title); })[0]; if (first) E = [first[0]].concat(E.filter(function (e) { return e !== first[0]; })); }
+    // a person and their own country are one subject: Khamenei with Iran, Netanyahu with Israel
+    var PAIR = { Khamenei: 'Iran', 'the IRGC': 'Iran', Pezeshkian: 'Iran', Araghchi: 'Iran', Netanyahu: 'Israel', Trump: 'the US', Rubio: 'the US', Vance: 'the US', Hegseth: 'the US', Putin: 'Russia' };
+    E = E.filter(function (e) { return !E.some(function (p) { return PAIR[p] === e && E.indexOf(p) < E.indexOf(e); }); });
+    var O = Object.keys(outlets).sort(function (a, b) { return outlets[b] - outlets[a]; });
+    var span = t1 && t0 < Infinity ? (Date.now() - t0) / 3600000 : null, era;
+    if (span != null && span <= 30) era = 'today';
+    else if (span != null && span <= 24 * 8) era = 'this week';
+    else if (span != null && t0 >= Date.parse('2023-10-07')) era = 'since October 7';
+    else era = '';
+    return { n: n, dom: dom, stories: stories.map(function (s) { return s.h; }), E: E, foe: function (e) { return ENT.some(function (x) { return x[0] === e && x[3]; }); },
+      actor: function (e) { return !!e && ENT.some(function (x) { return x[0] === e && !x[4]; }); },
+      short: function (e) { var x = ENT.filter(function (y) { return y[0] === e; })[0]; return x ? x[1] : String(e).toUpperCase(); },
+      O: O, kinds: kinds, views: views, maxLike: maxLike, era: era, lead: set[0], H: headline(dom && dom.title ? { t: dom.title } : set[0]) };
   }
 
-  /* ---------------------------------------------------------------- the switch, and the panel */
+  // The room's own words, when there is no written set for the show (a mix of stories, the bank, readers' finds).
+  function roomWords(A) {
+    var live = st.kind === 'live', N = A.n, V = A.kinds.video || 0, E1 = A.E[0], E2 = A.E[1], E3 = A.E[2];
+    var single = !!A.dom || A.stories.length <= 1 || N <= 2;
+    var name = A.dom && A.dom.w && A.dom.w.name ? A.dom.w.name : E1 ? cap1(E1) : clip(A.H, 40);
+    var names = A.stories.filter(function (h) { return h.w && h.w.name; }).slice(0, 3).map(function (h) { return h.w.name; });
+    if (names.length < 2) names = A.E.slice(0, 3).map(cap1);
+    if (names.length < 2) single = true;
+    var vs = A.actor(E1) && A.actor(E2), foe = E1 && A.foe(E1), when = A.era === 'today' ? 'Today' : A.era === 'this week' ? 'This Week' : '';
+    var T = [];
+    function t(tone, aim, s) { if (s && s.indexOf('undefined') < 0) T.push({ t: noDash(s), tone: tone, aim: aim }); }
+    if (single) {
+      t('plain', 'clicks', A.H);
+      t('plain', 'clicks', E1 && E2 ? titleCase(cap1(E1) + ' and ' + E2 + ': The Latest, Source by Source') : titleCase(name + ': The Latest'));
+      if (A.H.length <= 50) t('plain', 'watch', A.H + (live ? ': Live Breakdown' : ': What We Know'));
+      t('plain', 'watch', titleCase(name + ': Every Source in One Place'));
+      t('mid', 'clicks', vs ? cap1(E1) + ' vs ' + cap1(E2) + ': What Just Happened' : titleCase(name + ': What Just Happened'));
+      t('mid', 'clicks', titleCase(name + ' Is Bigger Than It Looks'));
+      t('mid', 'watch', V >= 3 ? titleCase(name + ', Explained in ' + V + ' Clips') : titleCase(name + ': The Full Story, in Order'));
+      t('mid', 'watch', 'What ' + titleCase(name) + ' Really Means for ' + (A.actor(E2) ? cap1(E2) : 'the Region'));
+      t('bold', 'clicks', foe ? 'Is ' + cap1(E1) + ' Losing Control?' : 'Nobody Is Talking About This ' + titleCase(bare(name)) + ' Story');
+      t('bold', 'clicks', live ? A.short(E1 || name) + '?! Live Reaction' : 'Watch This Before You Believe the Headlines');
+      t('bold', 'watch', 'The ' + titleCase(bare(name)) + ' Story They Are Not Showing You');
+      t('bold', 'watch', titleCase(name) + ': The Part Nobody Is Telling You');
+    } else {
+      t('plain', 'clicks', titleCase(listOf(names)) + ': ' + (when ? when + '\'s' : 'The') + ' Biggest Stories');
+      t('plain', 'clicks', titleCase(listOf(names.slice(0, 2))) + (when ? ': ' + when + ' in ' + N + ' Sources' : ': ' + N + ' Sources'));
+      t('plain', 'watch', N + ' Stories You Need to Know: ' + titleCase(names[0]) + ' and More');
+      t('plain', 'watch', titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and Everything Else, Explained');
+      t('mid', 'clicks', E1 && E2 && E3 ? cap1(E1) + ', ' + E2 + ' and ' + E3 + ': Everything That Happened' + (when ? ' ' + when : '') : '');
+      t('mid', 'clicks', titleCase(names[0]) + ' Is Only the Start');
+      t('mid', 'watch', titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and What Comes Next');
+      t('mid', 'watch', 'How ' + titleCase(names[0]) + ' and ' + titleCase(names[1] || '') + ' Connect');
+      t('bold', 'clicks', foe ? cap1(E1) + ' Just Had a Very Bad ' + (A.era === 'today' ? 'Day' : 'Week') + '?' : 'The ' + N + ' Stories Everyone Is Fighting About');
+      t('bold', 'clicks', live ? 'LIVE: ' + titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and Your Questions' : 'Watch These ' + N + ' Clips Before You Pick a Side');
+      t('bold', 'watch', 'What the Media Will Not Connect: ' + titleCase(names[0]) + ' and ' + titleCase(names[1] || ''));
+      t('bold', 'watch', 'The Real Story Behind ' + titleCase(listOf(names.slice(0, 2))));
+    }
+    T = T.filter(function (x) { return x.t.length <= 80 && !/: $|, and |  /.test(x.t); }).map(function (x) { return { t: titleCase(x.t), tone: x.tone, aim: x.aim }; });
+    var s1 = A.short(E1 || name), s2 = vs ? A.short(E2) : '';
+    var C = [
+      { t: s2 ? s1 + ' VS ' + s2 : s1 + ' LATEST', tone: 'plain' }, { t: (N > 1 ? N + ' SOURCES' : 'THE SOURCE') + (when ? ', ' + when.toUpperCase() : ''), tone: 'plain' },
+      { t: 'WHAT JUST HAPPENED', tone: 'mid' }, { t: s1 + ': THE TRUTH', tone: 'mid' },
+      { t: foe ? s1 + ' CORNERED?' : 'WATCH THIS', tone: 'bold' }, { t: live ? 'WE\'RE LIVE' : 'IT\'S HAPPENING', tone: 'bold' }
+    ].filter(function (x) { return words(x.t) <= 4; });
+    var src = A.O.slice(0, 3), more = A.O.length - src.length;
+    var from = src.length ? ' from ' + listOf(src.concat(more > 0 ? [more + ' more'] : [])) : '';
+    var what = N + (N === 1 ? ' source' : ' sources'), onVid = V ? (V === N ? (N === 1 ? ', on video' : ', all on video') : ', ' + V + ' of them on video') : '';
+    var lead = A.H.replace(/[.?!]+$/, '');
+    var D = [
+      { t: lead + '. ' + what + from + onVid + (A.era ? ', ' + A.era : '') + '. ' + (live ? 'On this live show we go through every one of them, in order.' : 'This video goes through every one of them, in order.'), tone: 'plain' },
+      { t: titleCase(name) + ': what happened, who said what, and what it means. ' + (live ? 'Live, we' : 'We') + ' go through ' + what + from + onVid + ', each one linked below.', tone: 'mid' },
+      { t: 'Everyone is talking about ' + (single ? bare(name) : listOf(names.slice(0, 2))) + '. Here is what the ' + (V ? 'clips' : 'sources') + ' actually show' + from + ', and what the coverage leaves out. Every source is linked below, so check it yourself.', tone: 'bold' }
+    ].map(function (x) { return { t: noDash(x.t), tone: x.tone }; });
+    var introB = 'Welcome in. ' + lead + '. We have ' + what + onVid + ', and we are going through every one. ';
+    var intro = { plain: introB + 'Tell me in the chat what you make of it.', mid: introB + 'Stay to the end, because the last one changes how the first one reads. Put your take in the chat.', bold: 'Welcome in. ' + lead + '. You have seen the headlines. Now we look at the actual ' + (V ? 'footage' : 'sources') + ', ' + what + onVid + ', and you decide. Drop your take in the chat.' };
+    var hook = { plain: lead + '. Here is what the ' + (V ? 'clips' : 'sources') + ' show.', mid: lead + '. Here is what it shows, and what it does not.', bold: 'You have seen the headline. You have not seen this.' };
+    return { titles: T, covers: C, descs: D, intro: intro, hook: hook, src: 'room' };
+  }
+  // The written words of the show's main story, when the show is mostly that story and the words were written for it.
+  function writtenWords(A) {
+    var w = A.dom && A.dom.w;
+    if (!w || !Array.isArray(w.titles) || !w.titles.length) return null;
+    var ok = function (x) { return x && typeof x.t === 'string' && x.t.trim(); };
+    return { titles: w.titles.filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, aim: x.aim }; }), covers: (w.covers || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone }; }),
+      descs: (w.descs || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone }; }), intro: w.intro || {}, hook: w.hook || {}, src: 'written' };
+  }
+  function build(set) {
+    var A = analyse(set), room = roomWords(A), wr = writtenWords(A);
+    var P = wr ? { titles: wr.titles.concat(room.titles), covers: wr.covers.concat(room.covers), descs: wr.descs.concat(room.descs),
+      intro: Object.assign({}, room.intro, wr.intro), hook: Object.assign({}, room.hook, wr.hook), src: 'written' } : room;
+    ['titles', 'covers', 'descs'].forEach(function (k) { var seen = {}; P[k] = P[k].filter(function (x) { var key = x.t.toLowerCase(); if (seen[key]) return false; seen[key] = 1; return true; }); });
+    P.A = A;
+    return P;
+  }
+  // The options in the order the dials ask for: the chosen style and aim first, the written ones before the room's.
+  function ranked(list, kind) {
+    return list.map(function (x, i) { return { x: x, s: (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) - i / 1000 }; })
+      .sort(function (a, b) { return b.s - a.s; }).map(function (o) { return o.x; });
+  }
+  var PAGE = { titles: 5, covers: 4, descs: 3 };
+  function opts(kind) {
+    var all = ranked(ui.pack[kind], kind), p = PAGE[kind], o = [];
+    if (all.length <= p) return all;
+    var s = (ui.page[kind] * p) % all.length;
+    for (var i = 0; i < p; i++) o.push(all[(s + i) % all.length]);
+    return o;
+  }
+  // The pick is kept by its words, so paging through other options never loses it.
+  function chosen(kind) { var all = ranked(ui.pack[kind], kind); return all.filter(function (x) { return x.t === ui.pick[kind]; })[0] || opts(kind)[0] || null; }
+  function introText() { var src = st.kind === 'video' ? ui.pack.hook : ui.pack.intro; return src[st.tone] || src.mid || src.plain || ''; }
+  function fullDesc(d) {
+    var n = 0;
+    return d + '\n\n' + (st.kind === 'live' ? 'On the show' : 'In this video') + ':\n' + ui.set.map(function (it) { n++; return n + '. ' + it.t.replace(/\s+/g, ' ').trim() + (it.h || it.nm ? ' (' + (it.h || it.nm) + ')' : '') + '\n' + it.u; }).join('\n') +
+      '\n\nEvery source on one map: https://' + SITE_MARK;
+  }
+
+  /* ---------------------------------------------------------------- the switch, and the maker */
   var tools = root.querySelector('.ir-tools');
   if (!tools) return;
   var sw = document.createElement('label');
   sw.className = 'ir-crsw';
-  sw.innerHTML = '<input type="checkbox" role="switch" id="ir-crsw"><span><b>Creator tools</b><small>For live shows and videos</small></span>';
+  sw.innerHTML = '<input type="checkbox" role="switch" id="ir-crsw"><span><b>Creator tools</b><small>Turn what you see into a show</small></span>';
   tools.appendChild(sw);
   var panel = document.createElement('section');
-  panel.className = 'ir-cr'; panel.id = 'ir-cr'; panel.hidden = true; panel.setAttribute('aria-labelledby', 'ir-cr-h');
+  panel.className = 'ir-sm'; panel.id = 'ir-sm'; panel.hidden = true; panel.setAttribute('aria-label', 'Make a show');
   var anchor = $('ir-board');
   anchor.parentNode.insertBefore(panel, anchor);
   var msg = document.createElement('p');
@@ -236,118 +295,104 @@
   msg.addEventListener('click', function (ev) { if (ev.target.closest('[data-cr-in]')) lp(function (L) { if (L) L.members.open('auth', { opener: $('ir-crsw') }); }); });
   lp(function (L) { if (L && L.members.sub) L.members.sub(function () { if (wantOn && signedIn(L)) { wantOn = false; markCreator(L); setOn(true); panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); } }); });
 
-  function seg(key, multi) {
-    var p = plan();
-    return '<div class="ir-cr-seg" role="group" aria-label="' + esc(LAB[key]) + '"><span class="ir-cr-l">' + LAB[key] + '</span>' + OPT[key].map(function (o) {
-      var on = multi ? p[key].indexOf(o[0]) >= 0 : p[key] === o[0];
-      return '<button type="button" data-cr="' + key + '" data-v="' + esc(o[0]) + '" aria-pressed="' + on + '">' + o[1] + '</button>';
-    }).join('') + '</div>';
+  function dial(key, label, list) {
+    return '<div class="ir-sm-dial" role="radiogroup" aria-label="' + esc(label) + '"><span class="ir-sm-dl">' + esc(label) + '</span><span class="ir-sm-db">' + list.map(function (o) {
+      return '<button type="button" role="radio" data-dial="' + key + '" data-v="' + o[0] + '" aria-checked="' + (st[key] === o[0]) + '">' + esc(o[1]) + '</button>';
+    }).join('') + '</span></div>';
   }
-  var LAB = { n: 'Items', win: 'From the last', pf: 'Platform', ty: 'Type', len: 'Video length', cat: 'Category', sort: 'Order', cr: 'Credibility', shape: 'Rundown' };
-  function list(xs) { return xs.length < 2 ? xs.join('') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
-  function summary(p) {
-    var bits = [p.n + ' items', 'last ' + p.win + ' h', p.pf.length ? list(p.pf) : 'every platform'];
-    if (p.ty.length) bits.push(p.ty.map(function (t) { return OPT.ty.filter(function (o) { return o[0] === t; })[0][1].toLowerCase(); }).join(', '));
-    if (p.len) bits.push(OPT.len.filter(function (o) { return o[0] === p.len; })[0][1].toLowerCase());
-    if (p.cat.length) bits.push(p.cat.join(', '));
-    if (p.cr) bits.push('credibility ' + p.cr + '+');
-    if (p.tp.length) bits.push(p.tp.map(function (t) { return R.topics()[t]; }).join(', '));
-    bits.push(OPT.sort.filter(function (o) { return o[0] === p.sort; })[0][1].toLowerCase() + ' first');
-    return bits.join(' · ');
+  function mix(A) {
+    var k = A.kinds, b = [];
+    if (k.video) b.push(k.video + (k.video === 1 ? ' video' : ' videos'));
+    if (k.post || k.image) b.push((k.post + k.image) + ((k.post + k.image) === 1 ? ' post' : ' posts'));
+    if (k.article) b.push(k.article + (k.article === 1 ? ' article' : ' articles'));
+    if (k.doc) b.push(k.doc + (k.doc === 1 ? ' document' : ' documents'));
+    return b.join(', ');
   }
-  var openPlan = false, openRun = {};
+  function optHtml(kind) {
+    var list = opts(kind), cur = (chosen(kind) || {}).t, many = ui.pack[kind].length > PAGE[kind];
+    if (!list.length) return '<p class="ir-sm-none">Nothing to offer here yet.</p>';
+    return '<ul class="ir-sm-opts" role="radiogroup" aria-label="' + (kind === 'titles' ? 'Titles' : kind === 'covers' ? 'Cover text' : 'Descriptions') + '">' + list.map(function (x, i) {
+      var meta = kind === 'titles' ? x.t.length + ' characters' + (x.t.length > 70 ? ', long for YouTube' : '') : kind === 'covers' ? words(x.t) + (words(x.t) === 1 ? ' word' : ' words') : x.t.length + ' characters';
+      return '<li class="ir-sm-o ir-sm-' + kind + (x.t === cur ? ' on' : '') + '"><button type="button" role="radio" class="ir-sm-pick" data-pick="' + kind + '" data-i="' + i + '" aria-checked="' + (x.t === cur) + '"><span class="ir-sm-t">' + esc(x.t) + '</span><small>' + meta + '</small></button>' +
+        '<button type="button" class="ir-sm-cp" data-cp="' + kind + '" data-i="' + i + '" aria-label="Copy this one">' + ICON.copy + '</button></li>';
+    }).join('') + '</ul>' + (many ? '<button type="button" class="ir-sm-more" data-mk="more">' + ICON.redo + '<span>Other options</span></button>' : '');
+  }
+  function runHtml() {
+    return '<ol class="ir-sm-run">' + ui.set.map(function (it, i) {
+      var r = R.reach(it) || {}, lk = R.likes ? R.likes(it) : null, bits = [R.when(it), it.h || it.nm || it.src];
+      if (lk != null) bits.push(R.fmt(lk) + ' likes'); else if (r.views) bits.push(R.fmt(r.views) + ' views');
+      return '<li><span class="num">' + (i + 1) + '</span>' + R.mark(it) + '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + esc(it.t) + '</a><small>' + esc(bits.filter(Boolean).join(' · ')) + '</small></li>';
+    }).join('') + '</ol>';
+  }
   function draw() {
     if (panel.hidden) return;
-    var p = plan(), res = recommend(), video = st.kind === 'video', topics = R.topics();
-    var tc = {}; res.pool.forEach(function (it) { (it.tp || []).forEach(function (t) { tc[t] = (tc[t] || 0) + 1; }); });
-    var tps = Object.keys(tc).map(Number).sort(function (a, b) { return tc[b] - tc[a]; }).concat(p.tp.filter(function (t) { return !tc[t]; }));
-    var html = '<div class="ir-cr-h"><h2 id="ir-cr-h">Plan a ' + (video ? 'video' : 'show') + '</h2>' +
-      '<div class="ir-cr-kind" role="tablist" aria-label="What you are making"><button type="button" role="tab" data-kind="live" aria-selected="' + !video + '">Live show</button><button type="button" role="tab" data-kind="video" aria-selected="' + video + '">Edited video</button></div></div>' +
-      '<div class="ir-cr-plan"><p class="ir-cr-sum"><span>' + esc(summary(p)) + '</span><button type="button" class="ir-cr-adj" data-cr-plan aria-expanded="' + openPlan + '">' + (openPlan ? 'Done' : 'Change') + '</button></p>' +
-      '<div class="ir-cr-ctl" id="ir-cr-ctl"' + (openPlan ? '' : ' hidden') + '>' + seg('n') + seg('win') + seg('pf', 1) + seg('ty', 1) + seg('len') + seg('cat', 1) + seg('sort') + seg('cr') + seg('shape') +
-      (tps.length ? '<div class="ir-cr-seg ir-cr-tps" role="group" aria-label="Topics"><span class="ir-cr-l">Topics</span>' + tps.map(function (t) { return '<button type="button" data-cr="tp" data-v="' + t + '" aria-pressed="' + (p.tp.indexOf(t) >= 0) + '">' + esc(topics[t]) + (tc[t] ? ' <i>' + tc[t] + '</i>' : '') + '</button>'; }).join('') + '</div>' : '') +
-      '<p class="ir-cr-fine">' + res.pool.length + ' items fit this plan. Credibility is the source\'s, from the room\'s own table; a video\'s length is known for posts on X and for Shorts.' + (st.kind === 'live' ? ' Live shows start on X and YouTube only: things you can play on screen.' : '') + ' <button type="button" data-cr-reset>Back to the usual plan</button></p></div></div>';
-    if (!res.shows.length) {
-      html += '<p class="ir-cr-none">Nothing in the room fits this plan right now. Widen the hours, or let go of a platform or a type.</p>';
-    } else {
-      html += '<ol class="ir-cr-shows">' + res.shows.map(function (sh, i) { return showCard(sh, i, video); }).join('') + '</ol>';
-    }
-    panel.innerHTML = html;
-    panel._shows = res.shows;
+    var all = R.shown(), set = all.slice(0, MAXN), n = all.length;
+    var sig = set.map(function (it) { return R.code(it); }).join('.') + '|' + st.kind;
+    if (sig !== ui.sig) { ui.sig = sig; ui.set = set; ui.pick = { titles: '', covers: '', descs: '' }; ui.page = { titles: 0, covers: 0, descs: 0 }; ui.pack = set.length ? build(set) : null; }
+    var A = ui.pack && ui.pack.A;
+    var bar = '<div class="ir-sm-bar"><span class="ir-sm-ic" aria-hidden="true">' + ICON.play + '</span><p class="ir-sm-l"><b>' + (n ? 'Make a show from these ' + n : 'Your filters leave nothing') + '</b><span>' +
+      (n ? esc(mix(A)) + (n > MAXN ? ' · the first ' + MAXN + ' in your order go in' : '') : 'Loosen a filter and the show fills again') + '</span></p>' +
+      (n ? '<button type="button" class="ir-sm-go" data-mk="toggle" aria-expanded="' + ui.open + '">' + (ui.open ? 'Close' : 'Make the show') + '</button>' : '') + '</div>';
+    if (!n || !ui.open) { panel.innerHTML = bar; panel.classList.toggle('open', false); return; }
+    var tabs = [['titles', 'Titles'], ['covers', 'Cover text'], ['descs', 'Description'], ['run', 'Run order ' + set.length]];
+    var body = '<div class="ir-sm-body"><p class="ir-sm-from"><span>Built from</span> ' + esc(R.filterLine ? R.filterLine() : '') + '</p>' +
+      '<div class="ir-sm-dials">' + dial('kind', 'Making', KINDS2) + dial('tone', 'Style', TONES) + dial('aim', 'Aim for', AIMS) + '</div>' +
+      '<div class="ir-sm-tabs" role="tablist">' + tabs.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + esc(t[1]) + '</button>'; }).join('') + '</div>' +
+      '<div class="ir-sm-pane" role="tabpanel">' + (ui.tab === 'run' ? runHtml() : optHtml(ui.tab)) + '</div>' +
+      '<div class="ir-sm-acts"><a class="ir-sm-show" href="' + esc(showUrl()) + '" target="_blank" rel="noopener">' + ICON.play + '<span>Open the show screen</span></a>' +
+      '<button type="button" class="ir-sm-copy" data-mk="copy">' + ICON.copy + '<span>Copy the package</span></button></div>' +
+      '<p class="ir-sm-pk"><b>Your pick:</b> ' + esc((chosen('titles') || {}).t || '') + ' <span>· ' + esc((chosen('covers') || {}).t || '') + '</span></p></div>';
+    panel.innerHTML = bar + body;
+    panel.classList.toggle('open', true);
   }
-  function showCard(sh, i, video) {
-    var s = sh.s, items = sh.run.filter(function (r) { return r.it; }), place = s.lead ? R.where(s.lead) : '';
-    var meta = '<span class="ir-cr-hot">' + ICON.flame + '<b class="num">' + (s.hot || 0) + '</b> Hot</span><span>' + items.length + (items.length === 1 ? ' source' : ' sources') + '</span>' + (place && place !== 'No single place' ? '<span>' + esc(place) + '</span>' : '');
-    var open = !!openRun[s.id];
-    return '<li class="ir-cr-show"><div class="ir-cr-s1"><span class="ir-cr-n num" aria-hidden="true">' + (i + 1) + '</span><div class="ir-cr-st">' +
-      (s.wt ? '<span class="ir-cr-wt">Working title</span>' : '') + '<h3>' + esc(s.title) + '</h3><p class="ir-cr-m">' + meta + '</p></div></div>' +
-      '<p class="ir-cr-d">' + esc(s.desc) + '</p>' +
-      '<div class="ir-cr-act"><a class="ir-cr-go" href="' + esc(showUrl(sh)) + '" target="_blank" rel="noopener">' + ICON.play + '<span>Open the show screen</span></a>' +
-      '<button type="button" class="ir-cr-b" data-run="' + esc(s.id) + '" aria-expanded="' + open + '">' + (open ? 'Hide the rundown' : 'The intro and rundown') + '</button>' +
-      '<button type="button" class="ir-cr-b" data-copy="' + i + '">' + ICON.copy + '<span>Copy all</span></button></div>' +
-      (open ? runHtml(sh, video) : '') + '</li>';
+  function showUrl() {
+    var t = chosen('titles'), c = chosen('covers'), A = ui.pack.A;
+    return '?show=' + ui.set.map(function (it) { return 'on~' + R.code(it); }).join('.') + '&kind=' + st.kind + '&t=' + encodeURIComponent((t ? t.t : A.H).slice(0, 100)) +
+      (c ? '&c=' + encodeURIComponent(c.t.slice(0, 40)) : '') + '&i=' + encodeURIComponent(introText().slice(0, 420)) + (A.dom && A.dom.s ? '&st=' + encodeURIComponent(A.dom.id) : '');
   }
-  function rowMeta(it) {
-    var r = R.reach(it), bits = [R.when(it), it.h || it.src];
-    if (r && r.likes != null) bits.push(r.likes.toLocaleString('en-US') + ' likes');
-    else if (it.lk != null) bits.push(it.lk.toLocaleString('en-US') + ' likes');
-    if (crOf(it) != null) bits.push('credibility ' + crOf(it));
-    return bits.filter(Boolean).join(' · ');
-  }
-  function runHtml(sh, video) {
-    var s = sh.s, n = 0;
-    return '<div class="ir-cr-run"><div class="ir-cr-intro"><p class="ir-cr-il">' + (video ? 'Your opening hook' : 'Your 30-second intro') + '<small>Read it out to open</small></p><p class="ir-cr-it">' + esc(video ? s.hook : s.intro) + '</p></div>' +
-      '<ol class="ir-cr-rows">' + sh.run.map(function (r) {
-        if (!r.it) return '<li class="ir-cr-row is-gap"><span class="ir-cr-role">' + ROLE.other + '</span><span class="ir-cr-rt">Nothing in the room shows it yet. <a href="' + esc(searchUrl(r.search)) + '" target="_blank" rel="noopener">' + ICON.search + 'Search X for it</a></span></li>';
-        n++;
-        var role = r.role === 'rank' ? (r.on ? 'On the story' : 'Related') : ROLE[r.role];
-        return '<li class="ir-cr-row' + (r.on ? '' : ' is-rel') + '"><span class="ir-cr-role"><b class="num">' + n + '</b>' + esc(role) + '</span>' + R.mark(it(r)) +
-          '<span class="ir-cr-rt"><a href="' + esc(r.it.u) + '" target="_blank" rel="noopener">' + esc(r.it.t) + '</a><small>' + esc(rowMeta(r.it)) + '</small></span></li>';
-      }).join('') + '</ol></div>';
-  }
-  function it(r) { return r.it; }
-  function asText(sh) {
-    var s = sh.s, video = st.kind === 'video', n = 0;
-    return [s.title, '', s.desc, '', (video ? 'Opening hook: ' : 'Intro (30 seconds): ') + (video ? s.hook : s.intro), '', 'Rundown:'].concat(sh.run.map(function (r) {
-      if (!r.it) return '-  ' + ROLE.other + ': nothing in the room yet. Search: ' + searchUrl(r.search);
-      n++;
-      return n + '. ' + (r.role === 'rank' ? (r.on ? '[on the story] ' : '[related] ') : '[' + ROLE[r.role] + '] ') + r.it.t + '\n   ' + rowMeta(r.it) + '\n   ' + r.it.u;
-    })).concat(['', 'Show screen: ' + location.origin + location.pathname + showUrl(sh)]).join('\n');
+  function packageText() {
+    var t = chosen('titles'), c = chosen('covers'), d = chosen('descs'), n = 0;
+    return ['TITLE', t ? t.t : '', '', 'COVER TEXT', c ? c.t : '', '', 'DESCRIPTION', fullDesc(d ? d.t : ''), '', st.kind === 'video' ? 'OPENING HOOK' : 'INTRO, TO READ OUT', introText(), '',
+      'RUN ORDER'].concat(ui.set.map(function (it) { n++; return n + '. ' + it.t.replace(/\s+/g, ' ').trim() + '\n   ' + it.u; })).concat(['', 'SHOW SCREEN', location.origin + location.pathname + showUrl()]).join('\n');
   }
   function copyText(t, done, fail) {
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fail); else fail();
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { fallback(t) ? done() : fail(); }); else if (fallback(t)) done(); else fail();
+  }
+  function fallback(t) {
+    try { var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e) { return false; }
+  }
+  function flash(b, txt) {
+    var s = b.querySelector('span'), was = s ? s.textContent : '';
+    b.classList.add('done'); if (s) s.textContent = txt; else b.setAttribute('aria-label', txt);
+    setTimeout(function () { b.classList.remove('done'); if (s) s.textContent = was; else b.setAttribute('aria-label', 'Copy this one'); }, 1800);
   }
   panel.addEventListener('click', function (ev) {
-    var b = ev.target.closest('button'); if (!b) return;
-    var p = plan();
-    if (b.hasAttribute('data-kind')) { st.kind = b.getAttribute('data-kind'); save(); draw(); return; }
-    if (b.hasAttribute('data-cr-plan')) { openPlan = !openPlan; draw(); return; }
-    if (b.hasAttribute('data-cr-reset')) { st.plan[st.kind] = copy(DEF[st.kind]); save(); draw(); return; }
-    if (b.hasAttribute('data-run')) { var id = b.getAttribute('data-run'); openRun[id] = !openRun[id]; draw(); return; }
-    if (b.hasAttribute('data-copy')) {
-      var sh = panel._shows[+b.getAttribute('data-copy')]; if (!sh) return;
-      copyText(asText(sh), function () { b.querySelector('span').textContent = 'Copied'; setTimeout(function () { var s2 = b.querySelector('span'); if (s2) s2.textContent = 'Copy all'; }, 2200); },
-        function () { b.querySelector('span').textContent = 'Copying is blocked here'; });
-      return;
+    var b = ev.target.closest('button'); if (!b || !panel.contains(b)) return;
+    var mk = b.getAttribute('data-mk');
+    if (mk === 'toggle') { ui.open = !ui.open; draw(); if (ui.open) { var bd = panel.querySelector('.ir-sm-body'); if (bd && bd.getBoundingClientRect().top > innerHeight - 120) panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }
+    if (mk === 'more') { ui.page[ui.tab]++; draw(); return; }
+    if (mk === 'copy') { copyText(packageText(), function () { flash(b, 'Copied: title, cover, description, intro, links'); }, function () { flash(b, 'Copying is blocked here'); }); return; }
+    if (b.hasAttribute('data-tab')) { ui.tab = b.getAttribute('data-tab'); draw(); var tb = panel.querySelector('[data-tab="' + ui.tab + '"]'); if (tb) tb.focus(); return; }
+    if (b.hasAttribute('data-dial')) {
+      var k = b.getAttribute('data-dial'); st[k] = b.getAttribute('data-v'); save();
+      if (k === 'kind') ui.sig = '';          // a live show and a video get different words (intro or hook, "live" titles)
+      else { ui.pick = { titles: '', covers: '', descs: '' }; ui.page = { titles: 0, covers: 0, descs: 0 }; }
+      draw(); var db = panel.querySelector('[data-dial="' + k + '"][aria-checked="true"]'); if (db) db.focus(); return;
     }
-    var k = b.getAttribute('data-cr'); if (!k) return;
-    var raw = b.getAttribute('data-v'), v = typeof DEF.live[k] === 'number' || k === 'tp' ? +raw : raw;
-    if (Array.isArray(p[k])) { var at = p[k].indexOf(v); if (at >= 0) p[k].splice(at, 1); else p[k].push(v); }
-    else p[k] = v;
-    save(); draw();
+    if (b.hasAttribute('data-pick')) { var po = opts(b.getAttribute('data-pick'))[+b.getAttribute('data-i')]; if (po) ui.pick[b.getAttribute('data-pick')] = po.t; draw(); var pb = panel.querySelector('[data-pick="' + b.getAttribute('data-pick') + '"][data-i="' + b.getAttribute('data-i') + '"]'); if (pb) pb.focus(); return; }
+    if (b.hasAttribute('data-cp')) {
+      var o = opts(b.getAttribute('data-cp'))[+b.getAttribute('data-i')]; if (!o) return;
+      var txt = b.getAttribute('data-cp') === 'descs' ? fullDesc(o.t) : o.t;
+      copyText(txt, function () { flash(b, 'Copied'); }, function () { flash(b, 'Copying is blocked here'); });
+    }
   });
+  if (R.onRender) R.onRender(draw);
   if (st.on) setOn(true);
 
   /* ---------------------------------------------------------------- the show screen (?show=) */
   var q = new URLSearchParams(location.search);
-  function loadPacks() {
-    var u = root.getAttribute('data-packs');
-    return u ? fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null);
-  }
-  loadPacks().then(function (d) {
-    PACKS = d && Array.isArray(d.stories) ? d : null;
-    if (q.get('show')) showScreen(); else draw();
-  });
+  PACKS = R.packs ? R.packs() : null;          // intel.js has already read data/show-packs.json
+  if (q.get('show')) showScreen(); else draw();
 
   function showScreen() {
     var codes = String(q.get('show') || '').split('.').filter(Boolean).slice(0, 40);
@@ -355,8 +400,9 @@
     var story = null, sid = q.get('st') || '';
     if (PACKS) PACKS.stories.forEach(function (s) { if (s.id === sid) story = s; });
     var video = q.get('kind') === 'video';
-    var title = (story && story.title) || q.get('t') || 'The Intel Room';
-    var intro = story ? (video ? story.hook : story.intro) : '';
+    var title = q.get('t') || (story && story.title) || 'The Intel Room';
+    var intro = q.get('i') || (story ? (video ? story.hook : story.intro) : '');
+    var cover = (q.get('c') || '').slice(0, 40);
     var desc = story ? story.desc : '';
     var at = Math.max(0, Math.min(rows.length, +q.get('n') || 0));          // 0 is the intro card
     document.documentElement.classList.add('ir-sh-on');
@@ -399,7 +445,7 @@
       var el = $('ir-sh-stage');
       el.classList.remove('one-title');          // set again by frame() when the item's own card already carries its headline
       if (at === 0) {
-        el.innerHTML = '<div class="ir-sh-open"><p class="ir-sh-k">' + (video ? 'Today\'s video' : 'On the show today') + '</p><h1>' + esc(title) + '</h1>' + (desc ? '<p class="ir-sh-d">' + esc(firstSentence(desc)) + '</p>' : '') +
+        el.innerHTML = '<div class="ir-sh-open"><p class="ir-sh-k">' + esc(cover || (video ? 'Today\'s video' : 'On the show today')) + '</p><h1>' + esc(title) + '</h1>' + (desc ? '<p class="ir-sh-d">' + esc(firstSentence(desc)) + '</p>' : '') +
           '<ol class="ir-sh-agenda">' + rows.slice(0, 6).map(function (r) { return '<li>' + R.mark(r.it) + '<span>' + esc(roleName(r) ? roleName(r) + ': ' : '') + esc(cut(r.it.t, 80)) + '</span></li>'; }).join('') + '</ol></div>';
         return;
       }
