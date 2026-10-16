@@ -1752,11 +1752,118 @@ function shape(id, d) {
     mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : tt('A reader'), status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), my: 0, reported: false,
     ms: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : Date.now() };
 }
+/* ------------------------------------------------------------------ the saved copy of every live post
+   16 October 2026: the list of all discussions (the front page's Discussion, and talk/) read every live post on the site
+   each time it opened, about 280 reads on libertypolitics.com, and Firestore's free 50,000 reads a day ran out the day
+   before. build/listen.py keeps a copy of every live post in config/feed (written with the site's own key; anyone may
+   read it, no page may write it), and this browser keeps the last whole list it read. Before either is used, one count
+   of what is live, with the sums of its likes, dislikes and reports, and one question for the posts newer than the copy
+   must make the copy exactly the database again: then the list costs three or four reads and shows the same posts with
+   the same numbers. When they do not agree (a like or a report since the copy, a post taken off), the list is read in
+   full as before. A copy older than SNAP_TRUST is never used. */
+const SNAP_TRUST = 8 * 3600000, SNAP_KEY = (EMU ? 'lp-emu-feed:' : 'lp-feed:') + ((EMU ? DEMO : CFG && CFG.fb) || {}).projectId;
+const LIVE_W = { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } };
+function restDocUrl(path) { return (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/' + path + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)); }
+function fpOf(rows) {
+  const num = v => (typeof v === 'number' ? v : 0);
+  return rows.reduce((f, p) => ({ n: f.n + 1, u: f.u + num(p.ups), d: f.d + num(p.downs), r: f.r + num(p.nrep) }), { n: 0, u: 0, d: 0, r: 0 });
+}
+const sameFp = (a, b) => !!a && !!b && a.n === b.n && a.u === b.u && a.d === b.d && a.r === b.r;
+/* A post as the database sends it without Firebase's code, in the copy's shape: its fields, its id, and ms for when. */
+function restVal(v) {
+  if (!v) return undefined;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return Date.parse(v.timestampValue);
+  return undefined;
+}
+function restRow(doc) {
+  const o = { id: doc.name.split('/').pop() };
+  Object.keys(doc.fields || {}).forEach(k => { const x = restVal(doc.fields[k]); if (x !== undefined) o[k === 'createdAt' ? 'ms' : k] = x; });
+  return o;
+}
+/* The same row from Firebase's own answer (a whole list read by fetchPosts), for the copy kept in this browser. */
+function rawRow(id, d) {
+  const o = Object.assign({ id }, d);
+  delete o.createdAt;
+  o.ms = d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : 0;
+  return o;
+}
+function shapeRow(r) { return shape(r.id, Object.assign({}, r, { createdAt: r.ms ? { toMillis: () => r.ms } : null })); }
+async function liveFp() {
+  const sum = (alias, f) => ({ alias, sum: { field: { fieldPath: f } } });
+  const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'posts' }], where: LIVE_W, limit: 1000 },
+    aggregations: [{ alias: 'n', count: {} }, sum('u', 'ups'), sum('d', 'downs'), sum('r', 'nrep')] } };
+  const res = await within(15000, fetch(restBase('runAggregationQuery'), { method: 'POST', body: JSON.stringify(q) }));
+  if (!res.ok) throw httpErr(res);
+  const got = await res.json(), f = ((((Array.isArray(got) ? got[0] : got) || {}).result) || {}).aggregateFields;
+  if (!f || !f.n) return null;
+  const num = v => (v ? Number(v.integerValue != null ? v.integerValue : v.doubleValue || 0) : 0);
+  const fp = { n: num(f.n), u: num(f.u), d: num(f.d), r: num(f.r) };
+  return fp.n < 1000 ? fp : null;      // a count that reached the limit may not have seen every post
+}
+async function snapServer() {
+  const get = async path => { const res = await within(15000, fetch(restDocUrl(path))); if (!res.ok) throw httpErr(res); return res.json(); };
+  const f = (await get('config/feed')).fields || {};
+  const at = Date.parse((f.at && f.at.timestampValue) || ''), parts = Number((f.parts && f.parts.integerValue) || 1);
+  if (!(Date.now() - at < SNAP_TRUST) || !(parts >= 1 && parts < 100) || !f.posts) return null;
+  let rows = JSON.parse(f.posts.stringValue);
+  for (let i = 1; i < parts; i++) rows = rows.concat(JSON.parse((await get('config/feed-' + i)).fields.posts.stringValue));
+  return Array.isArray(rows) ? { at, rows } : null;
+}
+function snapLocal() {
+  const j = store.get(SNAP_KEY);
+  return j && Array.isArray(j.rows) && typeof j.at === 'number' && Date.now() - j.at < SNAP_TRUST ? j : null;
+}
+/* The ids in the order the database lists posts when a question names no order (by id), for the parts below that
+   copy what the database would have answered. */
+const byId = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+/* One proof shared by the parts of a page that only count or glance (the counters, the most liked post, the latest
+   posts), for a minute: a page that opens with five of them asks once. The discussion itself always proves afresh. */
+let SNAPP = null, SNAPT = 0;
+function snapOnce() {
+  if (!SNAPP || Date.now() - SNAPT > 60000) { SNAPT = Date.now(); SNAPP = snapFeed().catch(() => null); }
+  return SNAPP;
+}
+/* Every live post when a copy can be proven to be exactly the database now, else null (and the list is read in full). */
+async function snapFeed() {
+  if (hook('lpnosnap') || hook('lpnoindex') || hook('lpbreak')) return null;      // lpnoindex: the test of the list without its index reads the database
+  const [live, server] = await Promise.all([liveFp(), snapServer().catch(() => null)]);
+  if (!live) return null;
+  const bases = [server, snapLocal()].filter(Boolean).sort((a, b) => b.at - a.at);
+  for (const b of bases) {
+    /* The posts made since the newest one in the copy (the newest itself comes back too: the copy keeps milliseconds). */
+    const since = Math.max(0, ...b.rows.map(r => r.ms || 0));
+    const q = { structuredQuery: { from: [{ collectionId: 'posts' }], limit: 300, orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+      where: { compositeFilter: { op: 'AND', filters: [LIVE_W, { fieldFilter: { field: { fieldPath: 'createdAt' }, op: 'GREATER_THAN_OR_EQUAL', value: { timestampValue: new Date(since).toISOString() } } }] } } } };
+    const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
+    if (!res.ok) throw httpErr(res);
+    const got = await res.json(), fresh = (Array.isArray(got) ? got : []).filter(r => r && r.document).map(r => restRow(r.document));
+    if (fresh.length >= 300) return null;
+    const ids = new Set(fresh.map(r => r.id)), rows = b.rows.filter(r => !ids.has(r.id)).concat(fresh);
+    if (sameFp(fpOf(rows), live)) return rows;
+  }
+  return null;
+}
 async function fetchPosts() {
   const { F, db } = await fb(), P = F.collection(db, 'posts'), out = new Map();
   const team = teamReady();      // asked for beside the posts, and waited for before a post is drawn
-  const take = snap => snap.docs.forEach(d => out.set(d.id, shape(d.id, d.data())));
-  if (T.feed) {
+  const raw = [];      // the whole list as read, kept in this browser when it is every live post (snapFeed)
+  const take = snap => snap.docs.forEach(d => { out.set(d.id, shape(d.id, d.data())); if (T.feed) raw.push(rawRow(d.id, d.data())); });
+  let all = null;
+  try { all = await snapFeed(); } catch (x) { all = null; }
+  if (all && !T.feed) {
+    /* What the database would have answered below: up to 200 live posts about this page, in the order of their ids. */
+    all.filter(r => r.status === 'live' && r.about === T.key).sort(byId).slice(0, 200).forEach(r => out.set(r.id, shapeRow(r)));
+    if (user) take(await F.getDocs(F.query(P, F.where('about', '==', T.key), F.where('uid', '==', user.uid), F.limit(50))));
+  } else if (all) {
+    /* What the database would have answered below: the newest 300, then up to 20 older posts that one of them answers. */
+    const live = all.filter(r => r.status === 'live').sort((a, b) => (b.ms || 0) - (a.ms || 0)), idx = new Map(live.map(r => [r.id, r]));
+    live.slice(0, 300).forEach(r => out.set(r.id, shapeRow(r)));
+    [...new Set([...out.values()].map(p => p.parent).filter(id => id && !out.has(id)))].slice(0, 20).forEach(id => { const r = idx.get(id); if (r) out.set(id, shapeRow(r)); });
+  } else if (T.feed) {
     try {
       if (hook('lpnoindex')) throw { code: 'failed-precondition' };
       /* 300, the most the rules let any list ask for. It was 60 until 8 October 2026: with 110 posts on the site
@@ -1768,6 +1875,8 @@ async function fetchPosts() {
       /* The index for the ordered question is not there yet: ask without an order and sort here. */
       take(await F.getDocs(F.query(P, F.where('status', '==', 'live'), F.limit(300))));
     }
+    /* Fewer than 300 is every live post: kept in this browser, so the next look can be proven with a count (snapFeed). */
+    if (raw.length && raw.length < 300) store.set(SNAP_KEY, { at: Date.now(), rows: raw });
     /* A reply is drawn under the post it answers (ordered, hang). The newest posts can hold a reply whose
        post is older than all of them: that post is asked for by its id, so an answer is never left alone. */
     const lost = [...new Set([...out.values()].map(p => p.parent).filter(id => id && !out.has(id)))].slice(0, 20);
@@ -1973,11 +2082,17 @@ function initPeek() {
   const best = async () => {
     if (asked || !near || !(T.peeked > 0) || T.feed || !top) return;
     asked = true;
-    const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 8 } };
-    const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
-    if (!res.ok) return;
-    const got = await res.json();
-    const p = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && p.text)
+    const all = await snapOnce();
+    let eight;
+    if (all) eight = all.filter(r => r.status === 'live' && r.about === T.key).sort(byId).slice(0, 8).map(shapeRow);
+    else {
+      const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 8 } };
+      const res = await within(15000, fetch(restBase('runQuery'), { method: 'POST', body: JSON.stringify(q) }));
+      if (!res.ok) return;
+      const got = await res.json();
+      eight = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document));
+    }
+    const p = eight.filter(p => p.status === 'live' && !p.parent && p.text)
       .sort((a, b) => (b.score - a.score) || (b.ms - a.ms))[0];
     if (!p) return;
     const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
@@ -2021,6 +2136,12 @@ function talkCounts(keys) {
     const part = want.slice(i, i + 30);
     const ask = (async () => {
       if (OFF || hook('lpbreak')) throw { code: 'lp/off' };
+      const all = await snapOnce();
+      if (all) {
+        const rows = all.filter(r => r.status === 'live' && part.includes(r.about)).sort(byId).slice(0, 300), by = new Map(part.map(k => [k, { n: 0, who: new Set() }]));
+        rows.forEach(r => { const b = by.get(r.about); b.n++; if (r.uid) b.who.add(r.uid); });
+        return { by, full: rows.length >= 300 };
+      }
       const q = { structuredQuery: { select: { fields: [{ fieldPath: 'about' }, { fieldPath: 'uid' }] }, from: [{ collectionId: 'posts' }],
         where: { compositeFilter: { op: 'AND', filters: [
           { fieldFilter: { field: { fieldPath: 'about' }, op: 'IN', value: { arrayValue: { values: part.map(k => ({ stringValue: k })) } } } },
@@ -2841,17 +2962,27 @@ function initLatest() {
 }
 async function latest(sec) {
   if (hook('lpbreak')) return;
+  const all = await snapOnce();
+  const newest = all ? all.filter(r => r.status === 'live').sort((a, b) => (b.ms || 0) - (a.ms || 0)).slice(0, 30).map(shapeRow) : await latestAsk();
+  if (!newest) return;
+  /* One post a subject (13 October 2026: the three newest were three answers to the same question, so the front page
+     printed one title three times). The newest post on each page, or on each question of the day, and then the three
+     newest of those. The discussions themselves list every post, as before. */
+  const seen = new Set(), top = newest.filter(p => p.status === 'live' && !p.parent && pathOf(p.about) != null)
+    .filter(p => { const k = p.about + '|' + p.subject; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 3);
+  latestDraw(sec, top);
+}
+/* The 30 newest live posts, asked of the database (when no proven copy is to hand). */
+async function latestAsk() {
   const base = (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents:runQuery';
   const q = { structuredQuery: { from: [{ collectionId: 'posts' }], where: { fieldFilter: { field: { fieldPath: 'status' }, op: 'EQUAL', value: { stringValue: 'live' } } },
     orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }], limit: 30 } };
   const res = await within(15000, fetch(base + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)), { method: 'POST', body: JSON.stringify(q) }));
-  if (!res.ok) return;
+  if (!res.ok) return null;
   const got = await res.json();
-  /* One post a subject (13 October 2026: the three newest were three answers to the same question, so the front page
-     printed one title three times). The newest post on each page, or on each question of the day, and then the three
-     newest of those. The discussions themselves list every post, as before. */
-  const seen = new Set(), top = (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document)).filter(p => p.status === 'live' && !p.parent && pathOf(p.about) != null)
-    .filter(p => { const k = p.about + '|' + p.subject; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 3);
+  return (Array.isArray(got) ? got : []).filter(r => r.document).map(r => fromRest(r.document));
+}
+function latestDraw(sec, top) {
   if (top.length < 3) return;
   const wrap = sec.querySelector('.wrap') || sec, none = $('latest-none'), list = el('ul', 'votes latest-list');
   top.forEach(p => {
