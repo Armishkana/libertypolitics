@@ -120,6 +120,17 @@ function inRoom() {
   roomAsk = { uid, p };
   return p;
 }
+/* How many brand pages (brand/) name this account. Asked of the rules, once per account per page; 0 when refused. */
+let brandAsk = null;
+function brandPages() {
+  if (!user) return Promise.resolve(0);
+  const uid = user.uid;
+  if (brandAsk && brandAsk.uid === uid) return brandAsk.p;
+  const p = fb().then(({ F, db }) => within(8000, F.getDocs(F.query(F.collection(db, 'brandpages'), F.where('members', 'array-contains', uid), F.limit(20)))))
+    .then(s => s.size, () => 0);
+  brandAsk = { uid, p };
+  return p;
+}
 /* The owner may take his own name from the first moment, before any admin doc can exist for his account.
    Only a hash of his email is on the page; the rules hold the address itself (isOwner() in firestore.rules). */
 const OWNER_HASH = 'e810e7aabce15ef8fccbd2e2fcad55309815f35c24e5d95859774d664ffeca24';
@@ -1316,6 +1327,11 @@ function viewAccount() {
     /* The way to the team page, for someone on the team and nobody else. */
     inRoom().then(ok => {
       if (ok && sheetView === 'account' && form.isConnected) form.before(el('a', 'btn btn-line sheet-team', tt('Team page: brand files and requests'), { href: root + BASE + 'team/' }));
+    });
+    /* The way to a brand page (brand/, brandpage.js): only for an account a page names in its members list, which the
+       rules check (firestore.rules, brandpages). Armin is on every page; a team member sees their own. */
+    brandPages().then(n => {
+      if (n && sheetView === 'account' && form.isConnected) form.before(el('a', 'btn btn-line sheet-team', n > 1 ? tt('Brand pages') : tt('Your brand page'), { href: root + BASE + 'brand/' }));
     });
     const out = btn('btn btn-line', tt('Sign out'), async () => {
       out.disabled = true;

@@ -165,7 +165,7 @@
       if (A.H.length <= 50) t('plain', 'watch', A.H + (live ? ': Live Breakdown' : ': What We Know'));
       t('plain', 'watch', titleCase(name + ': Every Source in One Place'));
       t('mid', 'clicks', vs ? cap1(E1) + ' vs ' + cap1(E2) + ': What Just Happened' : titleCase(name + ': What Just Happened'));
-      t('mid', 'clicks', titleCase(name + ' Is Bigger Than It Looks'));
+      t('mid', 'clicks', 'Why ' + titleCase(name) + ' Matters More Than It Looks');
       t('mid', 'watch', V >= 3 ? titleCase(name + ', Explained in ' + V + ' Clips') : titleCase(name + ': The Full Story, in Order'));
       t('mid', 'watch', 'What ' + titleCase(name) + ' Really Means for ' + (A.actor(E2) ? cap1(E2) : 'the Region'));
       t('bold', 'clicks', foe ? 'Is ' + cap1(E1) + ' Losing Control?' : 'Nobody Is Talking About This ' + titleCase(bare(name)) + ' Story');
@@ -212,8 +212,8 @@
     var w = A.dom && A.dom.w;
     if (!w || !Array.isArray(w.titles) || !w.titles.length) return null;
     var ok = function (x) { return x && typeof x.t === 'string' && x.t.trim(); };
-    return { titles: w.titles.filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, aim: x.aim }; }), covers: (w.covers || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone }; }),
-      descs: (w.descs || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone }; }), intro: w.intro || {}, hook: w.hook || {}, src: 'written' };
+    return { titles: w.titles.filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, aim: x.aim, w: 1 }; }), covers: (w.covers || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, w: 1 }; }),
+      descs: (w.descs || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, w: 1 }; }), intro: w.intro || {}, hook: w.hook || {}, src: 'written' };
   }
   function build(set) {
     var A = analyse(set), room = roomWords(A), wr = writtenWords(A);
@@ -225,7 +225,7 @@
   }
   // The options in the order the dials ask for: the chosen style and aim first, the written ones before the room's.
   function ranked(list, kind) {
-    return list.map(function (x, i) { return { x: x, s: (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) - i / 1000 }; })
+    return list.map(function (x, i) { return { x: x, s: (x.w ? 10 : 0) + (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) - i / 1000 }; })
       .sort(function (a, b) { return b.s - a.s; }).map(function (o) { return o.x; });
   }
   var PAGE = { titles: 5, covers: 4, descs: 3 };
