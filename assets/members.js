@@ -443,15 +443,140 @@ const GLYPH = {
   vote: '<path d="M30 40h60v28H30z"/><path d="M48 40l8-24 18 6-6 18"/><path d="M44 52h32"/>',
   'public-event': '<path d="M30 34l40-16v44L30 46z"/><path d="M30 34h-8v12h8"/><path d="M38 47l6 17"/><path d="M80 32c6 4 6 12 0 16"/>',
 };
+/* COVERS (16 October 2026, Armin, with a screenshot of a card wearing the small line drawing: "For gatherings that people
+   have not added a cover for, you should add a cover yourself"). Every gathering without a picture of its own wears one of
+   the site's own drawings (members-data.json "covers", the same paintings as the rest of the site): the one its host picked
+   (art), else one of its kind's list, chosen by its id so a card and its page always show the same one. Over every cover sits
+   the day, like a ticket, so a board of them reads at a glance. After the night, the first photo from its wall (nightPic)
+   is the cover of its card under Past gatherings: what it was really like beats any drawing. The line drawing is kept only
+   for a site with no drawings. */
+const JPEG_OK = s => typeof s === 'string' && /^data:image\/jpeg;base64,/.test(s);
+function artOf(g) {
+  const C = DATA && DATA.covers;
+  if (!C || !C.src) return '';
+  if (typeof g.art === 'string' && C.src[g.art]) return g.art;
+  const pool = (C.kinds && C.kinds[g.kind] && C.kinds[g.kind].length ? C.kinds[g.kind] : C.all) || [];
+  if (!pool.length) return '';
+  const s = String(g.id || g.title || '');
+  let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return pool[h % pool.length];
+}
+function dayTile(g) {
+  const t = ms(g.startAt); if (!t) return null;
+  const loc = LANG === 'fa' ? 'fa-IR-u-ca-gregory' : 'en-US', d = new Date(t);
+  const part = o => { try { return new Intl.DateTimeFormat(loc, Object.assign({ timeZone: g.tz }, o)).format(d); } catch (x) { return new Intl.DateTimeFormat(loc, o).format(d); } };
+  const tile = el('span', 'mb-day', null, { 'aria-hidden': 'true' });
+  tile.append(el('span', 'mb-day-m', part({ month: 'short' })), el('b', null, part({ day: 'numeric' })));
+  return tile;
+}
 function cover(g, big) {
   const box = el('div', 'mb-cover mb-cover-' + String(g.kind || 'table').replace(/[^a-z-]/g, ''));
-  if (typeof g.thumb === 'string' && /^data:image\/jpeg;base64,/.test(g.thumb)) {
+  const art = artOf(g), afterPic = JPEG_OK(g.nightPic) && ms(g.startAt) < Date.now();
+  if (afterPic) {
+    box.classList.add('mb-cover-night');
+    box.append(el('img', null, null, { src: g.nightPic, alt: '', width: '480', height: '270', decoding: 'async' }));
+  } else if (JPEG_OK(g.thumb)) {
     box.append(el('img', null, null, { src: g.thumb, alt: '', width: '480', height: '270', decoding: 'async' }));
+  } else if (art) {
+    box.classList.add('mb-cover-art');
+    box.append(el('img', null, null, { src: ROOT + DATA.covers.src[art], alt: '', width: '800', height: '452', decoding: 'async', loading: big ? 'eager' : 'lazy', 'data-art': art }));
   } else {
     box.classList.add('mb-cover-drawn');
     box.innerHTML = '<svg viewBox="0 0 120 80" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + (GLYPH[g.kind] || GLYPH.table) + '</svg>';
   }
+  const tile = dayTile(g); if (tile) box.append(tile);
   if (big) box.classList.add('mb-cover-big');
+  return box;
+}
+/* AFTER THE NIGHT (16 October 2026, Armin: "once an event is done, there should be an option for people to add pictures and
+   videos of the event, and it goes to the previous events section ... if an event was scheduled but nobody showed up or it
+   didn't actually happen ... How do we deal with that?"). The host answers one question once it has started: did it
+   happen? yes (and how many came), none (nobody came) or no (it did not happen): held and came on the gathering. A photo on
+   its wall or a guest's rating also says it happened. Nothing says it did not on its own: a gathering nobody vouches for
+   leaves the board six hours after it starts and never shows under Past gatherings, and a gathering that did not happen is
+   never shown as a failure to anyone but its host, who is handed "Post it again" (same words, a new day). For 30 days the
+   host and the guests who came post photos and videos; the first photo becomes the cover of its card under Past gatherings. */
+const NIGHT_DAYS = 30;
+const begun = g => !!ms(g.startAt) && ms(g.startAt) <= Date.now();
+const over = g => !!ms(g.startAt) && ms(g.startAt) < Date.now() - 6 * 3600000;
+const withinNight = g => begun(g) && ms(g.startAt) + NIGHT_DAYS * 86400000 > Date.now();
+const didNot = g => g.held === 'none' || g.held === 'no';
+const happened = g => g.status !== 'cancelled' && !didNot(g) && (g.held === 'yes' || (g.nightN || 0) > 0 || !!(g.score && g.score.n));
+const wallOpen = g => withinNight(g) && !didNot(g) && g.status !== 'cancelled';
+const askHost = g => withinNight(g) && !g.held && g.status !== 'cancelled';
+function pastLine(g) {
+  if (g.status === 'cancelled') return tt('Called off');
+  if (g.held === 'none') return tt('Nobody came this time');
+  if (g.held === 'no') return tt('It did not happen');
+  const bits = [];
+  if (g.held === 'yes' && g.came > 0) bits.push(g.came === 1 ? tt('1 came') : tt('{n} came', { n: dig(g.came) }));
+  if ((g.nightN || 0) > 0) bits.push(tt('Photos and videos from the night'));
+  return bits.join(' · ') || (happened(g) ? tt('It happened') : tt('It is over'));
+}
+const againHref = g => page(DATA.paths.new + '?again=' + encodeURIComponent(g.id));
+/* The host's answer, in three taps at most: on the gathering's own page, and on the board for any of theirs still waiting. */
+function heldForm(g, done) {
+  const box = el('div', 'mb-held'), line = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
+  const n = el('input', null, null, { type: 'number', inputmode: 'numeric', min: '1', max: '200', value: String(g.held === 'yes' && g.came > 0 ? g.came : (g.taken || 0) + 1) });
+  const nf = field(tt('How many came, you included?'), n); nf.hidden = true;
+  const btns = [];
+  const save = async (held, came) => {
+    btns.forEach(b => { b.disabled = true; }); say(line, tt('Saving.'));
+    try {
+      const { F, db } = await within(25000, fb());
+      await within(20000, F.updateDoc(F.doc(db, 'gatherings', g.id), { held, came, hostName: me().name }));
+      g.held = held; g.came = came; listAsk = null; done(g);
+    } catch (e) { btns.forEach(b => { b.disabled = false; }); say(line, words(e), true); }
+  };
+  const yes = btn('btn btn-key mb-btn-s', tt('Yes, it happened'), () => {
+    if (nf.hidden) { nf.hidden = false; yes.textContent = tt('Save'); try { n.focus(); } catch (x) { } return; }
+    const c = parseInt(n.value, 10);
+    if (!(c >= 1 && c <= 200)) { say(line, tt('Type how many came, from 1 to 200.'), true); return; }
+    save('yes', c);
+  });
+  const none = btn('btn btn-line mb-btn-s', tt('Nobody came'), () => save('none', 1));
+  const no = btn('btn btn-line mb-btn-s', tt('It did not happen'), () => save('no', 0));
+  btns.push(yes, none, no);
+  const row = el('div', 'mb-acts mb-held-acts'); row.append(yes, none, no);
+  box.append(row, nf, line);
+  return box;
+}
+/* What the host sees once they answered: thanks, and the one next step that grows the board. */
+function heldNext(g) {
+  const box = el('div', 'mb-held-next');
+  const href = page(DATA.paths.one + '?id=' + encodeURIComponent(g.id));
+  if (g.held === 'yes') {
+    box.append(el('p', 'mb-lede', IU ? tt('Thank you. It is under Past events now.') : tt('Thank you. It is under Past gatherings now.')),
+      el('p', 'mb-hint', tt('Post your photos and videos, and ask the people who came to post theirs. The first photo becomes its cover.')));
+    const r = el('div', 'mb-acts'); r.append(el('a', 'btn btn-key mb-btn-s', tt('Add your photos'), { href: href + '#night' }), el('a', 'btn btn-line mb-btn-s', tt('Host the next one'), { href: againHref(g) }));
+    box.append(r);
+  } else {
+    box.append(el('p', 'mb-lede', g.held === 'none' ? tt('That happens, most of all the first time. It stays off the board.') : tt('Understood. It stays off the board.')),
+      el('p', 'mb-hint', tt('Post it again with a new day. Your words, the place and the picture are kept, and the people who saw it once see it again.')));
+    box.append(el('a', 'btn btn-key mb-btn-s', tt('Post it again'), { href: againHref(g) }));
+  }
+  return box;
+}
+/* Put it in a calendar: a gathering in the calendar is a gathering remembered on the day. Google's own page, or a file any
+   calendar opens (with a reminder three hours before). Never on the Iran site: a reader's phone may be looked through. */
+function calRow(g, placeText) {
+  const t = ms(g.startAt);
+  if (IU || !t || t < Date.now()) return null;
+  const z = d => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.[0-9]{3}/, '');
+  const end = t + 2 * 3600000;
+  let url = ''; try { url = new URL(page(DATA.paths.one + '?id=' + encodeURIComponent(g.id)), location.href).href; } catch (x) { }
+  const full = isPublic(g) ? [g.venue, g.address].filter(Boolean).join(', ') : (placeText || whereOf(g));
+  const gq = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent(g.title || '') + '&dates=' + z(t) + '/' + z(end)
+    + '&details=' + encodeURIComponent(url) + '&location=' + encodeURIComponent(isPublic(g) ? full : whereOf(g));
+  const esc = s => String(s || '').replace(/[\\;,]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
+  const host = location.hostname || 'gatherings';
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//' + host + '//gatherings//EN', 'BEGIN:VEVENT', 'UID:' + g.id + '@' + host, 'DTSTAMP:' + z(Date.now()),
+    'DTSTART:' + z(t), 'DTEND:' + z(end), 'SUMMARY:' + esc(g.title), 'LOCATION:' + esc(full), 'DESCRIPTION:' + esc(url), 'URL:' + url,
+    'BEGIN:VALARM', 'TRIGGER:-PT3H', 'ACTION:DISPLAY', 'DESCRIPTION:' + esc(g.title), 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const box = el('div', 'mb-f mb-cal'), r = el('div', 'mb-acts');
+  r.append(el('a', 'btn btn-line mb-btn-s', tt('Google Calendar'), { href: gq, target: '_blank', rel: 'noopener noreferrer' }),
+    el('a', 'btn btn-line mb-btn-s', tt('Other calendar'), { href: 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics), download: 'gathering.ics' }));
+  box.append(el('span', 'mb-l', tt('Put it in your calendar')), r, el('p', 'mb-hint', tt('So it does not slip your mind on the day.')));
   return box;
 }
 /* A video link people can play here: the same player the discussion uses (community.js embedOf, discussion.js plays it on a
@@ -481,7 +606,8 @@ function shareBtn(g) {
    hook line, when, where (the address itself for a public place), how many are going, and Share. */
 function card(g) {
   const li = el('li', 'mb-card'), href = page(DATA.paths.one + '?id=' + encodeURIComponent(g.id));
-  const past = ms(g.startAt) < Date.now() - 6 * 3600000;
+  const past = over(g), u = me(), mine = !!(u && u.uid === g.hostUid);
+  if (past) li.classList.add('mb-card-past');
   li.append(cover(g));
   li.append(el('span', 'mb-kind', fmtName(g.kind)));
   const h = el('h3'); h.append(el('a', 'mb-open', g.title, { href })); li.append(h);
@@ -489,7 +615,7 @@ function card(g) {
   else { const ab = aboutOf(g.kind); if (ab) li.append(el('p', 'mb-about', ab)); }
   li.append(el('p', 'mb-when', when(g)), whereBlock(g));
   const left = Math.max(0, g.size - (g.taken || 0));
-  if (past) { if (g.nightN) li.append(el('p', 'mb-seats', tt('Photos from the night'))); }
+  if (past) li.append(el('p', 'mb-seats', pastLine(g)));
   else li.append(el('p', 'mb-seats', g.status === 'cancelled' ? tt('Called off') : goingLine(g) + ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: g.size }) : tt('Full'))));
   const host = el('p', 'mb-host mb-row');
   host.append(face(g.hostName, g.hostUid), el('a', null, g.hostName, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(g.hostUid)) }));
@@ -501,7 +627,9 @@ function card(g) {
   const tk = talkKey(g.id);
   const acts = el('div', 'mb-acts');
   if (g.status === 'open' && left && ms(g.startAt) > Date.now()) acts.append(el('a', 'btn btn-key mb-btn-s', tt('I\'m in'), { href: href + '#in' }));
-  acts.append(el('a', 'btn btn-line mb-btn-s', past && g.nightN ? tt('See the photos') : tt('See the details'), { href: past && g.nightN ? href + '#night' : href }), shareBtn(g));
+  if (mine && askHost(g)) acts.append(el('a', 'btn btn-key mb-btn-s', tt('Did it happen?'), { href: href + '#happened' }));
+  else if (past && happened(g) && wallOpen(g)) acts.append(el('a', 'btn btn-key mb-btn-s', tt('Add your photos'), { href: href + '#night' }));
+  acts.append(el('a', 'btn btn-line mb-btn-s', past && g.nightN && !didNot(g) ? tt('See the photos') : tt('See the details'), { href: past && g.nightN && !didNot(g) ? href + '#night' : href }), shareBtn(g));
   if (tk) acts.append(el('a', 'talk-n', tt('Discuss'), { 'data-talk-n': tk, href: href + '#discussion' }));
   li.append(acts);
   return li;
@@ -608,12 +736,17 @@ async function initBoard(box) {
   const safe = safety();
   body.append(list, empty, safe);
   draw();
-  /* Gatherings that already happened and have photos or videos on their From the night wall: the board looks alive. */
+  /* The host's own gatherings still waiting for "did it happen?", at the top, three taps each (16 October 2026). */
+  hostAsks(body).catch(() => { });
+  /* Past gatherings (16 October 2026, Armin: "it goes to the previous events section"): the ones that happened, by the host's
+     answer, a photo on the wall or a guest's rating, newest first, each with its first photo as its cover. Proof the board
+     is real, and where the people who came post their photos for 30 days. */
   const past = await pastNights().catch(() => []);
   if (past.length) {
     const ul = el('ul', 'mb-list mb-past');
     past.forEach(g => ul.append(card(g)));
-    safe.before(el('h2', 'mb-h2', tt('From past nights')), ul);
+    safe.before(el('h2', 'mb-h2', IU ? tt('Past events') : tt('Past gatherings')),
+      el('p', 'mb-hint', IU ? tt('Events that took place. The photos and videos are from the people who were there.') : tt('Gatherings that took place. The photos and videos are from the people who were there.')), ul);
   }
 }
 async function pastNights() {
@@ -623,7 +756,25 @@ async function pastNights() {
   try { snap = await F.getDocs(F.query(col, F.where('hidden', '==', false), F.where('startAt', '<', before), F.orderBy('startAt', 'desc'), F.limit(30))); }
   catch (e) { snap = await F.getDocs(F.query(col, F.where('hidden', '==', false), F.limit(200))); }      // the index is not there yet
   return snap.docs.map(d => Object.assign({ id: d.id }, d.data()))
-    .filter(g => g.nightN > 0 && ms(g.startAt) < Date.now() - 6 * 3600000).sort((a, b) => ms(b.startAt) - ms(a.startAt)).slice(0, 12);
+    .filter(g => over(g) && happened(g)).sort((a, b) => ms(b.startAt) - ms(a.startAt)).slice(0, 12);
+}
+async function hostAsks(body) {
+  const u = me();
+  if (!u) return;
+  const { F, db } = await within(25000, fb());
+  const s = await F.getDocs(F.query(F.collection(db, 'gatherings'), F.where('hostUid', '==', u.uid), F.where('hidden', '==', false), F.limit(50)));
+  const mine = s.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(askHost).sort((a, b) => ms(b.startAt) - ms(a.startAt));
+  if (!mine.length || !body.isConnected) return;
+  const box = el('section', 'mb-asks', null, { 'aria-label': tt('Did it happen?') });
+  box.append(el('h2', 'mb-h2', IU ? tt('Did your event happen?') : mine.length === 1 ? tt('Did your gathering happen?') : tt('Did your gatherings happen?')),
+    el('p', 'mb-hint', IU ? tt('Your answer puts it under Past events, where the people who came post their photos.') : tt('Your answer puts it under Past gatherings, where the people who came post their photos.')));
+  mine.forEach(g => {
+    const row = el('div', 'mb-ask-row');
+    const h = el('p', 'mb-ask-t'); h.append(el('a', null, g.title, { href: page(DATA.paths.one + '?id=' + encodeURIComponent(g.id)) }));
+    row.append(h, el('p', 'mb-when', when(g)), heldForm(g, gg => { row.textContent = ''; row.append(el('p', 'mb-ask-t', gg.title), heldNext(gg)); }));
+    box.append(row);
+  });
+  body.prepend(box);
 }
 function safety() {
   const s = el('div', 'mb-safe');
@@ -689,11 +840,29 @@ async function shrinkTo(file, wd, ht, most, crop) {
 /* The cover: one file, two sizes. thumb (480 by 270, under 20,000 characters) rides on the gathering so the board stays one
    quick read; big (1200 by 675, under 400,000) is cover/c, read only by the gathering's own page. */
 const COVER = { thumb: [480, 270, 19500], big: [1200, 675, 390000] };
-function coverPicker(g, line) {
+/* The picture: the host's own photo, or one of the site's drawings (16 October 2026), shown as the card will show it. A new
+   gathering starts on a drawing of its kind picked at random, so two new cards side by side are seldom the same; tapping a
+   drawing puts it on (and takes the host's own photo off, cover/c too: drop). kindOf: the kind the form has now. */
+function coverPicker(g, line, kindOf) {
   const node = el('div', 'mb-f'), prev = el('div', 'mb-cover-prev');
-  let thumb = (g && g.thumb) || '', big = null;      // big null: unchanged
-  const paint = () => { prev.textContent = ''; prev.append(cover({ kind: (g && g.kind) || 'table', thumb })); };
-  paint();
+  const C = DATA && DATA.covers && DATA.covers.src ? DATA.covers : null;
+  let thumb = (g && g.thumb) || '', big = null, drop = false;      // big null: unchanged
+  let art = g && typeof g.art === 'string' && C && C.src[g.art] ? g.art : '', picked = !!art;
+  const kind = () => (kindOf && kindOf()) || (g && g.kind) || (DATA.formats[0] && DATA.formats[0].id) || 'table';
+  const fresh = () => { const pool = (C.kinds && C.kinds[kind()]) || C.all; return pool[Math.floor(Math.random() * pool.length)] || C.all[0]; };
+  if (C && !art) art = g && g.id ? artOf(g) : fresh();
+  const grid = C ? el('div', 'mb-art-pick', null, { role: 'group', 'aria-label': tt('Or pick one of our drawings') }) : null;
+  const paint = () => {
+    if (C && !picked && !(g && g.id)) { const pool = (C.kinds && C.kinds[kind()]) || C.all; if (!pool.includes(art)) art = fresh(); }
+    prev.textContent = ''; prev.append(cover({ kind: kind(), thumb, art, id: g && g.id }));
+    if (grid) grid.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(!thumb && b.getAttribute('data-art') === art)));
+  };
+  if (grid) C.all.forEach(a => {
+    const b = btn('mb-art', null, () => { art = a; picked = true; if (thumb) { thumb = ''; big = null; drop = !!(g && g.thumb); file.value = ''; } paint(); });
+    b.setAttribute('data-art', a); b.setAttribute('aria-label', w(C.alt && C.alt[a]) || a);
+    b.append(el('img', null, null, { src: ROOT + C.src[a], alt: '', width: '160', height: '90', loading: 'lazy', decoding: 'async' }));
+    grid.append(b);
+  });
   const id = 'mb-' + Math.random().toString(36).slice(2, 9);
   const file = el('input', null, null, { type: 'file', id, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-cover': '' });
   file.addEventListener('change', async () => {
@@ -703,15 +872,17 @@ function coverPicker(g, line) {
     try {
       const t = await shrinkTo(f, COVER.thumb[0], COVER.thumb[1], COVER.thumb[2], true);
       const b = await shrinkTo(f, COVER.big[0], COVER.big[1], COVER.big[2], true);
-      thumb = t; big = b; paint(); say(line, tt('Ready.'));
+      thumb = t; big = b; drop = false; paint(); say(line, tt('Ready.'));
     } catch (e) { say(line, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
   });
+  paint();
   node.append(el('label', null, tt('A picture for the top'), { for: id }), prev, file,
-    el('p', 'mb-hint', tt('The place, the food, your last table: anything that makes people want to come. Without one, the card gets a drawing.')));
-  return { node, value: () => ({ thumb, big }) };
+    el('p', 'mb-hint', C ? tt('Your own photo of the place, the food or your last table works best. Without one, the card wears the drawing you pick below.') : tt('The place, the food, your last table: anything that makes people want to come. Without one, the card gets a drawing.')));
+  if (grid) node.append(el('span', 'mb-l', tt('Or pick one of our drawings')), grid);
+  return { node, repaint: paint, value: () => ({ thumb, big, art: C ? art : undefined, drop }) };
 }
 /* Where it is, who may join, why come, and a video: the parts the form and the host's edit box share. g: what is there now. */
-function detailFields(g, line) {
+function detailFields(g, line, kindOf) {
   g = g || {};
   const L = DATA.limits, out = el('div', 'mb-details');
   let kind = IU ? 'public' : (g.placeKind === 'public' || g.placeKind === 'home' ? g.placeKind : (g.id ? 'home' : ''));
@@ -741,7 +912,7 @@ function detailFields(g, line) {
   const cnt = el('span', 'mb-count'), upd = () => { cnt.textContent = dig(1000 - about.value.length); }; about.addEventListener('input', upd); upd();
   const af = field(tt('Tell people why they should come'), about, IU ? tt('What happens there, who it is for, what to bring.') : tt('What you will talk about or watch, who is coming, the food, the mood. Write it like you are inviting a friend.')); af.append(cnt);
   const video = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-mb-video': '' }); video.value = g.video || '';
-  const pic = coverPicker(g, line);
+  const pic = coverPicker(g, line, kindOf);
   out.append(af, pic.node, field(tt('A video about it'), video, tt('Optional. A YouTube, TikTok, Instagram or X link: a clip of the place, an invite, your last night.')));
   paint();
   return {
@@ -758,9 +929,11 @@ function detailFields(g, line) {
       if (looksLikeAddress(AB.replace(/\n/g, ' '))) return { bad: tt('The address goes in its own box above, not in the description. Phone numbers stay out.'), node: about };
       if (VD && !VIDEO_OK.test(VD)) return { bad: tt('The video link must be from YouTube, TikTok, Instagram or X.'), node: video };
       const p = pic.value();
-      return { doc: { placeKind: kind, venue: kind === 'public' ? V : '', address: kind === 'public' ? A : '', join: kind === 'home' ? 'ask' : join, about: AB, video: VD, thumb: p.thumb },
-        home: kind === 'home' ? HM : '', big: p.big };
+      const doc = { placeKind: kind, venue: kind === 'public' ? V : '', address: kind === 'public' ? A : '', join: kind === 'home' ? 'ask' : join, about: AB, video: VD, thumb: p.thumb };
+      if (typeof p.art === 'string' && p.art) doc.art = p.art;
+      return { doc, home: kind === 'home' ? HM : '', big: p.big, drop: p.drop };
     },
+    repaint: pic.repaint,
   };
 }
 async function initNew(box) {
@@ -786,7 +959,7 @@ async function initNew(box) {
       if (f) { size.min = String(f.min); size.max = String(f.max); if (+size.value < f.min || +size.value > f.max) size.value = String(Math.min(f.max, Math.max(f.min, +size.value || f.min))); }
       chips.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-k') === kind)));
     };
-    DATA.formats.forEach(f => { const b = btn('mb-chip', w(f.name), () => { kind = f.id; fit(); }); b.setAttribute('data-k', f.id); chips.append(b); });
+    DATA.formats.forEach(f => { const b = btn('mb-chip', w(f.name), () => { kind = f.id; fit(); try { more.repaint(); } catch (x) { } }); b.setAttribute('data-k', f.id); chips.append(b); });
     fit();
     if (DATA.formats.length > 1) form.append(fmt);
     const title = el('input', null, null, { type: 'text', maxlength: String(L.title), autocomplete: 'off', 'data-mb-title': '' });
@@ -794,7 +967,34 @@ async function initNew(box) {
     const city = el('input', null, null, { type: 'text', maxlength: String(L.city), autocomplete: 'address-level2', 'data-mb-city': '' });
     const lineIn = el('input', null, null, { type: 'text', maxlength: String(L.line), autocomplete: 'off', 'data-mb-line': '' });
     const link = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
-    const more = detailFields(null, line);
+    /* POST IT AGAIN (16 October 2026): ?again=<id> of the host's own gathering fills the form with it (the words, the kind,
+       the place, the seats, the picture, the home address) and leaves only the day to pick. After a night nobody came to, and
+       after a good one ("Host the next one"): a table that meets again is how a group forms. */
+    let G0 = null, big0 = null;
+    const againId = new URLSearchParams(location.search).get('again') || '';
+    if (idOk(againId)) {
+      try {
+        const { F, db } = await within(25000, fb());
+        const s = await F.getDoc(F.doc(db, 'gatherings', againId));
+        const g = s.exists() ? Object.assign({ id: againId }, s.data()) : null;
+        if (g && g.hostUid === u.uid) {
+          G0 = Object.assign({}, g);
+          if (!isPublic(g)) { try { const p = await F.getDoc(F.doc(db, 'gatherings', againId, 'place', 'p')); G0.homeText = p.exists() ? String(p.data().text || '') : ''; } catch (x) { } }
+          if (JPEG_OK(g.thumb)) { try { const c = await F.getDoc(F.doc(db, 'gatherings', againId, 'cover', 'c')); big0 = c.exists() && JPEG_OK(c.data().pic) ? c.data().pic : null; } catch (x) { } }
+        }
+      } catch (x) { }
+    }
+    if (G0 && DATA.formats.some(f => f.id === G0.kind)) kind = G0.kind;
+    const more = detailFields(G0 ? Object.assign({}, G0, { id: '', art: artOf(G0) }) : null, line, () => kind);
+    if (G0) {
+      title.value = G0.title || ''; city.value = G0.city || ''; lineIn.value = G0.line || ''; link.value = G0.link || '';
+      if (G0.size) size.value = String(G0.size);
+      if (G0.country === 'US' && G0.state && [...place.top.options].some(o => o.value === 'US:' + G0.state)) place.top.value = 'US:' + G0.state;
+      else if (G0.country && place.second && [...place.second.options].some(o => o.value === G0.country)) { place.top.value = 'abroad'; place.second.value = G0.country; place.second.hidden = false; }
+      else if (G0.country && [...place.top.options].some(o => o.value === G0.country)) place.top.value = G0.country;
+      fit();
+      form.prepend(el('p', 'mb-lede', tt('Posting "{title}" again. Everything is kept. Pick the new day.', { title: G0.title || '' })));
+    }
     const t1 = tick(IU ? tt('This event is already public, and it is outside Iran.') : tt('If anyone coming is someone I haven\'t met, the first meeting is in a public place.'));
     const t2 = tick(tt('Everyone coming is 18 or over.'));
     const t3 = IU ? tick(tt('I am one of its organisers.')) : null;
@@ -839,13 +1039,19 @@ async function initNew(box) {
         const { F, db } = await within(25000, fb()), u = me();
         const ref = F.doc(F.collection(db, 'gatherings'));
         let tz = 'UTC'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (x) { }
-        const b = F.writeBatch(db);
-        b.set(ref, Object.assign({ hostUid: u.uid, hostName: u.name, kind, title: T, line: LN, startAt: F.Timestamp.fromMillis(start), tz, city: C,
-          country: P.country, state: P.state || '', size: n, taken: 0, link: LK, status: 'open', adult: true, publicPlace: true,
-          createdAt: F.serverTimestamp(), hidden: false, score: null, nightN: 0 }, M.doc));
-        if (M.home) b.set(F.doc(db, 'gatherings', ref.id, 'place', 'p'), { text: M.home, at: F.serverTimestamp() });
-        if (M.big) b.set(F.doc(db, 'gatherings', ref.id, 'cover', 'c'), { pic: M.big, at: F.serverTimestamp() });
-        await within(30000, b.commit());
+        const bigPic = M.big || (G0 && M.doc.thumb && M.doc.thumb === G0.thumb ? big0 : null);      // posted again: the same large cover
+        const commit = withArt => {
+          const doc = Object.assign({}, M.doc); if (!withArt) delete doc.art;
+          const b = F.writeBatch(db);
+          b.set(ref, Object.assign({ hostUid: u.uid, hostName: u.name, kind, title: T, line: LN, startAt: F.Timestamp.fromMillis(start), tz, city: C,
+            country: P.country, state: P.state || '', size: n, taken: 0, link: LK, status: 'open', adult: true, publicPlace: true,
+            createdAt: F.serverTimestamp(), hidden: false, score: null, nightN: 0 }, doc));
+          if (M.home) b.set(F.doc(db, 'gatherings', ref.id, 'place', 'p'), { text: M.home, at: F.serverTimestamp() });
+          if (bigPic) b.set(F.doc(db, 'gatherings', ref.id, 'cover', 'c'), { pic: bigPic, at: F.serverTimestamp() });
+          return within(30000, b.commit());
+        };
+        /* rules older than this page refuse the drawing's id: posted without it, the card picks the same kind of drawing itself */
+        try { await commit(true); } catch (e) { if (e && e.code === 'permission-denied' && M.doc.art) await commit(false); else throw e; }
         listAsk = null;
         location.href = page(DATA.paths.one + '?id=' + encodeURIComponent(ref.id));
       } catch (e) { go.disabled = false; say(line, words(e), true); }
@@ -941,7 +1147,7 @@ async function initOne(box) {
     if (G.line) top.append(el('p', 'mb-hook', G.line));
     top.append(el('p', 'mb-when', when(G)), whereBlock(G));
     const left = Math.max(0, G.size - (G.taken || 0)), started = ms(G.startAt) <= Date.now();
-    top.append(el('p', 'mb-seats', G.status === 'cancelled' ? tt('Called off') : goingLine(G) + (started ? '' : ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: G.size }) : tt('Full')))));
+    top.append(el('p', 'mb-seats', G.status === 'cancelled' ? tt('Called off') : started && (G.held || over(G)) ? pastLine(G) : goingLine(G) + (started ? '' : ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: G.size }) : tt('Full')))));
     const host = el('p', 'mb-host mb-row'); host.append(face(G.hostName, G.hostUid), el('span', null, tt('Hosted by')), el('a', null, G.hostName, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(G.hostUid)) }));
     const r = ratingLine(G); if (r) host.append(el('span', null, r));
     top.append(host);
@@ -960,11 +1166,11 @@ async function initOne(box) {
     const { F, db } = await within(25000, fb());
     if (u && u.uid === G.hostUid) await hostPanel(act, line, F, db, started);
     else await guestPanel(act, line, F, db, started, u);
-    if (started) await nightWall(F, db, u);
+    if (started && !didNot(G) && G.status !== 'cancelled') await nightWall(F, db, u);
     body.append(safety());
     if (u && u.uid !== G.hostUid) body.append(reportBox('g-' + id, [['address', tt('It shows a home address')], ['abusive', tt('It is abusive')], ['fake', tt('It is not real')], ['advert', tt('It is an advert')]]));
     if (location.hash === '#in') { const b = act.querySelector('button,input'); if (b) try { b.focus(); act.scrollIntoView({ block: 'center' }); } catch (x) { } }
-    if (location.hash === '#night') { const n = D.getElementById('night'); if (n) try { n.scrollIntoView(); } catch (x) { } }
+    if (location.hash === '#night' || location.hash === '#happened') { const n = D.getElementById(location.hash.slice(1)); if (n) try { n.scrollIntoView(); } catch (x) { } }
   }
   /* The larger cover (cover/c), read only here; the card's small one shows until it arrives. */
   async function bigCover(cv) {
@@ -1031,15 +1237,20 @@ async function initOne(box) {
     });
     if (mine.status === 'asked') { act.append(el('p', 'mb-lede', tt('You asked. The host answers here.'))); if (!started) act.append(drop()); return; }
     if (mine.status === 'no') { act.append(el('p', 'mb-lede', tt('The host can\'t fit you in this time.'))); return; }
-    act.append(el('p', 'mb-lede', tt('You\'re in. See you there.')));
+    act.append(el('p', 'mb-lede', started ? (didNot(G) ? (G.held === 'none' ? tt('The host says nobody came this time.') : tt('The host says this one did not happen.')) : tt('You were in.')) : tt('You\'re in. See you there.')));
+    let txt = '';
     try {
       const p = await F.getDoc(F.doc(db, 'gatherings', id, 'place', 'p'));
-      const txt = p.exists() ? String(p.data().text || '') : '';
-      if (txt) { act.append(el('p', 'mb-l', isPublic(G) ? tt('A note from the host') : tt('The address')), el('p', 'mb-place', txt)); if (!isPublic(G)) act.append(mapsLink(tt('Open in Maps'), txt)); }
-      else if (!isPublic(G)) act.append(el('p', 'mb-hint', tt('The host has not written the address yet. Look again closer to the day.')));
+      txt = p.exists() ? String(p.data().text || '') : '';
+      if (!started) {
+        if (txt) { act.append(el('p', 'mb-l', isPublic(G) ? tt('A note from the host') : tt('The address')), el('p', 'mb-place', txt)); if (!isPublic(G)) act.append(mapsLink(tt('Open in Maps'), txt)); }
+        else if (!isPublic(G)) act.append(el('p', 'mb-hint', tt('The host has not written the address yet. Look again closer to the day.')));
+      }
     } catch (x) { }
+    if (!started) { const c = calRow(G, isPublic(G) ? '' : txt); if (c) act.append(c); }
     const gl = await goingList(F, db); if (gl) act.append(gl);
     if (!started) { act.append(drop()); return; }
+    if (didNot(G) || G.status === 'cancelled') return;
     // after it started: the rating, once, and a private note to the host
     let rated = null; try { const s = await F.getDoc(F.doc(db, 'gatherings', id, 'ratings', u.uid)); rated = s.exists() ? s.data() : null; } catch (x) { }
     if (rated) { act.append(el('p', 'mb-hint', tt('You rated it {n} out of 5. Thank you.', { n: rated.stars }))); return; }
@@ -1062,6 +1273,19 @@ async function initOne(box) {
     act.append(form);
   }
   async function hostPanel(act, line, F, db, started) {
+    /* Did it happen (16 October 2026): first thing the host sees once it started, for 30 days; their answer can be changed. */
+    if (withinNight(G) && G.status !== 'cancelled') {
+      const hp = el('section', 'mb-f mb-happened', null, { id: 'happened' });
+      hp.append(el('h2', 'mb-h2', tt('Did it happen?')));
+      const again = () => draw().catch(() => { });
+      if (!G.held) hp.append(el('p', 'mb-hint', IU ? tt('Your answer puts it under Past events, where the people who came post their photos.') : tt('Your answer puts it under Past gatherings, where the people who came post their photos.')), heldForm(G, again));
+      else {
+        hp.append(heldNext(G));
+        const ch = btn('mb-text', tt('Change my answer'), () => { ch.replaceWith(heldForm(G, again)); });
+        hp.append(ch);
+      }
+      act.append(hp);
+    }
     act.append(el('h2', 'mb-h2', tt('Your guests')));
     let guests = [], listed = false;
     try { const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'guests'), F.limit(100))); guests = s.docs.map(d => Object.assign({ id: d.id }, d.data())); listed = true; } catch (e) { say(line, words(e), true); }
@@ -1113,11 +1337,16 @@ async function initOne(box) {
         if (looksLikeAddress(LN) || /[<>]/.test(LN)) { say(eline, tt('That looks like an address or a phone number. The address has its own box.'), true); return; }
         save.disabled = true; say(eline, tt('Saving.'));
         try {
-          const bt = F.writeBatch(db);
-          bt.update(F.doc(db, 'gatherings', id), Object.assign({ line: LN, hostName: me().name }, M.doc));
-          if (M.home) bt.set(pref, { text: M.home, at: F.serverTimestamp() });
-          if (M.big) bt.set(F.doc(db, 'gatherings', id, 'cover', 'c'), { pic: M.big, at: F.serverTimestamp() });
-          await within(30000, bt.commit());
+          const commit = withArt => {
+            const doc = Object.assign({}, M.doc); if (!withArt || doc.art === G.art) delete doc.art;
+            const bt = F.writeBatch(db);
+            bt.update(F.doc(db, 'gatherings', id), Object.assign({ line: LN, hostName: me().name }, doc));
+            if (M.home) bt.set(pref, { text: M.home, at: F.serverTimestamp() });
+            if (M.big) bt.set(F.doc(db, 'gatherings', id, 'cover', 'c'), { pic: M.big, at: F.serverTimestamp() });
+            else if (M.drop) bt.delete(F.doc(db, 'gatherings', id, 'cover', 'c'));      // their own photo off, a drawing on
+            return within(30000, bt.commit());
+          };
+          try { await commit(true); } catch (e) { if (e && e.code === 'permission-denied' && M.doc.art) await commit(false); else throw e; }
           listAsk = null; draw();
         } catch (e) { save.disabled = false; say(eline, words(e), true); }
       });
@@ -1125,6 +1354,7 @@ async function initOne(box) {
     });
     act.append(edit);
     if (!isPublic(G) && !ptext) act.append(el('p', 'mb-say bad', tt('Add the full address with Edit the gathering, so the guests you say yes to know where to go.')));
+    if (!started && G.status === 'open') { const c = calRow(G, isPublic(G) ? '' : ptext); if (c) act.append(c); }
     if (started) {
       try {
         const s = await F.getDocs(F.query(F.collection(db, 'gatherings', id, 'notes'), F.limit(100)));
@@ -1149,7 +1379,17 @@ async function initOne(box) {
       if (p.pic && /^data:image\/jpeg;base64,/.test(p.pic)) li.append(el('img', null, null, { src: p.pic, alt: tt('A photo from the night, posted by {name}', { name: p.name }), loading: 'lazy', decoding: 'async' }));
       if (p.video && VIDEO_OK.test(p.video)) li.append(tvBox(p.video, tt('A video from the night')));
       const by = el('p', 'mb-row mb-hint'); by.append(face(p.name, p.uid), el('span', null, p.name)); li.append(by);
-      if (u && (u.uid === p.uid || u.uid === G.hostUid)) li.append(twoTap(tt('Take it down'), tt('Tap again to take it down'), async () => { try { await F.deleteDoc(F.doc(db, 'gatherings', id, 'night', p.id)); draw(); } catch (e) { } }));
+      if (u && (u.uid === p.uid || u.uid === G.hostUid)) li.append(twoTap(tt('Take it down'), tt('Tap again to take it down'), async () => {
+        /* the photo that is the past card's cover leaves with it, in the same batch (firestore.rules nightPicGone) */
+        try {
+          const ref = F.doc(db, 'gatherings', id, 'night', p.id);
+          if (G.nightPicId === p.id) {
+            try { const bt = F.writeBatch(db); bt.delete(ref); bt.update(F.doc(db, 'gatherings', id), { nightPic: '', nightPicId: '' }); await within(20000, bt.commit()); }
+            catch (e) { await F.deleteDoc(ref); }
+          } else await F.deleteDoc(ref);
+          listAsk = null; draw();
+        } catch (e) { }
+      }));
       else if (u) li.append(reportBox('n-' + id + '-' + p.id, [['picture', tt('Someone in it did not agree to be posted')], ['abusive', tt('It is abusive')], ['advert', tt('It is an advert')]]));
       ul.append(li);
     });
@@ -1157,21 +1397,25 @@ async function initOne(box) {
     else sec.append(el('p', 'mb-hint', tt('No photos yet. The host and the guests who came can post theirs here.')));
     // posting: the host or a guest who was in, for 30 days after it started
     let can = false;
-    if (u && u.v && ms(G.startAt) + 30 * 86400000 > Date.now()) {
+    if (u && u.v && wallOpen(G)) {
       if (u.uid === G.hostUid) can = true;
       else { try { const s = await F.getDoc(F.doc(db, 'gatherings', id, 'guests', u.uid)); can = s.exists() && s.data().status === 'in'; } catch (x) { } }
     }
     if (can) {
       const form = el('div', 'mb-form'), pl = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
-      let pic = '';
+      let pic = '', small = '';
       const fid = 'mb-' + Math.random().toString(36).slice(2, 9);
       const file = el('input', null, null, { type: 'file', id: fid, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-night': '' });
       const prev = el('div', 'mb-shot-prev');
       file.addEventListener('change', async () => {
         const f = file.files && file.files[0]; if (!f) return;
         say(pl, tt('Making it small.'));
-        try { pic = await shrinkTo(f, 1280, 1280, 390000, false); prev.textContent = ''; prev.append(el('img', null, null, { src: pic, alt: '' })); say(pl, tt('Ready.')); }
-        catch (e) { pic = ''; say(pl, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
+        try {
+          pic = await shrinkTo(f, 1280, 1280, 390000, false);
+          small = await shrinkTo(f, COVER.thumb[0], COVER.thumb[1], COVER.thumb[2], true).catch(() => '');      // the past card's cover, if it is the first photo
+          prev.textContent = ''; prev.append(el('img', null, null, { src: pic, alt: '' })); say(pl, tt('Ready.'));
+        }
+        catch (e) { pic = ''; small = ''; say(pl, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
       });
       const vid = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
       const ok = tick(tt('Everyone in it is fine with being posted.'));
@@ -1181,15 +1425,24 @@ async function initOne(box) {
         if (V && !VIDEO_OK.test(V)) { say(pl, tt('The video link must be from YouTube, TikTok, Instagram or X.'), true); return; }
         if (!ok.input.checked) { say(pl, tt('Tick the box first.'), true); return; }
         post.disabled = true; say(pl, tt('Posting.'));
-        const tryOnce = async () => {
+        /* The first photo on the wall brings its small copy as the cover of the past card (nightPic, firestore.rules nightStep).
+           Refused (rules older than this page, or someone else's photo got there first): the post goes without it. */
+        const tryOnce = async withCover => {
           const gs = await F.getDoc(F.doc(db, 'gatherings', id));
-          const n = ((gs.exists() && gs.data().nightN) || 0) + 1;
+          const cur = gs.exists() ? gs.data() : {};
+          const n = (cur.nightN || 0) + 1, nid = u.uid + '-' + n;
           const bt = F.writeBatch(db);
-          bt.set(F.doc(db, 'gatherings', id, 'night', u.uid + '-' + n), { uid: u.uid, name: u.name, pic, video: V, ok: true, at: F.serverTimestamp(), hidden: false });
-          bt.update(F.doc(db, 'gatherings', id), { nightN: F.increment(1) });
+          bt.set(F.doc(db, 'gatherings', id, 'night', nid), { uid: u.uid, name: u.name, pic, video: V, ok: true, at: F.serverTimestamp(), hidden: false });
+          const up = { nightN: F.increment(1) };
+          if (withCover && small && pic && !cur.nightPic) Object.assign(up, { nightPic: small, nightPicId: nid });
+          bt.update(F.doc(db, 'gatherings', id), up);
           await within(30000, bt.commit());
         };
-        try { try { await tryOnce(); } catch (e) { if (e && e.code === 'permission-denied') await tryOnce(); else throw e; } listAsk = null; draw(); }
+        try {
+          try { await tryOnce(true); }
+          catch (e) { if (e && e.code === 'permission-denied') { try { await tryOnce(true); } catch (e2) { if (e2 && e2.code === 'permission-denied') await tryOnce(false); else throw e2; } } else throw e; }
+          listAsk = null; draw();
+        }
         catch (e) { post.disabled = false; say(pl, words(e), true); }
       });
       form.append(el('h3', null, tt('Post your photos and videos')), el('label', 'mb-l', tt('A photo'), { for: fid }), file, prev,
@@ -1334,6 +1587,131 @@ const UP = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><
 const TICK = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5z"/></svg>';
 function svgIn(node, svg) { node.insertAdjacentHTML('beforeend', svg); return node; }
 
+/* ------------------------------------------------------------------ what a person did, and the team (16 October 2026)
+   Armin, 16 October 2026, on a discussion where he could not tap anyone: "There should be a way for me to click on every
+   person's name and go see their bio, all their comments, and all their activities, including clicking on LibertyPolitics
+   itself and seeing her bio as well." And: "When I click on the team, I should be able to be taken to a page where I see
+   all the team members. The page for all the team members should also be under the About menu as well." community.js
+   makes every name, face, Host and Team tag a link; this part draws where they lead. */
+
+/* Every live post and reply of one account, newest first. From the proven copy of every live post (community.js
+   snapOnce: three or four reads for the whole site) when there is one, else one question to the database. */
+async function postsOf(uid, F, db) {
+  const one = (id, x, at) => ({ id, about: x.about || '', subject: x.subject || '', text: String(x.text || ''), parent: x.parent || '', kind: x.kind || '', tag: x.tag || '', name: x.name || '', ms: at || 0, ups: x.ups || 0 });
+  let rows = null;
+  try { rows = K.live ? await within(20000, K.live()) : null; } catch (x) { rows = null; }
+  const out = rows ? rows.filter(r => r.uid === uid && r.status === 'live').map(r => one(r.id, r, r.ms))
+    : await F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', uid), F.where('status', '==', 'live'), F.limit(500)))
+      .then(s => s.docs.map(d => one(d.id, d.data(), ms(d.data().createdAt)))).catch(() => []);
+  return out.sort((a, b) => b.ms - a.ms);
+}
+/* The site's own account wears the site's mark, as it does on every post. */
+function hostPic() {
+  const box = el('div', 'mb-pic mb-pic-host');
+  box.append(el('img', null, null, { src: ROOT + (SITE.mark || 'assets/seal.png'), alt: '', width: '128', height: '128' }));
+  return box;
+}
+/* One list of everything: {kind: post | reply | mission | gathering, ms, ...}, newest first. */
+function activity(posts, X, hosted) {
+  const out = posts.map(p => ({ kind: p.parent ? 'reply' : 'post', ms: p.ms, p }));
+  Object.values((X && X.reports) || {}).forEach(r => {
+    if (r && r.state === 'accepted' && DATA.missions[r.mission]) out.push({ kind: 'mission', ms: ms(r.at), what: w(DATA.missions[r.mission].title) });
+  });
+  ((X && X.grants) || []).forEach(g => { if (g && g.what) out.push({ kind: 'mission', ms: ms(g.at), what: g.what }); });
+  hosted.forEach(g => out.push({ kind: 'gathering', ms: ms(g.createdAt) || ms(g.startAt), g }));
+  return out.sort((a, b) => b.ms - a.ms);
+}
+const ACT_LABEL = () => ({ all: tt('All'), post: tt('Posts'), reply: tt('Replies'), mission: tt('Missions'), gathering: IU ? tt('Events') : tt('Gatherings') });
+/* The activity list: a row of filters (only the kinds there are), then twenty at a time with Show more. */
+function feedOf(acts) {
+  const wrap = el('div', 'mb-act'), L = ACT_LABEL(), kinds = ['all', 'post', 'reply', 'mission', 'gathering'];
+  const n = k => (k === 'all' ? acts.length : acts.filter(a => a.kind === k).length);
+  const bar = el('div', 'mb-chips mb-actbar', null, { role: 'group', 'aria-label': tt('Show') });
+  const list = el('ol', 'mb-actlist'), more = btn('btn btn-line mb-actmore', '', () => { shown += 20; draw(); });
+  let only = 'all', shown = 20;
+  const present = kinds.filter(k => n(k) > 0);
+  if (present.length > 2) present.forEach(k => {
+    const b = btn('mb-chip', null, () => { only = k; shown = 20; bar.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); draw(); });
+    b.append(el('span', null, L[k]), el('b', null, dig(n(k))));
+    b.setAttribute('aria-pressed', String(k === only));
+    bar.append(b);
+  });
+  function row(a) {
+    const li = el('li', 'mb-actrow mb-act-' + a.kind), head = el('p', 'mb-act-h');
+    const when = el('time', 'mb-hint', K.ago ? K.ago(a.ms) : '', a.ms ? { datetime: new Date(a.ms).toISOString(), title: K.niceDate ? K.niceDate(a.ms) : '' } : null);
+    if (a.kind === 'post' || a.kind === 'reply') {
+      const p = a.p, path = K.pathOf ? K.pathOf(p.about) : null, where = p.subject || tt('a discussion');
+      head.append(el('span', 'mb-act-k', a.kind === 'reply' ? tt('Replied in') : tt('Posted in')), ' ');
+      head.append(path != null ? el('a', null, where, { href: ROOT + path + '#p-' + p.id }) : el('span', null, where));
+      head.append(' ', when);
+      li.append(head);
+      const t = p.text.trim();
+      if (t) {
+        const body = el('p', 'mb-post-t', t, { dir: 'auto' });
+        li.append(body);
+        if (t.length > 280) { body.classList.add('is-cut'); li.append(btn('mb-readmore', tt('Read more'), ev => { body.classList.remove('is-cut'); ev.currentTarget.remove(); })); }
+      }
+    } else if (a.kind === 'mission') {
+      head.append(el('span', 'mb-act-k', tt('Finished the mission')), ' ', el('b', null, a.what), ' ', when);
+      li.append(head);
+    } else {
+      head.append(el('span', 'mb-act-k', IU ? tt('Posted the event') : tt('Hosted')), ' ');
+      head.append(el('a', null, a.g.title || tt('a gathering'), { href: page(DATA.paths.one + '?id=' + encodeURIComponent(a.g.id)) }), ' ', when);
+      li.append(head);
+    }
+    return li;
+  }
+  function draw() {
+    const pick = acts.filter(a => only === 'all' || a.kind === only);
+    list.textContent = '';
+    pick.slice(0, shown).forEach(a => list.append(row(a)));
+    const left = pick.length - shown;
+    more.hidden = left <= 0;
+    more.textContent = tt('Show more ({n} left)', { n: dig(Math.max(0, left)) });
+  }
+  draw();
+  if (bar.childNodes.length) wrap.append(bar);
+  wrap.append(list, more);
+  return wrap;
+}
+
+/* about/team/: everyone on the team (mods/ in the database, by account id; a quiet member is never in it and never shown),
+   the site's own account first. Each card is the way to that profile: the picture, the name, the one line, how much they
+   wrote. The team page itself (team/) is the team's own room and stays theirs. */
+async function initCrew(box) {
+  const body = box.querySelector('[data-mb-body]');
+  await data();
+  if (!DATA || !K || K.off) { body.setAttribute('aria-busy', 'false'); return; }
+  const { F, db } = await within(25000, fb());
+  const hostId = DATA.host && DATA.host.uid;
+  const [ids, rows] = await Promise.all([within(12000, K.team()).catch(() => new Set()), (K.live ? within(20000, K.live()) : Promise.resolve(null)).catch(() => null)]);
+  const mine = uid => (rows ? rows.filter(r => r.uid === uid && r.status === 'live') : null);
+  const people = await Promise.all([...ids].filter(id => id !== hostId && idOk(id)).map(async id => {
+    const P = await F.getDoc(F.doc(db, 'profiles', id)).then(s => (s.exists() ? s.data() : null)).catch(() => null);
+    const posts = mine(id), last = posts && posts.length ? posts.slice().sort((a, b) => (b.ms || 0) - (a.ms || 0))[0] : null;
+    return { id, P, n: posts ? posts.length : null, name: (P && P.name) || (last && last.name) || '' };
+  }));
+  body.textContent = ''; body.setAttribute('aria-busy', 'false');
+  const ul = el('ul', 'mb-crew');
+  function cardFor(uid, name, bio, pic, tag, n) {
+    const li = el('li'), a = el('a', 'mb-crew-card', null, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(uid)) });
+    const who = el('div', 'mb-crew-who'), top = el('p', 'mb-crew-name');
+    top.append(el('b', null, name, { dir: 'auto' }), ' ', el('span', 'mb-tag ' + (tag === 'host' ? 'mb-tag-host' : 'mb-tag-team'), tag === 'host' ? tt('Host') : tt('Team')));
+    who.append(top);
+    if (bio) who.append(el('p', 'mb-crew-bio', bio, { dir: 'auto' }));
+    if (n != null) who.append(el('p', 'mb-hint', n === 1 ? tt('1 post or reply') : tt('{n} posts and replies', { n: dig(n) })));
+    a.append(pic, who);
+    li.append(a);
+    return li;
+  }
+  if (hostId) ul.append(cardFor(hostId, w(DATA.host.name), w(DATA.host.bio), hostPic(), 'host', rows ? mine(hostId).length : null));
+  people.filter(x => x.name && !(x.P && x.P.hidden))
+    .sort((a, b) => (b.n || 0) - (a.n || 0) || a.name.localeCompare(b.name))
+    .forEach(x => ul.append(cardFor(x.id, x.name, x.P && x.P.bio, picOf(x.P, x.id, x.name, false), 'team', x.n)));
+  body.append(ul);
+  if (ul.children.length < 2) body.append(el('p', 'mb-hint', tt('Nobody else is on the team yet.')));
+}
+
 /* member/?u=: a profile (rebuilt 15 October 2026, Armin: "the way people's profiles look and the way they could edit it.
    Significantly improve that: the look of it, the user interface, the ease of use, and the intuitiveness").
    ONE card at the top says who this is: the picture, the name, the rank with how far to the next one, the one line. Three
@@ -1360,9 +1738,11 @@ async function initMember(box) {
     const [P, X] = await Promise.all([get(['profiles', uid]), get(['xp', uid])]);
     if (own) { PROF = P; await loadMine(true); }
     if (K.faceKnow && P) K.faceKnow(uid, P, own);
-    const posts = await F.getDocs(F.query(F.collection(db, 'posts'), F.where('uid', '==', uid), F.where('status', '==', 'live'), F.limit(30))).then(s => s.docs.map(d => Object.assign({ id: d.id }, d.data()))).catch(() => []);
-    const hosted = await F.getDocs(F.query(F.collection(db, 'gatherings'), F.where('hostUid', '==', uid), F.where('hidden', '==', false), F.limit(50))).then(s => s.docs.map(d => Object.assign({ id: d.id }, d.data()))).catch(() => []);
-    const name = (P && P.name) || (X && X.name) || (posts[0] && posts[0].name) || (own ? u.name : '');
+    const posts = await postsOf(uid, F, db);
+    const host = !!(DATA.host && uid === DATA.host.uid), team = await within(8000, K.team ? K.team() : Promise.resolve(new Set())).catch(() => new Set());
+    const hosted = (await F.getDocs(F.query(F.collection(db, 'gatherings'), F.where('hostUid', '==', uid), F.where('hidden', '==', false), F.limit(50))).then(s => s.docs.map(d => Object.assign({ id: d.id }, d.data()))).catch(() => []))
+      .filter(g => own || !didNot(g));      // a night nobody came to is the host's own business, never shown to others (16 October 2026)
+    const name = host ? w(DATA.host.name) : (P && P.name) || (X && X.name) || (posts[0] && posts[0].name) || (own ? u.name : '');
     if (!name) { body.append(el('p', 'mb-empty', tt('This member has not made a profile yet.'))); return; }
     if (P && P.hidden && !own) { body.append(el('p', 'mb-empty', tt('This profile is hidden.'))); return; }
     h1.textContent = name;
@@ -1377,8 +1757,8 @@ async function initMember(box) {
 
     // ---- the card at the top
     const prof = el('div', 'mb-prof'), hero = el('section', 'mb-hero'), heroPic = el('div', 'mb-hero-pic'), who = el('div', 'mb-hero-who');
-    const pic = picOf(P, uid, name, own);
-    if (own) {
+    const pic = host ? hostPic() : picOf(P, uid, name, own);
+    if (own && !host) {
       const b = btn('mb-pic-btn', null, () => openEdit('pic'));
       b.setAttribute('aria-label', tt('Change your picture'));
       b.append(pic, svgIn(el('span', 'mb-pic-pen'), PEN));
@@ -1388,18 +1768,27 @@ async function initMember(box) {
     who.append(h1);
     const rank = el('p', 'mb-rankline');
     rank.append(el('span', 'mb-rankname', w(lv.now.name)), el('span', 'mb-xp', tt('{n} XP', { n: xp })));
-    who.append(rank);
-    if (P && P.bio) who.append(el('p', 'mb-bio', P.bio));
+    if (!host) who.append(rank);
+    /* 16 October 2026: who this is to the site, as a mark that leads somewhere. The site's own account says what it is in
+       its own words (members.json words.host) and leads to the About page; someone on the team leads to the team page. */
+    const marks = el('p', 'mb-marks');
+    if (host) marks.append(el('span', 'mb-tag mb-tag-host', tt('Host')));
+    else if (team.has(uid)) marks.append(el('a', 'mb-tag mb-tag-team', tt('Team'), { href: page(K.teamPage || 'about/team/') }));
+    const since = !host && P && ms(P.createdAt);
+    if (since && K.niceDate) marks.append(el('span', 'mb-hint', tt('Joined {date}', { date: K.niceDate(since) })));
+    if (marks.childNodes.length) who.append(marks);
+    if (host) who.append(el('p', 'mb-bio', w(DATA.host.bio)), el('a', 'btn btn-line mb-more', tt('More about this site'), { href: page(DATA.host.more || 'about/') }));
+    else if (P && P.bio) who.append(el('p', 'mb-bio', P.bio));
     if (own) who.append(svgIn(btn('btn btn-line mb-editbtn', tt('Edit your profile'), () => openEdit('all')), PEN));
     hero.append(heroPic, who);
-    if (lv.next) {
+    if (lv.next && !host) {
       const prog = el('div', 'mb-prog'), bar = el('div', 'mb-bar'), i = el('i');
       i.style.width = Math.max(3, Math.min(100, Math.round(100 * (xp - lv.now.xp) / (lv.next.xp - lv.now.xp)))) + '%';
       bar.append(i);
       prog.append(bar, el('p', 'mb-hint', tt('{n} XP to {level}', { n: lv.next.xp - xp, level: w(lv.next.name) })));
       hero.append(prog);
     }
-    if (lv.now.line) hero.append(el('p', 'mb-hint mb-rankmeaning', w(lv.now.line)));
+    if (lv.now.line && !host) hero.append(el('p', 'mb-hint mb-rankmeaning', w(lv.now.line)));
     prof.append(hero);
     if (own && P && P.hidden) prof.append(el('p', 'mb-say bad', tt('Your profile is hidden from others while I look at a report about it.')));
     if (own && P && P.pic && !same(P.picOk, P.picAt)) prof.append(el('p', 'mb-hint', tt('Only you see this photo until I have looked at it. Usually within a day.')));
@@ -1407,9 +1796,13 @@ async function initMember(box) {
     // ---- three numbers
     const nums = el('ul', 'mb-nums');
     const num = (n, label) => { const li = el('li'); li.append(el('b', null, dig(n)), el('span', null, label)); nums.append(li); };
-    num(done.size, tt('Missions done'));
-    num(posts.length, tt('Posts'));
-    num(hosted.length, IU ? tt('Events posted') : tt('Gatherings hosted'));
+    const nTop = posts.filter(p => !p.parent).length;
+    if (host) { num(nTop, tt('Posts')); num(posts.length - nTop, tt('Replies')); num(new Set(posts.map(p => p.about)).size, tt('Discussions')); }
+    else {
+      num(done.size, tt('Missions done'));
+      num(posts.length, tt('Posts and replies'));
+      num(hosted.length, IU ? tt('Events posted') : tt('Gatherings hosted'));
+    }
     prof.append(nums);
 
     // ---- what is left, for the owner only, until it is done
@@ -1445,23 +1838,14 @@ async function initMember(box) {
       prof.append(el('h2', 'mb-h2', IU ? tt('Events posted') : tt('Gatherings hosted')));
       const ul = el('ul', 'mb-list'); hosted.sort((a, b) => ms(b.startAt) - ms(a.startAt)).forEach(g => ul.append(card(g))); prof.append(ul);
     }
-    if (posts.length) {
-      prof.append(el('h2', 'mb-h2', tt('What they wrote')));
-      const ul = el('ul', 'mb-posts');
-      posts.sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 10).forEach(p => {
-        const path = K.pathOf ? K.pathOf(p.about) : null;
-        const li = el('li', 'mb-post'), head = el('p', 'mb-post-h');
-        if (path != null) head.append(el('a', null, p.subject || tt('Open the page'), { href: ROOT + path + '#p-' + p.id }));
-        else head.append(el('span', null, p.subject || ''));
-        head.append(el('span', 'mb-hint', K.ago ? K.ago(ms(p.createdAt)) : ''));
-        li.append(head);
-        const t = String(p.text || '').trim(); if (t) li.append(el('p', 'mb-post-t', t.length > 180 ? t.slice(0, 179) + '…' : t));
-        ul.append(li);
-      });
-      prof.append(ul);
-    } else if (own) prof.append(el('p', 'mb-hint', tt('What you write in the discussions shows here.')));
+    /* Everything they did, newest first (16 October 2026, Armin: "all their comments, and all their activities"): every
+       live post and reply (the proven copy of every live post, postsOf), every mission the site accepted, every gathering
+       they posted. Twenty at a time; one tap filters to one kind. */
+    const acts = activity(posts, X, hosted);
+    if (acts.length) prof.append(el('h2', 'mb-h2', tt('Activity')), feedOf(acts));
+    else prof.append(el('p', 'mb-hint', own ? tt('What you write in the discussions shows here.') : tt('Nothing here yet.')));
     body.append(prof);
-    if (!own && u) body.append(reportBox('p-' + uid, [['picture', tt('The picture')], ['abusive', tt('It is abusive')], ['fake', tt('It pretends to be someone')], ['advert', tt('It is an advert')], ['address', tt('It shows an address')]]));
+    if (!own && u && !host) body.append(reportBox('p-' + uid, [['picture', tt('The picture')], ['abusive', tt('It is abusive')], ['fake', tt('It pretends to be someone')], ['advert', tt('It is an advert')], ['address', tt('It shows an address')]]));
     if (own && editing) openEdit(editing);
 
     // ---- the editor: the top card becomes it, in place
@@ -1618,7 +2002,7 @@ function start() {
   const box = D.querySelector('[data-mb]:not([data-mb="front-board"])');
   if (box && K) {
     const kind = box.getAttribute('data-mb');
-    ({ board: initBoard, new: initNew, one: initOne, member: initMember })[kind](box).catch(() => { });
+    ({ board: initBoard, new: initNew, one: initOne, member: initMember, crew: initCrew })[kind](box).catch(() => { });
   }
   const needs = !!(D.querySelector('[data-q-tick]') || D.querySelector('[data-fq]'));
   let was = !!me();

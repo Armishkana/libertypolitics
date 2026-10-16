@@ -49,9 +49,11 @@
   var HEATS = [[0, 'Any heat'], [40, 'Warm 40+'], [70, 'Hot 70+'], [90, 'On fire 90+']];
   var VIRALS = [[0, 'Any reach'], [50, 'Top half'], [75, 'Top quarter'], [90, 'Top 10%']];
   var WITHIN = [[0, '24 hours'], [12, '12 h'], [6, '6 h'], [3, '3 h'], [1, '1 h']];
+  // How credible the SOURCE is, 0 to 100, from the room's own table (intel_live.py for news and video, intel_x.py for X)
+  var CREDS = [[0, 'Any source'], [50, '50+'], [70, '70+'], [85, '85+']];
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0 };
+  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0 };
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -76,7 +78,8 @@
   function monthOf(d) { return d.length >= 7 ? d.slice(0, 7) : d.slice(0, 4) + '-06'; }
   function placeName(k) { return (P[k] || ['No single place'])[0]; }
   function ytId(u) { var m = /(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/.exec(u || ''); return m ? m[1] : ''; }
-  function kindOf(it) { return it.k === 'document' || it.k === 'data' ? 'doc' : it.k; }
+  function kindOf(it) { return it.k === 'document' || it.k === 'data' ? 'doc' : it.k === 'image' ? 'post' : it.k; }          // an image post is drawn as a post
+  function crOf(it) { return it.cr != null ? it.cr : null; }
   function hostOf(u) { var m = /^https?:\/\/([^\/?#]+)/i.exec(u || ''); return m ? m[1].toLowerCase().replace(/^(www|m|mobile)\./, '') : ''; }
   function srcOf(u) {
     var h = hostOf(u);
@@ -119,7 +122,7 @@
   function reachOf(it) {
     if (it._r !== undefined) return it._r;
     var r = REACH[norm(it.u)] || null;
-    if (it.lk != null || it.vw != null) { r = { pf: 'YouTube', at: it.d }; if (it.lk != null) r.lk = it.lk; if (it.vw != null) r.vw = it.vw; }
+    if (it.lk != null || it.vw != null) { r = { pf: it.src === 'X' ? 'X' : 'YouTube', at: it.d }; if (it.lk != null) r.lk = it.lk; if (it.vw != null) r.vw = it.vw; if (it.rp != null) r.rs = it.rp; }
     return (it._r = r);
   }
   // The one number each platform shows everyone: likes on X and YouTube, views on Telegram (it has no public likes).
@@ -157,6 +160,7 @@
     like: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10z"/></svg>',
     view: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>',
     reply: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+    repost: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8l4 4M3 8h13a4 4 0 0 1 4 4v1M17 20l4-4-4-4M21 16H8a4 4 0 0 1-4-4v-1"/></svg>',
     viral: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h3v-5H3zM10.5 20h3V10h-3zM18 20h3V4h-3z"/></svg>'
   };
   // A mark that says what it is and where it was posted: the map's shape in the platform's colour
@@ -171,6 +175,7 @@
       if (r.lk != null) out.push('<span title="' + esc(r.lk.toLocaleString('en-US') + ' likes on ' + pfName(p)) + '">' + ICO.like + '<b class="num">' + fmtN(r.lk) + '</b></span>');
       if (r.vw != null) out.push('<span title="' + esc((r['~'] ? 'About ' : '') + r.vw.toLocaleString('en-US') + ' views on ' + pfName(p)) + '">' + ICO.view + '<b class="num">' + (r['~'] ? '~' : '') + fmtN(r.vw) + '</b></span>');
       if (r.rp != null) out.push('<span title="' + esc(r.rp.toLocaleString('en-US') + ' replies') + '">' + ICO.reply + '<b class="num">' + fmtN(r.rp) + '</b></span>');
+      if (r.rs != null) out.push('<span title="' + esc(r.rs.toLocaleString('en-US') + ' reposts') + '">' + ICO.repost + '<b class="num">' + fmtN(r.rs) + '</b></span>');
     }
     return out.length ? '<span class="ir-rch">' + out.join('') + '</span>' : '';
   }
@@ -186,7 +191,7 @@
     S.lens = l; items = setOf(l);
     S.sort = SORTS[l][0][0];          // each lens opens on its own order (hottest, newest); the address can still name another
     var hint = $('ir-maphint');
-    if (hint) hint.textContent = l === 'live' ? 'The last 24 hours. Drag to turn the globe, tap a mark.' : l === 'readers' ? 'Finds readers sent, not checked yet.' : BANK.length + ' items in the bank. Drag to turn the globe, tap a mark.';
+    if (hint) hint.textContent = l === 'live' ? 'The last 24 hours. Drag to turn the globe (two fingers on a phone), tap a mark.' : l === 'readers' ? 'Finds readers sent, not checked yet.' : BANK.length + ' items in the bank. Drag to turn the globe (two fingers on a phone), tap a mark.';
     $('ir-sort').innerHTML = SORTS[l].map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('');
     $('ir-sort').value = S.sort;
     root.setAttribute('data-shows', l);
@@ -240,7 +245,7 @@
     return keys.some(function (k) { return want.indexOf(k) >= 0; });
   }
   function words(it) {
-    if (!it._w) it._w = (it.t + ' ' + (it.n || '') + ' ' + (it.o || '') + ' ' + (it.h || '') + ' ' + (it.by || '') + ' ' + it.src + ' ' + placeName(it.p) + ' ' + (P[it.p] ? P[it.p][1] : '') + ' ' +
+    if (!it._w) it._w = (it.t + ' ' + (it.n || '') + ' ' + (it.o || '') + ' ' + (it.h || '') + ' ' + (it.nm || '') + ' ' + (it.by || '') + ' ' + it.src + ' ' + placeName(it.p) + ' ' + (P[it.p] ? P[it.p][1] : '') + ' ' +
       (it.tp || []).map(function (i) { return topics[i]; }).join(' ')).toLowerCase();
     return it._w;
   }
@@ -250,6 +255,7 @@
     if (skip !== 'pf' && S.pf.length && S.pf.indexOf(pfOf(it)) < 0) return false;
     if (S.heat && S.lens === 'live' && (it.hot || 0) < S.heat) return false;
     if (skip !== 'viral' && S.vmin && (it._v == null || it._v < S.vmin)) return false;
+    if (S.crmin && !(crOf(it) >= S.crmin)) return false;          // an item with no score never passes a minimum
     if (S.within && S.lens === 'live') { var ms = Date.parse(it.d || ''); if (!(ms > Date.now() - S.within * 3600000)) return false; }
     if (S.top && S.lens === 'bank' && !it.q) return false;
     if (S.edu && !it.edu) return false;
@@ -679,10 +685,18 @@
     say(S.place ? 'Showing ' + shown.length + ' from ' + placeName(S.place) + '. Tap the place again to show every place.' : '');
   }
 
-  // Drag (turns the globe, moves the flat map), pinch, scroll, double tap.
-  var ptrs = {}, last = null, moved = 0, pinch = null;
+  // Drag (turns the globe, moves the flat map), pinch, scroll, double tap. On a phone, off the full screen, one finger
+  // belongs to the page (it scrolls; touch-action pan-y in intel.css) and two fingers move and pinch the map.
+  var ptrs = {}, last = null, moved = 0, pinch = null, mapOn = false, hintT = 0;
+  function isFull() { return document.documentElement.classList.contains('ir-show'); }
+  function mapHint(why) {
+    var el = $('ir-wheel'); if (!el) return;
+    el.textContent = why === 'touch' ? 'Use two fingers to move the map' : 'Click the map, or hold ' + (/Mac|iP(hone|ad)/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl') + ', to zoom it';
+    el.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { el.hidden = true; }, 1800);
+  }
   function onDown(ev) {
     if (ev.button > 0) return;
+    if (ev.pointerType === 'mouse') mapOn = true;
     stopTour(); cancelAnimationFrame(anim); poke();
     ptrs[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
     try { map.setPointerCapture(ev.pointerId); } catch (e) { /* a pointer the browser no longer tracks: dragging still works without it */ }
@@ -690,7 +704,7 @@
     if (ids.length === 1) { last = { x: ev.clientX, y: ev.clientY }; moved = 0; map.classList.add('drag'); }
     if (ids.length === 2) {
       var a = ptrs[ids[0]], b = ptrs[ids[1]];
-      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), k: V.k };
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), k: V.k, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
     }
   }
   function onMove(ev) {
@@ -700,9 +714,14 @@
     var ids = Object.keys(ptrs);
     poke(); moving = 1;
     if (ids.length === 2 && pinch) {
-      var a = ptrs[ids[0]], b = ptrs[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch.d > 0) zoomAt(pinch.k * d / pinch.d / V.k, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      var a = ptrs[ids[0]], b = ptrs[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      if (pinch.d > 0) zoomAt(pinch.k * d / pinch.d / V.k, mx - r.left, my - r.top);
+      panBy(mx - pinch.mx, my - pinch.my); pinch.mx = mx; pinch.my = my;          // two fingers moving together move the map
       moved = 99;
+      return;
+    }
+    if (ev.pointerType === 'touch' && !isFull()) {          // one finger: the page's, never the map's (a tap still opens a mark)
+      if (last) { moved += Math.abs(ev.clientX - last.x) + Math.abs(ev.clientY - last.y); last = { x: ev.clientX, y: ev.clientY }; if (moved > 24) mapHint('touch'); }
       return;
     }
     if (last) {
@@ -867,6 +886,7 @@
     seg('ir-heat', 'heat', 'Heat', HEATS, S.lens === 'live');
     seg('ir-within', 'within', 'Within', WITHIN, S.lens === 'live');
     seg('ir-viral', 'vmin', 'Viral', VIRALS, items.some(function (it) { return it._v != null; }) || !!S.vmin);
+    seg('ir-cred', 'crmin', 'Credible', CREDS, items.some(function (it) { return crOf(it) != null; }) || !!S.crmin);
   }
   function seg(id, key, label, list, show) {
     var el = $(id); if (!el) return;
@@ -945,7 +965,7 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>Clear</button>' : '') : '';
   }
   function clearAll() {
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
     say('');
     render();
@@ -963,6 +983,7 @@
     if (S.heat && S.lens === 'live') q.push('heat=' + S.heat);
     if (S.within && S.lens === 'live') q.push('within=' + S.within);
     if (S.vmin) q.push('viral=' + S.vmin);
+    if (S.crmin) q.push('cred=' + S.crmin);
     if (S.top) q.push('top=1');
     if (S.edu) q.push('edu=1');
     if (S.lens === 'bank' && !fullRange()) q.push('from=' + buckets[S.from] + '&to=' + buckets[S.to]);
@@ -970,11 +991,11 @@
     return q.length ? '?' + q.join('&') : '';
   }
   function writeUrl() {
-    if (!history.replaceState) return;
+    if (!history.replaceState || SHOWING) return;          // the show screen (intel-prep.js) owns the address while it is up
     var h = location.hash === '#add' ? '' : location.hash;
     history.replaceState(null, '', location.pathname + query() + h);
   }
-  var defLens = 'bank';
+  var defLens = 'bank', SHOWING = /[?&]show=/.test(location.search);
   function readUrl(search) {
     var u = new URLSearchParams(search);
     useLens(u.get('lens') || defLens, true);
@@ -987,7 +1008,7 @@
     S.top = u.get('top') === '1'; S.edu = u.get('edu') === '1';
     S.pf = (u.get('pf') || '').split('.').filter(function (x) { return PFC[x]; });
     var pick = function (list, v) { v = +v || 0; return list.some(function (o) { return o[0] === v; }) ? v : 0; };
-    S.heat = pick(HEATS, u.get('heat')); S.within = pick(WITHIN, u.get('within')); S.vmin = pick(VIRALS, u.get('viral'));
+    S.heat = pick(HEATS, u.get('heat')); S.within = pick(WITHIN, u.get('within')); S.vmin = pick(VIRALS, u.get('viral')); S.crmin = pick(CREDS, u.get('cred'));
     if (SORTS[S.lens].some(function (s) { return s[0] === u.get('sort'); })) S.sort = u.get('sort');
     S.from = 0; S.to = buckets.length - 1;
     var f = buckets.indexOf(u.get('from')), t = buckets.indexOf(u.get('to'));
@@ -1094,7 +1115,7 @@
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
     if (want) ns.sort = want;
-    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.within = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to;
+    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to;
     if (!SORTS[S.lens].some(function (s) { return s[0] === S.sort; })) S.sort = SORTS[S.lens][0][0];
     $('ir-from').value = S.from; $('ir-to').value = S.to;
     render();
@@ -1157,7 +1178,7 @@
     var y = ytId(it.u), dlg = $('ir-spot');
     var srcName = it.src === 'Document' ? 'the document' : it.src === 'News' ? (it.h || 'the news site') : it.src;
     var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc(KIND_N[kindOf(it)] + ' on ' + pfName(pfOf(it))) + '</span>' +
-      (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + 'Viral ' + it._v + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
+      (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (crOf(it) != null ? '<span title="How credible the source is, from the room\'s own table">Source credibility ' + crOf(it) + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + 'Viral ' + it._v + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
       (it.edu ? '<span class="ed">Explainer</span>' : '') + (it.own ? '<span class="own">Creator\'s own</span>' : '') + (it.pend ? '<span class="pend">Being checked</span>' : '') +
       (it.tp || []).map(function (t) { return '<span>' + esc(topics[t]) + '</span>'; }).join('');
     var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? ' (the date it shows)' : '') : it.pend ? 'Sent ' + ago(it.ms) : 'No date on it';
@@ -1189,6 +1210,7 @@
     if (r.lk != null) bits.push('<span>' + ICO.like + '<b class="num">' + r.lk.toLocaleString('en-US') + '</b> likes</span>');
     if (r.vw != null) bits.push('<span>' + ICO.view + '<b class="num">' + (r['~'] ? 'about ' : '') + r.vw.toLocaleString('en-US') + '</b> views</span>');
     if (r.rp != null) bits.push('<span>' + ICO.reply + '<b class="num">' + r.rp.toLocaleString('en-US') + '</b> replies</span>');
+    if (r.rs != null) bits.push('<span>' + ICO.repost + '<b class="num">' + r.rs.toLocaleString('en-US') + '</b> reposts</span>');
     if (!bits.length) return '';
     var when = r.at ? (Date.parse(r.at) ? ' Counted ' + ago(Date.parse(r.at)) + '.' : '') : '';
     return '<p class="ir-s-r">' + bits.join('') + '<small>On ' + esc(nm) + ', as ' + esc(nm) + ' shows them.' + when + (it._v != null ? ' ' + esc(viralWhy(it)) + '.' : '') + '</small></p>';
@@ -1347,7 +1369,7 @@
       '<div class="ir-a-prev" id="ir-a-prev" hidden></div></div>' +
       '<fieldset class="ir-a-who"><legend>Whose is it?</legend>' +
       '<label><input type="radio" name="ir-who" value="find" checked><span><b>I found it</b><small>Someone else\'s clip, post, article, document or data</small><i class="num">+' + XP.find + ' XP</i></span></label>' +
-      '<label><input type="radio" name="ir-who" value="mine"><span><b>I made it</b><small>My own video, article or research. For creators</small><i class="num">+' + XP.mine + ' XP</i></span></label></fieldset>' +
+      '<label><input type="radio" name="ir-who" value="mine"><span><b>I made it</b><small>My own video, article or research. Everyone who uses the room sees it, and so do the audiences of the creators who show the room on their streams: more people see your work</small><i class="num">+' + XP.mine + ' XP</i></span></label></fieldset>' +
       '<div class="ir-a-f"><label for="ir-a-what">What does it show? <small>One line, in your own words</small></label>' +
       '<textarea id="ir-a-what" rows="2" maxlength="300" placeholder="Example: Hamas gunmen firing from inside a school in Khan Younis, filmed by a resident"></textarea></div>' +
       '<details class="ir-a-more" id="ir-a-more"><summary>When, where and the topic <small>Optional. It goes up faster with them</small></summary>' +
@@ -1459,7 +1481,7 @@
       '<h2>Thank you. It is in.</h2>' +
       '<p>I check every find, usually within a day: that it opens, and that it shows what you said. Once it is on the map, your name is on it and the <b class="num">' + xp + ' XP</b> is yours. If something is missing, the answer comes under your find and in Replies to you.</p>' +
       (held ? '<p class="ir-a-msg bad">One step left: confirm your email with the link that was sent to you. Until then your find is waiting and only you can see it.</p>' : '') +
-      (mid === MISSION.mine ? '<p>You said you made it, so your account is marked as a creator\'s. Keep sending your work: each one that is accepted counts.</p>' : '') +
+      (mid === MISSION.mine ? '<p>You said you made it, so your account is marked as a creator\'s. Once it is on the map, everyone who uses the room can find it, and creators show the room on their live streams, so their audiences see your work too. Keep sending it: each one that is accepted earns the XP again.</p>' : '') +
       '<div class="ir-a-act"><button type="button" class="ir-a-send" data-a-again>Send another</button><button type="button" class="ir-s-b" data-a-see>See it with the other finds</button><a class="ir-a-talk" href="../missions/#' + esc(mid) + '">Your missions</a></div>';
     d.hidden = false;
   }
@@ -1594,6 +1616,7 @@
     ad.addEventListener('submit', function (ev) { ev.preventDefault(); sendAdd(); });
     ad.addEventListener('close', function () { if (location.hash === '#add' && history.replaceState) history.replaceState(null, '', location.pathname + location.search); });
     document.addEventListener('keydown', function (ev) {
+      if (SHOWING) return;          // the show screen has its own keys
       var typing = ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
       if (dlg.open && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) { var s = spotAt + (ev.key === 'ArrowRight' ? 1 : -1); if (s >= 0 && s < shown.length) openSpot(s); return; }
       if (!typing && !dlg.open && !ad.open && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
@@ -1613,7 +1636,18 @@
     map.addEventListener('pointerup', onUp);
     map.addEventListener('pointercancel', onUp);
     map.addEventListener('pointerleave', function () { $('ir-tip').hidden = true; });
-    map.addEventListener('wheel', function (ev) { ev.preventDefault(); stopTour(); poke(); var r = box.getBoundingClientRect(); zoomAt(Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.0018)), ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
+    /* The wheel and the page (16 October 2026, Armin: "it's really difficult to scroll up and down ... the map goes up and
+       down, and the page goes up and down ... especially when I click on full screen"). On the page, the wheel scrolls the
+       PAGE, over the map and over everything on it, until the map is clicked or Ctrl (Cmd on a Mac) is held; then it zooms
+       the map, until the pointer leaves it. On the full screen the page does not move at all and the wheel always zooms. A
+       pinch on a trackpad arrives as the wheel with Ctrl held, so it zooms the map. */
+    box.addEventListener('wheel', function (ev) {
+      if (!(isFull() || mapOn || ev.ctrlKey || ev.metaKey)) { mapHint('wheel'); return; }
+      ev.preventDefault(); stopTour(); poke(); var r = box.getBoundingClientRect();
+      zoomAt(Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.0018)), ev.clientX - r.left, ev.clientY - r.top);
+    }, { passive: false });
+    box.addEventListener('pointerleave', function (ev) { if (ev.pointerType === 'mouse') mapOn = false; });
+    document.addEventListener('pointerdown', function (ev) { if (!box.contains(ev.target)) mapOn = false; }, true);
     var rt = 0;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(refit, 120); });
     window.addEventListener('hashchange', function () { if (location.hash === '#add') openAdd(); });
@@ -1634,7 +1668,8 @@
     if (!P[it.p]) it.p = 'global';
     it.tp = (it.tp || []).filter(function (i) { return topics[i]; });
     it.id = 'L' + it.id;
-    it.k = it.k === 'video' ? 'video' : 'article';
+    // news and YouTube are an article or a video; an X post keeps what it carries (a post, an image, a video, an article)
+    it.k = it.src === 'X' ? (['post', 'image', 'video', 'article'].indexOf(it.k) >= 0 ? it.k : 'post') : it.k === 'video' ? 'video' : 'article';
     return it;
   }
   var liveUrl = root.getAttribute('data-live'), reachUrl = root.getAttribute('data-reach');
@@ -1682,10 +1717,16 @@
     if (S.place) focusPlace(S.place);
     else if (box.clientWidth >= 700) frameShown();
     else flyTo(V.mode === 'globe' ? 1.25 : 3, 36, 31);
-    // What intel-prep.js (show prep) is handed: what the room shows now, and the room's own words for a date and a place.
+    // What intel-prep.js (the creator tools and the show screen) is handed: the items (the last hours, the bank, one by its
+    // id: L for the last hours, B for the bank, R for a reader's find), and the room's own words and marks for them.
+    var BYID = {};
+    LIVE.forEach(function (it) { BYID[it.id] = it; }); BANK.forEach(function (it) { BYID['B' + it.id] = it; it._code = 'B' + it.id; });
     window.IRoom = { shown: function () { return shown.slice(); }, lens: function () { return S.lens; }, said: function () { return $('ir-said').textContent; },
-      topicsOn: function () { return S.tp.map(function (i) { return topics[i]; }); }, when: function (it) { return fmtDate(it.d); },
-      where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); },
+      live: function () { return LIVE.slice(); }, bank: function () { return BANK.slice(); }, liveAt: function () { return LIVE_AT; },
+      byId: function (id) { return BYID[id] || RD.filter(function (it) { return it.id === id; })[0] || null; },
+      topics: function () { return topics.slice(); }, topicsOn: function () { return S.tp.map(function (i) { return topics[i]; }); },
+      when: function (it) { return fmtDate(it.d); }, where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); },
+      code: function (it) { return it._code || String(it.id); }, pf: pfOf, kind: kindOf, mark: function (it) { return mark(it); }, fmt: fmtN, yt: ytId,
       reach: function (it) { var r = reachOf(it); return r && !r.x ? { likes: r.lk, views: r.vw, replies: r.rp, platform: pfName(pfOf(it)), viral: it._v } : null; } };
     if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');

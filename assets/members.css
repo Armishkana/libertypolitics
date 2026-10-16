@@ -204,6 +204,32 @@ h1.mb-name{margin:0;font-size:clamp(2rem,8vw,3rem);line-height:1;overflow-wrap:a
 .mb-cover-drawn{display:grid;place-items:center;color:var(--field);background:linear-gradient(135deg,var(--sunk),var(--raise))}
 .mb-cover-drawn svg{width:38%;height:auto;max-height:80%}
 .mb-cover-prev .mb-cover{margin:0;max-width:22rem;border-radius:var(--r)}
+/* 16 October 2026 (Armin: "For gatherings that people have not added a cover for, you should add a cover yourself"): a
+   drawing of the site's own (members.js artOf), with the day on it like a ticket, so a board of cards reads at a glance.
+   The tile sits on a picture, never on the page ground, so its colours are its own. */
+.mb-cover{position:relative}
+.mb-cover-art img{filter:saturate(.92) contrast(1.04)}
+.mb-day{position:absolute;inset-block-start:10px;inset-inline-start:10px;display:grid;justify-items:center;min-width:52px;padding:6px 8px 5px;
+  background:rgba(12,12,11,.86);border:1px solid rgba(244,196,48,.55);border-radius:8px;color:#F3F1EA;line-height:1;box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.mb-day-m{font:800 .75rem/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:#F4C430}
+.mb-day b{font:800 1.55rem/1 var(--display);margin-top:3px}
+.mb-front .mb-day{inset-block-start:8px;inset-inline-start:8px;min-width:44px;padding:4px 6px}
+.mb-front .mb-day b{font-size:1.3rem}
+/* the host picks a drawing: four across, each a 16:9 tap target of at least 44px */
+.mb-art-pick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2);max-width:28rem}
+.mb-art{display:block;padding:0;margin:0;border:2px solid transparent;border-radius:var(--r);overflow:hidden;background:var(--sunk);aspect-ratio:16/9;min-height:44px;cursor:pointer}
+.mb-art img{display:block;width:100%;height:100%;object-fit:cover}
+.mb-art[aria-pressed="true"]{border-color:var(--field);box-shadow:0 0 0 2px rgba(244,196,48,.25)}
+/* after the night: did it happen (the host), the answer, Past gatherings */
+.mb-asks{display:grid;gap:var(--s3);padding:var(--s4);background:var(--panel);border-radius:var(--r2,10px);border-inline-start:3px solid var(--field)}
+.mb-ask-row{display:grid;gap:var(--s2);padding-top:var(--s3);border-top:1px solid var(--line);min-width:0}
+.mb-ask-t{font-weight:700;overflow-wrap:anywhere}
+.mb-ask-t a{display:inline-flex;align-items:center;min-height:44px}
+.mb-held,.mb-held-next,.mb-happened{display:grid;gap:var(--s3);min-width:0}
+.mb-held [hidden]{display:none}
+.mb-held-acts,.mb-cal .mb-acts{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.mb-held-acts>*,.mb-cal .mb-acts>*{flex:1 1 9rem}
+.mb-past .mb-cover-night img{filter:none}
 .mb-hook{font-size:1.05rem;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
 .mb-whereb{display:grid;gap:2px;min-width:0}
 .mb-venue{font-weight:700;overflow-wrap:anywhere}
@@ -234,3 +260,40 @@ h1.mb-name{margin:0;font-size:clamp(2rem,8vw,3rem);line-height:1;overflow-wrap:a
 .mb-front .mb-acts>*{min-width:0}
 .mb-front .mb-acts .talk-n{justify-content:center;border-radius:var(--r,8px);padding:6px 10px;text-align:center}
 .mb-front .mb-acts .talk-n-c{flex-basis:100%;font-size:.82rem}
+/* 16 October 2026: what a person did, and the team (members.js postsOf, feedOf, initCrew). */
+.mb-marks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0;justify-content:inherit}
+.mb-tag{display:inline-flex;align-items:center;min-height:28px;padding:2px 10px;border-radius:999px;border:1px solid var(--field);color:var(--field);font:700 .78rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase;text-decoration:none}
+.mb-tag-host{background:var(--field);color:var(--on-field)}
+a.mb-tag{min-height:40px}
+a.mb-tag:hover,a.mb-tag:focus-visible{background:color-mix(in oklab,var(--field) 18%,transparent)}
+.mb-more{justify-self:inherit}
+.mb-pic-host{background:var(--panel)}
+.mb-pic-host img{object-fit:contain;padding:14%}
+.mb-act{display:grid;gap:var(--s3);min-width:0}
+.mb-actbar .mb-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px}
+.mb-actbar .mb-chip span,.mb-actbar .mb-chip b{display:inline;margin:0;font-size:.95rem;opacity:1}
+.mb-actbar .mb-chip b{font-variant-numeric:tabular-nums;opacity:.75}
+.mb-actlist{list-style:none;margin:0;padding:0;display:grid;gap:var(--s2)}
+.mb-actrow{display:grid;gap:6px;padding:var(--s3) var(--s4);background:var(--panel);border-radius:var(--r2,10px);border-inline-start:3px solid var(--line);min-width:0}
+.mb-act-reply{border-inline-start-color:color-mix(in oklab,var(--field) 45%,var(--line))}
+.mb-act-post{border-inline-start-color:var(--field)}
+.mb-act-mission,.mb-act-gathering{border-inline-start-color:var(--ink)}
+.mb-act-h{margin:0;line-height:1.45;overflow-wrap:anywhere}
+.mb-act-h a{font-weight:700;padding:10px 0;margin:-10px 0}
+.mb-act-k{color:var(--dim)}
+.mb-act-h time{white-space:nowrap}
+.mb-post-t{white-space:pre-line}
+.mb-post-t.is-cut{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.mb-readmore{justify-self:start;min-height:44px;padding:0 2px;border:0;background:none;color:var(--field);font:700 .95rem/1 var(--body);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.mb-actmore{justify-self:center;min-height:44px}
+.mb-actmore[hidden]{display:none}
+.mb-crew{list-style:none;margin:0;padding:0;display:grid;gap:var(--s3)}
+@media(min-width:760px){.mb-crew{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.mb-crew-card{display:flex;gap:var(--s4);align-items:center;height:100%;box-sizing:border-box;padding:var(--s4);background:var(--panel);border:1px solid var(--line);border-radius:var(--r2,10px);color:var(--ink);text-decoration:none;min-width:0;transition:border-color .15s,transform .15s}
+.mb-crew-card:hover,.mb-crew-card:focus-visible{border-color:var(--field);transform:translateY(-2px)}
+.mb-crew-card .mb-pic{width:72px;height:72px;box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--field)}
+.mb-crew-card .mb-pic .av{font-size:2rem}
+.mb-crew-who{display:grid;gap:4px;min-width:0}
+.mb-crew-name{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0;font-size:1.1rem;overflow-wrap:anywhere}
+.mb-crew-bio{margin:0;color:var(--ink);opacity:.88;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.mb-crew-who .mb-hint{margin:0}

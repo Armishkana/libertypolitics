@@ -337,6 +337,36 @@ function face(name, uid) {
    with (SITE.base: "fa/" on a Persian page of iranuncensored.com, so one discussion is reached from the
    page in the reader's own language). The rules of that site's project take exactly the same keys. */
 const SITE_KINDS = SITE.kinds || null, SITE_PAGES = SITE.pages || null, BASE = SITE.base || '';
+/* 16 October 2026, Armin: "There should be a way for me to click on every person's name and go see their bio, all their
+   comments, and all their activities, including clicking on LibertyPolitics itself and seeing her bio as well." Every
+   name and every face on a post leads to that account's profile (member/?u=<account id>, members.js), the site's own
+   account included; the Team tag leads to the page of everyone on the team (TEAM_PAGE, under About in the menu; the
+   address is members.py PATHS "crew"). A post with no account id (none should exist) keeps a plain name. */
+const TEAM_PAGE = 'about/team/';
+const profileHref = uid => (typeof uid === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(uid) ? root + BASE + 'member/?u=' + encodeURIComponent(uid) : '');
+function linkOr(tag, cls, text, href, attrs) { return href ? el('a', cls, text, Object.assign({ href }, attrs || {})) : el(tag, cls, text, attrs); }
+/* The name on a post, bold as before, as the way to the profile. */
+function nameOf_(name, uid) {
+  const b = el('b', null, null, ML ? { dir: 'auto' } : null);
+  b.append(linkOr('span', 'who-link', name, profileHref(uid)));
+  return b;
+}
+/* A tag that leads somewhere (Host, Team): the tag looks as before, inside a link a finger can hit (44 pixels tall). */
+function tagLink(cls, text, href) {
+  const t = el('span', cls, text);
+  if (!href) return t;
+  const a = el('a', 'tag-link', null, { href });
+  a.append(t);
+  return a;
+}
+/* The face beside it: the same way, kept out of the keyboard order and away from screen readers (the name already says it). */
+function faceLink(name, uid) {
+  const f = face(name, uid), h = profileHref(uid);
+  if (!h) return f;
+  const a = el('a', 'av-link', null, { href: h, tabindex: '-1', 'aria-hidden': 'true' });
+  a.append(f);
+  return a;
+}
 /* 13 October 2026, the mission board (build/quests.js): its own discussion is page:act, and a mission report is a
    post about "quest:<mission id>". A report has no page of its own: it lives on the board, so its address is
    the board's (SITE.questPage, "act/" when a site hands in none) and its link opens that mission (hrefOf). */
@@ -2321,12 +2351,13 @@ function row(p, best) {
   /* "Dana K replied 2 hours ago": the part after the name stays together, so on a narrow screen it moves under the name whole. */
   const sub = el('span', 'said-sub'), when = el('time', 'said-when', ago(p.ms), { datetime: new Date(p.ms).toISOString(), title: niceDate(p.ms) });
   if (p.parent) sub.append(...ttParts('replied {when}', 'when', when)); else sub.append(when);
-  who.append(el('b', null, p.name, ML ? { dir: 'auto' } : null), ' ', sub);
+  who.append(nameOf_(p.name, p.uid), ' ', sub);
   meta.append(who);
-  /* Only the people who run the site can hold such a name (the rules refuse it to everyone else). */
-  if (reservedName(p.name)) meta.append(el('span', 'tag host', tt('Host')));
+  /* Only the people who run the site can hold such a name (the rules refuse it to everyone else). Both marks lead
+     somewhere: Host to the site's own profile, Team to the page of everyone on the team. */
+  if (reservedName(p.name)) meta.append(tagLink('tag host', tt('Host'), profileHref(p.uid)));
   /* Someone on the team, by the id of the account: a reader cannot take this by choosing a name. */
-  else if (TEAM.has(p.uid)) meta.append(el('span', 'tag team', tt('Team')));
+  else if (TEAM.has(p.uid)) meta.append(tagLink('tag team', tt('Team'), root + BASE + TEAM_PAGE));
   /* A plain opinion needs no label: it is what a post is. A video, a link, a correction, a bug or an idea says so. */
   if (!p.parent && (p.tag || p.kind !== 'opinion')) meta.append(el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
   if (p.mine) meta.append(el('span', 'tag', tt('Made it')));
@@ -2336,7 +2367,7 @@ function row(p, best) {
     meta.append(el('span', 'tag new', tt('New')));
     ryWatch(li, p.id);
   }
-  head.append(face(p.name, p.uid), meta);
+  head.append(faceLink(p.name, p.uid), meta);
   li.append(head);
   if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: hrefOf(p.about, p.id) }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
@@ -2577,7 +2608,9 @@ function drawJump() {
     picks.forEach(p => {
       const li = el('li');
       const nr = repliesTo(p.id).length;
-      li.append(el('p', 'jump-who', p.name + ' · ' + niceDate(p.ms) + (nr ? ' · ' + (nr === 1 ? tt('1 reply') : tt('{n} replies', { n: dig(nr) })) : '')), el('p', 'jump-t', cut(p.text, 140), ML ? { dir: 'auto' } : null));
+      const jw = el('p', 'jump-who');
+      jw.append(linkOr('span', 'who-link', p.name, profileHref(p.uid)), ' · ' + niceDate(p.ms) + (nr ? ' · ' + (nr === 1 ? tt('1 reply') : tt('{n} replies', { n: dig(nr) })) : ''));
+      li.append(jw, el('p', 'jump-t', cut(p.text, 140), ML ? { dir: 'auto' } : null));
       li.append(btn('btn btn-line jump-b', tt('Answer {name}', { name: p.name }), () => {
         /* A filter that hides the post would leave the reply box nowhere: show everything first. */
         if (T.only || T.where || T.lang) { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); }
@@ -2986,8 +3019,8 @@ function latestDraw(sec, top) {
   if (top.length < 3) return;
   const wrap = sec.querySelector('.wrap') || sec, none = $('latest-none'), list = el('ul', 'votes latest-list');
   top.forEach(p => {
-    const li = el('li', 'vote said'), meta = el('div', 'meta'), who = el('span');
-    who.append(el('b', null, p.name), ' · ' + niceDate(p.ms));
+    const li = el('li', 'vote said'), meta = el('div', 'meta'), who = el('span', 'who');
+    who.append(nameOf_(p.name, p.uid), ' · ' + niceDate(p.ms));
     meta.append(who, el('span', 'tag kind' + (p.tag ? ' kind-' + p.tag : ''), TAGS[p.tag] || PLAIN[p.kind]));
     li.append(meta, el('a', 'said-on', p.subject || tt('Open the page'), { href: hrefOf(p.about, p.id) }));
     /* A taste of each post, not the post: the front page is kept to what a glance can take in (13 October 2026). */
@@ -3092,6 +3125,9 @@ function start() {
     members: { fb: () => fb(), user: () => user, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
       tt, dig, el, btn, tell, words, ago, niceDate, face, faceKnow, faceGiven: (n, u) => facesData().then(() => givenFace(n, u)), within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
       rest: what => restBase(what), plain: restPlain, looksLikeAddress, httpErr,
+      /* For profiles and the team page (16 October 2026): every live post when the saved copy is proven (else null, and
+         members.js asks the database), the team's account ids, the reserved-name test, the way to a profile. */
+      live: () => snapOnce(), team: () => teamReady().then(() => new Set(TEAM)), reserved: reservedName, profileHref, teamPage: TEAM_PAGE,
       restDoc: path => (EMU ? 'http://127.0.0.1:8080/v1/' : 'https://firestore.googleapis.com/v1/') + 'projects/' + (EMU ? DEMO : CFG.fb).projectId + '/databases/(default)/documents/' + path + (EMU ? '' : '?key=' + encodeURIComponent(CFG.fb.apiKey)),
       off: OFF, emu: EMU, quiet: QUIET, rtl: RTL, lang: LANG, safety: !!SITE.safety }, test: EMU ? { old: v => { forceOld = !!v; }, channelOf, cleanUrl, v2: () => isV2(), langOf, reserved: reservedName, nameProblem } : null };
   subs.push(reloadTalk);
