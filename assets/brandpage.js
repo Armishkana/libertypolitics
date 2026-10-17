@@ -12,12 +12,17 @@
    The order of a person's page is the brief (Armin, 17 Oct 2026): the designs first, as big pictures of the brand in
    use; then that nothing is final and every piece gets better when she talks to it; then the plan, her story, every
    text every platform needs, and the kit. English only: brand pages exist on this site alone. A person's words reach
-   the page through textContent. */
+   the page through textContent.
+
+   The page itself gets better from what the team says (Armin, 17 Oct 2026): every page has "Make this page better for
+   the whole team", whose notes carry about 'page:feature' / 'page:fix' / 'page:idea', and the list of what the team
+   asked for and what was decided, `teamlog` on each page's document, written by brandpage.py log from
+   data/brand-teamlog.json. The same list is on every page, so what one member asked for is seen by all. */
 
 const D = document, $ = id => D.getElementById(id);
 const BOX = $('bp');
 let R = null, el = null, btn = null;
-const ST = { uid: '', pages: [], key: '', doc: null, files: [], mine: {}, notes: [], urls: [], busy: false, look: '', wp: '', full: {}, done: {} };
+const ST = { uid: '', pages: [], key: '', doc: null, files: [], mine: {}, notes: [], urls: [], busy: false, look: '', wp: '', full: {}, done: {}, log: [], ptype: 'feature', cmp: '' };
 
 const CSS = `
 #bp{--bp-gap:clamp(36px,7vw,64px)}
@@ -170,6 +175,38 @@ const CSS = `
 #bp .bp-sent.done{color:var(--ga)}
 #bp .bp-tally{font-weight:600;margin:10px 0 0}
 #bp .bp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* the page gets better for everyone */
+#bp .bp-better{margin-top:22px;border:2px solid var(--field);border-radius:calc(var(--r) * 2);background:var(--panel);padding:18px;scroll-margin-top:80px}
+#bp .bp-better h2{font-family:var(--display);font-weight:800;font-size:clamp(1.4rem,5vw,1.9rem);text-transform:uppercase;line-height:1.05;margin:0 0 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#bp .bp-better>p{line-height:1.6;margin:0 0 14px;max-width:46rem}
+#bp .bp-kinds{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 10px}
+#bp .bp-better textarea{margin:0 0 10px}
+#bp .bp-log{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:10px}
+#bp .bp-log li{background:var(--sunk);border-radius:var(--r);padding:12px;line-height:1.5}
+#bp .bp-log .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+#bp .bp-log .who{font-size:.82rem;color:var(--dim)}
+#bp .bp-log p{margin:0}
+#bp .bp-log .did{color:var(--dim);font-size:.92rem;margin-top:4px}
+#bp .bp-v{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:3px 9px;white-space:nowrap}
+#bp .bp-v.done{background:var(--ga);color:var(--on-grade)}
+#bp .bp-v.building{background:var(--field);color:var(--on-field)}
+#bp .bp-v.no{background:var(--raise);color:var(--ink);border:1px solid var(--line)}
+#bp .bp-v.armin{background:var(--dem);color:#0b1020}
+#bp .bp-mynotes{margin-top:12px}
+#bp .bp-h4{font-size:1rem;font-weight:800;margin:20px 0 4px;font-family:var(--body);text-transform:none}
+/* the next step, always one tap away */
+#bp .bp-go{margin-top:12px}
+/* today and the new design, side by side in time */
+#bp .bp-cmp{margin-top:26px}
+#bp .bp-cmp h3{font-family:var(--body);text-transform:none;font-weight:800;font-size:1.1rem;margin:0 0 4px}
+#bp .bp-cmpimg{margin:10px 0 0;border-radius:var(--r);overflow:hidden;border:1px solid var(--line);background:var(--sunk);aspect-ratio:2560/423}
+#bp .bp-cmpimg img{width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block}
+#bp .bp-cmp figcaption{color:var(--dim);font-size:.88rem;margin-top:8px;line-height:1.45}
+/* colours she can copy */
+#bp .bp-swatches{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+#bp .bp-sw{font:inherit;font-size:.85rem;font-weight:700;min-height:40px;display:inline-flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--ink);cursor:pointer}
+#bp .bp-sw i{width:30px;height:30px;border-radius:50%;border:1px solid rgba(127,127,127,.5);flex:none}
+#bp .bp-sw small{font-weight:600;color:var(--dim);font-variant-numeric:tabular-nums}
 `;
 
 /* Drawn icons, one stroke and one weight (Lucide's shapes), so nothing on the page depends on how a phone draws emoji. */
@@ -402,6 +439,8 @@ async function openPage(key) {
   ST.key = key;
   ST.doc = JSON.parse(page.doc.json || '{}');
   ST.doc.words = wordsOf(ST.doc);
+  try { ST.log = JSON.parse(page.doc.teamlog || '[]'); } catch (x) { ST.log = []; }
+  if (!Array.isArray(ST.log)) ST.log = [];
   const [files, mine] = await Promise.all([
     R.within(30000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'files'), F.limit(300)))),
     R.within(20000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'mine'), F.limit(300)))),
@@ -440,7 +479,12 @@ function progress() {
   const all = box.querySelectorAll('li').length;
   if (bar) bar.firstChild.style.width = Math.round(n / all * 100) + '%';
   const sum = $('bp-sum');
-  if (sum) sum.textContent = n === all ? 'All five done. Your brand is ready to go live, and it keeps getting better every time you tell us something.' : `${n} of ${all} done.`;
+  if (sum) sum.textContent = n === all ? `All ${all} done. Your brand is ready to go live, and it keeps getting better every time you tell us something.` : `${n} of ${all} done.`;
+  const go = $('bp-go'), next = Array.from(box.querySelectorAll('li')).find(li => !stepDone(li.dataset.k));
+  if (go) {
+    go.hidden = !next;
+    if (next) { go.dataset.k = next.dataset.k; go.textContent = 'Next: ' + next.querySelector('span').firstChild.textContent; }
+  }
   const todo = $('bp-todo-n');
   if (todo) todo.textContent = todoCount();
 }
@@ -470,9 +514,9 @@ function paint() {
   if (person) {
     const lede = el('p', 'bp-lede');
     lede.append(el('b', null, `Draft ${B.draft || 1}. `), `Here are your ${B.looks.length} designs. Pick one, and tell any part what to change.`);
-    BOX.append(lede, paintLooks(), paintPromise());
+    BOX.append(lede, betterChip(), paintLooks(), paintPromise(), paintBetter());
   } else {
-    BOX.append(el('p', 'bp-lede', `The ${B.name} brand in one place: the kit, the words on every account, and the story. Only you can open this page.`));
+    BOX.append(el('p', 'bp-lede', `The ${B.name} brand in one place: the kit, the words on every account, and the story. Only you can open this page.`), betterChip());
     const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
     const hero = el('div', 'bp-hero');
     const banner = fileById(look.files.find(id => /x-header|youtube-banner/.test(id)) || '');
@@ -481,6 +525,7 @@ function paint() {
     hero.style.marginTop = '18px';
     BOX.append(hero);
     if (banner) fullUrl(banner).then(u => { himg.src = u; }).catch(() => { });
+    BOX.append(paintBetter());
   }
 
   const steps = el('ol', 'bp-steps', null, { id: 'bp-steps' });
@@ -494,9 +539,12 @@ function paint() {
   });
   BOX.append(steps);
   const bar = el('div', 'bp-meter', null, { id: 'bp-bar', role: 'presentation' }); bar.append(el('b')); BOX.append(bar);
-  BOX.append(el('p', 'bp-sub', '', { id: 'bp-sum', style: 'margin-top:8px' }), el('p', 'bp-tally', '', { id: 'bp-tally' }));
+  BOX.append(el('p', 'bp-sub', '', { id: 'bp-sum', style: 'margin-top:8px' }));
+  const go = el('button', 'bp-btn main bp-go', '', { type: 'button', id: 'bp-go' });
+  go.addEventListener('click', () => { const k = go.dataset.k; const t = k && $('bp-' + k); if (t) t.scrollIntoView({ behavior: 'smooth' }); });
+  BOX.append(go, el('p', 'bp-tally', '', { id: 'bp-tally' }));
   const jump = el('a', 'bp-chip', null, { href: '#bp-talk', style: 'margin-top:10px' });
-  jump.append(ico('chat'), el('span', null, 'Tell us anything about the whole page'));
+  jump.append(ico('chat'), el('span', null, person ? 'Tell us anything about your brand' : 'Tell us anything about this brand'));
   jump.addEventListener('click', ev => { ev.preventDefault(); $('bp-talk').scrollIntoView({ behavior: 'smooth' }); });
   BOX.append(jump);
 
@@ -557,9 +605,7 @@ function paintLooks() {
     body.append(el('p', null, l.short));
     const more = el('details', 'bp-more');
     more.append(el('summary', null, 'Why this design'), el('p', 'bp-why', l.why));
-    const dots = el('div', 'bp-dots', null, { 'aria-label': 'Colours' });
-    l.palette.forEach(c => dots.append(el('span', null, null, { style: `background:${c.hex}`, title: `${c.name}: ${c.role}` })));
-    more.append(dots, el('p', 'bp-type', 'Type: ' + l.fonts.join(' and ')));
+    more.append(swatches(l), el('p', 'bp-type', 'Type: ' + l.fonts.join(' and ')));
     body.append(more);
     const acts = el('div', 'bp-acts');
     const pick = el('button', 'pick', v('look') === l.k ? '✓ My design' : 'Pick this design', { type: 'button', 'aria-pressed': v('look') === l.k ? 'true' : 'false' });
@@ -598,7 +644,132 @@ function paintLooks() {
     }, { passive: true });
     s.append(pager, el('p', 'bp-hint', `Swipe to see all ${B.looks.length} designs.`));
   }
+  const cmp = paintCompare();
+  if (cmp) s.append(cmp);
   s.append(commentBox('sec:look', 'Tell us about the designs as a whole', 'Want a mix of two, a colour you love, a font you hate? Say it here.'));
+  return s;
+}
+
+/* The colours of a design, each a button that copies its code, for when she makes something herself (Canva, CapCut). */
+function swatches(l) {
+  const box = el('div', 'bp-swatches', null, { role: 'group', 'aria-label': `${l.name} colours` });
+  l.palette.forEach(c => {
+    const b = el('button', 'bp-sw', null, { type: 'button', title: `${c.name}: ${c.role}`, 'aria-label': `Copy ${c.name}, ${c.hex}` });
+    const code = el('small', null, c.hex);
+    b.append(el('i', null, null, { style: `background:${c.hex}` }), el('span', null, c.name), code);
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(c.hex); code.textContent = 'Copied'; } catch (x) { code.textContent = c.hex; }
+      setTimeout(() => { code.textContent = c.hex; }, 2000);
+    });
+    box.append(b);
+  });
+  return box;
+}
+
+/* Her channel today against the same place in the design in front: the banner strip every computer shows. Only when the
+   page has her banner as it is today (brandpage.py sends it as 'today-banner'). */
+function paintCompare() {
+  const B = ST.doc, today = fileById('today-banner');
+  const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
+  const neu = fileById(look.files.find(id => /youtube-banner/.test(id)) || '');
+  if (!today || !neu) return null;
+  const box = el('section', 'bp-cmp', null, { id: 'bp-cmp', 'aria-label': 'Today and in the new design' });
+  box.append(el('h3', null, 'Your channel today, and in ' + look.name));
+  const tabs = el('div', 'bp-groups', null, { role: 'group', 'aria-label': 'Which banner' });
+  const fig = el('figure', 'bp-cmpimg');
+  const img = el('img', null, null, { alt: '' });
+  fig.append(img);
+  const cap = el('figcaption');
+  const show = which => {
+    ST.cmp = which;
+    const f = which === 'today' ? today : neu;
+    img.src = ST.done[f.id] || thumbOf(f);
+    img.alt = which === 'today' ? 'Your YouTube banner today' : `Your YouTube banner in ${look.name}`;
+    if (!ST.done[f.id]) fullUrl(f).then(u => { if (ST.cmp === which) img.src = u; }).catch(() => { });
+    cap.textContent = which === 'today' ? 'Today: the night globe and your name. Nothing says what the channel is or who it is for.' : `${look.name}: your face, your name, your line, and your two series, the way a computer shows it.`;
+    tabs.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === which ? 'true' : 'false'));
+  };
+  [['today', 'Today'], ['new', look.name]].forEach(([k, t]) => {
+    const b = el('button', 'bp-chip', t, { type: 'button', 'data-c': k });
+    b.addEventListener('click', () => show(k));
+    tabs.append(b);
+  });
+  box.append(tabs, fig, cap);
+  show(ST.cmp || 'new');
+  return box;
+}
+
+/* "Make this page better for the whole team": the way to ask for the page itself, distinct from her own brand, and the
+   list of what the team asked for and what was decided, the same on every page. */
+function betterChip() {
+  const a = el('a', 'bp-chip', null, { href: '#bp-better', style: 'margin-top:12px' });
+  a.append(ico('spark'), el('span', null, 'Make this page better for the whole team'));
+  a.addEventListener('click', ev => { ev.preventDefault(); $('bp-better').scrollIntoView({ behavior: 'smooth' }); const t = $('bp-better').querySelector('textarea'); if (t) setTimeout(() => t.focus({ preventScroll: true }), 400); });
+  return a;
+}
+const KINDS = [['feature', 'A feature I need'], ['fix', 'Something is wrong'], ['idea', 'An idea']];
+const VERDICT = { done: 'Built', building: 'Building it', no: 'Not doing it', armin: 'With Armin' };
+function paintBetter() {
+  const s = el('section', 'bp-better', null, { id: 'bp-better' });
+  const h = el('h2', null, 'Make this page better for the whole team');
+  h.append(el('span', 'bp-tag', 'For everyone'));
+  s.append(h, el('p', null, 'This page is new, and it grows from what the team tells us. A feature you need, something that gets in your way, an idea from a brand you admire: say it here. Every request gets an honest answer (is it the best way, not only a good one), and what we build reaches every team member\'s page.'));
+  const kinds = el('div', 'bp-kinds', null, { role: 'group', 'aria-label': 'What kind' });
+  KINDS.forEach(([k, t]) => {
+    const b = el('button', 'bp-chip', t, { type: 'button', 'data-kind': k, 'aria-pressed': ST.ptype === k ? 'true' : 'false' });
+    b.addEventListener('click', () => { ST.ptype = k; kinds.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
+    kinds.append(b);
+  });
+  const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make this page better, for you or for anyone on the team?', 'aria-label': 'Make this page better for the whole team' });
+  const send = el('button', 'bp-btn main', 'Send to the team', { type: 'button' });
+  const line = el('p', 'bp-msg', '', { role: 'status', 'aria-live': 'polite' });
+  const mineBox = el('div', 'bp-mynotes');
+  const drawMine = () => {
+    mineBox.textContent = '';
+    const mine = ST.notes.filter(n => String(n.about || '').startsWith('page:') && n.uid === R.user().uid);
+    if (!mine.length) return;
+    mineBox.append(el('p', 'bp-h4', 'What you asked for'));
+    mine.forEach(n => {
+      const c = el('div', 'bp-note');
+      const ans = ST.notes.filter(r => r.about === 're:' + n.id);
+      const kind = (KINDS.find(k => 'page:' + k[0] === n.about) || [, 'Request'])[1];
+      c.append(el('div', 'who', `${kind}${n.createdAt ? ' · ' + new Date(ms(n.createdAt)).toLocaleDateString() : ''}`), el('p', null, n.text));
+      c.append(el('div', 'bp-sent' + (ans.length ? ' done' : ''), ans.length ? '✓ Answered' : '✓ Received. You get an honest answer here, usually within a day.'));
+      ans.forEach(r => { const rc = el('div', 'bp-note site'); rc.append(el('div', 'who', 'Liberty Politics team'), el('p', null, r.text)); c.append(rc); });
+      mineBox.append(c);
+    });
+  };
+  send.addEventListener('click', async () => {
+    if (ta.value.trim().length < 2) { line.textContent = 'Write a few words first.'; line.className = 'bp-msg bad'; return; }
+    send.disabled = true; send.textContent = 'Sending...';
+    try {
+      await writeNote('page:' + ST.ptype, ta.value.trim());
+      ta.value = ''; line.textContent = '✓ Sent. Thank you: this is how the page gets better for everyone.'; line.className = 'bp-msg';
+      drawMine(); tally();
+    } catch (e) { line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
+    send.disabled = false; send.textContent = 'Send to the team';
+  });
+  s.append(kinds, ta, send, line, mineBox);
+  drawMine();
+  s.append(el('p', 'bp-h4', 'What the team asked for, and what we did'));
+  const rows = ST.log.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  if (!rows.length) s.append(el('p', 'bp-sub', 'Nothing yet. Be the first: what would make this page better?', { style: 'margin:4px 0 0' }));
+  const ul = el('ul', 'bp-log', null, { 'aria-label': 'What the team asked for' });
+  rows.forEach((r, i) => {
+    const li = el('li', null, null, { 'data-v': r.v || '' });
+    if (i >= 4) li.hidden = true;
+    const top = el('div', 'top');
+    top.append(el('span', 'bp-v ' + (VERDICT[r.v] ? r.v : 'building'), VERDICT[r.v] || 'Building it'), el('span', 'who', [r.who ? 'From ' + r.who : '', r.date || ''].filter(Boolean).join(' · ')));
+    li.append(top, el('p', null, r.asked || ''));
+    if (r.did) li.append(el('p', 'did', r.did));
+    ul.append(li);
+  });
+  s.append(ul);
+  if (rows.length > 4) {
+    const more = el('button', 'bp-btn', `Show all ${rows.length}`, { type: 'button', style: 'margin-top:10px' });
+    more.addEventListener('click', () => { ul.querySelectorAll('li').forEach(li => { li.hidden = false; }); more.remove(); });
+    s.append(more);
+  }
   return s;
 }
 
@@ -885,5 +1056,5 @@ function start() {
   if (!go()) { let n = 0; const t = setInterval(() => { if (go() || ++n > 200) clearInterval(t); }, 50); }
   window.addEventListener('hashchange', () => { const k = location.hash.slice(1); if (ST.pages.some(p => p.key === k) && k !== ST.key) openPage(k); });
 }
-window.LPBRAND = { state: () => ({ uid: ST.uid, key: ST.key, look: ST.look, wp: ST.wp, pages: ST.pages.map(p => p.key), mine: Object.assign({}, ST.mine) }) };      // for brand-test.html
+window.LPBRAND = { state: () => ({ uid: ST.uid, key: ST.key, look: ST.look, wp: ST.wp, ptype: ST.ptype, log: ST.log.length, pages: ST.pages.map(p => p.key), mine: Object.assign({}, ST.mine) }) };      // for brand-test.html
 start();

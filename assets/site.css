@@ -1260,6 +1260,29 @@ a.door span{color:var(--dim);line-height:1.45}
 .prop .links a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
 .props-end{margin-top:14px;max-width:62ch}
 @media(min-width:900px){.props{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}}
+/* The site speaks to you (17 October 2026): a message from the site in its own face, in the corner above the show's
+   bubble, drawn by community.js ("the site speaks to you"). A message from someone, so a face and a card, never a
+   banner, and fixed, so nothing on the first screen of a page moves under it. Who is speaking and what it may say:
+   ../../characters.md, "Every page talks to you". Gone while the discussion is open. Nothing hides and animates in. */
+.hi{position:fixed;inset-inline-end:10px;bottom:10px;z-index:15;width:min(calc(100vw - 20px),24rem);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 32px -10px rgba(0,0,0,.7)}
+html[data-mode="discussion"] .hi{display:none}
+.hi-w{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;gap:10px;align-items:start;padding:12px 4px 12px 12px;max-width:none;margin:0}
+[dir="rtl"] .hi-w,html[lang="fa"] .hi-w{padding:12px 12px 12px 4px}
+.hi-face{width:40px;height:40px;border-radius:50%;object-fit:cover;background:var(--sunk);border:1px solid var(--line)}
+.hi-b{min-width:0}
+.hi-who{margin:0;font-weight:700;font-size:.82rem;line-height:1.3;color:var(--field)}
+.hi-say{margin:2px 0 0;font-size:.95rem;line-height:1.45;color:var(--ink);overflow-wrap:anywhere}
+.hi-q{color:var(--dim)}
+html[lang="fa"] .hi-q{quotes:"\00AB" "\00BB"}
+.hi-acts{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.hi-go{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--field);background:var(--field);color:var(--on-field);font:700 .95rem/1.2 var(--body);text-decoration:none;cursor:pointer}
+.hi-go:hover{background:var(--field-hi)}
+.hi-go.hi-alt{background:transparent;color:var(--ink);border-color:var(--line)}
+.hi-go.hi-alt:hover{border-color:var(--field);background:transparent}
+.hi-x{display:grid;place-items:center;width:40px;height:40px;margin:-6px 0 0;padding:0;border:0;border-radius:50%;background:transparent;color:var(--dim);cursor:pointer}
+.hi-x:hover{background:var(--raise);color:var(--ink)}
+.hi-go:focus-visible,.hi-x:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+@media print{.hi{display:none}}
 /* THE LOOK OF 14 OCTOBER 2026. This file is added after site.css by the build (render.py, extras): the site still
    loads one stylesheet. Where both files speak, this one decides.
 

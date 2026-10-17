@@ -64,7 +64,7 @@
       #q-mine [hidden] with [data-q-slot="mine"]     the reader's own missions and what became of each
       #q-rank with [data-q="level"], [data-q="xp"], [data-q="bar"] (holds one <i>), [data-q="next"]
       [data-q-chain="<chain>"] with .q-dots (one <i> per stage) and [data-q="chain-n"]
-      #q-top [hidden] with [data-q-slot="top"]       the leaderboard, drawn only when there are three names
+      #q-top [hidden] with [data-q-slot="top"]       the leaderboard, drawn as soon as one reader has points
       [data-q="none"]         one line when no mission is left for this reader
 
    ---------------------------------------------------------------- ADDED 14 OCTOBER 2026 (all optional)
@@ -577,9 +577,11 @@ function run() {
     if (!sec || !list) return;
     const rows = (Array.isArray(TOP.top) ? TOP.top : []).filter(r => r && typeof r.name === 'string' && r.name.trim() && typeof r.xp === 'number' && r.xp > 0)
       .sort((a, b) => b.xp - a.xp).slice(0, 10);
-    sec.hidden = rows.length < 3;
+    /* Drawn from the first name (17 October 2026). It waited for three, so with two readers holding points the board
+       showed nobody, and a reader who earned 20 XP reported that his points were in no rank. */
+    sec.hidden = !rows.length;
     list.textContent = '';
-    if (rows.length < 3) return;
+    if (!rows.length) return;
     rows.forEach(r => {
       const li = el('li'), lv = LEVELS.filter(l => r.xp >= l.xp).pop();
       li.append(el('b', null, r.name.trim().slice(0, 40), { dir: 'auto' }), el('span', 'q-top-l', lv ? lv.name : ''), el('span', 'q-top-x num', tt('{n} XP', { n: Math.floor(r.xp) })));

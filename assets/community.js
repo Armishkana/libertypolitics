@@ -552,13 +552,15 @@ function onUser(u) {
        id left here would tie this phone to what was written from it. The price is that replies already
        seen count as new after the next sign-in. Elsewhere the id is kept, so they do not. */
     if (SITE.safety && was && was.uid) { const all = rySeenAll(); if (all[was.uid] != null) { delete all[was.uid]; store.set(KEY.rseen, Object.keys(all).length ? all : null); } }
+    /* the same for what the site has told this account (the note at the top of the page) */
+    if (SITE.safety && was && was.uid) { const all = hiToldAll(); if (all[was.uid] != null) { delete all[was.uid]; store.set(HI.told, Object.keys(all).length ? all : null); } }
     me = null; profile = null; adminIs = false; ownerIs = false; store.set(KEY.me, null); ryDrop();
   }
   changed();
   /* Firebase's code is loaded and a reader is signed in: the one moment "replies to you" may be asked for. */
   if (u) ryCheck().catch(() => { });
 }
-function changed() { paintHeader(); paintBox(); subs.forEach(f => { try { f(); } catch (x) { } }); }
+function changed() { paintHeader(); paintBox(); try { paintHi(); hiNudge(); } catch (x) { } subs.forEach(f => { try { f(); } catch (x) { } }); }
 
 /* The users document: what the account keeps beside the email and the password. */
 async function loadProfile(force) {
@@ -819,10 +821,10 @@ async function ryFind(uid, myName) {
   const toMe = r => {
     const t = th.get(r.parent);
     if (t.mine) return true;
-    const n = [...t.names].concat(myName ? [myName] : []).find(x => r.text.startsWith('@' + x + ' '));
+    const n = [...t.names].concat(myName ? [myName] : []).find(x => r.text.startsWith(atName(x) + ' ') || r.text.startsWith('@' + x + ' '));
     if (!n) return false;
     /* "@Dana K ..." is not for Dana when a Dana K wrote in that thread too: the longest name wins, as in mention(). */
-    return !all.some(o => o.parent === r.parent && o.uid !== uid && o.name.length > n.length && r.text.startsWith('@' + o.name) && !LETTER.test(r.text.charAt(o.name.length + 1)));
+    return !all.some(o => o.parent === r.parent && o.uid !== uid && o.name.length > n.length && atLead(r.text, o.name));
   };
   return all.filter(r => r.uid !== uid && r.status === 'live' && toMe(r)).sort((a, b) => b.ms - a.ms).map(ryRow).filter(Boolean).slice(0, 40);
 }
@@ -837,6 +839,7 @@ function ryCheck() {
     if (!user || user.uid !== uid) return null;
     ry = { uid, at: Date.now(), rows }; ryKept.set(ry); paintHeader();
     try { ryRelight(); } catch (x) { }
+    try { paintHi(); } catch (x) { }
     return ry;
   });
   const done = () => { if (ryAsk && ryAsk.p === p) ryAsk = null; };
@@ -890,6 +893,210 @@ function landOn() {
   if (t.parent && !T.open.has(t.parent)) { T.open.add(t.parent); drawTalk(); }
   const r = $(location.hash.slice(1));
   if (r) r.scrollIntoView({ block: 'center' });
+}
+
+/* ------------------------------------------------------------------ the site speaks to you (17 October 2026)
+   His words: "it needs to talk to you as an individual ... It is telling them, 'Oh, here's what I did for you. Ask me
+   this, tell me this, tell me that.'" Who each site is, and the rules this keeps: projects/brand/characters.md, "Every
+   page talks to you". The lines are each site's own (data/voice.json, handed in as SITE.voice), so each one speaks as
+   itself; with none handed in there is no note. A note at the top of the page in the site's own face: who it is, to a
+   reader it has never seen; the reader's name once signed in; what it did for them since (its own answers to them,
+   readers who answered them, both from Replies to you, so nothing new is asked of the database); and one thing to tell
+   it, which opens this page's box. A deed is said once: seen for three seconds, tapped or closed, it is told.
+   Where: a message in the corner, above the show's bubble, so nothing on the first screen of any page moves (his rules
+   that the country tabs, the next mission and the box stay there). When: on the first page of a visit, and on any page
+   where it has done something not yet said; on the other pages the page's own question (#nudge) speaks in its voice,
+   with the reader's name. Never over the discussion. Nothing a reader wrote goes in as markup, and a line with a part
+   missing says nothing. */
+const V = SITE.voice && typeof SITE.voice === 'object' && typeof SITE.voice.name === 'string' ? SITE.voice : null;
+const HI = { told: EMU ? 'lp-emu-hi' : 'lp-hi', visit: EMU ? 'lp-emu-hi-v' : 'lp-hi-v', last: EMU ? 'lp-emu-hi-last' : 'lp-hi-last', x: 'lp-hi-x',
+  gap: 30 * 60000, away: 20 * 3600000, dwell: 3000, back: 30 * 86400000 };
+let hiBox = null, hiVisit = null, hiIO = null;
+const hiShown = new Set();
+/* One of the site's lines with its parts filled in. A part that is not there leaves the whole line out, so a page can
+   never say "undefined"; numbers come in the site's own digits. */
+function vsay(s, v) {
+  if (typeof s !== 'string' || !s) return '';
+  let gone = false;
+  const out = s.replace(/\{(\w+)\}/g, (m, k) => {
+    const x = v && v[k];
+    if (typeof x === 'number' && isFinite(x)) return dig(x);
+    if (typeof x === 'string' && x.trim()) return x;
+    gone = true; return '';
+  });
+  return gone ? '' : out;
+}
+/* A visit is the pages a reader opens with less than half an hour between them. The first page of a visit greets;
+   the rest go straight to what is new or to the page's own question. Kept on this device only, and holds no account. */
+function hiVisitNow() {
+  const o = store.get(HI.visit), now = Date.now(), ok = o && typeof o === 'object' && typeof o.at === 'number' && o.at <= now;
+  const fresh = !ok || now - o.at > HI.gap;
+  const v = { first: !ok, fresh, away: ok && fresh ? now - o.at : 0, start: !fresh && typeof o.start === 'number' ? o.start : now };
+  store.set(HI.visit, { at: now, start: v.start });
+  return v;
+}
+function hiToldAll() { const s = store.get(HI.told); return s && typeof s === 'object' && !Array.isArray(s) ? s : {}; }
+function hiTold() { const e = me ? hiToldAll()[me.uid] : null; return new Set(e && Array.isArray(e.told) ? e.told.filter(x => typeof x === 'string') : []); }
+function hiTell(ids) {
+  if (!me || !ids.length) return;
+  const all = hiToldAll(), had = all[me.uid] && Array.isArray(all[me.uid].told) ? all[me.uid].told : [], keep = {};
+  all[me.uid] = { told: [...new Set(had.concat(ids))].slice(-200), at: Date.now() };
+  Object.keys(all).filter(k => all[k] && typeof all[k].at === 'number').sort((a, b) => all[b].at - all[a].at).slice(0, 8).forEach(k => { keep[k] = all[k]; });
+  store.set(HI.told, keep);
+}
+/* What it did for the reader that it has not said yet: its own answers under their posts, and readers who answered
+   them, new in Replies to you, from the last thirty days. null while Replies to you is not known on this page. */
+function hiDeeds() {
+  if (!me || !ry || ry.uid !== me.uid) return null;
+  const since = rySeen(), opened = ryOpened(), told = hiTold(), cut = Date.now() - HI.back;
+  const rows = ry.rows.filter(r => r.ms > cut && (hiShown.has(r.id) || (ryIsNew(r, since, opened) && !told.has(r.id))));
+  return { mine: rows.filter(r => r.name === V.name), them: rows.filter(r => r.name !== V.name) };
+}
+/* Where the reader was last time: a politician, a race, a vote or a state, on this device, in this language. */
+function hiRemember() {
+  const on = pageOn(), k = keyKind(on);
+  if (!/^(member|race|vote|state)$/.test(k) || !pageName()) return;
+  store.set(HI.last, { on, name: pageName().slice(0, 80), href: location.pathname, lang: LANG, at: Date.now() });
+}
+function hiLast() {
+  const l = store.get(HI.last);
+  if (!l || typeof l !== 'object' || typeof l.name !== 'string' || typeof l.href !== 'string' || !/^\/[^\s<>"']{0,300}$/.test(l.href) || l.lang !== LANG) return null;
+  return l.on === pageOn() ? null : l;
+}
+/* The page's own question: a line for its kind (a politician, a race, a mission, a page by its key), and the kind of
+   post the box opens on. */
+function hiAsk() {
+  const A = V.ask && typeof V.ask === 'object' ? V.ask : {}, on = pageOn(), k = keyKind(on);
+  const a = (k === 'page' || !k ? A[on] : null) || A[k] || A.page;
+  if (!a || typeof a.say !== 'string') return null;
+  const say = vsay(a.say, { page: pageName() });
+  return say ? { say, kind: /^(opinion|wrong|source|bug|idea)$/.test(a.kind) ? a.kind : 'opinion' } : null;
+}
+/* The reply a reader opens from the note arrives lit, the same as from Replies to you. */
+function hiOpenReply(r) { if (ryIsNew(r, rySeen(), ryOpened())) { ryGo(r.id); ryLit.add(r.id); } ryOpen(r.id); hiTell([r.id]); }
+function hiCut(t) {
+  t = String(t || '');
+  const lead = me && me.name ? atLead(t, me.name) : '';
+  t = (lead ? t.slice(lead.length) : t).replace(/\s+/g, ' ').trim();
+  return t.length > 90 ? t.slice(0, 87).replace(/\s+\S*$/, '') + '...' : t;
+}
+/* What the note says now: lines, then buttons. Nothing at all is a valid answer. */
+function hiSays() {
+  const home = pageOn() === 'page:home', lines = [], acts = [], told = [];
+  const tell = a => { const t = el('a', 'hi-go', V.tell || '', { href: '#feedback', 'data-kind': a.kind, 'data-about': '' }); if (t.textContent) acts.push(t); };
+  const ask = hiAsk();
+  if (!me) {
+    /* a reader who is not signed in hears from it on the first page of a visit; after that the page's own question speaks */
+    if (home || !hiVisit.fresh) return null;
+    lines.push(vsay(hiVisit.first ? V.first : V.again, {}));
+    if (ask) tell(ask);
+    if (hiVisit.first && V.who) acts.push(el('a', 'hi-go hi-alt', V.who, { href: root + BASE + 'about/' }));
+  } else {
+    if (!me.name) return null;
+    if (hiVisit.fresh) lines.push(vsay(hiVisit.away >= HI.away ? V.back : V.hi, { name: me.name }));
+    const d = hiDeeds();
+    if (d && d.mine.length === 1) {
+      const r = d.mine[0], q = hiCut(r.text), line = vsay(V.answered, {});
+      if (line && q) { const p = el('span'); p.append(line + ' ', el('q', 'hi-q', q, ML ? { dir: 'auto' } : null)); lines.push(p); }
+      else if (line) lines.push(line);
+      const a = el('a', 'hi-go', V.see || '', { href: hrefOf(r.about, r.id) }); a.addEventListener('click', () => hiOpenReply(r));
+      if (a.textContent) acts.push(a);
+      told.push(r.id);
+    } else if (d && d.mine.length > 1) {
+      lines.push(vsay(V.answeredN, { n: d.mine.length }));
+      told.push(...d.mine.map(r => r.id));
+    }
+    if (d && d.them.length === 1) {
+      const r = d.them[0];
+      lines.push(vsay(V.replied, { who: r.name }));
+      if (!acts.length) { const a = el('a', 'hi-go', V.seeIt || '', { href: hrefOf(r.about, r.id) }); a.addEventListener('click', () => hiOpenReply(r)); if (a.textContent) acts.push(a); }
+      told.push(r.id);
+    } else if (d && d.them.length > 1) {
+      lines.push(vsay(V.repliedN, { n: d.them.length }));
+      told.push(...d.them.map(r => r.id));
+    }
+    /* More than one of anything: the list in the account panel says them all. */
+    if (d && (d.mine.length > 1 || d.them.length > 1) && acts.length < 1 && V.seeAll) acts.push(btn('hi-go', V.seeAll, ev => { hiTell(told); openSheet('account', { opener: ev.currentTarget }); }));
+    /* past the first page of a visit, it speaks only when it has done something for them */
+    if (!hiVisit.fresh && !told.length) return null;
+    if (!told.length) {
+      const l = home ? hiLast() : null;
+      if (l && vsay(V.last, { page: l.name })) {
+        lines.push(vsay(V.last, { page: l.name }));
+        if (V.lastGo) acts.push(el('a', 'hi-go hi-alt', V.lastGo, { href: l.href }));
+      }
+      if (ask) lines.push(ask.say);
+    }
+    if (ask && acts.length < 2) tell(ask);
+  }
+  const said = lines.filter(x => x && (typeof x !== 'string' || x.trim()));
+  return said.length ? { lines: said, acts: acts.slice(0, 2), told } : null;
+}
+/* Closed by the reader: gone until their next visit. */
+function hiClosed() { try { return sessionStorage.getItem(HI.x) === String(hiVisit && hiVisit.start); } catch (x) { return false; } }
+function paintHi() {
+  if (!V || !hiVisit) return;
+  const talk = $('talk'), main = D.getElementById('main');
+  /* Not on the pages that are not for readers to linger on: the Intel Room is the show's screen on air, and the panel and
+     job doors each ask one thing. The team room, the brand pages and mod/ have no discussion, so no note. */
+  if (!talk || !main || hiClosed() || /^page:(intel|panel|job)$/.test(pageOn())) { if (hiBox) { hiBox.remove(); hiBox = null; } return; }
+  const s = hiSays();
+  if (!s) { if (hiBox) { hiBox.remove(); hiBox = null; } return; }
+  s.told.forEach(id => hiShown.add(id));
+  const box = el('aside', 'hi', null, { id: 'hi', 'aria-label': V.name, 'data-clarity-mask': 'true' });
+  const wrap = el('div', 'wrap hi-w'), body = el('div', 'hi-b'), say = el('p', 'hi-say');
+  s.lines.forEach((x, i) => { if (i) say.append(' '); say.append(x); });
+  body.append(el('p', 'hi-who', V.name, { dir: 'auto' }), say);
+  if (s.acts.length) { const row = el('p', 'hi-acts'); row.append(...s.acts); body.append(row); }
+  s.acts.forEach(a => a.addEventListener('click', () => hiTell(s.told)));
+  const x = btn('hi-x', '', () => {
+    hiTell(s.told);
+    try { sessionStorage.setItem(HI.x, String(hiVisit.start)); } catch (e) { }
+    box.remove(); if (hiBox === box) hiBox = null;
+  });
+  x.setAttribute('aria-label', tt('Hide this note'));
+  x.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  wrap.append(el('img', 'hi-face', null, { src: root + (SITE.mark || 'assets/seal.png'), alt: '', width: '44', height: '44', decoding: 'async' }), body, x);
+  box.append(wrap);
+  if (hiBox && hiBox.isConnected) hiBox.replaceWith(box); else main.prepend(box);
+  hiBox = box;
+  hiSeat();
+  /* Said is told once it has been on the screen for three seconds, so a deed is not said again on the next page. */
+  if (s.told.length && 'IntersectionObserver' in window) {
+    if (hiIO) hiIO.disconnect();
+    let t = 0;
+    hiIO = new IntersectionObserver(es => es.forEach(e => {
+      clearTimeout(t);
+      if (e.isIntersecting) t = setTimeout(() => { if (box.isConnected) hiTell(s.told); }, HI.dwell);
+    }), { threshold: 0.6 });
+    hiIO.observe(box);
+  }
+}
+/* Above the show's bubble (#calls) while it is on the screen, in the corner when it is not. */
+function hiSeat() {
+  if (!hiBox) return;
+  const c = $('calls');
+  let b = 10;
+  if (c && c.getClientRects().length && !c.classList.contains('off') && W_.getComputedStyle(c).visibility !== 'hidden') {
+    const r = c.getBoundingClientRect();
+    if (r.height) b = Math.max(10, Math.round(W_.innerHeight - r.top + 8));
+  }
+  hiBox.style.bottom = b + 'px';
+}
+const W_ = window;
+/* The page's own question near the top (#nudge) asks in the site's voice, by the reader's name (keptMark draws it). */
+function hiNudge() { if ($('nudge-ph') && V && V.nudge) keptMark(kept); }
+function initHi() {
+  if (!V) return;
+  hiVisit = hiVisitNow();
+  hiRemember();
+  paintHi();
+  hiNudge();
+  W_.addEventListener('resize', hiSeat);
+  const c = $('calls');
+  if (c && 'MutationObserver' in W_) new MutationObserver(hiSeat).observe(c, { attributes: true, attributeFilter: ['class', 'style', 'hidden'] });
+  if (c && 'ResizeObserver' in W_) new ResizeObserver(hiSeat).observe(c);
+  D.addEventListener('click', ev => { if (ev.target.closest && ev.target.closest('#calls')) setTimeout(hiSeat, 50); });
 }
 
 /* ------------------------------------------------------------------ the control in the header */
@@ -1473,7 +1680,7 @@ function keptMark(text) {
     if (!ph.hasAttribute('data-was')) ph.setAttribute('data-was', ph.textContent);
     nd.classList.toggle('kept', !!kept);
     ph.textContent = kept ? tt('Your unsent note: “{text}”', { text: kept.length > 48 ? kept.slice(0, 46).trimEnd() + '…' : kept })
-      : discCount > 0 ? tt('Agree, or not? Add what you think.') : ph.getAttribute('data-was');
+      : (me && me.name && V && vsay(V.nudge, { name: me.name })) || (discCount > 0 ? tt('Agree, or not? Add what you think.') : ph.getAttribute('data-was'));
     const i = nd.querySelector('.nudge-in i'); if (i) i.textContent = kept ? tt('Finish it') : tt('Discuss');
   }
   if (go) go.textContent = kept ? tt('Finish your unsent note') : tt('Open the discussion') + (discCount > 0 ? ' (' + (discCount > 99 ? dig('99') + '+' : dig(discCount)) + ')' : '');
@@ -2271,7 +2478,7 @@ function langOf(text) {
 function lgOf(p) {
   if (p.lg === undefined || p.lgFor !== p.text) {
     const named = p.parent && p.text.charAt(0) === '@' && T ? mention(p) : '';
-    p.lg = langOf(named ? p.text.slice(named.length + 1) : p.text); p.lgFor = p.text;
+    p.lg = langOf(named ? p.text.slice(atLead(p.text, named).length) : p.text); p.lgFor = p.text;
   }
   return p.lg;
 }
@@ -2354,7 +2561,15 @@ function trCtl(p) {
 function mention(p) {
   if (!p.parent || p.text.charAt(0) !== '@') return '';
   const par = find(p.parent), names = (par ? [par.name] : []).concat(repliesTo(p.parent).map(r => r.name)).sort((a, b) => b.length - a.length);
-  return names.find(n => p.text.startsWith('@' + n) && !LETTER.test(p.text.charAt(n.length + 1))) || '';
+  return names.find(n => atLead(p.text, n)) || '';
+}
+/* A name a reader typed with an at sign of their own ("@dana") is answered as "@dana", never "@@dana" (17 October
+   2026: a reader saw the site's reply open with the at sign twice). atName() is the one way a reply's lead is
+   written, here and in host.py; atLead() also reads the old doubled form, so replies written before still mark. */
+function atName(n) { return '@' + String(n || '').replace(/^@+/, ''); }
+function atLead(text, n) {
+  for (const s of [atName(n), '@' + n]) if (text.startsWith(s) && !LETTER.test(text.charAt(s.length))) return s;
+  return '';
 }
 /* One post, drawn the way a conversation reads: a face, a name, how long ago, then the words. A reply (it
    has a parent) is drawn the same way, smaller, in the thread under the post it answers, and has no tag.
@@ -2406,7 +2621,7 @@ function row(p, best) {
   if (p.text) {
     const q = el('blockquote'), to = mention(p);
     if (p.tr && p.tr.on) q.textContent = p.tr.text;      // the reader asked for the translation (trCtl)
-    else if (to) q.append(el('b', 'at', '@' + to, ML ? { dir: 'auto' } : null), p.text.slice(to.length + 1)); else q.textContent = p.text;
+    else if (to) q.append(el('b', 'at', atName(to), ML ? { dir: 'auto' } : null), p.text.slice(atLead(p.text, to).length)); else q.textContent = p.text;
     li.append(q);
     /* Two languages in one room: the words keep the direction of the language they were written in, and a
        post in the other language than this page's can be translated where it stands. */
@@ -2451,7 +2666,7 @@ function row(p, best) {
   /* Reply sits beside the likes; Report, or Delete on a reader's own post, at the end of the same line. */
   const acts = el('div', 'said-acts');
   if (T.v2 && (!T.feed || hasPost(p.parent || p.id))) {
-    const top = p.parent || p.id, at = p.parent ? p.id : '', pre = p.parent ? '@' + p.name + ' ' : '';
+    const top = p.parent || p.id, at = p.parent ? p.id : '', pre = p.parent ? atName(p.name) + ' ' : '';
     const open = !!(T.replying && T.replying.id === top && (T.replying.at || '') === at);
     const rb = btn('reply-b', tt('Reply'), () => {
       T.replying = open ? null : { id: top, at, pre, text: pre };
@@ -3150,6 +3365,7 @@ function start() {
   if (me && !OFF) ryWake();
   gatheringKey();
   initHeader();
+  try { initHi(); } catch (x) { }
   initBox();
   initTalk();
   initLatest();
