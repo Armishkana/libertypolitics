@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js and assets/community-fa.js, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=cfeb19c521 and assets/community-fa.js?v=cfeb19c521, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -978,7 +978,8 @@ function hiCut(t) {
   t = String(t || '');
   const lead = me && me.name ? atLead(t, me.name) : '';
   t = (lead ? t.slice(lead.length) : t).replace(/\s+/g, ' ').trim();
-  return t.length > 90 ? t.slice(0, 87).replace(/\s+\S*$/, '') + '...' : t;
+  /* cut on a word, and never "yet....": the sentence's own stop goes before the three dots */
+  return t.length > 90 ? t.slice(0, 87).replace(/\s+\S*$/, '').replace(/[\s.,;:!?]+$/, '') + '...' : t;
 }
 /* What the note says now: lines, then buttons. Nothing at all is a valid answer. */
 function hiSays() {
@@ -1048,7 +1049,8 @@ function paintHi() {
   s.lines.forEach((x, i) => { if (i) say.append(' '); say.append(x); });
   body.append(el('p', 'hi-who', V.name, { dir: 'auto' }), say);
   if (s.acts.length) { const row = el('p', 'hi-acts'); row.append(...s.acts); body.append(row); }
-  s.acts.forEach(a => a.addEventListener('click', () => hiTell(s.told)));
+  /* one loud button, the first; any second one is quiet */
+  s.acts.forEach((a, i) => { if (i) a.classList.add('hi-alt'); a.addEventListener('click', () => hiTell(s.told)); });
   const x = btn('hi-x', '', () => {
     hiTell(s.told);
     try { sessionStorage.setItem(HI.x, String(hiVisit.start)); } catch (e) { }

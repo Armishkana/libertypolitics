@@ -17,12 +17,24 @@
    The page itself gets better from what the team says (Armin, 17 Oct 2026): every page has "Make this page better for
    the whole team", whose notes carry about 'page:feature' / 'page:fix' / 'page:idea', and the list of what the team
    asked for and what was decided, `teamlog` on each page's document, written by brandpage.py log from
-   data/brand-teamlog.json. The same list is on every page, so what one member asked for is seen by all. */
+   data/brand-teamlog.json. The same list is on every page, so what one member asked for is seen by all.
+
+   THE VOICE (Armin, 17 Oct 2026: "People need to fall in love with the character of the page as their best friend ...
+   'Oh, here's what I did for you. Ask me this, tell me this'"): the page is Liberty Politics speaking (characters.md),
+   so it says I, never we or "the team"; it greets the person by name, says what it did for them since their last visit
+   (only deeds that exist: its answers, a new draft, what it built for a teammate) and asks them one real thing. Armin is
+   named where he decides.
+
+   THE DATA HAS A SCHEMA (17 Oct 2026: a cached old script drew the new words as cards called 0, 1, 2 reading
+   "undefined"). brandpage.py writes `schema` into every page's JSON; this script draws only a schema it knows and
+   otherwise offers to load the new version. Never a blank, "undefined" or "NaN": brand-test.html scans for them. */
+const SCHEMA = 2;
 
 const D = document, $ = id => D.getElementById(id);
 const BOX = $('bp');
 let R = null, el = null, btn = null;
-const ST = { uid: '', pages: [], key: '', doc: null, files: [], mine: {}, notes: [], urls: [], busy: false, look: '', wp: '', full: {}, done: {}, log: [], ptype: 'feature', cmp: '' };
+const ST = { uid: '', pages: [], key: '', doc: null, files: [], mine: {}, notes: [], urls: [], busy: false, look: '', wp: '', full: {}, done: {}, log: [], ptype: 'feature', cmp: '', last: 0 };
+const T = x => (x === undefined || x === null || (typeof x === 'number' && !isFinite(x))) ? '' : String(x);      // nothing undefined ever reaches the page
 
 const CSS = `
 #bp{--bp-gap:clamp(36px,7vw,64px)}
@@ -175,6 +187,18 @@ const CSS = `
 #bp .bp-sent.done{color:var(--ga)}
 #bp .bp-tally{font-weight:600;margin:10px 0 0}
 #bp .bp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* the site speaks to her */
+#bp .bp-say{display:flex;gap:12px;align-items:flex-start;margin:14px 0 0;max-width:46rem}
+#bp .bp-say img{flex:none;width:44px;height:44px;border-radius:50%;background:#000;border:1px solid var(--line)}
+#bp .bp-say .bub{background:var(--panel);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:12px 14px;line-height:1.55}
+#bp .bp-say .bub p{margin:0}
+#bp .bp-say .bub p+p{margin-top:6px}
+#bp .bp-say .bub b{color:var(--ink)}
+#bp .bp-say .ask{color:var(--field);font-weight:700}
+#bp .bp-stale{border:2px solid var(--field);border-radius:var(--r);padding:16px;margin:12px 0;line-height:1.55}
+#bp .bp-where{display:flex;gap:6px;align-items:baseline;font-size:.86rem;line-height:1.4;color:var(--ink);background:var(--sunk);border-radius:var(--r);padding:8px 10px}
+#bp .bp-where b{flex:none;color:var(--field);font-weight:800}
+#bp .bp-plat{font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
 /* the page gets better for everyone */
 #bp .bp-better{margin-top:22px;border:2px solid var(--field);border-radius:calc(var(--r) * 2);background:var(--panel);padding:18px;scroll-margin-top:80px}
 #bp .bp-better h2{font-family:var(--display);font-weight:800;font-size:clamp(1.4rem,5vw,1.9rem);text-transform:uppercase;line-height:1.05;margin:0 0 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -321,7 +345,7 @@ async function save(k, val, state) {
   try {
     await R.within(15000, F.setDoc(F.doc(db, 'brandpages', ST.key, 'mine', k), { uid: u.uid, v: String(val).slice(0, 3000), at: F.serverTimestamp() }));
     ST.mine[k] = { uid: u.uid, v: String(val) };
-    if (state) { state.textContent = '✓ Saved. The team sees it now.'; state.className = 'bp-state ok'; }
+    if (state) { state.textContent = '✓ Saved. I have it.'; state.className = 'bp-state ok'; }
     progress();
     return true;
   } catch (e) {
@@ -356,19 +380,19 @@ function commentBox(about, title, hint, open) {
       const c = el('div', 'bp-note');
       const ans = ST.notes.filter(r => r.about === 're:' + n.id);
       c.append(el('div', 'who', (n.uid === R.user().uid ? 'You' : n.name) + (n.createdAt ? ' · ' + new Date(ms(n.createdAt)).toLocaleString() : '')), el('p', null, n.text));
-      c.append(el('div', 'bp-sent' + (ans.length ? ' done' : ''), ans.length ? '✓ Answered' : '✓ Received. The team answers here, usually within a day.'));
-      ans.forEach(r => { const rc = el('div', 'bp-note site'); rc.append(el('div', 'who', 'Liberty Politics team'), el('p', null, r.text)); c.append(rc); });
+      c.append(el('div', 'bp-sent' + (ans.length ? ' done' : ''), ans.length ? '✓ Answered' : '✓ Got it. I answer right here, usually within a day.'));
+      ans.forEach(r => { const rc = el('div', 'bp-note site'); rc.append(el('div', 'who', 'Liberty Politics, to you'), el('p', null, r.text)); c.append(rc); });
       body.append(c);
     });
     if (hint) body.append(el('p', 'bp-sub', hint, { style: 'margin:8px 0' }));
     const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make it better? What do you love?', 'aria-label': title });
-    const send = el('button', 'bp-btn main', 'Send to the team', { type: 'button' });
+    const send = el('button', 'bp-btn main', 'Send to me', { type: 'button' });
     const line = el('p', 'bp-msg', said || '', { role: 'status', 'aria-live': 'polite' });
     send.addEventListener('click', async () => {
       if (ta.value.trim().length < 2) { line.textContent = 'Write a few words first.'; line.className = 'bp-msg bad'; return; }
       send.disabled = true; send.textContent = 'Sending...';
-      try { await writeNote(about, ta.value.trim()); draw('✓ Sent. The team got it and answers right here, in the next draft.'); box.querySelector('.bp-cbody').hidden = false; box.querySelector('.bp-ctog').setAttribute('aria-expanded', 'true'); tally(); }
-      catch (e) { send.disabled = false; send.textContent = 'Send to the team'; line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
+      try { await writeNote(about, ta.value.trim()); draw('✓ Sent. I have it, and I answer right here.'); box.querySelector('.bp-cbody').hidden = false; box.querySelector('.bp-ctog').setAttribute('aria-expanded', 'true'); tally(); }
+      catch (e) { send.disabled = false; send.textContent = 'Send to me'; line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
     });
     body.append(ta, send, line);
     body.hidden = !(open || list.length || said);
@@ -384,7 +408,7 @@ function tally() {
   const tops = ST.notes.filter(n => !String(n.about || '').startsWith('re:') && n.uid !== 'liberty-politics-site');
   const done = tops.filter(n => ST.notes.some(r => r.about === 're:' + n.id)).length;
   const saved = Object.keys(ST.mine).length;
-  t.textContent = tops.length || saved ? `You have sent ${tops.length} comment${tops.length === 1 ? '' : 's'} (${done} answered) and saved ${saved} choice${saved === 1 ? '' : 's'}. All of it reaches the team and shapes the next draft.` : 'Everything you save or send here reaches the team, and we answer on this page.';
+  t.textContent = tops.length || saved ? `You have sent ${tops.length} comment${tops.length === 1 ? '' : 's'} (${done} answered) and saved ${saved} choice${saved === 1 ? '' : 's'}. I read all of it, and it shapes your next draft.` : 'Everything you save or tell me here reaches me, and I answer on this page.';
 }
 
 /* ------------------------------------------------------------------ who is let in */
@@ -438,6 +462,7 @@ async function openPage(key) {
   if (ST.key !== key) freeFull();
   ST.key = key;
   ST.doc = JSON.parse(page.doc.json || '{}');
+  if ((ST.doc.schema || 1) > SCHEMA) { stale(); return; }
   ST.doc.words = wordsOf(ST.doc);
   try { ST.log = JSON.parse(page.doc.teamlog || '[]'); } catch (x) { ST.log = []; }
   if (!Array.isArray(ST.log)) ST.log = [];
@@ -452,7 +477,33 @@ async function openPage(key) {
   ST.look = v('look') || ST.doc.rec;
   if (!ST.doc.words.some(w => w.p === ST.wp)) ST.wp = (ST.doc.words[0] || {}).p || '';
   if (location.hash.slice(1) !== key) history.replaceState(null, '', '#' + key);
+  const seenKey = 'lp-bp-seen:' + key + ':' + R.user().uid;
+  try { ST.last = parseInt(localStorage.getItem(seenKey) || '0', 10) || 0; localStorage.setItem(seenKey, String(Date.now())); } catch (x) { ST.last = 0; }
   paint();
+}
+/* The switcher, for an account with more than one page (Armin). */
+function nav() {
+  if (ST.pages.length < 2) return null;
+  const top = el('nav', 'bp-top', null, { 'aria-label': 'Brand pages' });
+  ST.pages.forEach(p => {
+    const a = el('a', 'bp-chip', p.name, { href: '#' + p.key, 'aria-current': p.key === ST.key ? 'true' : 'false' });
+    a.addEventListener('click', ev => { ev.preventDefault(); history.replaceState(null, '', '#' + p.key); openPage(p.key); });
+    top.append(a);
+  });
+  return top;
+}
+/* The page's data is newer than this script: never draw it half understood. */
+function stale() {
+  freeUrls();
+  BOX.textContent = '';
+  const top = nav();
+  if (top) BOX.append(top);
+  const b = el('div', 'bp-stale', null, { id: 'bp-stale' });
+  b.append(el('h1', null, 'I updated this page'), el('p', 'bp-lede', 'Your phone still has the old version of it. One tap loads the new one.'));
+  const go = el('button', 'bp-btn main', 'Load the new version', { type: 'button', style: 'margin-top:12px' });
+  go.addEventListener('click', () => { const u = new URL(location.href); u.searchParams.set('r', String(Date.now())); location.replace(u.toString()); });
+  b.append(go);
+  BOX.append(b);
 }
 
 /* ------------------------------------------------------------------ the page */
@@ -479,7 +530,7 @@ function progress() {
   const all = box.querySelectorAll('li').length;
   if (bar) bar.firstChild.style.width = Math.round(n / all * 100) + '%';
   const sum = $('bp-sum');
-  if (sum) sum.textContent = n === all ? `All ${all} done. Your brand is ready to go live, and it keeps getting better every time you tell us something.` : `${n} of ${all} done.`;
+  if (sum) sum.textContent = n === all ? `All ${all} steps on this page done. Your brand is ready to go live, and it keeps getting better every time you tell me something.` : `${n} of ${all} steps on this page done.`;
   const go = $('bp-go'), next = Array.from(box.querySelectorAll('li')).find(li => !stepDone(li.dataset.k));
   if (go) {
     go.hidden = !next;
@@ -494,27 +545,18 @@ function paint() {
   const B = ST.doc, person = B.kind === 'person';
   const pg = ST.pages.find(p => p.key === ST.key);
   BOX.textContent = '';
-  if (ST.pages.length > 1) {
-    const top = el('nav', 'bp-top', null, { 'aria-label': 'Brand pages' });
-    ST.pages.forEach(p => {
-      const a = el('a', 'bp-chip', p.name, { href: '#' + p.key, 'aria-current': p.key === ST.key ? 'true' : 'false' });
-      a.addEventListener('click', ev => { ev.preventDefault(); history.replaceState(null, '', '#' + p.key); openPage(p.key); });
-      top.append(a);
-    });
-    BOX.append(top);
-  }
+  const top = nav();
+  if (top) BOX.append(top);
   if (person && pg && !pg.mine) BOX.append(el('p', 'bp-admin', `You are looking at ${B.person}'s page as an admin. What you save here is saved on her page, under your name.`));
 
   // A person's page opens on the designs themselves: her name, one line, then three big pictures of the brand in use.
   const hello = el('div', 'bp-hello');
   const photo = fileById('photo');
   if (photo) hello.append(el('img', 'bp-face', null, { src: thumbOf(photo), alt: '' }));
-  hello.append(el('h1', null, person ? `${first(B.person)}, here is your brand.` : `${B.name} brand`));
+  hello.append(el('h1', null, person ? `Hi ${first(B.person)}. Here is your brand.` : `${B.name} brand`));
   BOX.append(hello);
   if (person) {
-    const lede = el('p', 'bp-lede');
-    lede.append(el('b', null, `Draft ${B.draft || 1}. `), `Here are your ${B.looks.length} designs. Pick one, and tell any part what to change.`);
-    BOX.append(lede, betterChip(), paintLooks(), paintPromise(), paintBetter());
+    BOX.append(paintSay(), betterChip(), paintLooks(), paintPromise(), paintBetter());
   } else {
     BOX.append(el('p', 'bp-lede', `The ${B.name} brand in one place: the kit, the words on every account, and the story. Only you can open this page.`), betterChip());
     const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
@@ -543,17 +585,13 @@ function paint() {
   const go = el('button', 'bp-btn main bp-go', '', { type: 'button', id: 'bp-go' });
   go.addEventListener('click', () => { const k = go.dataset.k; const t = k && $('bp-' + k); if (t) t.scrollIntoView({ behavior: 'smooth' }); });
   BOX.append(go, el('p', 'bp-tally', '', { id: 'bp-tally' }));
-  const jump = el('a', 'bp-chip', null, { href: '#bp-talk', style: 'margin-top:10px' });
-  jump.append(ico('chat'), el('span', null, person ? 'Tell us anything about your brand' : 'Tell us anything about this brand'));
-  jump.addEventListener('click', ev => { ev.preventDefault(); $('bp-talk').scrollIntoView({ behavior: 'smooth' }); });
-  BOX.append(jump);
 
   if (person && B.plan && B.plan.headline) BOX.append(paintPlan());
   const story = paintStory(), words = paintWords(), kit = paintKit();
-  story.append(commentBox('sec:story', 'Tell us what to change in your story', 'What is wrong or missing, in your own words.'));
+  story.append(commentBox('sec:story', 'Tell me what to change in your story', 'What is wrong or missing, in your own words.'));
   BOX.append(story, words, kit);
-  const talk = sec('talk', 'Anything else', `What should we add? What do you not like? Anything about the whole page or your channel. ${person ? 'Armin and the team read every word, and the answer appears right here.' : ''}`);
-  talk.append(commentBox('', 'Write to the team', 'Something to add, something you do not like, an idea for your channel: write it here.', true));
+  const talk = sec('talk', 'Anything else', `Anything about your brand or your channel that has no box of its own: tell me here. ${person ? 'I read every word, Armin sees it too, and my answer appears right here.' : ''}`);
+  talk.append(commentBox('', 'Write to me', 'Something to add, something you do not like, an idea for your channel: write it here.', true));
   BOX.append(talk);
   tally();
   if (person) BOX.append(paintNext());
@@ -598,14 +636,14 @@ function paintLooks() {
     // the marks sit under the picture, never on it: the picture is the design, whole
     if (l.rec || v('look') === l.k) {
       const marks = el('div', 'bp-row');
-      if (l.rec) marks.append(el('span', 'bp-badge', 'Our pick for you'));
+      if (l.rec) marks.append(el('span', 'bp-badge', 'My pick for you'));
       if (v('look') === l.k) { const m = el('span', 'bp-mine'); m.append(ico('check', 16), el('span', null, 'Your pick')); marks.append(m); }
       body.append(marks);
     }
     body.append(el('p', null, l.short));
     const more = el('details', 'bp-more');
     more.append(el('summary', null, 'Why this design'), el('p', 'bp-why', l.why));
-    more.append(swatches(l), el('p', 'bp-type', 'Type: ' + l.fonts.join(' and ')));
+    more.append(el('p', 'bp-type', 'Colors (tap one to copy its code):'), swatches(l), el('p', 'bp-type', 'Type: ' + l.fonts.join(' and ')));
     body.append(more);
     const acts = el('div', 'bp-acts');
     const pick = el('button', 'pick', v('look') === l.k ? '✓ My design' : 'Pick this design', { type: 'button', 'aria-pressed': v('look') === l.k ? 'true' : 'false' });
@@ -618,7 +656,7 @@ function paintLooks() {
     const see = ibtn(null, 'eye', 'All pictures', `See all ${l.files.length} pictures in ${l.name}`);
     see.addEventListener('click', () => { ST.look = l.k; paint(); $('bp-kit').scrollIntoView(); });
     acts.append(see);
-    body.append(acts, commentBox('look:' + l.k, `Tell ${l.name} what to change`, 'A colour, a font, the photo, the feel: anything. Mixing two designs is fine too.'));
+    body.append(acts, commentBox('look:' + l.k, 'Tell me what to change', 'A color, a font, the photo, the feel: anything. Mixing two designs is fine too.'));
     card.append(body);
     row.append(card);
   });
@@ -646,13 +684,13 @@ function paintLooks() {
   }
   const cmp = paintCompare();
   if (cmp) s.append(cmp);
-  s.append(commentBox('sec:look', 'Tell us about the designs as a whole', 'Want a mix of two, a colour you love, a font you hate? Say it here.'));
+  s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a colour you love, a font you hate? Say it here.'));
   return s;
 }
 
 /* The colours of a design, each a button that copies its code, for when she makes something herself (Canva, CapCut). */
 function swatches(l) {
-  const box = el('div', 'bp-swatches', null, { role: 'group', 'aria-label': `${l.name} colours` });
+  const box = el('div', 'bp-swatches', null, { role: 'group', 'aria-label': `${l.name} colors` });
   l.palette.forEach(c => {
     const b = el('button', 'bp-sw', null, { type: 'button', title: `${c.name}: ${c.role}`, 'aria-label': `Copy ${c.name}, ${c.hex}` });
     const code = el('small', null, c.hex);
@@ -686,7 +724,7 @@ function paintCompare() {
     img.src = ST.done[f.id] || thumbOf(f);
     img.alt = which === 'today' ? 'Your YouTube banner today' : `Your YouTube banner in ${look.name}`;
     if (!ST.done[f.id]) fullUrl(f).then(u => { if (ST.cmp === which) img.src = u; }).catch(() => { });
-    cap.textContent = which === 'today' ? 'Today: the night globe and your name. Nothing says what the channel is or who it is for.' : `${look.name}: your face, your name, your line, and your two series, the way a computer shows it.`;
+    cap.textContent = which === 'today' ? 'Today: the night globe and your name. Nothing says what the channel is or who it is for.' : `${look.name}: your face, your name, your line, and your two series, as a computer screen shows it.`;
     tabs.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === which ? 'true' : 'false'));
   };
   [['today', 'Today'], ['new', look.name]].forEach(([k, t]) => {
@@ -699,6 +737,35 @@ function paintCompare() {
   return box;
 }
 
+/* Liberty Politics speaking to her: what I made, what I did since her last visit (only deeds that exist), and the one
+   thing I want to hear from her now. */
+function paintSay() {
+  const B = ST.doc, me = R.user().uid, last = ST.last;
+  const box = el('div', 'bp-say', null, { id: 'bp-say' });
+  box.append(el('img', null, null, { src: '../assets/seal.png', alt: 'Liberty Politics' }));
+  const bub = el('div', 'bub');
+  const lines = [];
+  if (!last) {
+    lines.push([`I made you ${B.looks.length} designs for ${T(B.name)}, every picture your accounts need and every line of text, from your channel, your Shorts and your Sunday Edit. This is draft ${B.draft || 1}: nothing here is final.`]);
+  } else {
+    const deeds = [];
+    const answered = ST.notes.filter(r => String(r.about || '').startsWith('re:') && ms(r.createdAt) > last && ST.notes.some(n => 're:' + n.id === r.about && n.uid === me)).length;
+    if (answered) deeds.push(`I answered ${answered === 1 ? 'one of your notes' : answered + ' of your notes'}; each answer is under what you wrote.`);
+    const d = (B.drafts || []).filter(x => x.at && Date.parse(x.at) > last).pop();
+    if (d) deeds.push(`I made draft ${d.n}: ${T(d.what)}`);
+    const built = ST.log.filter(r => r.v === 'done' && r.date && Date.parse(r.date) > last).pop();
+    if (built) deeds.push(`I built something ${T(built.who) || 'a teammate'} asked for: ${T(built.asked)}`);
+    lines.push([deeds.length ? `Good to see you again. Since you were last here: ${deeds.join(' ')}` : 'Good to see you again.']);
+  }
+  const ask = !v('look') ? 'Tell me which design feels like you, and what you would change.'
+    : !Object.keys(ST.mine).some(k => k.startsWith('story:')) ? 'Tell me about yourself in Your story: I write your bios from it.'
+      : 'Anything that is not you? Tell me under it and I will fix it.';
+  lines.forEach(([t]) => bub.append(el('p', null, t)));
+  bub.append(el('p', 'ask', ask));
+  box.append(bub);
+  return box;
+}
+
 /* "Make this page better for the whole team": the way to ask for the page itself, distinct from her own brand, and the
    list of what the team asked for and what was decided, the same on every page. */
 function betterChip() {
@@ -708,12 +775,12 @@ function betterChip() {
   return a;
 }
 const KINDS = [['feature', 'A feature I need'], ['fix', 'Something is wrong'], ['idea', 'An idea']];
-const VERDICT = { done: 'Built', building: 'Building it', no: 'Not doing it', armin: 'With Armin' };
+const VERDICT = { done: 'Built', building: 'Building it', no: 'Not doing it', armin: 'Asked Armin' };
 function paintBetter() {
   const s = el('section', 'bp-better', null, { id: 'bp-better' });
   const h = el('h2', null, 'Make this page better for the whole team');
   h.append(el('span', 'bp-tag', 'For everyone'));
-  s.append(h, el('p', null, 'This page is new, and it grows from what the team tells us. A feature you need, something that gets in your way, an idea from a brand you admire: say it here. Every request gets an honest answer (is it the best way, not only a good one), and what we build reaches every team member\'s page.'));
+  s.append(h, el('p', null, 'I am new, and I get better from what the team tells me. A feature you need, something that gets in your way, an idea from a brand you admire: tell me here. I answer every request honestly (is it the best way, not only a good one), anything that costs money I take to Armin (he runs Liberty Politics) first, and what I build reaches every team member\'s page.'));
   const kinds = el('div', 'bp-kinds', null, { role: 'group', 'aria-label': 'What kind' });
   KINDS.forEach(([k, t]) => {
     const b = el('button', 'bp-chip', t, { type: 'button', 'data-kind': k, 'aria-pressed': ST.ptype === k ? 'true' : 'false' });
@@ -721,7 +788,7 @@ function paintBetter() {
     kinds.append(b);
   });
   const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make this page better, for you or for anyone on the team?', 'aria-label': 'Make this page better for the whole team' });
-  const send = el('button', 'bp-btn main', 'Send to the team', { type: 'button' });
+  const send = el('button', 'bp-btn main', 'Send to me', { type: 'button' });
   const line = el('p', 'bp-msg', '', { role: 'status', 'aria-live': 'polite' });
   const mineBox = el('div', 'bp-mynotes');
   const drawMine = () => {
@@ -734,8 +801,8 @@ function paintBetter() {
       const ans = ST.notes.filter(r => r.about === 're:' + n.id);
       const kind = (KINDS.find(k => 'page:' + k[0] === n.about) || [, 'Request'])[1];
       c.append(el('div', 'who', `${kind}${n.createdAt ? ' · ' + new Date(ms(n.createdAt)).toLocaleDateString() : ''}`), el('p', null, n.text));
-      c.append(el('div', 'bp-sent' + (ans.length ? ' done' : ''), ans.length ? '✓ Answered' : '✓ Received. You get an honest answer here, usually within a day.'));
-      ans.forEach(r => { const rc = el('div', 'bp-note site'); rc.append(el('div', 'who', 'Liberty Politics team'), el('p', null, r.text)); c.append(rc); });
+      c.append(el('div', 'bp-sent' + (ans.length ? ' done' : ''), ans.length ? '✓ Answered' : '✓ Got it. I answer you here, honestly, usually within a day.'));
+      ans.forEach(r => { const rc = el('div', 'bp-note site'); rc.append(el('div', 'who', 'Liberty Politics, to you'), el('p', null, r.text)); c.append(rc); });
       mineBox.append(c);
     });
   };
@@ -744,14 +811,14 @@ function paintBetter() {
     send.disabled = true; send.textContent = 'Sending...';
     try {
       await writeNote('page:' + ST.ptype, ta.value.trim());
-      ta.value = ''; line.textContent = '✓ Sent. Thank you: this is how the page gets better for everyone.'; line.className = 'bp-msg';
+      ta.value = ''; line.textContent = '✓ Sent. Thank you: this is how I get better for everyone.'; line.className = 'bp-msg';
       drawMine(); tally();
     } catch (e) { line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
-    send.disabled = false; send.textContent = 'Send to the team';
+    send.disabled = false; send.textContent = 'Send to me';
   });
   s.append(kinds, ta, send, line, mineBox);
   drawMine();
-  s.append(el('p', 'bp-h4', 'What the team asked for, and what we did'));
+  s.append(el('p', 'bp-h4', 'What the team asked me for, and what I did'));
   const rows = ST.log.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
   if (!rows.length) s.append(el('p', 'bp-sub', 'Nothing yet. Be the first: what would make this page better?', { style: 'margin:4px 0 0' }));
   const ul = el('ul', 'bp-log', null, { 'aria-label': 'What the team asked for' });
@@ -759,8 +826,8 @@ function paintBetter() {
     const li = el('li', null, null, { 'data-v': r.v || '' });
     if (i >= 4) li.hidden = true;
     const top = el('div', 'top');
-    top.append(el('span', 'bp-v ' + (VERDICT[r.v] ? r.v : 'building'), VERDICT[r.v] || 'Building it'), el('span', 'who', [r.who ? 'From ' + r.who : '', r.date || ''].filter(Boolean).join(' · ')));
-    li.append(top, el('p', null, r.asked || ''));
+    top.append(el('span', 'bp-v ' + (VERDICT[r.v] ? r.v : 'building'), VERDICT[r.v] || 'Building it'), el('span', 'who', [r.who ? 'From ' + T(r.who) : '', T(r.date)].filter(Boolean).join(' · ')));
+    li.append(top, el('p', null, T(r.asked)));
     if (r.did) li.append(el('p', 'did', r.did));
     ul.append(li);
   });
@@ -779,15 +846,15 @@ function paintPromise() {
   const B = ST.doc, n = B.draft || 1;
   const box = el('section', 'bp-promise', null, { id: 'bp-promise', 'aria-label': 'How this page works' });
   box.append(el('h2', null, 'Nothing here is final'));
-  box.append(el('p', null, `This is draft ${n} of your brand, made from your channel, your Shorts and your Sunday Edit. Every design, every picture and every line of text has its own box. Tell it what you love and what to change, and we redraw and rewrite it. The more you tell us, the more it looks and sounds like you.`));
+  box.append(el('p', null, `This is draft ${n} of your brand, made from your channel, your Shorts and your Sunday Edit. Every design, every picture and every line of text has its own box. Tell me what you love and what to change, and I redraw and rewrite it. The more you tell me, the more it looks and sounds like you.`));
   const how = el('ul', 'bp-how');
-  [['eye', 'Look at anything: a design, a picture, a bio.'], ['chat', 'Tap the speech bubble under it and say what you think. Two words is enough.'], ['spark', `Draft ${n + 1} comes back on this page, with the answer under your words.`]].forEach(([i, t]) => {
+  [['eye', 'Look at anything: a design, a picture, a bio.'], ['chat', 'Tap Tell me what to change under it. Two words is enough.'], ['spark', `Draft ${n + 1} comes back on this page, with the answer under your words.`]].forEach(([i, t]) => {
     const li = el('li'); li.append(ico(i, 20), el('span', null, t)); how.append(li);
   });
   box.append(how);
   const hist = el('ul', 'bp-drafts', null, { 'aria-label': 'Drafts' });
-  (B.drafts || []).forEach(d => { const li = el('li'); li.append(el('b', null, `Draft ${d.n}`), el('span', 'dim', d.date), el('span', null, d.what)); hist.append(li); });
-  const nx = el('li', 'next'); nx.append(el('b', null, `Draft ${n + 1}`), el('span', null, 'Made from what you tell us.')); hist.append(nx);
+  (B.drafts || []).forEach(d => { const li = el('li'); li.append(el('b', null, `Draft ${T(d.n)}`), el('span', 'dim', T(d.date)), el('span', null, T(d.what))); hist.append(li); });
+  const nx = el('li', 'next'); nx.append(el('b', null, `Draft ${n + 1}`), el('span', null, 'Made from what you tell me.')); hist.append(nx);
   box.append(hist);
   return box;
 }
@@ -797,10 +864,10 @@ function paintPromise() {
 function todoCount() {
   const P = ST.doc.plan || {}, items = P.first || [];
   const done = items.filter(t => (t.k === 'look' ? !!v('look') : v('plan:' + t.k) === 'done')).length;
-  return `${done} of ${items.length} done`;
+  return `${done} of ${items.length} on your accounts done`;
 }
 function paintPlan() {
-  const P = ST.doc.plan, s = sec('plan', 'Your brand plan', `From your brand manager: what ${ST.doc.name} stands for, why these choices, and what to do first.`);
+  const P = ST.doc.plan, s = sec('plan', 'Your brand plan', `What ${ST.doc.name} stands for, why I chose this direction, and the first things to do. Tick each one when it is done.`);
   s.classList.add('bp-plan');
   s.append(el('p', 'bp-thesis', P.headline));
   if ((P.why || []).length) {
@@ -839,12 +906,12 @@ function paintPlan() {
     s.append(ol);
   }
   if (P.measure) {
-    s.append(el('h3', null, 'How we will know it works'));
+    s.append(el('h3', null, 'How I will know it works'));
     const m = el('p', 'bp-measure', P.measure);
     s.append(m);
     if (P.measureSrc) s.append(el('small', 'bp-src', 'Source: ' + P.measureSrc));
   }
-  s.append(commentBox('sec:plan', 'Tell us what you think of the plan', 'Something you would never do, something you want to try, a goal of your own.'));
+  s.append(commentBox('sec:plan', 'Tell me what you think of the plan', 'Something you would never do, something you want to try, a goal of your own.'));
   return s;
 }
 
@@ -856,7 +923,7 @@ function field(k, label, help, draft) {
   const ta = el('textarea', null, null, { rows: '4', maxlength: '3000' });
   ta.value = saved ? saved.v : draft || '';
   const state = el('span', 'bp-state', saved ? 'Saved.' : '');
-  if (!saved && draft) box.append(el('span', 'bp-draft', 'My first draft. Change anything, then tap outside the box.'));
+
   const sv = el('button', 'bp-btn', 'Save', { type: 'button' });
   const row = el('div', 'bp-row'); row.append(sv, state);
   box.append(grow(ta), row);
@@ -869,11 +936,11 @@ function field(k, label, help, draft) {
 function paintStory() {
   const B = ST.doc, person = B.kind === 'person';
   const s = sec('story', 'Your story', person
-    ? 'Who you are, what you believe, where you are going. Everything else is written from this: your bios, your About, your plan. These are my first drafts, from your own About text. Each box saves itself when you tap outside it.'
+    ? 'Five questions about you. I write everything else from your answers: your bios, your About, your plan. Each box already holds my first guess, from your own About text: change anything, and it saves by itself when you tap outside the box. When you change your story, I rewrite your words from it, and the next draft says so.'
     : 'The story every picture and line of this brand comes from. Each box saves itself when you tap outside it.');
   const h = s.querySelector('h2'); const dt = draftTag(); if (dt && person) h.append(dt);
   B.story.forEach(q => { const [box] = field('story:' + q.k, q.label, q.help, q.draft); s.append(box); });
-  const ok = el('button', 'bp-btn main', 'This is right as it is', { type: 'button' });
+  const ok = el('button', 'bp-btn main', 'My story is right, keep it', { type: 'button' });
   const st = el('span', 'bp-state');
   ok.addEventListener('click', async () => { ok.disabled = true; await save('story:ok', 'yes', st); ok.disabled = false; });
   const row = el('div', 'bp-row'); row.append(ok, st);
@@ -893,7 +960,7 @@ function countOf(f, text) {
 function paintWords() {
   const B = ST.doc, person = B.kind === 'person';
   const s = sec('words', 'Your words', person
-    ? 'Every text each account needs, written in your voice and fitted to each platform\'s limit. Copy one, paste it into the app, done. Change any of them here and we keep your version; tell any of them what is off and the next draft fixes it.'
+    ? 'Every piece of text your accounts need, written in your voice from your story, and fitted to each app. Pick an app below. Under each text it says where it goes in that app: copy it, paste it there, done. Change one here and I keep your version; tell me what is off and I rewrite it.'
     : 'The text on each account. Copy one, paste it into the app, done.');
   const h = s.querySelector('h2'); const dt = draftTag(); if (dt && person) h.append(dt);
   const W = B.words;
@@ -901,7 +968,7 @@ function paintWords() {
     const tabs = el('div', 'bp-wtabs', null, { role: 'group', 'aria-label': 'Platform' });
     W.forEach(w => {
       const c = el('button', 'bp-chip', null, { type: 'button', 'aria-pressed': w.p === ST.wp ? 'true' : 'false', 'data-p': w.p });
-      c.append(el('span', null, w.p), el('small', null, String(w.fields.length)));
+      c.append(el('span', null, appName(w.p)), el('small', null, `${w.fields.length} ${w.fields.length === 1 ? 'text' : 'texts'}`));
       c.addEventListener('click', () => { ST.wp = w.p; tabs.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === c ? 'true' : 'false')); drawPanel(); });
       tabs.append(c);
     });
@@ -919,16 +986,20 @@ function paintWords() {
     panel.append(grid);
   };
   drawPanel();
-  s.append(commentBox('sec:words', 'Tell us about your words as a whole', 'Too formal, not you, missing a platform? Say it here.'));
+  s.append(commentBox('sec:words', 'Tell me about your words as a whole', 'Too formal, not you, missing an app? Say it here.'));
   return s;
 }
+const appName = p => (p === 'Everywhere' ? 'Every app' : T(p));
 function wordCard(w, f) {
+  f = Object.assign({}, f, { text: T(f.text), label: T(f.label) || 'Text' });
   const k = 'words:' + slug(w.p) + ':' + f.k, about = 'w:' + slug(w.p) + ':' + f.k;
   const card = el('div', 'bp-card', null, { 'data-w': k });
+  card.append(el('span', 'bp-plat', w.p === 'Everywhere' ? 'For every app' : T(w.p)));
   const h = el('h3', null, f.label);
   const count = el('span', 'bp-count');
   h.append(count); card.append(h);
-  if (f.why) card.append(el('p', 'bp-why', f.why));
+  if (f.where) { const wh = el('p', 'bp-where'); wh.append(el('b', null, 'Goes in'), el('span', null, T(f.where))); card.append(wh); }
+  if (f.why) card.append(el('p', 'bp-why', T(f.why)));
   const saved = ST.mine[k];
   const long = f.text.length > 160 || f.text.includes('\n');
   const ta = el('textarea', long ? null : 'short', null, { rows: long ? '7' : '2', 'aria-label': `${w.p}: ${f.label}` });
@@ -944,10 +1015,10 @@ function wordCard(w, f) {
   ta.addEventListener('blur', () => { if (ta.value !== last) { last = ta.value; save(k, ta.value, state); } });
   const lim = el('div', 'bp-limit');
   const of = f.perLine || f.limit;
-  if (of) lim.append(el('span', null, `${f.official === false ? 'About' : 'Limit'} ${of} characters${f.perLine ? ' a line' : ''}${f.official === false ? ' (widely reported, not stated by ' + w.p + ')' : ''}`));
-  else if (w.p !== 'Everywhere') lim.append(el('span', null, `${w.p} states no limit`));
-  if (f.src) { let host = ''; try { host = new URL(f.src).hostname.replace(/^www\./, ''); } catch (x) { } lim.append(el('a', null, `Checked on ${host || 'the platform'}`, { href: f.src, target: '_blank', rel: 'noopener' })); }
-  if (f.note) lim.append(el('span', null, f.note));
+  if (of) lim.append(el('span', null, `Limit: ${of} characters${f.perLine ? ' a line' : ''}${f.official === false ? ' (about; widely reported, not stated by ' + w.p + ')' : ''}.`));
+  if (of && f.src) lim.append(el('a', null, `Where ${w.p} says so`, { href: f.src, target: '_blank', rel: 'noopener' }));
+  if (f.note) lim.append(el('span', null, T(f.note)));
+  if (/\{[^}]+\}/.test(f.text)) lim.append(el('span', null, 'Fill in the parts in { } before you post.'));
   const acts = el('div', 'bp-acts');
   const sv = ibtn(null, 'check', 'Save');
   sv.addEventListener('click', async () => { sv.disabled = true; last = ta.value; await save(k, ta.value, state); sv.disabled = false; tally(); });
@@ -959,7 +1030,7 @@ function wordCard(w, f) {
     if (!ST.mine[k]) save(k, ta.value, state);
   });
   acts.append(sv, cp, react('react:' + k, 'up', 'Sounds like me', 'love'), react('react:' + k, 'dn', 'Not me', 'no'));
-  card.append(grow(ta), lim, acts, state, commentBox(about, 'Make this better'));
+  card.append(grow(ta), lim, acts, state, commentBox(about, 'Tell me what to change'));
   return card;
 }
 
@@ -967,7 +1038,7 @@ function paintKit() {
   const B = ST.doc, person = B.kind === 'person';
   const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
   const s = sec('kit', 'Your kit', person
-    ? `Every picture in ${look.name}, sized for each app. Tap a picture to see it full size. Download one, or all of them at once. Each one has its own box: tell it what to change and the next draft redraws it.`
+    ? `Every picture your accounts need, in ${look.name}, each at the size its app asks for. Tap a picture to see it full size. Download one, or all of them at once, then upload each one where its name says. Tell me what to change on any of them and I redraw it.`
     : 'Every picture of the kit in use, sized for each app. Tap a picture to see it full size.');
   const h = s.querySelector('h2'); const dt = draftTag(); if (dt && person) h.append(dt);
   if (person && B.looks.length > 1) {
@@ -1010,7 +1081,8 @@ function paintKit() {
         try { img.src = ST.done[f.id] || await fullUrl(f); } catch (e) { }
       });
       const m = el('div', 'm');
-      m.append(el('b', null, f.title), el('small', null, `${f.w} × ${f.h} · ${sizeText(f.bytes || 0)}${f.clear ? ' · clear background' : ''}`));
+      m.append(el('b', null, T(f.title)), el('small', null, `${T(f.w)} × ${T(f.h)} · ${sizeText(f.bytes || 0)}${f.clear ? ' · clear background' : ''}`));
+      if (f.where) { const wh = el('p', 'bp-where', null, { style: 'margin-top:8px' }); wh.append(el('b', null, 'Goes in'), el('span', null, T(f.where))); m.append(wh); }
       const acts = el('div', 'bp-acts');
       const dl = ibtn(null, 'down', 'Download');
       dl.addEventListener('click', async () => {
@@ -1021,20 +1093,20 @@ function paintKit() {
         dl.disabled = false;
       });
       acts.append(dl, react('react:file:' + f.id, 'heart', 'Love it', 'love'), react('react:file:' + f.id, 'x', 'Not me', 'no'));
-      li.append(th, m, acts, commentBox('file:' + f.id, 'Make this picture better'));
+      li.append(th, m, acts, commentBox('file:' + f.id, 'Tell me what to change'));
       ul.append(li);
     });
     s.append(ul);
   });
-  s.append(commentBox('sec:kit', 'Tell us about the pictures as a whole', 'A size you need, an app we missed, a picture you want changed: say which.'));
+  s.append(commentBox('sec:kit', 'Tell me about the pictures as a whole', 'A size you need, an app I missed, a picture you want changed: say which.'));
   return s;
 }
 
 function paintNext() {
   const s = sec('next', 'What happens next', '');
   const ol = el('ul', 'bp-next');
-  [['eye', 'You pick a design and tell us what you love and what you do not, on anything on this page.'],
-   ['pen', 'We redraw the pictures and rewrite the words, and the next draft appears here with our answer under each of your comments.'],
+  [['eye', 'You pick a design and tell me what you love and what you do not, on anything on this page.'],
+   ['pen', 'I redraw the pictures and rewrite the words, and the next draft appears here with my answer under each of your comments.'],
    ['down', 'When it feels like you, you download the kit and put it on your accounts. Nothing goes on any account unless you put it there.']].forEach(([i, t]) => {
     const li = el('li'); li.append(ico(i, 20), el('p', null, t, { style: 'margin:0' })); ol.append(li);
   });
