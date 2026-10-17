@@ -467,23 +467,31 @@ function wordsOf(B) {
   return Object.keys(B.words || {}).map(p => ({ p, what: '', fields: [{ k: 'bio', label: 'Bio', limit: B.words[p].limit || 0, text: B.words[p].text || '' }] }));
 }
 async function openPage(key) {
+  /* One page at a time: a load that a newer one has overtaken (a second tap on the switcher, a sign-in that redraws)
+     must never paint, or one brand's words land on another's page. Everything is read into locals first. */
+  const tok = ST.tok = (ST.tok || 0) + 1;
   const { F, db } = await R.fb();
   const page = ST.pages.find(p => p.key === key);
-  if (ST.key !== key) freeFull();
-  ST.key = key;
-  ST.doc = JSON.parse(page.doc.json || '{}');
-  if ((ST.doc.schema || 1) > SCHEMA) { stale(); return; }
-  ST.doc.words = wordsOf(ST.doc);
-  try { ST.log = JSON.parse(page.doc.teamlog || '[]'); } catch (x) { ST.log = []; }
-  if (!Array.isArray(ST.log)) ST.log = [];
-  const [files, mine] = await Promise.all([
+  if (!page || tok !== ST.tok) return;
+  const doc = JSON.parse(page.doc.json || '{}');
+  if ((doc.schema || 1) > SCHEMA) { if (ST.key !== key) freeFull(); ST.key = key; ST.doc = doc; stale(); return; }
+  doc.words = wordsOf(doc);
+  let log = [];
+  try { log = JSON.parse(page.doc.teamlog || '[]'); } catch (x) { log = []; }
+  const [files, mine, notes] = await Promise.all([
     R.within(30000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'files'), F.limit(300)))),
     R.within(20000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'mine'), F.limit(300)))),
+    R.within(20000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'notes'), F.limit(300)))),
   ]);
+  if (tok !== ST.tok) return;
+  if (ST.key !== key) freeFull();
+  ST.key = key;
+  ST.doc = doc;
+  ST.log = Array.isArray(log) ? log : [];
   ST.files = files.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => (a.order || 0) - (b.order || 0));
   ST.mine = {};
   mine.docs.forEach(d => { ST.mine[d.id] = d.data(); });
-  await loadNotes();
+  ST.notes = notes.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => ms(a.createdAt) - ms(b.createdAt));
   ST.look = v('look') || ST.doc.rec;
   if (!ST.doc.words.some(w => w.p === ST.wp)) ST.wp = (ST.doc.words[0] || {}).p || '';
   if (location.hash.slice(1) !== key) history.replaceState(null, '', '#' + key);
@@ -841,7 +849,7 @@ function paintBetter() {
     const li = el('li', null, null, { 'data-v': r.v || '' });
     if (i >= 4) li.hidden = true;
     const top = el('div', 'top');
-    top.append(el('span', 'bp-v ' + (VERDICT[r.v] ? r.v : 'building'), VERDICT[r.v] || 'Building it'), el('span', 'who', [r.who ? 'From ' + T(r.who) : '', T(r.date)].filter(Boolean).join(' · ')));
+    top.append(el('span', 'bp-v ' + (VERDICT[r.v] ? r.v : 'building'), VERDICT[r.v] || 'Building it'), el('span', 'who', [r.who ? 'From ' + T(r.who) : '', day(r.date)].filter(Boolean).join(' · ')));
     li.append(top, el('p', null, T(r.asked)));
     if (r.did) li.append(el('p', 'did', r.did));
     ul.append(li);
@@ -982,6 +990,8 @@ function paintWords() {
   s.append(commentBox('sec:words', 'Tell me about your words as a whole', 'Too formal, not you, missing an app? Say it here.'));
   return s;
 }
+/* 2026-10-17 as she reads a date: 17 Oct 2026. */
+const day = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(T(d)); return m ? `${+m[3]} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][+m[2] - 1]} ${m[1]}` : T(d); };
 const appName = p => (p === 'Everywhere' ? 'Every app' : T(p));
 function wordCard(w, f) {
   f = Object.assign({}, f, { text: T(f.text), label: T(f.label) || 'Text' });
