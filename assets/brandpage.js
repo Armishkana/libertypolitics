@@ -89,6 +89,13 @@ const CSS = `
 #bp .bp-admin{background:var(--sunk);border:1px dashed var(--line);border-radius:var(--r);padding:10px 12px;font-size:.92rem;margin:0 0 14px}
 #bp .bp-msg{font-weight:600;min-height:1.4em;margin:8px 0 0}
 #bp .bp-msg.bad{color:var(--gd)}
+#bp .bp-cbox{margin-top:16px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:4px 12px 10px}
+#bp .bp-ctog{font:inherit;font-weight:700;font-size:.98rem;min-height:44px;width:100%;text-align:start;background:none;border:0;color:var(--ink);cursor:pointer;padding:6px 0}
+#bp .bp-cbody textarea{margin:6px 0 8px}
+#bp .bp-sent{font-size:.82rem;font-weight:700;color:var(--dim);margin-top:6px}
+#bp .bp-sent.done{color:var(--ga)}
+#bp .bp-tally{font-weight:600;margin:10px 0 0}
+#bp .bp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 `;
 
 /* ------------------------------------------------------------------ small helpers */
@@ -159,7 +166,7 @@ async function save(k, val, state) {
   try {
     await R.within(15000, F.setDoc(F.doc(db, 'brandpages', ST.key, 'mine', k), { uid: u.uid, v: String(val).slice(0, 3000), at: F.serverTimestamp() }));
     ST.mine[k] = { uid: u.uid, v: String(val) };
-    if (state) { state.textContent = 'Saved. We see it.'; state.className = 'bp-state ok'; }
+    if (state) { state.textContent = '✓ Saved. The team can see it now.'; state.className = 'bp-state ok'; }
     progress();
     return true;
   } catch (e) {
@@ -167,14 +174,58 @@ async function save(k, val, state) {
     return false;
   }
 }
-async function writeNote(about, text, line, after) {
+async function writeNote(about, text) {
   const { F, db } = await R.fb();
   const u = R.user(), me = (window.LP.who && window.LP.who()) || {};
-  try {
-    await R.within(15000, F.addDoc(F.collection(db, 'brandpages', ST.key, 'notes'), { uid: u.uid, name: me.name || 'Reader', about, text: text.slice(0, 1500), createdAt: F.serverTimestamp() }));
-    line.textContent = 'Sent. You will get an answer right here.'; line.className = 'bp-msg';
-    await loadNotes(); paintTalk(); if (after) after();
-  } catch (e) { line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
+  await R.within(15000, F.addDoc(F.collection(db, 'brandpages', ST.key, 'notes'), { uid: u.uid, name: me.name || 'Reader', about, text: text.slice(0, 1500), createdAt: F.serverTimestamp() }));
+  await loadNotes();
+}
+
+/* One conversation about one part of the page (about: '' for the general box, 'sec:<section>', 'look:<k>'): what was
+   sent, the team's answer under each, and a box with Send. After Send the note shows at once, marked as received. */
+function commentBox(about, title, hint, open) {
+  const box = el('div', 'bp-cbox', null, { 'data-about': about });
+  const mine = () => ST.notes.filter(n => (n.about || '') === about);
+  const draw = (said) => {
+    box.textContent = '';
+    const list = mine();
+    const head = el('button', 'bp-ctog', `💬 ${title}` + (list.length ? ` (${list.length})` : ''), { type: 'button', 'aria-expanded': 'false' });
+    const body = el('div', 'bp-cbody');
+    head.addEventListener('click', () => { const o = body.hidden; body.hidden = !o; head.setAttribute('aria-expanded', o ? 'true' : 'false'); if (o) ta.focus(); });
+    box.append(head, body);
+    list.forEach(n => {
+      const c = el('div', 'bp-note');
+      const ans = ST.notes.filter(r => r.about === 're:' + n.id);
+      c.append(el('div', 'who', (n.uid === R.user().uid ? 'You' : n.name) + (n.createdAt ? ' · ' + new Date(ms(n.createdAt)).toLocaleString() : '')), el('p', null, n.text));
+      c.append(el('div', 'bp-sent' + (ans.length ? ' done' : ''), ans.length ? '✓ Answered' : '✓ Received. The team answers here, usually within a day.'));
+      ans.forEach(r => { const rc = el('div', 'bp-note site'); rc.append(el('div', 'who', 'Liberty Politics team'), el('p', null, r.text)); c.append(rc); });
+      body.append(c);
+    });
+    if (hint) body.append(el('p', 'bp-sub', hint, { style: 'margin:8px 0' }));
+    const ta = el('textarea', null, null, { rows: '3', maxlength: '1500', placeholder: 'What would you change? Anything you love?', 'aria-label': title });
+    const send = el('button', 'bp-btn main', 'Send to the team', { type: 'button' });
+    const line = el('p', 'bp-msg', said || '', { role: 'status', 'aria-live': 'polite' });
+    send.addEventListener('click', async () => {
+      if (ta.value.trim().length < 2) { line.textContent = 'Write a few words first.'; line.className = 'bp-msg bad'; return; }
+      send.disabled = true; send.textContent = 'Sending...';
+      try { await writeNote(about, ta.value.trim()); draw('✓ Sent. The team got it and answers right here.'); box.querySelector('.bp-cbody').hidden = false; box.querySelector('.bp-ctog').setAttribute('aria-expanded', 'true'); tally(); }
+      catch (e) { send.disabled = false; send.textContent = 'Send to the team'; line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
+    });
+    body.append(ta, send, line);
+    body.hidden = !(open || list.length || said);
+    head.setAttribute('aria-expanded', body.hidden ? 'false' : 'true');
+  };
+  draw('');
+  return box;
+}
+/* The line at the top: how many things she has sent and how many the team has answered. */
+function tally() {
+  const t = $('bp-tally');
+  if (!t) return;
+  const tops = ST.notes.filter(n => !String(n.about || '').startsWith('re:') && n.uid !== 'liberty-politics-site');
+  const done = tops.filter(n => ST.notes.some(r => r.about === 're:' + n.id)).length;
+  const saved = Object.keys(ST.mine).length;
+  t.textContent = tops.length || saved ? `📨 You have sent ${tops.length} comment${tops.length === 1 ? '' : 's'} (${done} answered) and saved ${saved} choice${saved === 1 ? '' : 's'}. All of it reaches the team.` : '📨 Everything you save or send here reaches the team, and we answer on this page.';
 }
 
 /* ------------------------------------------------------------------ who is let in */
@@ -304,14 +355,21 @@ function paint() {
   });
   BOX.append(steps);
   const bar = el('div', 'bp-meter', null, { id: 'bp-bar', role: 'presentation' }); bar.append(el('b')); BOX.append(bar);
-  BOX.append(el('p', 'bp-sub', '', { id: 'bp-sum', style: 'margin-top:8px' }));
+  BOX.append(el('p', 'bp-sub', '', { id: 'bp-sum', style: 'margin-top:8px' }), el('p', 'bp-tally', '', { id: 'bp-tally' }));
+  const jump = el('a', 'bp-chip', '💬 Comment on the whole page', { href: '#bp-talk', style: 'margin-top:10px' });
+  jump.addEventListener('click', ev => { ev.preventDefault(); $('bp-talk').scrollIntoView({ behavior: 'smooth' }); });
+  BOX.append(jump);
 
   if (person) BOX.append(paintLooks());
-  BOX.append(paintStory(), paintWords(), paintKit());
-  const talk = sec('talk', 'Talk to us', `Anything at all: a colour you hate, a size you need, a platform we missed, an idea for a series. ${person ? 'Armin and the team read every word, and the answer appears right here.' : ''}`);
-  talk.append(el('div', null, null, { id: 'bp-talk' }));
+  const story = paintStory(), words = paintWords(), kit = paintKit();
+  story.append(commentBox('sec:story', 'Comment on your story', 'Tell us what is wrong or missing, in your own words.'));
+  words.append(commentBox('sec:words', 'Comment on your bios'));
+  kit.append(commentBox('sec:kit', 'Comment on the pictures', 'A size you need, an app we missed, a picture you want changed: say which.'));
+  BOX.append(story, words, kit);
+  const talk = sec('talk', 'Your whole brand page', `What should we add? What do you not like? Tell us anything about the whole page, not only one section. ${person ? 'Armin and the team read every word, and the answer appears right here.' : ''}`);
+  talk.append(commentBox('', 'Comment on your whole brand page', 'Something to add, something you do not like, an idea for your channel: write it here.', true));
   BOX.append(talk);
-  paintTalk();
+  tally();
   if (person) BOX.append(paintNext());
   progress();
 }
@@ -356,11 +414,11 @@ function paintLooks() {
     const show = el('button', null, 'See all pictures', { type: 'button' });
     show.addEventListener('click', () => { ST.look = l.k; paint(); $('bp-kit').scrollIntoView(); });
     acts.append(show);
-    body.append(acts);
+    body.append(acts, commentBox('look:' + l.k, 'Comment on ' + l.name));
     card.append(body);
     grid.append(card);
   });
-  s.append(grid);
+  s.append(grid, commentBox('sec:look', 'Comment on the designs', 'Want a mix of two, another colour, a different font? Say it here.'));
   return s;
 }
 
@@ -374,9 +432,12 @@ function field(k, label, help, draft) {
   ta.value = saved ? saved.v : draft || '';
   const state = el('span', 'bp-state', saved ? 'Saved.' : (draft ? '' : ''));
   if (!saved && draft) box.append(el('span', 'bp-draft', 'My first draft. Change anything, then tap outside the box.'));
-  box.append(ta, state);
+  const sv = el('button', 'bp-btn', 'Save', { type: 'button' });
+  const row = el('div', 'bp-row'); row.append(sv, state);
+  box.append(ta, row);
   let last = ta.value;
   ta.addEventListener('blur', () => { if (ta.value !== last) { last = ta.value; save(k, ta.value, state); } });
+  sv.addEventListener('click', async () => { sv.disabled = true; last = ta.value; await save(k, ta.value, state); sv.disabled = false; tally(); });
   return [box, ta];
 }
 
@@ -418,7 +479,9 @@ function paintWords() {
       setTimeout(() => { cp.textContent = 'Copy'; }, 2500);
       if (!ST.mine[k]) save(k, ta.value, state);
     });
-    acts.append(cp, react('react:' + k, '👍', 'love'), react('react:' + k, '👎', 'no'));
+    const sv = el('button', null, 'Save', { type: 'button' });
+    sv.addEventListener('click', async () => { sv.disabled = true; last = ta.value; await save(k, ta.value, state); sv.disabled = false; tally(); });
+    acts.append(sv, cp, react('react:' + k, '👍', 'love'), react('react:' + k, '👎', 'no'));
     card.append(ta, acts, state);
     grid.append(card);
   });
@@ -482,34 +545,6 @@ function paintKit() {
     s.append(ul);
   });
   return s;
-}
-
-function paintTalk() {
-  const box = $('bp-talk');
-  if (!box) return;
-  box.textContent = '';
-  const tops = ST.notes.filter(n => !String(n.about || '').startsWith('re:'));
-  if (!tops.length) box.append(el('p', 'bp-sub', 'Nothing here yet. Say anything below.'));
-  tops.forEach(n => {
-    const c = el('div', 'bp-note');
-    c.append(el('div', 'who', (n.uid === R.user().uid ? 'You' : n.name) + (n.createdAt ? ' · ' + new Date(ms(n.createdAt)).toLocaleString() : '')), el('p', null, n.text));
-    ST.notes.filter(r => r.about === 're:' + n.id).forEach(r => {
-      const rc = el('div', 'bp-note site');
-      rc.append(el('div', 'who', 'Liberty Politics'), el('p', null, r.text));
-      c.append(rc);
-    });
-    box.append(c);
-  });
-  const ta = el('textarea', null, null, { rows: '4', maxlength: '1500', placeholder: 'Write to us...', 'aria-label': 'Write to us' });
-  const send = el('button', 'bp-btn main', 'Send', { type: 'button' });
-  const line = msg('');
-  send.addEventListener('click', async () => {
-    if (ta.value.trim().length < 2) { line.textContent = 'Write a few words first.'; return; }
-    send.disabled = true;
-    await writeNote('', ta.value.trim(), line, () => { });
-    send.disabled = false;
-  });
-  box.append(ta, send, line);
 }
 
 function paintNext() {
