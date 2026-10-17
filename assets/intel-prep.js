@@ -485,26 +485,15 @@
         return;
       }
       if (st2) {
-        el.className = 'ir-sh-frame is-x';
-        card(el, x, 'Loading the post from X');
-        var mine = at;
-        // The post's own card stays up until X has drawn it (X can take several seconds, or never, behind a blocker)
-        var box2 = document.createElement('div'); box2.className = 'ir-sh-tw'; el.appendChild(box2);
-        var fail = function (why) { if (mine === at) { card(el, x, why); } };
-        tw().then(function (T) {
-          if (mine !== at) return;
-          return T.widgets.createTweet(st2[1], box2, { theme: 'dark', dnt: true, align: 'center', conversation: 'none' }).then(function (w) {
-            if (!w) { fail('X did not show this post here. Open it on X.'); return; }
-            var n = 0;
-            (function drawn() {
-              if (mine !== at) return;
-              var f = box2.querySelector('iframe');
-              if (f && f.getBoundingClientRect().height > 120) { var c = el.querySelector('.ir-sh-card'); if (c) c.remove(); el.classList.add('is-drawn'); return; }
-              if (n++ > 120) { fail('X did not show this post here. Open it on X.'); return; }
-              setTimeout(drawn, 250);
-            })();
-          });
-        }).catch(function () { fail('X\'s player is blocked in this browser. Open the post on X.'); });
+        // the post's own video or pictures fill the stage (17 Oct 2026); X's player when it has none, or its video will not play
+        var mine0 = at;
+        if (R.media && R.media(x).length) {
+          el.className = 'ir-sh-frame is-xm';
+          el.innerHTML = R.mediaHtml(x, true);
+          R.wireMedia(el.querySelector('.ir-xm'), x, function () { if (mine0 === at) xPost(el, x, st2[1]); });
+          return;
+        }
+        xPost(el, x, st2[1]);
         return;
       }
       if (tg) {
@@ -519,6 +508,29 @@
       el.className = 'ir-sh-frame is-card';
       $('ir-sh-stage').classList.add('one-title');
       card(el, x, x.also && x.also.length ? 'Also carried by ' + x.also.join(', ') : '');
+    }
+    // X's own player for a post, its card up until X has drawn it
+    function xPost(el, x, id) {
+        el.className = 'ir-sh-frame is-x';
+        card(el, x, 'Loading the post from X');
+        var mine = at;
+        // The post's own card stays up until X has drawn it (X can take several seconds, or never, behind a blocker)
+        var box2 = document.createElement('div'); box2.className = 'ir-sh-tw'; el.appendChild(box2);
+        var fail = function (why) { if (mine === at) { card(el, x, why); } };
+        tw().then(function (T) {
+          if (mine !== at) return;
+          return T.widgets.createTweet(id, box2, { theme: 'dark', dnt: true, align: 'center', conversation: 'none' }).then(function (w) {
+            if (!w) { fail('X did not show this post here. Open it on X.'); return; }
+            var n = 0;
+            (function drawn() {
+              if (mine !== at) return;
+              var f = box2.querySelector('iframe');
+              if (f && f.getBoundingClientRect().height > 120) { var c = el.querySelector('.ir-sh-card'); if (c) c.remove(); el.classList.add('is-drawn'); return; }
+              if (n++ > 120) { fail('X did not show this post here. Open it on X.'); return; }
+              setTimeout(drawn, 250);
+            })();
+          });
+        }).catch(function () { fail('X\'s player is blocked in this browser. Open the post on X.'); });
     }
     sh.addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b) return;

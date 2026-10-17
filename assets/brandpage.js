@@ -33,7 +33,7 @@ const SCHEMA = 2;
 const D = document, $ = id => D.getElementById(id);
 const BOX = $('bp');
 let R = null, el = null, btn = null;
-const ST = { uid: '', pages: [], key: '', doc: null, files: [], mine: {}, notes: [], urls: [], busy: false, look: '', wp: '', full: {}, done: {}, log: [], ptype: 'feature', cmp: '', last: 0 };
+const ST = { uid: '', pages: [], key: '', doc: null, files: [], mine: {}, notes: [], urls: [], busy: false, look: '', wp: '', full: {}, done: {}, log: [], ptype: 'feature', cmp: '', last: 0, sent: [], skind: 'me', sentOk: true };
 const T = x => (x === undefined || x === null || (typeof x === 'number' && !isFinite(x))) ? '' : String(x);      // nothing undefined ever reaches the page
 
 const CSS = `
@@ -231,6 +231,28 @@ const CSS = `
 #bp .bp-sw{font:inherit;font-size:.85rem;font-weight:700;min-height:40px;display:inline-flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:1px solid var(--line);border-radius:99px;background:var(--bg);color:var(--ink);cursor:pointer}
 #bp .bp-sw i{width:30px;height:30px;border-radius:50%;border:1px solid rgba(127,127,127,.5);flex:none}
 #bp .bp-sw small{font-weight:600;color:var(--dim);font-variant-numeric:tabular-nums}
+/* a banner as each screen cuts it */
+#bp .bp-cut{margin:10px 0 0}
+#bp .bp-cutf{position:relative;overflow:hidden;border-radius:var(--r);background:var(--sunk);border:1px solid var(--line);margin-top:10px;width:100%}
+#bp .bp-cutf img{position:absolute;display:block;height:auto;max-width:none}
+#bp .bp-cut .bp-groups{display:flex;flex-wrap:wrap;gap:8px}
+/* her photos and ideas */
+#bp .bp-kinds{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+#bp .bp-kindwhy{color:var(--dim);font-size:.95rem;margin:10px 0 0}
+#bp .bp-drop{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin:14px 0 0;padding:16px;border:2px dashed var(--line);border-radius:calc(var(--r) * 2);background:var(--panel)}
+#bp .bp-drop.over{border-color:var(--field)}
+#bp .bp-drop input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+#bp .bp-sentgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;list-style:none;padding:0;margin:16px 0 0}
+#bp .bp-sentgrid li{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+#bp .bp-sentgrid .th{display:block;width:100%;aspect-ratio:1/1;padding:0;border:0;background:var(--sunk);cursor:zoom-in}
+#bp .bp-sentgrid .th img{display:block;width:100%;height:100%;object-fit:cover}
+#bp .bp-sentgrid .m{padding:8px 10px;font-size:.85rem;color:var(--dim);display:flex;flex-direction:column;gap:4px}
+#bp .bp-sentgrid .m b{color:var(--ink);font-size:.9rem}
+#bp .bp-sentgrid .acts{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 10px}
+#bp .bp-sentgrid .acts button{font:inherit;font-size:.85rem;font-weight:700;min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--ink);cursor:pointer}
+#bp .bp-sentgrid .acts button.armed{background:var(--ink);color:var(--bg)}
+#bp .bp-sentbig{margin:14px 0 0;border:1px solid var(--line);border-radius:calc(var(--r) * 2);background:var(--panel);padding:12px}
+#bp .bp-sentbig img.full{display:block;width:100%;height:auto;border-radius:var(--r)}
 `;
 
 /* Drawn icons, one stroke and one weight (Lucide's shapes), so nothing on the page depends on how a phone draws emoji. */
@@ -246,6 +268,7 @@ const IC = {
   spark: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
   up: '<path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>',
   dn: '<path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/>',
+  image: '<path d="M16 5h6"/><path d="M19 2v6"/><path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/><circle cx="9" cy="9" r="2"/>',
 };
 function ico(n, size) {
   const s = el('span', 'bp-ic', null, { 'aria-hidden': 'true' });
@@ -295,9 +318,9 @@ function fullUrl(f) {
 }
 
 /* One file out of the database, checked whole (the same pieces as the team page, teamroom.js fetchFile). */
-async function fetchFile(f) {
+async function fetchFile(f, coll) {      // coll: 'files' (the kit, the default) or 'sent' (what she sent, at most 8 pieces)
   const { F, db } = await R.fb();
-  const snap = await R.within(60000, F.getDocs(F.query(F.collection(db, 'brandpages', ST.key, 'files', f.id, 'parts'), F.limit(60))));
+  const snap = await R.within(60000, F.getDocs(F.query(F.collection(db, 'brandpages', ST.key, coll || 'files', f.id, 'parts'), F.limit(coll === 'sent' ? 8 : 60))));
   const parts = snap.docs.map(d => [parseInt(d.id, 10), bytesOf(d.data().b)]).sort((a, b) => a[0] - b[0]);
   if (parts.length !== f.parts || parts.some((p, i) => p[0] !== i || !p[1])) throw { code: 'bp/broken' };
   const out = new Uint8Array(parts.reduce((n, p) => n + p[1].length, 0));
@@ -483,8 +506,13 @@ async function openPage(key) {
     R.within(20000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'mine'), F.limit(300)))),
     R.within(20000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'notes'), F.limit(300)))),
   ]);
+  // What she sent is read on its own: a page whose rules do not know sent/ yet must still open, with the box saying so.
+  let sent = null;
+  try { sent = await R.within(20000, F.getDocs(F.query(F.collection(db, 'brandpages', key, 'sent'), F.limit(200)))); } catch (x) { sent = null; }
   if (tok !== ST.tok) return;
   if (ST.key !== key) freeFull();
+  ST.sentOk = !!sent;
+  ST.sent = sent ? sent.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => ms(b.createdAt) - ms(a.createdAt)) : [];
   ST.key = key;
   ST.doc = doc;
   ST.log = Array.isArray(log) ? log : [];
@@ -538,7 +566,7 @@ const STEPS = [
 const said = test => ST.notes.some(n => n.uid === R.user().uid && test(String(n.about || '')));
 function stepDone(k) {
   const keys = Object.keys(ST.mine).filter(x => ST.mine[x] && ST.mine[x].v);
-  if (k === 'look') return ST.doc.kind === 'show' || !!v('look') || keys.some(x => /^react:(look|file):/.test(x)) || said(a => /^(look:|file:|sec:look|sec:kit)/.test(a));
+  if (k === 'look') return ST.doc.kind === 'show' || !!v('look') || keys.some(x => /^react:(look|file):/.test(x)) || said(a => /^(look:|file:|sec:look|sec:kit|sent:|sec:sent)/.test(a)) || ST.sent.some(x => x.uid === R.user().uid);
   if (k === 'story') return keys.some(x => x.startsWith('story:'));
   if (k === 'words') return keys.some(x => x.startsWith('words:') || x.startsWith('react:words:')) || said(a => /^(w:|sec:words)/.test(a));
   if (k === 'better') return said(a => a.startsWith('page:'));
@@ -578,7 +606,7 @@ function paint() {
   hello.append(el('h1', null, person ? `Hi ${first(B.person)}. Here is your brand.` : `${B.name} brand`));
   BOX.append(hello);
   if (person) {
-    BOX.append(paintSay(), betterChip(), paintLooks(), paintPromise(), paintBetter());
+    BOX.append(paintSay(), betterChip(), paintLooks(), paintSent(), paintPromise(), paintBetter());
   } else {
     BOX.append(el('p', 'bp-lede', `The ${B.name} brand in one place: the kit, the words on every account, and the story. Only you can open this page.`), betterChip());
     const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
@@ -726,37 +754,284 @@ function swatches(l) {
   return box;
 }
 
-/* Her channel today against the same place in the design in front: the banner strip every computer shows. Only when the
-   page has her banner as it is today (brandpage.py sends it as 'today-banner'). */
+/* ------------------------------------------------------------------ a banner as each screen cuts it
+   YouTube keeps a banner at 2560 x 1440 and almost nobody sees it whole: a computer shows the full-width strip in the
+   middle (2560 x 423), a phone only the middle of that strip (1546 x 423), a television all of it. Kala's own banner
+   (17 Oct 2026) lost her three series on every phone and computer and half her face on a phone, and nothing on this page could have
+   shown her. So every banner here, hers, mine or one she is about to put up, is shown cut the way each screen cuts it. */
+const CUTS = [
+  ['phone', 'Phone', 1546 / 2560, 423 / 1440, 'What a phone shows. Most people who open your channel see only this.'],
+  ['computer', 'Computer', 1, 423 / 1440, 'What a computer shows: the full width, the same thin strip.'],
+  ['tv', 'Whole picture', 1, 1, 'The whole picture. Only a TV shows all of it.'],
+];
+function isBanner(w, h) { const r = w / h; return w >= 1000 && r > 1.70 && r < 1.84; }
+function cropView(src, alt) {
+  const box = el('div', 'bp-cut');
+  const tabs = el('div', 'bp-groups', null, { role: 'group', 'aria-label': 'Which screen' });
+  const frame = el('div', 'bp-cutf');
+  const img = el('img', null, null, { alt: alt || '' });
+  frame.append(img);
+  const cap = el('p', 'bp-sub', '', { style: 'margin:8px 0 0' });
+  const show = m => {
+    const c = CUTS.find(x => x[0] === m) || CUTS[0];
+    ST.cut = c[0];
+    frame.style.aspectRatio = `${Math.round(2560 * c[2])} / ${Math.round(1440 * c[3])}`;
+    img.style.width = (100 / c[2]) + '%';
+    img.style.left = (-(1 - c[2]) / 2 / c[2] * 100) + '%';
+    img.style.top = (-(1 - c[3]) / 2 / c[3] * 100) + '%';
+    cap.textContent = c[4];
+    tabs.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.cut === c[0] ? 'true' : 'false'));
+  };
+  CUTS.forEach(c => {
+    const b = el('button', 'bp-chip', c[1], { type: 'button', 'data-cut': c[0], 'aria-pressed': 'false' });
+    b.addEventListener('click', () => show(c[0]));
+    tabs.append(b);
+  });
+  box.append(tabs, frame, cap);
+  Promise.resolve(src).then(u => { if (u) img.src = u; }).catch(() => { cap.textContent = 'This picture could not be loaded. Try again in a minute.'; });
+  show(ST.cut || 'phone');
+  return box;
+}
+
+/* Her banner as it is on her channel today against the same place in the design in front, both cut the way a phone, a
+   computer and a TV cut them. What today's banner gets wrong is written in brand.json (`today.caption`), never here. */
 function paintCompare() {
   const B = ST.doc, today = fileById('today-banner');
   const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
   const neu = fileById(look.files.find(id => /youtube-banner/.test(id)) || '');
   if (!today || !neu) return null;
   const box = el('section', 'bp-cmp', null, { id: 'bp-cmp', 'aria-label': 'Today and in the new design' });
-  box.append(el('h3', null, 'Your channel today, and in ' + look.name));
-  const tabs = el('div', 'bp-groups', null, { role: 'group', 'aria-label': 'Which banner' });
-  const fig = el('figure', 'bp-cmpimg');
-  const img = el('img', null, null, { alt: '' });
-  fig.append(img);
-  const cap = el('figcaption');
-  const show = which => {
-    ST.cmp = which;
-    const f = which === 'today' ? today : neu;
-    img.src = ST.done[f.id] || thumbOf(f);
-    img.alt = which === 'today' ? 'Your YouTube banner today' : `Your YouTube banner in ${look.name}`;
-    if (!ST.done[f.id]) fullUrl(f).then(u => { if (ST.cmp === which) img.src = u; }).catch(() => { });
-    cap.textContent = which === 'today' ? 'Today: the night globe and your name. Nothing says what the channel is or who it is for.' : `${look.name}: your face, your name, your line, and your two series, as a computer screen shows it.`;
-    tabs.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === which ? 'true' : 'false'));
+  box.append(el('h3', null, 'Your banner today, and in ' + look.name));
+  const which = el('div', 'bp-groups', null, { role: 'group', 'aria-label': 'Which banner' });
+  const slot = el('div');
+  const note = el('p', 'bp-sub', '', { style: 'margin:10px 0 0' });
+  const show = w => {
+    ST.cmp = w;
+    const f = w === 'today' ? today : neu;
+    slot.textContent = '';
+    slot.append(cropView(ST.done[f.id] || fullUrl(f), w === 'today' ? 'Your YouTube banner today' : `Your YouTube banner in ${look.name}`));
+    note.textContent = w === 'today' ? (T((B.today || {}).caption) || 'Your banner as it is on your channel today.') : `The same banner in ${look.name}. Switch between Phone, Computer and Whole picture to compare.`;
+    which.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.c === w ? 'true' : 'false'));
   };
   [['today', 'Today'], ['new', look.name]].forEach(([k, t]) => {
     const b = el('button', 'bp-chip', t, { type: 'button', 'data-c': k });
     b.addEventListener('click', () => show(k));
-    tabs.append(b);
+    which.append(b);
   });
-  box.append(tabs, fig, cap);
-  show(ST.cmp || 'new');
+  box.append(which, note, slot);
+  show(ST.cmp || 'today');
   return box;
+}
+
+/* ------------------------------------------------------------------ her photos and ideas
+   Armin, 17 Oct 2026, after Kala made her own banner and it beat every design here: people should be able to send their
+   own pictures of themselves, ideas they like, or something they made. A photo of her is used in her pictures, an idea
+   is taken from, a design of her own is fitted to every screen and the rest of the kit is built around it.
+   Each picture is brandpages/<page>/sent/<id> (who, what kind, her note, size, a small picture) with its bytes in
+   sent/<id>/parts/<n>, half a megabyte each, at most eight: the same pieces as the kit, because the site is public and
+   these are hers. The rules (firestore.rules, sent) let only someone on the page add one and only its sender remove it.
+   brandpage.py sent fetches them to people/<who>/sent/ and listen.py prints [BRAND] until they are looked at. */
+const PART_B = 500000, MAX_B = 8 * PART_B, MAX_FILES = 12;
+const SENT_KINDS = [
+  ['me', 'Photos of me', 'Photos of you that you like. I use them in your pictures, so every one looks like you on a good day.'],
+  ['idea', 'Ideas I like', 'Anything you like the look of: a banner, a channel, a color, a font. I take what works for you.'],
+  ['mine', 'Something I made', 'A design of your own. I fit it to every screen and build the rest of your pictures around it.'],
+];
+const kindName = k => (SENT_KINDS.find(x => x[0] === k) || [0, 'Picture'])[1];
+function canvasBlob(c, type, q) { return new Promise(res => c.toBlob(res, type, q)); }
+/* A picture as it is sent: the file itself when it is a plain photo or design that fits, else redrawn as a JPEG no
+   longer than 3000 pixels; and a small picture for the list. A phone's HEIC is opened by the phone's own browser. */
+async function prepImage(file) {
+  let bmp;
+  try { bmp = await createImageBitmap(file); } catch (e) { throw { code: 'bp/notimage' }; }
+  let w = bmp.width, h = bmp.height, data, type = file.type;
+  if (/^image\/(jpeg|png|webp)$/.test(type) && file.size <= MAX_B && w <= 6000 && h <= 6000) data = new Uint8Array(await file.arrayBuffer());
+  else {
+    const k = Math.min(1, 3000 / Math.max(w, h));
+    w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+    const c = D.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    let blob = null;
+    for (const q of [0.9, 0.8, 0.68, 0.55]) { blob = await canvasBlob(c, 'image/jpeg', q); if (blob && blob.size <= MAX_B) break; }
+    if (!blob || blob.size > MAX_B) throw { code: 'bp/toobig' };
+    data = new Uint8Array(await blob.arrayBuffer()); type = 'image/jpeg';
+  }
+  const tk = Math.min(1, 360 / Math.max(bmp.width, bmp.height));
+  const tc = D.createElement('canvas'); tc.width = Math.max(1, Math.round(bmp.width * tk)); tc.height = Math.max(1, Math.round(bmp.height * tk));
+  const tx = tc.getContext('2d'); tx.fillStyle = '#ffffff'; tx.fillRect(0, 0, tc.width, tc.height); tx.drawImage(bmp, 0, 0, tc.width, tc.height);
+  let thumb = await canvasBlob(tc, 'image/jpeg', 0.78);
+  if (thumb.size > 80000) thumb = await canvasBlob(tc, 'image/jpeg', 0.55);
+  if (bmp.close) bmp.close();
+  return { data, type, w, h, thumb: new Uint8Array(await thumb.arrayBuffer()) };
+}
+const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
+async function dropSent(id, n) {
+  const { F, db } = await R.fb();
+  for (let i = 0; i < n; i++) { try { await R.within(15000, F.deleteDoc(F.doc(db, 'brandpages', ST.key, 'sent', id, 'parts', String(i)))); } catch (x) { /* a piece that never arrived */ } }
+  await R.within(15000, F.deleteDoc(F.doc(db, 'brandpages', ST.key, 'sent', id)));
+}
+async function uploadOne(file, kind, note) {
+  const { F, db } = await R.fb();
+  const u = R.user(), me = (window.LP.who && window.LP.who()) || {};
+  const p = await prepImage(file);
+  const n = Math.max(1, Math.ceil(p.data.length / PART_B));
+  if (n > 8) throw { code: 'bp/toobig' };
+  const id = rid();
+  const meta = { uid: u.uid, name: String(me.name || 'Reader').slice(0, 60), kind, note: String(note || '').slice(0, 600), fname: String(file.name || 'picture').slice(0, 120),
+    type: p.type, bytes: p.data.length, parts: n, w: p.w, h: p.h, thumb: F.Bytes.fromUint8Array(p.thumb), createdAt: F.serverTimestamp() };
+  await R.within(20000, F.setDoc(F.doc(db, 'brandpages', ST.key, 'sent', id), meta));
+  try {
+    for (let i = 0; i < n; i++) {
+      await R.within(60000, F.setDoc(F.doc(db, 'brandpages', ST.key, 'sent', id, 'parts', String(i)), { b: F.Bytes.fromUint8Array(p.data.subarray(i * PART_B, (i + 1) * PART_B)) }));
+    }
+  } catch (e) { await dropSent(id, n).catch(() => { }); throw e; }
+  return Object.assign({ id }, meta, { createdAt: null });
+}
+function whyNot(e) {
+  const c = e && e.code;
+  if (c === 'permission-denied') return 'confirm your email address first (Your account), then try again';
+  if (c === 'bp/notimage') return 'this device could not open it as a picture';
+  if (c === 'bp/toobig') return 'it is too large, even made smaller';
+  return 'check your connection and try again';
+}
+function sentUrl(x) {
+  const k = 'sent:' + x.id;
+  if (!ST.full[k]) ST.full[k] = fetchFile(x, 'sent').then(b => (ST.done[k] = URL.createObjectURL(new Blob([b], { type: x.type })))).catch(e => { delete ST.full[k]; throw e; });
+  return ST.full[k];
+}
+function openSent(x, holder) {
+  holder.textContent = '';
+  const box = el('div', 'bp-sentbig', null, { id: 'bp-sentbig' });
+  const top = el('div', 'bp-row', null, { style: 'justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap' });
+  const cap = el('div');
+  cap.append(el('b', null, kindName(x.kind)), el('span', 'bp-sub', ` · ${T(x.w)} × ${T(x.h)} · ${sizeText(x.bytes || 0)}`));
+  const close = el('button', 'bp-btn', 'Close', { type: 'button' });
+  close.addEventListener('click', () => { holder.textContent = ''; });
+  top.append(cap, close);
+  box.append(top);
+  if (x.note) box.append(el('p', null, T(x.note), { style: 'margin:8px 0 0' }));
+  if (isBanner(x.w, x.h)) {
+    box.append(el('p', 'bp-sub', 'This is the shape of a YouTube banner, so here it is the way each screen shows it.', { style: 'margin:10px 0 0' }), cropView(ST.done['sent:' + x.id] || sentUrl(x), kindName(x.kind)));
+  } else {
+    const im = el('img', 'full', null, { alt: kindName(x.kind), src: ST.done['sent:' + x.id] || thumbOf(x), style: 'margin-top:10px' });
+    box.append(im);
+    if (!ST.done['sent:' + x.id]) sentUrl(x).then(u => { im.src = u; }).catch(() => { });
+  }
+  box.append(commentBox('sent:' + x.id, 'Tell me about this one', 'What you like about it, what I should take from it.'));
+  holder.append(box);
+  box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function sentTile(x, holder, redraw) {
+  const mine = x.uid === R.user().uid;
+  const li = el('li', null, null, { 'data-sent': x.id });
+  const th = el('button', 'th', null, { type: 'button', 'aria-label': `See ${kindName(x.kind)} full size` });
+  th.append(el('img', null, null, { src: thumbOf(x), alt: kindName(x.kind), loading: 'lazy' }));
+  th.addEventListener('click', () => openSent(x, holder));
+  const m = el('div', 'm');
+  const talk = ST.notes.filter(n => n.about === 'sent:' + x.id);
+  const ans = talk.some(n => ST.notes.some(r => r.about === 're:' + n.id));
+  m.append(el('b', null, kindName(x.kind)), el('span', null, [mine ? 'You' : T(x.name), x.createdAt ? new Date(ms(x.createdAt)).toLocaleDateString() : 'just now'].join(' · ')));
+  if (x.note) m.append(el('span', null, T(x.note)));
+  if (ans) m.append(el('span', null, '✓ Answered'));
+  li.append(th, m);
+  if (mine) {
+    const acts = el('div', 'acts');
+    const rm = el('button', null, 'Remove', { type: 'button', 'aria-label': `Remove this ${kindName(x.kind).toLowerCase()}` });
+    let armed = 0;
+    rm.addEventListener('click', async () => {
+      if (!armed) { armed = setTimeout(() => { armed = 0; rm.textContent = 'Remove'; rm.classList.remove('armed'); }, 4000); rm.textContent = 'Tap again to remove'; rm.classList.add('armed'); return; }
+      clearTimeout(armed); armed = 0; rm.disabled = true; rm.textContent = 'Removing...';
+      try { await dropSent(x.id, x.parts || 1); ST.sent = ST.sent.filter(y => y.id !== x.id); if (holder.querySelector('#bp-sentbig')) holder.textContent = ''; redraw(); progress(); }
+      catch (e) { rm.disabled = false; rm.textContent = 'Not removed. Try again'; rm.classList.remove('armed'); }
+    });
+    acts.append(rm);
+    li.append(acts);
+  }
+  return li;
+}
+function paintSent() {
+  const s = sec('sent', 'Your photos and ideas', 'Send me photos of yourself, designs you like from anyone, or something you made. Only you and Armin can see them. I use them in your next draft, and I answer under each one.');
+  if (!ST.sentOk) {
+    s.append(msg('Sending pictures here opens very soon. Until then, tell me below what you would send me.', true));
+    s.append(commentBox('sec:sent', 'Tell me about your photos and ideas', 'A photo you like of yourself, a channel or a design you admire: describe it, or paste one link.', true));
+    return s;
+  }
+  const kinds = el('div', 'bp-kinds', null, { role: 'group', 'aria-label': 'What you are sending' });
+  const why = el('p', 'bp-kindwhy', '');
+  const setKind = k => {
+    ST.skind = k;
+    kinds.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.kind === k ? 'true' : 'false'));
+    why.textContent = (SENT_KINDS.find(x => x[0] === k) || SENT_KINDS[0])[2];
+  };
+  SENT_KINDS.forEach(([k, t]) => { const b = el('button', 'bp-chip', t, { type: 'button', 'data-kind': k, 'aria-pressed': 'false' }); b.addEventListener('click', () => setKind(k)); kinds.append(b); });
+  const drop = el('div', 'bp-drop');
+  const input = el('input', null, null, { type: 'file', accept: 'image/*', multiple: '', id: 'bp-sent-file', tabindex: '-1', 'aria-hidden': 'true' });
+  const pick = ibtn('bp-btn main', 'image', 'Choose pictures');
+  pick.id = 'bp-sent-pick';
+  const note = el('textarea', 'short', null, { rows: '2', maxlength: '600', placeholder: 'What should I take from these? You can leave this empty.', 'aria-label': 'A note with the pictures' });
+  const line = msg('');
+  line.id = 'bp-sent-line';
+  const holder = el('div');
+  const grid = el('ul', 'bp-sentgrid', null, { 'aria-label': 'What you sent', id: 'bp-sent-grid' });
+  const count = el('p', 'bp-h4', '');
+  const drawGrid = () => {
+    grid.textContent = '';
+    count.textContent = ST.sent.length ? `What you sent (${ST.sent.length})` : '';
+    ST.sent.forEach(x => grid.append(sentTile(x, holder, drawGrid)));
+  };
+  const send = async list => {
+    let files = list.filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name || ''));
+    if (!files.length) { line.textContent = 'Pick a picture: a photo, a screenshot or a design.'; line.className = 'bp-msg bad'; return; }
+    const extra = files.length > MAX_FILES ? files.length - MAX_FILES : 0;
+    files = files.slice(0, MAX_FILES);
+    pick.disabled = true;
+    let ok = 0;
+    const bad = [];
+    for (const [i, f] of files.entries()) {
+      line.textContent = `Sending ${i + 1} of ${files.length}...`; line.className = 'bp-msg';
+      try { ST.sent.unshift(await uploadOne(f, ST.skind, note.value.trim())); ok++; drawGrid(); }
+      catch (e) { bad.push(`${T(f.name) || 'a picture'} (${whyNot(e)})`); }
+    }
+    pick.disabled = false;
+    if (ok) note.value = '';
+    const more = extra ? ` ${extra} more were left out: send them in a second go.` : '';
+    line.textContent = (ok ? `✓ Sent ${ok === 1 ? 'your picture' : ok + ' pictures'}. I have ${ok === 1 ? 'it' : 'them'}, and I answer right here.` : 'Not sent.') + (bad.length ? ' Not sent: ' + bad.join('; ') + '.' : '') + more;
+    line.className = 'bp-msg' + (!ok ? ' bad' : '');
+    progress(); tally();
+  };
+  pick.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { const f = Array.from(input.files || []); input.value = ''; if (f.length) send(f); });
+  drop.addEventListener('dragover', ev => { ev.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', ev => { ev.preventDefault(); drop.classList.remove('over'); const f = Array.from((ev.dataTransfer && ev.dataTransfer.files) || []); if (f.length) send(f); });
+  drop.append(pick, input, note, line);
+  // A banner checked before it goes up: read on this device only, nothing is sent.
+  const chk = el('details', 'bp-more', null, { id: 'bp-bannercheck', style: 'margin-top:16px' });
+  chk.append(el('summary', null, 'Check a banner before you put it up'));
+  chk.append(el('p', 'bp-sub', 'Pick a banner from your phone or computer and see what a phone, a computer and a TV will show. It stays on your device: nothing is sent.', { style: 'margin:8px 0 0' }));
+  const cin = el('input', null, null, { type: 'file', accept: 'image/*', tabindex: '-1', 'aria-hidden': 'true', style: 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none' });
+  const cbtn = ibtn('bp-btn', 'eye', 'Choose a banner');
+  const cout = el('div');
+  cbtn.addEventListener('click', () => cin.click());
+  cin.addEventListener('change', () => {
+    const f = (cin.files || [])[0]; cin.value = '';
+    if (!f) return;
+    const u = URL.createObjectURL(f); ST.urls.push(u);
+    const probe = new Image();
+    probe.onload = () => {
+      cout.textContent = '';
+      const w = probe.naturalWidth, h = probe.naturalHeight;
+      if (!isBanner(w, h)) { cout.append(msg(`This picture is ${w} × ${h}. A YouTube banner is 16 by 9, best 2560 × 1440, so YouTube would not take this shape.`, true)); return; }
+      if (w < 2048) cout.append(msg(`YouTube asks for at least 2048 × 1152; this one is ${w} × ${h}, so it may look soft.`, true));
+      cout.append(cropView(u, 'Your banner'));
+    };
+    probe.onerror = () => { cout.textContent = ''; cout.append(msg('This device could not open that file as a picture.', true)); };
+    probe.src = u;
+  });
+  chk.append(cbtn, cin, cout);
+  s.append(kinds, why, drop, holder, count, grid, chk, commentBox('sec:sent', 'Tell me about what you sent', 'Your favourite photo, what you like about an idea, or one link to something you admire.'));
+  setKind(ST.skind || 'me');
+  drawGrid();
+  return s;
 }
 
 /* Liberty Politics speaking to her: what I made, what I did since her last visit (only deeds that exist), and the one
@@ -1096,7 +1371,13 @@ function paintKit() {
         dl.disabled = false;
       });
       acts.append(dl, react('react:file:' + f.id, 'heart', 'Love it', 'love'), react('react:file:' + f.id, 'x', 'Not me', 'no'));
-      li.append(th, m, acts, commentBox('file:' + f.id, 'Tell me what to change'));
+      const cutBox = el('div');
+      if (isBanner(f.w, f.h) && f.group === 'YouTube') {
+        const cut = ibtn(null, 'eye', 'On a phone', `See ${f.title} the way a phone, a computer and a TV show it`);
+        cut.addEventListener('click', () => { if (cutBox.firstChild) { cutBox.textContent = ''; return; } cutBox.append(cropView(ST.done[f.id] || fullUrl(f), f.title)); });
+        acts.append(cut);
+      }
+      li.append(th, m, acts, cutBox, commentBox('file:' + f.id, 'Tell me what to change'));
       ul.append(li);
     });
     s.append(ul);
@@ -1137,5 +1418,5 @@ function start() {
   if (!go()) { let n = 0; const t = setInterval(() => { if (go() || ++n > 200) clearInterval(t); }, 50); }
   window.addEventListener('hashchange', () => { const k = location.hash.slice(1); if (ST.pages.some(p => p.key === k) && k !== ST.key) openPage(k); });
 }
-window.LPBRAND = { state: () => ({ uid: ST.uid, key: ST.key, look: ST.look, wp: ST.wp, ptype: ST.ptype, log: ST.log.length, pages: ST.pages.map(p => p.key), mine: Object.assign({}, ST.mine) }) };      // for brand-test.html
+window.LPBRAND = { state: () => ({ uid: ST.uid, key: ST.key, look: ST.look, wp: ST.wp, ptype: ST.ptype, log: ST.log.length, sent: ST.sent.length, sentOk: ST.sentOk, cut: ST.cut || '', pages: ST.pages.map(p => p.key), mine: Object.assign({}, ST.mine) }) };      // for brand-test.html
 start();

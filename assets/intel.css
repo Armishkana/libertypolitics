@@ -261,6 +261,48 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-s-v iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .ir-s-v button{position:absolute;inset:0;margin:auto;width:76px;height:76px;border-radius:50%;border:0;background:rgba(244,196,48,.95);cursor:pointer;display:grid;place-items:center}
 .ir-s-v button svg{width:30px;height:30px;fill:var(--on-field);margin-left:4px}
+/* An X post's pictures and video (17 Oct 2026): the picture in the list, the video played here, the pictures full screen */
+.ir-th-d{position:absolute;right:3px;bottom:3px;padding:1px 4px;border-radius:4px;background:rgba(0,0,0,.8);color:#fff;font:700 12px/1.2 var(--body);letter-spacing:0;text-transform:none}
+.ir-th-i{position:absolute;inset:-6px;background:center/cover no-repeat;filter:blur(6px)}
+.ir-xm{position:relative;display:grid;gap:8px}
+.ir-xv{position:relative;--ar:1.7778;aspect-ratio:var(--ar);width:min(100%,calc(min(62vh,600px)*var(--ar)));margin:0 auto;border-radius:12px;overflow:hidden;background:#000}
+.ir-xv>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+.ir-xv-f{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
+.ir-xv-play{position:absolute;inset:0;margin:auto;width:max-content;height:64px;padding:0 22px 0 16px;border-radius:999px;border:0;background:rgba(244,196,48,.95);color:var(--on-field);cursor:pointer;display:flex;align-items:center;gap:6px;font:800 var(--t2) var(--body);box-shadow:0 12px 30px -10px #000}
+.ir-xv-play svg{width:30px;height:30px;fill:currentColor}
+.ir-xv-play:hover{background:var(--field-hi)}
+.ir-xv.is-embed{aspect-ratio:auto;width:100%;background:none;overflow:visible;border-radius:0}
+.ir-xv.is-embed .twitter-tweet{margin:0 auto!important}
+.ir-xm-msg{margin:0;padding:16px;color:var(--dim);text-align:center}
+.ir-xm-msg a{color:var(--live)}
+.ir-xp{display:grid;gap:4px;height:min(56vh,440px);border-radius:12px;overflow:hidden}
+.ir-xp-n2{grid-template-columns:1fr 1fr}
+.ir-xp-n3,.ir-xp-n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.ir-xp-n3>:first-child{grid-row:span 2}
+.ir-xp>button{position:relative;min-width:0;min-height:0;padding:0;border:0;background:#000;cursor:zoom-in;overflow:hidden}
+.ir-xp>button img{width:100%;height:100%;object-fit:cover;display:block}
+.ir-xp-n1{display:block;height:auto;--ar:1.5}
+.ir-xp-n1>button{display:block;aspect-ratio:var(--ar);width:min(100%,calc(min(62vh,600px)*var(--ar)));margin:0 auto;border-radius:12px}
+.ir-xp-n1>button img{object-fit:contain}
+.ir-xp-z{position:absolute;right:8px;bottom:8px;width:40px;height:40px;border-radius:50%;background:rgba(0,0,0,.7);display:grid;place-items:center}
+.ir-xp-z svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2.2}
+.ir-xm.is-sn .ir-xv>img,.ir-xm.is-sn .ir-xp img{filter:blur(28px);transform:scale(1.15)}
+.ir-xm.is-sn .ir-xv-play,.ir-xm.is-sn .ir-xp-z{visibility:hidden}
+.ir-xm-sn{position:absolute;inset:0;z-index:3;margin:auto;width:max-content;max-width:calc(100% - 24px);height:max-content;min-height:46px;padding:10px 18px;border-radius:999px;border:1px solid var(--line);background:rgba(10,10,10,.88);color:var(--ink);font:700 var(--t2) var(--body);cursor:pointer}
+.ir-lb{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:rgba(4,4,5,.97);color:#fff;overflow:hidden}
+.ir-lb::backdrop{background:rgba(0,0,0,.9)}
+.ir-lb-in{position:absolute;inset:0 0 68px;display:grid;place-items:center;overflow:auto;padding:12px}
+.ir-lb-img{display:block;max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.ir-lb.is-zoom .ir-lb-in{place-items:start center}
+.ir-lb.is-zoom .ir-lb-img{max-width:none;max-height:none;cursor:zoom-out}
+.ir-lb-bar{position:absolute;left:0;right:0;bottom:0;height:68px;display:flex;align-items:center;gap:8px;padding:0 12px;background:rgba(0,0,0,.7)}
+.ir-lb-bar a{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid #4a4840;color:#fff;font:600 var(--t2) var(--body);text-decoration:none;white-space:nowrap}
+.ir-lb-bar a:hover{border-color:var(--field)}
+.ir-lb-n{color:#cfcabd;font:600 var(--t2) var(--body);white-space:nowrap}
+.ir-lb-x{margin-left:auto;flex:none;width:48px;height:48px;border-radius:50%;border:1px solid #4a4840;background:none;color:#fff;font:400 28px/1 var(--body);cursor:pointer}
+.ir-lb-nav{position:absolute;top:calc(50% - 34px);transform:translateY(-50%);width:52px;height:52px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font:400 34px/1 var(--body);cursor:pointer}
+.ir-lb-nav.prev{left:10px}.ir-lb-nav.next{right:10px}
+.ir-lb-nav:disabled{opacity:.25;cursor:default}
 .ir-s-a{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .ir-s-open{display:inline-flex;align-items:center;min-height:46px;padding:0 20px;border-radius:999px;background:var(--field);color:var(--on-field);font:700 var(--t2) var(--body);text-decoration:none}
 .ir-s-open:hover{background:var(--field-hi)}
@@ -702,6 +744,16 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
 .ir-sh-frame.is-x:not(.is-drawn) .ir-sh-card{position:absolute;left:50%;top:0;transform:translateX(-50%);width:min(56rem,100%);z-index:2}
 .ir-sh-tw{width:100%}
 .ir-sh-frame.is-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:12px}
+/* the show screen: an X post's own video or pictures fill the stage (X's player only when they are missing or will not play) */
+.ir-sh-frame.is-xm .ir-xm{width:100%}
+@media(min-width:901px){
+  .ir-sh-frame.is-xm{container-type:size}
+  .ir-sh-frame.is-xm .ir-xm{height:100%;align-content:center}
+  .ir-sh-frame.is-xm .ir-xv,.ir-sh-frame.is-xm .ir-xp-n1>button{width:min(100cqw,calc(100cqh*var(--ar)))}
+  .ir-sh-frame.is-xm .ir-xp:not(.ir-xp-n1){height:100cqh}
+  .ir-sh-frame.is-xm .ir-xv-play{height:84px;padding:0 30px 0 22px;font-size:1.4rem}
+  .ir-sh-frame.is-xm .ir-xv-play svg{width:40px;height:40px}
+}
 .ir-sh-card{max-width:56rem;padding:clamp(20px,3vw,56px);border-radius:16px;background:linear-gradient(180deg,#1a1917,#121211);box-shadow:inset 0 0 0 1px #3a3527,0 40px 90px -50px #000}
 .ir-sh-ck{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:var(--field);font:700 clamp(.9rem,1.1vw,1.25rem) var(--body);letter-spacing:.02em}
 .ir-sh-ck .ir-mk,.ir-sh-meta .ir-mk,.ir-sh-agenda .ir-mk,.ir-sh-strip .ir-mk{width:1em;height:1em;flex:none}

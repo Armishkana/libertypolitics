@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=05cd591b8a) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=8ea5a36611) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -394,7 +394,11 @@
   }
   function thumb(it) {
     var y = ytId(it.u), p = pfOf(it), m = mark(it), pc = ' style="--pc:' + pfColor(p) + '"';
-    if (it.th || y) return '<span class="ir-th yt" style="--pc:' + pfColor(p) + ';background-image:url(' + esc(it.th || 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg') + ')">' + m + '</span>';
+    var md = mediaOf(it), vid = kindOf(it) === 'video', d = vid ? fmtDur(it.dur || (md[0] && md[0].s)) : '';
+    m += d ? '<b class="ir-th-d num">' + d + '</b>' : '';
+    // a picture X marks as possibly sensitive is blurred in the list; the spotlight asks before it shows it
+    if (it.sn && md.length) return '<span class="ir-th is-sn' + (vid ? ' yt' : '') + '"' + pc + '><span class="ir-th-i" style="background-image:url(' + esc(pic(md[0], '240x240')) + ')"></span>' + m + '</span>';
+    if (it.th || y) return '<span class="ir-th' + (vid ? ' yt' : '') + '" style="--pc:' + pfColor(p) + ';background-image:url(' + esc(it.th || 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg') + ')">' + m + '</span>';
     var s = p === 'Telegram' ? 'TG' : p === 'Document' ? 'DOC' : p === 'Facebook' ? 'FB' : p === 'Instagram' ? 'IG' : p === 'News' ? 'NEWS' : p === 'Web' ? 'WEB' : p === 'Threads' ? 'THR' : p === 'Other' ? 'VIDEO' : p;
     return '<span class="ir-th"' + pc + '><i>' + esc(s) + '</i>' + m + '</span>';
   }
@@ -422,7 +426,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=05cd591b8a): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=8ea5a36611): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1322,7 +1326,7 @@
     spotAt = i;
     var y = ytId(it.u), dlg = $('ir-spot');
     var srcName = it.src === 'Document' ? 'the document' : it.src === 'News' ? (it.h || 'the news site') : it.src;
-    var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc(KIND_N[kindOf(it)] + ' on ' + pfName(pfOf(it))) + '</span>' +
+    var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc((it.k === 'image' ? 'Picture' : KIND_N[kindOf(it)]) + ' on ' + pfName(pfOf(it))) + '</span>' +
       (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (crOf(it) != null ? '<span title="How credible the source is, from the room\'s own table">Source credibility ' + crOf(it) + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + 'Viral ' + it._v + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
       (it.edu ? '<span class="ed">Explainer</span>' : '') + (it.own ? '<span class="own">Creator\'s own</span>' : '') + (it.pend ? '<span class="pend">Being checked</span>' : '') +
       (it.tp || []).map(function (t) { return '<span>' + esc(topics[t]) + '</span>'; }).join('');
@@ -1333,10 +1337,11 @@
       '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + (i + 1) + ' of ' + shown.length + '</span><button class="ir-s-x" type="button" data-x aria-label="Close">&times;</button></div>' +
       '<h2 id="ir-spot-t">' + esc(it.t) + '</h2>' +
       '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + esc(it.h && it.src !== 'News' ? it.h + ' on ' + it.src : it.h || it.src) + by + '</p>' +
+      // the thing itself straight under its headline (17 Oct 2026): the video or the pictures, then what is said about it
+      (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : mediaHtml(it)) +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
       spotReach(it) +
       (it.hotWhy ? '<p class="ir-s-o">Why it is hot: ' + esc(it.hotWhy) + (it.also && it.also.length ? '. Also carried by ' + esc(it.also.join(', ')) : '') + '.</p>' : '') +
-      (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : '') +
       (it.n ? '<p class="ir-s-n">' + esc(it.n) + '</p>' : '') +
       (it.o ? '<p class="ir-s-o">In the bank: ' + esc(it.o) + '</p>' : '') +
       (it.pend ? '<p class="ir-s-o">A reader sent this in. It is not checked yet, so it is not on the map: open it with that in mind.</p>' : '') +
@@ -1345,6 +1350,7 @@
       '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="Previous"' + (i ? '' : ' disabled') + '>&larr;</button><button type="button" data-step="1" aria-label="Next"' + (i < shown.length - 1 ? '' : ' disabled') + '>&rarr;</button></div></div>' +
       '<p class="ir-s-f">Weak, wrong, or missing context? <a href="#feedback" data-kind="wrong" data-about="' + esc(('Intel Room: ' + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="page:intel" data-close-spot>Say why in the discussion</a>. That is how the room gets better.</p>' +
       '</div>';
+    wireMedia(dlg.querySelector('.ir-xm'), it);
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
   }
@@ -1361,6 +1367,161 @@
     return '<p class="ir-s-r">' + bits.join('') + '<small>On ' + esc(nm) + ', as ' + esc(nm) + ' shows them.' + when + (it._v != null ? ' ' + esc(viralWhy(it)) + '.' : '') + '</small></p>';
   }
   function closeSpot() { var d = $('ir-spot'); spotAt = -1; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
+
+  /* ------------------------------------------------------------ an X post's pictures and video (17 October 2026) */
+  // Armin: "you need to show an image or something of the video ... i should be able to play the video or see the full
+  // version of the images without going to x". build/intel_x.py keeps them in `m` (its header has the shape). Pictures come
+  // from X's picture host at the size asked for. A video plays in a frame that sends no Referer, because X refuses its video
+  // files to a page from another site (measured 17 Oct 2026: 403 with libertypolitics.com or localhost as the referrer, 206
+  // with none). If it still will not play, X's own player takes its place, and "Open on X" is always under it.
+  var PBS_RX = /^https:\/\/pbs\.twimg\.com\/[A-Za-z0-9_\/-]+\.(?:jpg|jpeg|png|webp)$/, VTW_RX = /^https:\/\/video\.twimg\.com\/[A-Za-z0-9_\/.-]+\.mp4(?:\?[A-Za-z0-9=&_.-]*)?$/;
+  var PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var ZOOM_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  function mediaOf(it) {
+    return (it && Array.isArray(it.m) ? it.m : []).filter(function (r) { return r && /^[pvg]$/.test(r.t) && PBS_RX.test(r.i) && (!r.v || VTW_RX.test(r.v)); }).slice(0, 4);
+  }
+  // X's picture host: base?format=jpg&name=<size>. 240x240 (about 10 KB) for the list, medium (1200 wide) to look at, large
+  // (2048) full screen, orig as posted. The old ".jpg?name=" form ignores the size on video posters, so it is never used.
+  function pic(r, size) { var m = /^(.*)\.(jpg|jpeg|png|webp)$/.exec(r.i); return m ? m[1] + '?format=' + (m[2] === 'jpeg' ? 'jpg' : m[2]) + '&name=' + (size || 'medium') : r.i; }
+  function fmtDur(s) { s = Math.round(+s || 0); if (s <= 0) return ''; var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (x < 10 ? '0' : '') + x; }
+  function tweetId(u) { var m = /(?:x|twitter)\.com\/[^\/]+\/status\/(\d+)/.exec(u || ''); return m ? m[1] : ''; }
+  function arOf(r) { var a = r.w && r.h ? r.w / r.h : 16 / 9; return Math.max(0.5, Math.min(2.4, a)).toFixed(4); }
+  // big: the show screen (one block that fills the stage: the video when there is one, else the pictures, large posters)
+  function mediaHtml(it, big) {
+    var md = mediaOf(it); if (!md.length) return '';
+    var vids = md.filter(function (r) { return r.t !== 'p'; }), ph = md.filter(function (r) { return r.t === 'p'; });
+    if (big && vids.length) { vids = vids.slice(0, 1); ph = []; }
+    var who = it.h || 'X', h = '';
+    vids.forEach(function (r) {
+      var d = fmtDur(r.s || it.dur), gif = r.t === 'g';
+      h += '<div class="ir-xv" style="--ar:' + arOf(r) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" loading="lazy" decoding="async">' +
+        '<button type="button" class="ir-xv-play" data-xplay="' + md.indexOf(r) + '" aria-label="' + esc((gif ? 'Play the clip' : 'Play the video') + ' from ' + who + ' here' + (d ? ', ' + d + ' long' : '')) + '">' + PLAY_SVG + '<span class="num">' + esc(gif ? 'GIF' : d || 'Play') + '</span></button></div>';
+    });
+    if (ph.length) {
+      h += '<div class="ir-xp ir-xp-n' + ph.length + '"' + (ph.length === 1 ? ' style="--ar:' + arOf(ph[0]) + '"' : '') + '>' + ph.map(function (r, j) {
+        return '<button type="button" data-lb="' + j + '" aria-label="' + esc('See picture ' + (j + 1) + ' of ' + ph.length + ' from ' + who + ' full size') + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" loading="lazy" decoding="async"><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
+      }).join('') + '</div>';
+    }
+    return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>X marks this as possibly sensitive. Show it</button>' : '') + '</div>';
+  }
+  // the clicks inside one .ir-xm; fallback(holder) replaces the native player when the video will not play
+  function wireMedia(box, it, fallback) {
+    if (!box || box._xm) return; box._xm = 1;
+    var md = mediaOf(it), ph = md.filter(function (r) { return r.t === 'p'; });
+    box.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-xplay],[data-lb],[data-xsn]'); if (!b || !box.contains(b)) return;
+      if (b.hasAttribute('data-xsn')) { box.classList.remove('is-sn'); b.remove(); return; }
+      if (box.classList.contains('is-sn')) return;
+      if (b.hasAttribute('data-xplay')) xPlay(b.parentNode, md[+b.getAttribute('data-xplay')], it, fallback);
+      else if (b.hasAttribute('data-lb')) lightbox(ph, +b.getAttribute('data-lb'), it);
+    });
+  }
+  // ONE SOUND AT A TIME, AND ONLY AFTER A TAP (18 Oct 2026: a test of this player played a crowd video with the sound
+  // on, out of Armin's headphones, while he was on air). Nothing in the room starts a video by itself: xPlay runs only
+  // from a tap on a Play button. Starting one pauses every other video in the room, and a spotlight that closes, by any
+  // route, empties itself, so nothing can keep playing out of sight. phone-test.html's Intel Room block counts all three.
+  function hush(keep) {
+    [].forEach.call(document.querySelectorAll('iframe.ir-xv-f'), function (f) {
+      if (f === keep) return;
+      try { var o = f.contentDocument && f.contentDocument.querySelector('video'); if (o && !o.paused) o.pause(); } catch (e) { }
+    });
+  }
+  function xPlay(holder, r, it, fallback) {
+    if (!holder || !r) return;
+    var done = false, fail = function () { if (done) return; done = true; (fallback || xEmbed)(holder, it); };
+    if (!r.v) { fail(); return; }
+    var gif = r.t === 'g', f = document.createElement('iframe');
+    f.className = 'ir-xv-f'; f.title = (gif ? 'Clip' : 'Video') + ' from ' + (it.h || 'X');
+    f.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture'); f.setAttribute('allowfullscreen', ''); f.setAttribute('referrerpolicy', 'no-referrer');
+    f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}video{display:block;width:100%;height:100%;object-fit:contain;background:#000}</style></head><body>' +
+      '<video src="' + esc(r.v) + '" poster="' + esc(pic(r, 'large')) + '" playsinline autoplay preload="auto"' + (gif ? ' muted loop' : ' controls') + '></video></body></html>';
+    hush(null);
+    holder.innerHTML = ''; holder.appendChild(f); holder.classList.add('is-on');
+    f.addEventListener('load', function () {
+      var v = null; try { v = f.contentDocument && f.contentDocument.querySelector('video'); } catch (e) { return; }
+      if (!v) return;
+      v.addEventListener('play', function () { hush(f); });
+      v.addEventListener('error', fail);
+      if (v.error) { fail(); return; }
+      var p = v.play && v.play(); if (p && p.catch) p.catch(function () { /* a browser that wants its own tap: the controls are there */ });
+    });
+  }
+  var twP = null;
+  function twJs() {
+    if (window.twttr && window.twttr.widgets) return Promise.resolve(window.twttr);
+    if (twP) return twP;
+    twP = new Promise(function (res, rej) {
+      var s = document.createElement('script'); s.src = 'https://platform.twitter.com/widgets.js'; s.async = true;
+      s.onload = function () { var n = 0; (function wait() { if (window.twttr && window.twttr.widgets) res(window.twttr); else if (n++ > 50) rej(); else setTimeout(wait, 100); })(); };
+      s.onerror = function () { twP = null; rej(); }; document.head.appendChild(s);
+    });
+    return twP;
+  }
+  // X's own player, in place of ours: the post as X draws it, video and all
+  function xEmbed(holder, it) {
+    var id = tweetId(it.u), link = '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">Watch it on X</a>';
+    holder.className = 'ir-xv is-embed'; holder.removeAttribute('style');
+    holder.innerHTML = '<p class="ir-xm-msg">This video would not play here, so X\'s own player is loading. ' + link + '</p>';
+    if (!id) { holder.innerHTML = '<p class="ir-xm-msg">This video would not play here. ' + link + '</p>'; return; }
+    var b = document.createElement('div'); holder.appendChild(b);
+    var gone = function (why) { if (holder.isConnected) holder.innerHTML = '<p class="ir-xm-msg">This video would not play here' + why + '. ' + link + '</p>'; };
+    twJs().then(function (T) { return T.widgets.createTweet(id, b, { theme: 'dark', dnt: true, align: 'center', conversation: 'none' }); })
+      .then(function (w) {
+        if (!w) throw new Error('none');
+        // X can draw nothing at all (a deleted post, a blocker): the message and the link stay until it has really drawn
+        var n = 0;
+        (function drawn() {
+          if (!holder.isConnected) return;
+          var f = b.querySelector('iframe');
+          if (f && f.getBoundingClientRect().height > 120) { var m = holder.querySelector('.ir-xm-msg'); if (m) m.remove(); return; }
+          if (n++ > 80) { gone(', and X did not show it either'); return; }
+          setTimeout(drawn, 250);
+        })();
+      })
+      .catch(function () { gone(', and X\'s player is blocked in this browser'); });
+  }
+  // The pictures, full screen: arrows, a swipe, a tap to see it at its real size, Escape or the cross to close
+  var LB = null;
+  function lightbox(list, at, it) {
+    if (!list || !list.length) return;
+    if (!LB) {
+      LB = document.createElement('dialog'); LB.className = 'ir-lb'; LB.id = 'ir-lb'; document.body.appendChild(LB);
+      LB.addEventListener('click', function (ev) {
+        var b = ev.target.closest('button');
+        if (b && b.hasAttribute('data-lb-x')) { lbClose(); return; }
+        if (b && b.hasAttribute('data-lb-step')) { lbGo(LB._at + (+b.getAttribute('data-lb-step'))); return; }
+        if (ev.target.classList.contains('ir-lb-img')) { LB.classList.toggle('is-zoom'); return; }
+        if (ev.target === LB || ev.target.classList.contains('ir-lb-in')) lbClose();
+      });
+      LB.addEventListener('keydown', function (ev) {
+        if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); lbGo(LB._at + (ev.key === 'ArrowRight' ? 1 : -1)); }
+        if (ev.key !== 'Tab') ev.stopPropagation();          // the room's own keys (the spotlight's arrows, F) wait behind it
+      });
+      LB.addEventListener('close', function () { LB.innerHTML = ''; LB.classList.remove('is-zoom'); });
+      var sx = null;
+      LB.addEventListener('touchstart', function (ev) { sx = ev.touches.length === 1 && !LB.classList.contains('is-zoom') ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null; }, { passive: true });
+      LB.addEventListener('touchend', function (ev) {
+        if (!sx) return; var t = ev.changedTouches[0], dx = t.clientX - sx.x, dy = t.clientY - sx.y; sx = null;
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) lbGo(LB._at + (dx < 0 ? 1 : -1));
+      }, { passive: true });
+    }
+    LB._list = list; LB._it = it; LB._at = -1;
+    lbGo(at || 0);
+    if (!LB.open) { if (LB.showModal) LB.showModal(); else LB.setAttribute('open', ''); }
+    var x = LB.querySelector('[data-lb-x]'); if (x) x.focus();
+  }
+  function lbGo(i) {
+    var n = LB._list.length; if (i < 0 || i >= n || i === LB._at) return;
+    LB._at = i; LB.classList.remove('is-zoom');
+    var r = LB._list[i], it = LB._it;
+    LB.setAttribute('aria-label', 'Picture ' + (i + 1) + ' of ' + n + ' from ' + (it.h || 'X'));
+    LB.innerHTML = '<div class="ir-lb-in"><img class="ir-lb-img" src="' + esc(pic(r, 'large')) + '" alt="' + esc(it.t) + '"></div>' +
+      (n > 1 ? '<button type="button" class="ir-lb-nav prev" data-lb-step="-1" aria-label="Previous picture"' + (i ? '' : ' disabled') + '>&lsaquo;</button><button type="button" class="ir-lb-nav next" data-lb-step="1" aria-label="Next picture"' + (i < n - 1 ? '' : ' disabled') + '>&rsaquo;</button>' : '') +
+      '<div class="ir-lb-bar">' + (n > 1 ? '<span class="ir-lb-n num">' + (i + 1) + ' of ' + n + '</span>' : '') +
+      '<a href="' + esc(pic(r, 'orig')) + '" target="_blank" rel="noopener">Full size</a><a href="' + esc(it.u) + '" target="_blank" rel="noopener">Open on X</a>' +
+      '<button type="button" class="ir-lb-x" data-lb-x aria-label="Close">&times;</button></div>';
+  }
+  function lbClose() { if (!LB) return; if (LB.open) { if (LB.close) LB.close(); else { LB.removeAttribute('open'); LB.innerHTML = ''; } } }
   function pulseAt(k) {
     if (!P[k] || P[k][2] == null) return;
     flyTo(Math.max(V.k, 6), P[k][3], P[k][2]);
@@ -1775,10 +1936,12 @@
       var b = ev.target.closest('button'); if (!b) return;
       if (b.hasAttribute('data-x')) closeSpot();
       else if (b.hasAttribute('data-step')) openSpot(spotAt + (+b.getAttribute('data-step')));
-      else if (b.hasAttribute('data-play')) { var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
+      else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
       else if (b.hasAttribute('data-map')) { var k = shown[spotAt].p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     });
     dlg.addEventListener('cancel', function () { spotAt = -1; setTimeout(function () { dlg.innerHTML = ''; }, 0); });
+    // closed by any route at all: empty it, so a video in it cannot go on playing where nobody can see or stop it
+    dlg.addEventListener('close', function () { if (!dlg.open) { spotAt = -1; dlg.innerHTML = ''; } });
     var ad = $('ir-add');
     ad.addEventListener('click', function (ev) {
       if (ev.target === ad) { closeAdd(); return; }
@@ -1862,6 +2025,8 @@
     it.id = 'L' + it.id;
     // news and YouTube are an article or a video; an X post keeps what it carries (a post, an image, a video, an article)
     it.k = it.src === 'X' ? (['post', 'image', 'video', 'article'].indexOf(it.k) >= 0 ? it.k : 'post') : it.k === 'video' ? 'video' : 'article';
+    if (it.src !== 'X') { delete it.m; delete it.sn; }
+    else if (!it.th && !it.sn && mediaOf(it).length) it.th = pic(mediaOf(it)[0], '240x240');
     return it;
   }
   var liveUrl = root.getAttribute('data-live'), reachUrl = root.getAttribute('data-reach');
@@ -1929,8 +2094,10 @@
       packs: function () { return PACKS; }, words: function () { return WORDS; }, hots: function () { return HOTS.slice(); },
       storyOf: function (it) { return STORY_OF[it.id] || null; }, filterLine: filterLine, likes: likesN, fx: fxOf,
       focusName: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : ''; }, focusOn: function () { return S.fx.slice(); },
-      placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); } };
-    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=05cd591b8a'; document.body.appendChild(ps); }
+      placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); },
+      // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
+      media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur };
+    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=8ea5a36611'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
