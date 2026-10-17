@@ -357,6 +357,9 @@ async function askQuestions(force) {
 }
 /* After sign-in the sign-in panel may still be open (check your email, you are in). The questions wait for it to close. */
 function askWhenFree() {
+  // Not on a team member's brand page (brand/, #bp): it is work, and the first thing they see there is their brand
+  // (Armin, 17 Oct 2026). The questions wait for any other page, and stay in the account panel's steps.
+  if (D.getElementById('bp')) return;
   let n = 0;
   const t = setInterval(() => {
     if (++n > 600 || !me()) { clearInterval(t); return; }
