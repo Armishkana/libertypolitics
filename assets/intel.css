@@ -763,3 +763,12 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
   .ir-sh-mark{grid-column:1/-1;padding:0;text-align:center;font-size:.85rem}
   .ir-sh-agenda li{font-size:.95rem}
 }
+/* Ask for a feature (17 October 2026, Guy: "Add the option to suggest features to the Intel Room from within the Intel Room"): team only, a note to the team room */
+.ir-sug{margin-top:var(--s5);padding:var(--s5);border-radius:18px;background:var(--panel);box-shadow:inset 0 0 0 1px #2c2a25}
+.ir-sug h2{font-size:var(--t5);margin:0 0 var(--s3)}
+.ir-sug-p{color:var(--dim);font-size:var(--t2);line-height:1.5;margin:0 0 var(--s4)}
+.ir-sug-f textarea{width:100%;min-width:0;box-sizing:border-box;min-height:96px;padding:12px 14px;border-radius:10px;border:1px solid #3a3936;background:var(--sunk);color:var(--ink);font:500 var(--t3)/1.45 var(--body);resize:vertical;caret-color:var(--field);color-scheme:dark}
+.ir-sug-r{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-top:var(--s3)}
+.ir-sug-m{min-height:1.4em;margin:var(--s3) 0 0;color:var(--dim);font-size:var(--t2)}
+.ir-sug-m.bad{color:#ff8a7a}
+html.ir-show .ir-sug{display:none!important}

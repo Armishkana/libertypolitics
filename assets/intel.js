@@ -1446,6 +1446,42 @@
      holds (an accepted find, "r" in intel.json) is left out here. */
   var FIND_KEYS = ['quest:' + MISSION.find, 'quest:' + MISSION.mine];
   function lp(cb, tries) { if (window.LP && window.LP.members && window.LP.quests) { cb(window.LP); return; } if ((tries || 0) > 75) { cb(null); return; } setTimeout(function () { lp(cb, (tries || 0) + 1); }, 200); }
+  /* ------------------------------------------------------------ ask for a feature (team only)
+     17 October 2026, Guy on Telegram: "Add the option to suggest features to the Intel Room from within the Intel Room so
+     I can add features directly from the site". The box shows only to an account the database lets into the team room
+     (community.js inRoom), and what it sends is an ordinary team-room note (kind "idea", this page as its link), so it is
+     read and answered where every team request already is (../LIVING.md, "The team room"). No new rule, no new store. */
+  function setupSuggest() {
+    var box = $('ir-sug'), form = $('ir-sug-f'), ta = $('ir-sug-t'), go = $('ir-sug-go'), msg = $('ir-sug-m');
+    if (!box || !form) return;
+    function say(t, bad) { msg.textContent = t; msg.className = 'ir-sug-m' + (bad ? ' bad' : ''); }
+    lp(function (L) {
+      if (!L || L.off || !L.room) return;
+      var R = L.room;
+      function check() {
+        if (!R.user()) { box.hidden = true; return; }
+        R.inRoom().then(function (ok) { box.hidden = !ok; }, function () { box.hidden = true; });
+      }
+      R.sub(check); check();
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var u = R.user(), text = ta.value.trim();
+        if (!u) { say('You were signed out. Sign in again.', true); return; }
+        if (text.length < 3) { say('Write a few words first.', true); ta.focus(); return; }
+        if (!u.displayName) { say('Choose the name shown with your notes first: tap your account at the top.', true); return; }
+        if (!u.emailVerified) { say('Confirm your email first: open the link I sent when you made the account.', true); return; }
+        var url = location.protocol === 'https:' ? ('https://' + location.host + location.pathname).slice(0, 400) : '';
+        go.disabled = true; say('Sending.');
+        R.fb().then(function (x) {
+          return R.within(20000, x.F.setDoc(x.F.doc(x.F.collection(x.db, 'teamroom')), { uid: u.uid, name: u.displayName, kind: 'idea', text: ('Intel Room: ' + text).slice(0, 1500), url: url, parent: '', createdAt: x.F.serverTimestamp() }));
+        }).then(function () {
+          ta.value = ''; say('Sent to the team room. I answer you there, usually the same day.');
+        }, function (e) {
+          say(e && e.code === 'permission-denied' ? 'The idea was refused. Load the page again; if it keeps happening, your account may be off the team list.' : 'The idea could not be sent. Check your connection and try again.', true);
+        }).then(function () { go.disabled = false; });
+      });
+    });
+  }
   var FIELD = /^(When|Where|Topics|Explainer|Graphic|Mine):\s*(.*)$/i;
   function parseFind(id, d) {
     var lines = String(d.text || '').split('\n'), what = [], f = {};
@@ -1897,6 +1933,7 @@
     if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
+    setupSuggest();
     if (location.hash === '#add') openAdd();
     setTimeout(function () { var h = $('ir-maphint'); if (h) h.hidden = true; }, 6000);
   }).catch(function () {
