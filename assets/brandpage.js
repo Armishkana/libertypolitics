@@ -189,12 +189,12 @@ const CSS = `
 #bp .bp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 /* the site speaks to her */
 #bp .bp-say{display:flex;gap:12px;align-items:flex-start;margin:14px 0 0;max-width:46rem}
-#bp .bp-say img{flex:none;width:44px;height:44px;border-radius:50%;background:#000;border:1px solid var(--line)}
-#bp .bp-say .bub{background:var(--panel);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:12px 14px;line-height:1.55}
+#bp .bp-say img{flex:none;width:36px;height:36px;border-radius:50%;background:#000;border:1px solid var(--line)}
+#bp .bp-say .bub{background:var(--panel);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:10px 14px;line-height:1.5;font-size:.97rem}
 #bp .bp-say .bub p{margin:0}
 #bp .bp-say .bub p+p{margin-top:6px}
 #bp .bp-say .bub b{color:var(--ink)}
-#bp .bp-say .ask{color:var(--field);font-weight:700}
+#bp .bp-say .bp-ask{color:var(--field);font-weight:700}
 #bp .bp-stale{border:2px solid var(--field);border-radius:var(--r);padding:16px;margin:12px 0;line-height:1.55}
 #bp .bp-where{display:flex;gap:6px;align-items:baseline;font-size:.86rem;line-height:1.4;color:var(--ink);background:var(--sunk);border-radius:var(--r);padding:8px 10px}
 #bp .bp-where b{flex:none;color:var(--field);font-weight:800}
@@ -391,7 +391,7 @@ function commentBox(about, title, hint, open) {
     send.addEventListener('click', async () => {
       if (ta.value.trim().length < 2) { line.textContent = 'Write a few words first.'; line.className = 'bp-msg bad'; return; }
       send.disabled = true; send.textContent = 'Sending...';
-      try { await writeNote(about, ta.value.trim()); draw('✓ Sent. I have it, and I answer right here.'); box.querySelector('.bp-cbody').hidden = false; box.querySelector('.bp-ctog').setAttribute('aria-expanded', 'true'); tally(); }
+      try { await writeNote(about, ta.value.trim()); progress(); draw('✓ Sent. I have it, and I answer right here.'); box.querySelector('.bp-cbody').hidden = false; box.querySelector('.bp-ctog').setAttribute('aria-expanded', 'true'); tally(); }
       catch (e) { send.disabled = false; send.textContent = 'Send to me'; line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
     });
     body.append(ta, send, line);
@@ -415,7 +415,7 @@ function tally() {
 function gate(text, withSignIn) {
   freeUrls();
   BOX.textContent = '';
-  BOX.append(el('h1', null, 'Brand page'), el('p', 'bp-lede', text));
+  BOX.append(el('h1', null, 'Brand page'), el('p', 'bp-lede', text, { id: 'bp-gate' }));
   if (withSignIn) BOX.append(btn('btn btn-key', 'Sign in', () => window.LP.open('auth', {})));
 }
 async function pagesFor(u) {
@@ -426,10 +426,20 @@ async function pagesFor(u) {
   try { (await R.within(15000, F.getDocs(F.query(F.collection(db, 'brandpages'), F.limit(20))))).docs.forEach(d => got.set(d.id, d)); } catch (x) { /* only an admin may list every page */ }
   return Array.from(got.values()).map(d => ({ key: d.id, name: d.data().name || d.id, doc: d.data(), mine: (d.data().members || []).includes(u.uid) }));
 }
+/* Signed in, and Firebase has not answered yet: her name and a line, never the Sign in button (17 Oct 2026). */
+function waiting(text) {
+  if (BOX.getAttribute('data-wait') === text) return;
+  freeUrls();
+  BOX.textContent = '';
+  BOX.append(el('h1', null, 'Brand page'), el('p', 'bp-lede', text, { id: 'bp-gate' }));
+  BOX.setAttribute('data-wait', text);
+}
 async function draw() {
   if (!R) return;
   const u = R.user();
-  if (!u) { ST.uid = ''; gate('This is a private page for a member of the Liberty Politics team. Sign in with your account to open your brand.', true); return; }
+  if (!u && R.auth && R.auth.state() === 'checking') { ST.uid = ''; waiting(R.auth.wait()); return; }
+  BOX.removeAttribute('data-wait');
+  if (!u) { ST.uid = ''; gate(BOX.getAttribute('data-gate') || 'This is a private page for a member of the Liberty Politics team. Sign in with your account to open your brand.', true); return; }
   if (ST.uid === u.uid || ST.busy) return;
   ST.busy = true;
   try {
@@ -507,19 +517,23 @@ function stale() {
 }
 
 /* ------------------------------------------------------------------ the page */
+/* Her steps are what she TELLS me, in the order the brand is made (Armin, 17 Oct 2026: "The things she needs to do are:
+   tell you what's wrong with the assets ... give you her philosophy, her goals, and her story ... see if she likes them
+   or not ... tell you more about the brand page ... Do not give her a to-do list on where to upload these things").
+   Each is done by something she actually saved or sent, never by a tick. Where she posts is her choice. */
 const STEPS = [
-  ['look', 'Pick a design', 'Swipe, then tap one'],
-  ['plan', 'Read your plan', 'Tick what you did'],
-  ['story', 'Tell your story', 'Fix my first draft'],
-  ['words', 'Your words', 'Every bio and line'],
-  ['kit', 'Get your kit', 'Every picture'],
+  ['look', 'Tell me about the designs', 'Pick one, say what to change'],
+  ['story', 'Tell me your story', 'Your beliefs, goals, story'],
+  ['words', 'Check what I made from it', 'Say yes, or what to change'],
+  ['better', 'Tell me how to improve this page', 'What you like and do not'],
 ];
+const said = test => ST.notes.some(n => n.uid === R.user().uid && test(String(n.about || '')));
 function stepDone(k) {
-  if (k === 'look') return !!v('look') || ST.doc.kind === 'show';
-  if (k === 'plan') return Object.keys(ST.mine).some(x => x.startsWith('plan:') && ST.mine[x].v);
-  if (k === 'story') return Object.keys(ST.mine).some(x => x.startsWith('story:'));
-  if (k === 'words') return Object.keys(ST.mine).some(x => x.startsWith('words:'));
-  if (k === 'kit') return !!v('kit:got');
+  const keys = Object.keys(ST.mine).filter(x => ST.mine[x] && ST.mine[x].v);
+  if (k === 'look') return ST.doc.kind === 'show' || !!v('look') || keys.some(x => /^react:(look|file):/.test(x)) || said(a => /^(look:|file:|sec:look|sec:kit)/.test(a));
+  if (k === 'story') return keys.some(x => x.startsWith('story:'));
+  if (k === 'words') return keys.some(x => x.startsWith('words:') || x.startsWith('react:words:')) || said(a => /^(w:|sec:words)/.test(a));
+  if (k === 'better') return said(a => a.startsWith('page:'));
   return false;
 }
 function progress() {
@@ -571,7 +585,7 @@ function paint() {
   }
 
   const steps = el('ol', 'bp-steps', null, { id: 'bp-steps' });
-  STEPS.filter(([k]) => person || (k !== 'look' && k !== 'plan')).filter(([k]) => k !== 'plan' || (B.plan && B.plan.headline)).forEach(([k, t, s], i) => {
+  STEPS.filter(([k]) => person || k !== 'look').forEach(([k, t, s], i) => {
     const li = el('li', null, null, { 'data-k': k, 'data-n': String(i + 1) });
     const a = el('a', null, null, { href: '#bp-' + k });
     a.addEventListener('click', ev => { ev.preventDefault(); $('bp-' + k).scrollIntoView({ behavior: 'smooth' }); });
@@ -625,7 +639,7 @@ function paintLooks() {
     const show = fileById(l.show || '') || fileById(l.files.find(id => /youtube-banner/.test(id)) || '') || photo;
     if (show) {
       const ready = ST.done[show.id];
-      const img = el('img', ready ? null : 'soft', null, { src: ready || thumbOf(show), alt: `${l.name}: your channel, your stream screen, X, a story and the colours, in this design`, 'data-full': show.id });
+      const img = el('img', ready ? null : 'soft', null, { src: ready || thumbOf(show), alt: `${l.name}: your channel, your thumbnails, X, a story and the colors, in this design`, 'data-full': show.id });
       fig.append(img);
       if (!ready) fullUrl(show).then(u => { img.src = u; img.classList.remove('soft'); }).catch(() => img.classList.remove('soft'));
     }
@@ -684,7 +698,7 @@ function paintLooks() {
   }
   const cmp = paintCompare();
   if (cmp) s.append(cmp);
-  s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a colour you love, a font you hate? Say it here.'));
+  s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a color you love, a font you hate? Say it here.'));
   return s;
 }
 
@@ -761,7 +775,7 @@ function paintSay() {
     : !Object.keys(ST.mine).some(k => k.startsWith('story:')) ? 'Tell me about yourself in Your story: I write your bios from it.'
       : 'Anything that is not you? Tell me under it and I will fix it.';
   lines.forEach(([t]) => bub.append(el('p', null, t)));
-  bub.append(el('p', 'ask', ask));
+  bub.append(el('p', 'bp-ask', ask));
   box.append(bub);
   return box;
 }
@@ -777,7 +791,7 @@ function betterChip() {
 const KINDS = [['feature', 'A feature I need'], ['fix', 'Something is wrong'], ['idea', 'An idea']];
 const VERDICT = { done: 'Built', building: 'Building it', no: 'Not doing it', armin: 'Asked Armin' };
 function paintBetter() {
-  const s = el('section', 'bp-better', null, { id: 'bp-better' });
+  const s = el('section', 'bp-better', null, { id: 'bp-better', style: 'scroll-margin-top:80px' });
   const h = el('h2', null, 'Make this page better for the whole team');
   h.append(el('span', 'bp-tag', 'For everyone'));
   s.append(h, el('p', null, 'I am new, and I get better from what the team tells me. A feature you need, something that gets in your way, an idea from a brand you admire: tell me here. I answer every request honestly (is it the best way, not only a good one), anything that costs money I take to Armin (he runs Liberty Politics) first, and what I build reaches every team member\'s page.'));
@@ -811,6 +825,7 @@ function paintBetter() {
     send.disabled = true; send.textContent = 'Sending...';
     try {
       await writeNote('page:' + ST.ptype, ta.value.trim());
+      progress();
       ta.value = ''; line.textContent = '✓ Sent. Thank you: this is how I get better for everyone.'; line.className = 'bp-msg';
       drawMine(); tally();
     } catch (e) { line.textContent = 'Not sent. Check your connection and try again.'; line.className = 'bp-msg bad'; }
@@ -867,40 +882,18 @@ function todoCount() {
   return `${done} of ${items.length} on your accounts done`;
 }
 function paintPlan() {
-  const P = ST.doc.plan, s = sec('plan', 'Your brand plan', `What ${ST.doc.name} stands for, why I chose this direction, and the first things to do. Tick each one when it is done.`);
+  const P = ST.doc.plan, s = sec('plan', 'Your brand, in one idea', `What I think ${ST.doc.name} stands for, why every design and every line is built around it, and how your channel could grow from here. Where you post is up to you.`);
   s.classList.add('bp-plan');
   s.append(el('p', 'bp-thesis', P.headline));
   if ((P.why || []).length) {
-    s.append(el('h3', null, 'Why this direction'));
+    s.append(el('h3', null, 'Why I chose this direction'));
     const ul = el('ul', 'bp-reasons');
     P.why.forEach(r => { const li = el('li'); li.append(el('b', null, r.t), el('span', null, r.d)); if (r.src) li.append(el('small', null, 'Source: ' + r.src)); ul.append(li); });
     s.append(ul);
   }
-  if ((P.first || []).length) {
-    const h = el('h3', null, 'Do these first ');
-    h.append(el('span', 'bp-tag', '', { id: 'bp-todo-n' }));
-    s.append(h);
-    const ul = el('ul', 'bp-todo');
-    P.first.forEach(t => {
-      const key = 'plan:' + t.k;
-      const isDone = () => (t.k === 'look' ? !!v('look') : v(key) === 'done');
-      const li = el('li'), b = el('button', null, null, { type: 'button', 'aria-pressed': isDone() ? 'true' : 'false', 'data-plan': t.k });
-      const box = el('i', null, isDone() ? '✓' : '');
-      const tx = el('span'); tx.append(el('b', null, t.t), el('small', null, t.how));
-      b.append(box, tx);
-      b.addEventListener('click', async () => {
-        if (t.k === 'look') { $('bp-look').scrollIntoView({ behavior: 'smooth' }); return; }
-        b.disabled = true;
-        const nv = isDone() ? '' : 'done';
-        if (await save(key, nv)) { b.setAttribute('aria-pressed', nv ? 'true' : 'false'); box.textContent = nv ? '✓' : ''; progress(); }
-        b.disabled = false;
-      });
-      li.append(b); ul.append(li);
-    });
-    s.append(ul);
-  }
+  // No list of tasks on her accounts: Armin, 17 Oct 2026, "Do not give her a to-do list on where to upload these things". Her steps are STEPS.
   if ((P.grow || []).length) {
-    s.append(el('h3', null, 'The next 90 days'));
+    s.append(el('h3', null, 'Ideas for the next 90 days'));
     const ol = el('ol', 'bp-grow');
     P.grow.forEach(g => { const li = el('li'); li.append(el('b', null, g.t), el('span', 'dim', g.d)); ol.append(li); });
     s.append(ol);
@@ -960,7 +953,7 @@ function countOf(f, text) {
 function paintWords() {
   const B = ST.doc, person = B.kind === 'person';
   const s = sec('words', 'Your words', person
-    ? 'Every piece of text your accounts need, written in your voice from your story, and fitted to each app. Pick an app below. Under each text it says where it goes in that app: copy it, paste it there, done. Change one here and I keep your version; tell me what is off and I rewrite it.'
+    ? 'Every piece of text your accounts need, written in your voice from your story, and fitted to each app. Pick an app below; use only the ones you want. Under each text it says where it goes in that app. Change one here and I keep your version; tell me what is off and I rewrite it.'
     : 'The text on each account. Copy one, paste it into the app, done.');
   const h = s.querySelector('h2'); const dt = draftTag(); if (dt && person) h.append(dt);
   const W = B.words;
@@ -1038,7 +1031,7 @@ function paintKit() {
   const B = ST.doc, person = B.kind === 'person';
   const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
   const s = sec('kit', 'Your kit', person
-    ? `Every picture your accounts need, in ${look.name}, each at the size its app asks for. Tap a picture to see it full size. Download one, or all of them at once, then upload each one where its name says. Tell me what to change on any of them and I redraw it.`
+    ? `Every picture your accounts need, in ${look.name}, each at the size its app asks for. Tap a picture to see it full size. Download any you want, or all of them at once; each says where it goes, for the apps you use. Tell me what to change on any of them and I redraw it.`
     : 'Every picture of the kit in use, sized for each app. Tap a picture to see it full size.');
   const h = s.querySelector('h2'); const dt = draftTag(); if (dt && person) h.append(dt);
   if (person && B.looks.length > 1) {
@@ -1107,7 +1100,7 @@ function paintNext() {
   const ol = el('ul', 'bp-next');
   [['eye', 'You pick a design and tell me what you love and what you do not, on anything on this page.'],
    ['pen', 'I redraw the pictures and rewrite the words, and the next draft appears here with my answer under each of your comments.'],
-   ['down', 'When it feels like you, you download the kit and put it on your accounts. Nothing goes on any account unless you put it there.']].forEach(([i, t]) => {
+   ['down', 'When it feels like you, you take whatever you want from it, for whichever accounts you choose. Nothing goes anywhere unless you put it there.']].forEach(([i, t]) => {
     const li = el('li'); li.append(ico(i, 20), el('p', null, t, { style: 'margin:0' })); ol.append(li);
   });
   s.append(ol);
@@ -1122,7 +1115,13 @@ function start() {
     if (!window.LP || !window.LP.room) return false;
     R = window.LP.room; el = R.el; btn = R.btn;
     R.sub(() => draw());
+    const asked = R.fb();      // asked first, so the state is 'checking' until it answers (the team page does the same)
     draw();
+    asked.then(draw, () => {
+      if (R.user()) return;
+      if (R.auth && window.LP.who && window.LP.who()) { BOX.removeAttribute('data-wait'); BOX.textContent = ''; BOX.append(el('h1', null, 'Brand page'), el('p', 'bp-lede', R.auth.offline(), { id: 'bp-gate' })); }
+      else gate(BOX.getAttribute('data-gate') || '', true);
+    });
     return true;
   };
   if (!go()) { let n = 0; const t = setInterval(() => { if (go() || ++n > 200) clearInterval(t); }, 50); }

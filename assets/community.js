@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=cfeb19c521 and assets/community-fa.js?v=cfeb19c521, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=1d878652e5 and assets/community-fa.js?v=1d878652e5, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -534,8 +534,37 @@ async function boot() {
   }));
   return S;
 }
+/* ------------------------------------------------------------------ who is signed in: three states (17 October 2026)
+   His words, on the brand page: "it first shows you this, and after a couple of seconds, the brand page loads ... I'm
+   already signed in, so I shouldn't be seeing a sign-in button ... Figure out the underlying cause." The cause: `user` is
+   null both while Firebase is still restoring a session and when nobody is signed in, and every page behind an account
+   read that null as "signed out" and drew its sign-in line first. So there are three states, and a page behind an account
+   draws by them (README, "Pages behind an account"):
+     in        Firebase says who it is
+     out       Firebase has answered and nobody is signed in, or nothing on this device remembers an account and
+               nothing has been asked (a stranger), or accounts are off in this build
+     checking  this device remembers an account (`me`) or Firebase was asked, and Firebase has not answered yet:
+               the page says "Welcome back, <name>. Opening your page.", never a sign-in line
+   known() answers once Firebase has: 'in', 'out', or 'offline' when it could not be reached (then a page says it could
+   not check, and still never asks a remembered reader to sign in). wait() is the one line a page shows while checking. */
+let authKnown = false;
+function authState() {
+  if (OFF) return 'out';
+  if (user) return 'in';
+  if (authKnown) return 'out';
+  return me || sdk ? 'checking' : 'out';
+}
+function authKnownP() {
+  if (OFF) return Promise.resolve('out');
+  return fb().then(() => authState(), () => (user ? 'in' : 'offline'));
+}
+function authWait() {
+  return me && me.name ? tt('Welcome back, {name}. Opening your page.', { name: me.name }) : tt('One moment. Checking whether you are signed in.');
+}
+const AUTH = { state: authState, known: authKnownP, wait: authWait, offline: () => tt('I could not check whether you are signed in. Check your connection and load the page again.') };
 function onUser(u) {
   const was = me;
+  authKnown = true;
   user = u || null;
   if (u) {
     const same = was && was.uid === u.uid;
@@ -3041,11 +3070,14 @@ function reason(p, why) {
 function initMod() {
   const box = $('mod');
   if (!box) return;
-  const gate = box.innerHTML;
+  /* the line for strangers is kept in data-gate, because the page's first paint may already say "Opening your page" */
+  const said = box.getAttribute('data-gate'), gate = box.innerHTML;
   let shown = '';
-  const closed = () => { if (shown !== 'gate') { box.innerHTML = gate; shown = 'gate'; } };
+  const closed = () => { if (shown !== 'gate') { if (said) { box.textContent = ''; box.append(el('p', 'big', said, { id: 'mod-gate' })); } else box.innerHTML = gate; shown = 'gate'; } };
+  /* an account this device remembers is never shown the line for strangers while Firebase is still answering */
+  const waiting = () => { if (shown !== 'wait') { box.textContent = ''; box.append(el('p', 'big', authWait(), { id: 'mod-gate' })); shown = 'wait'; } };
   async function draw() {
-    if (!user) { closed(); return; }
+    if (!user) { if (authState() === 'checking') waiting(); else closed(); return; }
     const uid = user.uid;
     if (shown === uid) return;
     try {
@@ -3056,7 +3088,8 @@ function initMod() {
     modTools(box);
   }
   subs.push(draw);
-  if (me) fb().then(draw, () => { });
+  if (!me || OFF) closed();
+  if (me && !OFF) { waiting(); fb().then(draw, () => { if (!user) { box.textContent = ''; box.append(el('p', 'big', AUTH.offline(), { id: 'mod-gate' })); shown = 'off'; } }); }
 }
 function modTools(box) {
   const { F, db } = S, P = F.collection(db, 'posts');
@@ -3345,17 +3378,17 @@ async function questMine() {
 /* ------------------------------------------------------------------ start */
 function start() {
   if (!CFG) return;
-  window.LP = { send: () => { send(); }, embedOf, pathOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet,
+  window.LP = { send: () => { send(); }, embedOf, pathOf, who: () => me && Object.assign({}, me), open: openSheet, close: closeSheet, auth: AUTH,
     ready: () => fb().then(() => true), emu: EMU, off: OFF,
     /* What teamroom.js (the team page) is handed: Firebase once it is loaded, the signed-in reader, a call when
        that changes, and the same words, faces and dates the discussion uses. */
-    room: { fb: () => fb(), user: () => user, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 },
+    room: { fb: () => fb(), user: () => user, auth: AUTH, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 },
     /* What quests.js (the mission board) is handed: the same words, who is signed in (the id and the name, as kept on
        this device), a call when that changes, one public document, sending a report, and the reader's own reports. */
     quests: { tt, dig, who: () => me && { uid: me.uid, name: me.name }, sub: f => { subs.push(f); }, doc: questDoc, report: questReport, mine: questMine, off: OFF, quiet: QUIET, max: MAX },
     /* What members.js (profiles, the front question, the gatherings board) is handed: Firebase once it is loaded, who is
        signed in, a call when that changes, the panel, the same words, faces and dates, and its two hooks (above viewAccount). */
-    members: { fb: () => fb(), user: () => user, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
+    members: { fb: () => fb(), user: () => user, auth: AUTH, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
       tt, dig, el, btn, tell, words, ago, niceDate, face, faceKnow, faceGiven: (n, u) => facesData().then(() => givenFace(n, u)), within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
       rest: what => restBase(what), plain: restPlain, looksLikeAddress, httpErr,
       /* For profiles and the team page (16 October 2026): every live post when the saved copy is proven (else null, and

@@ -154,9 +154,20 @@ function gate(text, withSignIn) {
   BOX.append(el('h1', 'tr-h1', tt('Team page')), el('p', 'tr-lede', text, { id: 'team-gate' }));
   if (withSignIn) BOX.append(btn('btn btn-key', tt('Sign in'), () => window.LP.open('auth', {})));
 }
+/* While Firebase is still answering, an account this device remembers is told the page is opening: never the sign-in
+   line (community.js, "who is signed in: three states"). */
+function waiting(text) {
+  if (BOX.getAttribute('data-wait') === text) return;
+  freeUrls();
+  BOX.textContent = '';
+  BOX.append(el('h1', 'tr-h1', tt('Team page')), el('p', 'tr-lede', text, { id: 'team-gate' }));
+  BOX.setAttribute('data-wait', text);
+}
 async function draw() {
   if (!R) return;
   const u = R.user();
+  if (!u && R.auth && R.auth.state() === 'checking') { ST.uid = ''; waiting(R.auth.wait()); return; }
+  BOX.removeAttribute('data-wait');
   if (!u) { ST.uid = ''; gate(BOX.getAttribute('data-gate') || tt('This page is for the team. Sign in with your team account to open it.'), true); return; }
   if (ST.uid === u.uid || ST.busy) return;
   ST.busy = true;
@@ -463,13 +474,21 @@ function noteForm(parent) {
 function start() {
   if (!BOX) return;
   const LP = window.LP;
-  if (!LP || !LP.room || LP.off) return;      // no discussion script, or a build with no real project: the line the build printed stays
+  /* no discussion script, or a build with no real project: the line for strangers, which the build keeps in data-gate */
+  if (!LP || !LP.room || LP.off) { const g = D.getElementById('team-gate'), t = BOX.getAttribute('data-gate'); if (g && t) g.textContent = t; return; }
   R = LP.room; tt = R.tt; el = R.el; btn = R.btn;
   D.head.append(el('style', null, CSS));
   R.sub(() => { draw(); });
   /* A signed-in reader is known from this device before Firebase has loaded; ask for it either way, so a
      stranger gets the sign-in button and the team gets the page. */
-  R.fb().then(draw, () => { if (!R.user()) gate(BOX.getAttribute('data-gate') || '', true); });
+  const asked = R.fb();      // asked first, so the state is 'checking' for everyone until it answers
+  draw();
+  asked.then(draw, () => {
+    if (R.user()) return;
+    /* Firebase could not be reached: a reader this device remembers is told so, never asked to sign in again */
+    if (R.auth && window.LP.who && window.LP.who()) { BOX.removeAttribute('data-wait'); BOX.textContent = ''; BOX.append(el('h1', 'tr-h1', tt('Team page')), el('p', 'tr-lede', R.auth.offline(), { id: 'team-gate' })); }
+    else gate(BOX.getAttribute('data-gate') || '', true);
+  });
   D.addEventListener('visibilitychange', () => {
     if (!D.hidden && ST.uid && Date.now() - ST.lastRoom > 120000) reloadRoom().catch(() => { });
   });
