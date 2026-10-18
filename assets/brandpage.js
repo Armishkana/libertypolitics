@@ -581,6 +581,10 @@ const STEPS = [
   ['words', 'Check what I made from it', 'Say yes, or what to change'],
   ['better', 'Tell me how to improve this page', 'What you like and do not'],
 ];
+/* One design left is not a choice (Armin, 18 Oct 2026, on Kala's draft 4: "It's telling me to pick something, and it
+   seems like I only have one choice to pick"). With one design the page asks what she thinks of it, never to pick. */
+const oneLook = () => (ST.doc.looks || []).length === 1;
+const STEP_ONE = { look: ['Tell me about the design', 'Love it, or say what to change'] };
 const said = test => ST.notes.some(n => n.uid === R.user().uid && test(String(n.about || '')));
 function stepDone(k) {
   const keys = Object.keys(ST.mine).filter(x => ST.mine[x] && ST.mine[x].v);
@@ -639,7 +643,7 @@ function paint() {
   }
 
   const steps = el('ol', 'bp-steps', null, { id: 'bp-steps' });
-  STEPS.filter(([k]) => person || k !== 'look').forEach(([k, t, s], i) => {
+  STEPS.filter(([k]) => person || k !== 'look').map(r => oneLook() && STEP_ONE[r[0]] ? [r[0], ...STEP_ONE[r[0]]] : r).forEach(([k, t, s], i) => {
     const li = el('li', null, null, { 'data-k': k, 'data-n': String(i + 1) });
     const a = el('a', null, null, { href: '#bp-' + k });
     a.addEventListener('click', ev => { ev.preventDefault(); $('bp-' + k).scrollIntoView({ behavior: 'smooth' }); });
@@ -703,7 +707,7 @@ function paintLooks() {
     const h = el('h3', null, l.name); const dt = draftTag(); if (dt) h.append(dt);
     body.append(h);
     // the marks sit under the picture, never on it: the picture is the design, whole
-    if (l.rec || v('look') === l.k) {
+    if (B.looks.length > 1 && (l.rec || v('look') === l.k)) {
       const marks = el('div', 'bp-row');
       if (l.rec) marks.append(el('span', 'bp-badge', 'My pick for you'));
       if (v('look') === l.k) { const m = el('span', 'bp-mine'); m.append(ico('check', 16), el('span', null, 'Your pick')); marks.append(m); }
@@ -721,11 +725,15 @@ function paintLooks() {
       if (await save('look', l.k)) { ST.look = l.k; paint(); const c = D.querySelector(`.bp-look[data-look="${l.k}"]`); if (c) c.scrollIntoView({ block: 'nearest', inline: 'center' }); $('bp-look').scrollIntoView(); }
       pick.disabled = false;
     });
-    acts.append(pick, react('react:look:' + l.k, 'heart', 'Love it', 'love'), react('react:look:' + l.k, 'x', 'Not me', 'no'));
+    if (B.looks.length > 1) acts.append(pick);
+    const love = react('react:look:' + l.k, 'heart', 'Love it', 'love'), no = react('react:look:' + l.k, 'x', 'Not me', 'no');
+    // with nothing to pick, these two ARE the answer, so they carry their words, not only an icon
+    if (B.looks.length === 1) [love, no].forEach(x => { x.classList.remove('ico'); x.append(el('span', null, x.title)); });
+    acts.append(love, no);
     const see = ibtn(null, 'eye', 'All pictures', `See all ${l.files.length} pictures in ${l.name}`);
     see.addEventListener('click', () => { ST.look = l.k; paint(); $('bp-kit').scrollIntoView(); });
     acts.append(see);
-    body.append(acts, commentBox('look:' + l.k, 'Tell me what to change', 'A color, a font, the photo, the feel: anything. Mixing two designs is fine too.'));
+    body.append(acts, commentBox('look:' + l.k, 'Tell me what to change', B.looks.length > 1 ? 'A color, a font, the photo, the feel: anything. Mixing two designs is fine too.' : 'A color, a font, the photo, the feel: anything.'));
     card.append(body);
     row.append(card);
   });
@@ -754,7 +762,7 @@ function paintLooks() {
   }
   const cmp = paintCompare();
   if (cmp) s.append(cmp);
-  s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a color you love, a font you hate? Say it here.'));
+  if (B.looks.length > 1) s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a color you love, a font you hate? Say it here.'));
   return s;
 }
 
@@ -1118,7 +1126,7 @@ function paintSay() {
   const bub = el('div', 'bub');
   const lines = [];
   if (!last) {
-    lines.push([`I made you ${B.looks.length} designs for ${T(B.name)}, every picture your accounts need and every line of text, from your channel, your Shorts and your Sunday Edit. This is draft ${B.draft || 1}: nothing here is final.`]);
+    lines.push([`I made you ${B.looks.length === 1 ? 'a design' : B.looks.length + ' designs'} for ${T(B.name)}, every picture your accounts need and every line of text, from your channel, your Shorts and your Sunday Edit. This is draft ${B.draft || 1}: nothing here is final.`]);
   } else {
     const deeds = [];
     const answered = ST.notes.filter(r => String(r.about || '').startsWith('re:') && ms(r.createdAt) > last && ST.notes.some(n => 're:' + n.id === r.about && n.uid === me)).length;
@@ -1129,7 +1137,8 @@ function paintSay() {
     if (built) deeds.push(`I built something ${T(built.who) || 'a teammate'} asked for: ${T(built.asked)}`);
     lines.push([deeds.length ? `Good to see you again. Since you were last here: ${deeds.join(' ')}` : 'Good to see you again.']);
   }
-  const ask = !v('look') ? 'Tell me which design feels like you, and what you would change.'
+  const ask = oneLook() && !stepDone('look') ? 'Look at your design. Tap Love it, or tell me under it what you would change.'
+    : !oneLook() && !v('look') ? 'Tell me which design feels like you, and what you would change.'
     : !Object.keys(ST.mine).some(k => k.startsWith('story:')) ? 'Tell me about yourself in Your story: I write your bios from it.'
       : 'Anything that is not you? Tell me under it and I will fix it.';
   lines.forEach(([t]) => bub.append(el('p', null, t)));
@@ -1464,7 +1473,7 @@ function paintKit() {
 function paintNext() {
   const s = sec('next', 'What happens next', '');
   const ol = el('ul', 'bp-next');
-  [['eye', 'You pick a design and tell me what you love and what you do not, on anything on this page.'],
+  [['eye', oneLook() ? 'You tell me what you love and what you do not, on anything on this page.' : 'You pick a design and tell me what you love and what you do not, on anything on this page.'],
    ['pen', 'I redraw the pictures and rewrite the words, and the next draft appears here with my answer under each of your comments.'],
    ['down', 'When it feels like you, you take whatever you want from it, for whichever accounts you choose. Nothing goes anywhere unless you put it there.']].forEach(([i, t]) => {
     const li = el('li'); li.append(ico(i, 20), el('p', null, t, { style: 'margin:0' })); ol.append(li);
