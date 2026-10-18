@@ -74,6 +74,22 @@ const CSS = `
 #bp .bp-dots{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 #bp .bp-dots span{width:30px;height:30px;border-radius:50%;border:1px solid var(--line)}
 #bp .bp-type{color:var(--dim);font-size:.88rem}
+/* one design: the whole width, its brand book large */
+#bp .bp-looks.one{grid-auto-columns:100%;margin-inline:0;padding-inline:0}
+@media (min-width:960px){#bp .bp-looks.one{grid-template-columns:minmax(0,1fr)}#bp .bp-looks.one .bp-look{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:start}}
+#bp .bp-book{background:var(--sunk);min-width:0}
+#bp .bp-book-strip{display:grid;grid-auto-flow:column;grid-auto-columns:100%;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none}
+#bp .bp-book-strip::-webkit-scrollbar{display:none}
+#bp .bp-book-page{margin:0;scroll-snap-align:start;aspect-ratio:4/5}
+#bp .bp-book-open{display:block;width:100%;height:100%;padding:0;border:0;background:none;cursor:zoom-in}
+#bp .bp-book-open img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .3s}
+#bp .bp-book-open img.soft{filter:blur(6px)}
+#bp .bp-book-bar{display:flex;align-items:center;gap:6px;padding:4px 6px;border-top:1px solid var(--line)}
+#bp .bp-book-cap{flex:1;margin:0;text-align:center;font-weight:700;font-size:.92rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bp .bp-book-nav{width:44px;height:44px;flex:none;border:1px solid var(--line);border-radius:50%;background:var(--panel);color:var(--ink);display:grid;place-items:center;cursor:pointer;padding:0}
+.bp-full{position:fixed;inset:0;z-index:999;background:rgba(10,12,16,.92);display:flex;align-items:center;justify-content:center;padding:12px;cursor:zoom-out}
+.bp-full img{max-width:100%;max-height:100%;object-fit:contain;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.bp-full-x{position:absolute;top:12px;right:12px;min-height:44px;padding:8px 16px;border-radius:99px;border:0;background:#fff;color:#111;font-weight:700;cursor:pointer}
 #bp .bp-pager{display:flex;justify-content:center;align-items:center;gap:2px;margin:6px 0 0}
 #bp .bp-pager button{width:44px;height:44px;border:0;background:none;cursor:pointer;display:grid;place-items:center;padding:0}
 #bp .bp-pager button i{width:9px;height:9px;border-radius:50%;background:var(--line);transition:width .25s,background .25s}
@@ -263,6 +279,8 @@ const IC = {
   down: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
   copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
   eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
   pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   spark: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
@@ -671,8 +689,9 @@ function paintLooks() {
   const photo = fileById('photo');
   B.looks.forEach((l, i) => {
     const card = el('article', 'bp-look' + (v('look') === l.k ? ' picked' : ''), null, { 'data-look': l.k, 'aria-label': `${l.name}, design ${i + 1} of ${B.looks.length}` });
-    const fig = el('figure', 'bp-shot');
-    const show = fileById(l.show || '') || fileById(l.files.find(id => /youtube-banner/.test(id)) || '') || photo;
+    const book = bookOf(l);
+    const fig = book || el('figure', 'bp-shot');
+    const show = book ? null : (fileById(l.show || '') || fileById(l.files.find(id => /youtube-banner/.test(id)) || '') || photo);
     if (show) {
       const ready = ST.done[show.id];
       const img = el('img', ready ? null : 'soft', null, { src: ready || thumbOf(show), alt: `${l.name}: your channel, your thumbnails, X, a story and the colors, in this design`, 'data-full': show.id });
@@ -710,6 +729,7 @@ function paintLooks() {
     card.append(body);
     row.append(card);
   });
+  if (B.looks.length === 1) row.classList.add('one');
   s.append(row);
   if (B.looks.length > 1) {
     const pager = el('div', 'bp-pager', null, { role: 'group', 'aria-label': 'Designs' });
@@ -736,6 +756,61 @@ function paintLooks() {
   if (cmp) s.append(cmp);
   s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a color you love, a font you hate? Say it here.'));
   return s;
+}
+
+/* A design built as an identity system (people/system_look.py) arrives with its brand book: the cover, the idea, the
+   wordmark, the mark, colour, type, photography, the series, the brand in use and the rules, one page each. Swiped,
+   with the page's name and number under it; each page fetched full size only when it comes near the screen; a tap
+   shows it on its own, a tap again closes it. A design without a book shows its one picture, as before. */
+function bookOf(l) {
+  const pages = (l.book || []).map(b => ({ b, f: fileById(b.id) })).filter(x => x.f);
+  if (!pages.length) return null;
+  const box = el('div', 'bp-book');
+  const strip = el('div', 'bp-book-strip', null, { 'aria-label': `${l.name}: the brand book, ${pages.length} pages` });
+  const cap = el('p', 'bp-book-cap', `1 of ${pages.length}: ${pages[0].b.title}`, { 'aria-live': 'polite' });
+  const load = (img, f) => { if (img.dataset.got) return; img.dataset.got = '1'; fullUrl(f).then(u => { img.src = u; img.classList.remove('soft'); }).catch(() => img.classList.remove('soft')); };
+  const seen = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { load(e.target, fileById(e.target.dataset.id)); seen.unobserve(e.target); } }), { root: strip, rootMargin: '0px 120% 0px 120%' }) : null;
+  pages.forEach(({ b, f }, i) => {
+    const page = el('figure', 'bp-book-page');
+    const ready = ST.done[f.id];
+    const img = el('img', ready ? null : 'soft', null, { src: ready || thumbOf(f), alt: `${l.name}, page ${i + 1}: ${b.title}`, 'data-id': f.id });
+    const open = el('button', 'bp-book-open', null, { type: 'button', 'aria-label': `See page ${i + 1}, ${b.title}, full size` });
+    open.append(img);
+    open.addEventListener('click', () => { load(img, f); fullView(img, `${l.name}, page ${i + 1}: ${b.title}`); });
+    page.append(open);
+    strip.append(page);
+    if (ready) img.dataset.got = '1'; else if (i < 2 || !seen) load(img, f); else seen.observe(img);
+  });
+  let tick = 0;
+  strip.addEventListener('scroll', () => {
+    cancelAnimationFrame(tick);
+    tick = requestAnimationFrame(() => {
+      const n = Math.min(pages.length - 1, Math.max(0, Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth))));
+      cap.textContent = `${n + 1} of ${pages.length}: ${pages[n].b.title}`;
+    });
+  }, { passive: true });
+  const step = d => strip.scrollBy({ left: d * strip.clientWidth, behavior: 'smooth' });
+  const prev = ibtn('bp-book-nav', 'left', null, 'Previous page'), next = ibtn('bp-book-nav', 'right', null, 'Next page');
+  prev.addEventListener('click', () => step(-1)); next.addEventListener('click', () => step(1));
+  const bar = el('div', 'bp-book-bar');
+  bar.append(prev, cap, next);
+  box.append(strip, bar);
+  return box;
+}
+
+/* One picture on its own, as large as the screen allows. Tap anywhere, or Escape, to close. */
+function fullView(img, label) {
+  const ov = el('div', 'bp-full', null, { role: 'dialog', 'aria-modal': 'true', 'aria-label': label, tabindex: '-1' });
+  const big = el('img', null, null, { src: img.src, alt: label });
+  const shut = el('button', 'bp-full-x', 'Close', { type: 'button' });
+  ov.append(big, shut);
+  const close = () => { ov.remove(); D.removeEventListener('keydown', esc); };
+  const esc = e => { if (e.key === 'Escape') close(); };
+  ov.addEventListener('click', close);
+  D.addEventListener('keydown', esc);
+  D.body.append(ov);
+  ov.focus();
+  const t = setInterval(() => { if (!D.body.contains(ov)) clearInterval(t); else if (big.src !== img.src) big.src = img.src; }, 400);   // the full picture arrives after the tap
 }
 
 /* The colours of a design, each a button that copies its code, for when she makes something herself (Canva, CapCut). */

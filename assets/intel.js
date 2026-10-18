@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=8ea5a36611) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=713044bcbd) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -66,18 +66,61 @@
     ['lebanon', 'Lebanon', ['Lebanon'], /\b(leban\w*|hezbollah|beirut)\b/i],
     ['yemen', 'Yemen', ['Yemen'], /\b(yemen\w*|houthis?|red sea)\b/i],
     ['syria', 'Syria', ['Syria'], /\b(syria\w*|damascus|assad|druze)\b/i],
-    ['islam', 'Islam', [], /\b(islam\w*|muslims?|jihad\w*|sharia|mosques?|imams?|caliphate|quran|koran)\b/i],
     ['us', 'United States', ['United States'], /\bU\.S\.|\b(USA|US|America|American|Americans|Trump|White House|Congress|Pentagon|Washington|Rubio|Vance|Hegseth|Democrats?|Democratic|Republicans?|GOP|Biden)\b/],
-    ['europe', 'Europe', ['United Kingdom', 'France', 'Germany', 'Sweden', 'Ireland', 'Spain', 'Italy', 'Netherlands', 'Belgium', 'Switzerland', 'Norway', 'Denmark'], /\b(Europe\w*|EU|Britain|British|UK|London|France|French|Paris|Germany|German|Berlin|Sweden|Swedish|Ireland|Irish|Spain|Italy|Brussels|Geneva)\b/],
-    ['russia', 'Russia and Ukraine', ['Russia', 'Ukraine'], /\b(Russia\w*|Putin|Kremlin|Moscow|Ukrain\w*|Zelensk\w*)\b/],
-    ['china', 'China', ['China', 'Taiwan'], /\b(China|Chinese|Beijing|Xi Jinping|Taiwan\w*|CCP)\b/]
+    ['canada', 'Canada', ['Canada'], /\b(Canada|Canadian\w*|Ottawa|Toronto|Carney|Poilievre|Trudeau)\b/],
+    ['uk', 'United Kingdom', ['United Kingdom'], /\b(Britain|British|UK|England|English Channel|London|Starmer|Farage|Downing Street|Westminster|Scotland|Welsh|Wales)\b/],
+    ['europe', 'Europe', ['United Kingdom', 'France', 'Germany', 'Sweden', 'Ireland', 'Spain', 'Italy', 'Netherlands', 'Belgium', 'Switzerland', 'Norway', 'Denmark', 'Poland', 'Austria', 'Hungary', 'Greece', 'Portugal', 'Finland'], /\b(Europe\w*|EU|Britain|British|UK|London|France|French|Paris|Macron|Germany|German|Berlin|Sweden|Swedish|Ireland|Irish|Spain|Italy|Italian|Meloni|Brussels|Geneva|Poland|Polish|Hungary|Orban|Netherlands|Dutch|Belgium|Austria|Greece|Greek)\b/],
+    ['russia', 'Russia and Ukraine', ['Russia', 'Ukraine'], /\b(Russia\w*|Putin|Kremlin|Moscow|Ukrain\w*|Zelensk\w*|Kyiv)\b/],
+    ['china', 'China and Taiwan', ['China', 'Taiwan', 'Hong Kong'], /\b(China|Chinese|Beijing|Xi Jinping|Taiwan\w*|CCP|Hong Kong)\b/],
+    ['asia', 'South Asia', ['India', 'Pakistan', 'Afghanistan', 'Bangladesh', 'Sri Lanka'], /\b(India|Indian|Modi|New Delhi|Pakistan\w*|Islamabad|Afghan\w*|Taliban|Kabul|Bangladesh\w*|Kashmir)\b/],
+    ['africa', 'Africa', ['Nigeria', 'Sudan', 'South Africa', 'Ethiopia', 'Somalia', 'Libya', 'Kenya', 'Mali', 'Algeria', 'Morocco', 'Tunisia', 'Congo'], /\b(Africa\w*|Nigeria\w*|Sudan\w*|Ethiopia\w*|Somali\w*|Libya\w*|Kenya\w*|Sahel|Mali|Algeria\w*|Morocc\w*|Tunisia\w*|Congo\w*|Darfur)\b/],
+    ['latam', 'Latin America', ['Mexico', 'Venezuela', 'Brazil', 'Argentina', 'Colombia', 'Cuba', 'Chile', 'Peru'], /\b(Mexic\w*|Venezuel\w*|Maduro|Brazil\w*|Lula|Argentin\w*|Milei|Colombia\w*|Cuba\w*|Havana|Chile\w*|Peru\w*|Latin America\w*)\b/]
   ];
   var FXI = {}; FOCUS.forEach(function (f, i) { FXI[f[0]] = i; });
+  /* TOPICS (Armin, 18 October 2026: "the topics filter makes absolutely no sense ... you put the U.S. and Israel together as
+     one topic ... topics could be war and military, Islam, Christianity, Judaism, or other religions, or religion as a whole,
+     history, AI, tech, finance, economics, trade"). A topic is a SUBJECT, never a country: countries are the Region row.
+     The old list was the bank's own evidence tags (data/intel.json topics), which still sit on each bank item and show in
+     its spotlight; the filter works on these subjects instead, read from an item's own words (its headline, its note and,
+     for a bank item, its bank tags through BANK_TP). [key, name, case-free pattern, case-kept pattern or null, group].
+     An item can carry several. The religion group's own chip, "All religion", takes any of its four. */
+  var TOPICS = [
+    ['war', 'War and military', /\b(wars?|warfare|military|militar(y|ies)|army|armies|troops?|soldiers?|idf|irgc|navy|naval|air ?force|missiles?|drones?|air ?strikes?|strikes? on|bomb(s|ed|ing|ings|ers?)?|shelling|artillery|rockets?|ceasefire|invasion|invade\w*|offensive|front ?lines?|battle\w*|combat|fighter jets?|warships?|weapons?|ammunition|pentagon|nato|centcom|osint|mines? in|ballistic|intercept\w*|war ?games?|defen[cs]e minist\w*|hegseth)\b/i, null, ''],
+    ['terror', 'Terror and extremism', /\b(terror\w*|jihad\w*|isis|islamic state|al-?qaeda|al-?shabaab|boko haram|hamas|hezbollah|houthis?|extremis\w*|radicali[sz]\w*|stabbings?|massacre\w*|hostages?|behead\w*|suicide bomb\w*|far-?right|neo-?nazi\w*|antifa)\b/i, null, ''],
+    ['politics', 'Politics and elections', /\b(elections?|electoral|vot(e|es|ed|ers|ing)|ballots?|polls?|polling|campaign\w*|midterms?|primar(y|ies)|candidates?|parliament\w*|congress\w*|senat(e|or|ors)|democrats?|republicans?|gop|labou?r party|tories|tory|conservative party|coalition|prime minister|presiden(t|ts|cy|tial)|white house|governor|mayor|referendum|impeach\w*|subpoena\w*|cabinet|legislat\w*|filibuster|speaker of the house)\b/i, null, ''],
+    ['protest', 'Protests and unrest', /\b(protest\w*|riot\w*|rall(y|ies)|demonstrat(ion|ions|ors)|unrest|uprising\w*|crackdown|no ?kings|nokings|clashes|looting|looters?|tear gas|burning (down|cars|the)|set (on )?fire|mobili[sz]ation|marchers|general strike)\b/i, null, ''],
+    ['rights', 'Rights and free speech', /\b(human rights|free speech|freedom of (speech|expression|the press)|censor\w*|executions?|executed|hang(ed|ings)|death penalty|death sentence|political prisoners?|dissidents?|women'?s rights|hijab law|morality police|lgbt\w*|persecut\w*|tortur\w*|amnesty international|arrested for|jailed for|gag order|blasphemy laws?)\b/i, null, ''],
+    ['immigration', 'Immigration and borders', /\b(immigra\w*|migrants?|migration|asylum|refugees?|border (crossing|patrol|wall|security)|borders|deport\w*|illegal aliens?|small boats?|channel crossings?|visas?|citizenship|mass migration|remigration)\b/i, null, ''],
+    ['crime', 'Crime and justice', /\b(courts?|judges?|trials?|verdicts?|sentenced|convicted|indict\w*|lawsuits?|sued|prosecut\w*|police|policing|arrest(s|ed)?|murder\w*|homicide|crimes?|criminal\w*|fbi|doj|justice department|supreme court|ruling|grooming gangs?|gangs?|cartels?|shooting|shot dead)\b/i, null, ''],
+    ['diplomacy', 'Diplomacy and the UN', /\b(diplomac\w*|diplomat\w*|peace talks|held talks|talks (with|between|in)|summit\w*|negotiat\w*|peace (deal|plan|talks|process)|envoys?|ambassadors?|foreign minist\w*|secretary of state|united nations|security council|general assembly|treat(y|ies)|accords?|normali[sz]ation|unrwa|icc|icj|nato summit)\b/i, /\bU\.?N\.?\b/, ''],
+    ['economy', 'Economy', /\b(econom\w*|inflation|recession|gdp|unemployment|jobs report|interest rates?|central bank|federal reserve|budget\w*|deficit|national debt|taxes|tax (cuts?|hikes?)|cost of living|wages|minimum wage|housing (market|crisis)|currenc(y|ies)|devaluation|rial|poverty|growth forecast|subsid(y|ies))\b/i, null, ''],
+    ['finance', 'Finance and markets', /\b(stocks?|stock market|markets? (fell|rose|crash\w*|rall\w*)|wall street|s&p|dow jones|nasdaq|bonds?|treasur(y|ies) yields?|yields|investors?|shares (fell|rose)|crypto\w*|bitcoin|ethereum|banking|bank (runs?|collapse|failures?)|central banks?|hedge funds?|ipo|earnings|gold price|oil prices?|brent|futures|billionaires?|bankrupt\w*)\b/i, null, ''],
+    ['trade', 'Trade and sanctions', /\b(trade|trading partners?|tariffs?|sanction\w*|exports?|imports?|embargo\w*|supply chains?|shipping (lanes?|routes?)|wto|free trade|customs dut\w*|smuggl\w*)\b/i, null, ''],
+    ['energy', 'Energy and oil', /\b(oil|natural gas|gas (prices?|fields?|supply)|lng|opec\w*|pipelines?|energy|refiner(y|ies)|tankers?|hormuz|crude|petrol|gasoline|power (grid|plants?|cuts?)|electricity|blackouts?|renewables?|solar|wind farms?)\b/i, null, ''],
+    ['nuclear', 'Nuclear', /\b(nuclear|uranium|enrich\w*|iaea|atomic|warheads?|centrifuges?|fordow|natanz|isfahan site|non-?proliferation|snapback)\b/i, null, ''],
+    ['ai', 'AI', /\b(artificial intelligence|openai|chatgpt|gpt-?\d\w*|grok|anthropic|llms?|large language models?|chatbots?|deep ?fakes?|machine learning|neural networks?|nvidia|data cent(er|re)s?|superintelligence)\b/i, /\b(AI|A\.I\.|AGI)\b/, ''],
+    ['tech', 'Tech and the internet', /\b(tech|technolog\w*|cyber\w*|hack(s|ed|ers?|ing)?|semiconductors?|microchips?|chipmakers?|silicon valley|starlink|spacex|satellites?|internet|social media|smartphones?|software|data breach\w*|surveillance|spyware|big tech|algorithm\w*|tiktok ban|x\.com|twitter|meta|google|apple|microsoft|musk)\b/i, null, ''],
+    ['media', 'Media and propaganda', /\b(media|journalis\w*|reporters?|newspapers?|propaganda|disinformation|misinformation|fake news|bbc|cnn|fox news|new york times|nyt|al ?jazeera|msnbc|state tv|press tv|fact.?check\w*|biased|bias|narrative|cover-?up|pallywood|staged|blood libel\w*|debunk\w*|podcasts?|interview)\b/i, null, ''],
+    ['history', 'History', /\b(histor\w*|anniversar\w*|years ago|centur(y|ies)|ancient|empire|ottoman|achaemenid|cyrus the great|1948|1967|1973|1979|world war|ww ?(i|ii|1|2)|cold war|holocaust|nakba|crusades?|colonial\w*|on this day)\b/i, null, ''],
+    ['education', 'Campuses and schools', /\b(campus\w*|universit(y|ies)|colleges?|students?|schools?|teachers?|professors?|academi\w*|curricul\w*|harvard|columbia|ucla|oxford|cambridge|children's books?)\b/i, null, ''],
+    ['health', 'Health', /\b(health\w*|hospitals?|vaccin\w*|diseases?|virus\w*|pandemic|outbreak\w*|cancer|medic(al|ine|ines)|doctors?|nhs|famine|starv\w*|malnutrition|cholera|epidemic)\b/i, null, ''],
+    ['islam', 'Islam', /\b(islam\w*|muslims?|mosques?|imams?|sharia|quran\w*|koran|caliphat\w*|halal|hijabs?|burqas?|niqabs?|ramadan|mullahs?|ayatollah\w*|allah|prophet muhammad|madrass?as?|fatwas?|salafi\w*|wahhabi\w*|sunnis?|shi'?(a|as|ite|ites))\b/i, null, 'rel'],
+    ['christian', 'Christianity', /\b(christian\w*|church(es)?|pope|papal|vatican|catholic\w*|protestant\w*|evangelical\w*|bibles?|biblical|jesus|christ|priests?|pastors?|bishops?|archbishop|orthodox church|coptic|copts|maronite\w*|assyrian christians?)\b/i, null, 'rel'],
+    ['jewish', 'Judaism and antisemitism', /\b(jews?|jewish|judaism|synagogues?|rabbis?|anti-?semit\w*|holocaust|zionis\w*|torah|kosher|shabbat|yom kippur|hanukkah|passover)\b/i, null, 'rel'],
+    ['faith', 'Other faiths and secularism', /\b(religio(n|ns|us)|hindu\w*|sikh\w*|buddhis\w*|atheis\w*|secular\w*|apostat\w*|ex-?muslims?|blasphem\w*|baha'?i\w*|zoroastr\w*|yazidi\w*|druze|faith|theocra\w*|god\b|gods\b|temples?)\b/i, null, 'rel']
+  ];
+  var TOPN = {}; TOPICS.forEach(function (t) { TOPN[t[0]] = t; });
+  var REL_KEYS = ['islam', 'christian', 'jewish', 'faith'];
+  // The bank's own evidence tags, as subjects (a bank item gets these as well as what its words say)
+  var BANK_TP = { 'Hamas': ['terror', 'war'], 'The genocide claim': ['war', 'media'], 'The famine claim': ['health', 'media'], 'Media bias': ['media'], 'UN, NGOs and elites': ['diplomacy'],
+    'Blood libels debunked': ['media', 'jewish'], 'Propaganda networks': ['media'], 'Staged footage': ['media'], 'History': ['history'], 'Radical Islam': ['islam', 'terror'], 'Child fighters': ['war', 'terror'],
+    'Journalists': ['media'], 'Israel and the US': ['diplomacy'], 'Double standards': ['media'], 'Qatar': ['diplomacy'], 'Campuses': ['education'], 'Far-right extremism': ['terror'],
+    'Anti-Israel Jewish voices': ['jewish'], 'Israeli quotes in context': ['media'] };
   var HOT_MIN = 50, HOT_TOP = 6;          // "Hot topics": every story at 50+ heat; its row of sub-topics: the six hottest
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
   var PACKS = null, WORDS = null, HOTS = [], HOTALL = {}, STORY_OF = {}, RHOOK = [];
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '' };
+  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '' };
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -185,7 +228,8 @@
     view: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>',
     reply: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>',
     repost: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4 3 8l4 4M3 8h13a4 4 0 0 1 4 4v1M17 20l4-4-4-4M21 16H8a4 4 0 0 1-4-4v-1"/></svg>',
-    viral: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h3v-5H3zM10.5 20h3V10h-3zM18 20h3V4h-3z"/></svg>'
+    viral: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h3v-5H3zM10.5 20h3V10h-3zM18 20h3V4h-3z"/></svg>',
+    link: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M6.8 15.6C9 9 14 8 17 7.6"/></svg>'
   };
   // A mark that says what it is and where it was posted: the map's shape in the platform's colour
   function mark(it, cls) {
@@ -270,18 +314,28 @@
   }
   function words(it) {
     if (!it._w) it._w = (it.t + ' ' + (it.n || '') + ' ' + (it.o || '') + ' ' + (it.h || '') + ' ' + (it.nm || '') + ' ' + (it.by || '') + ' ' + it.src + ' ' + placeName(it.p) + ' ' + (P[it.p] ? P[it.p][1] : '') + ' ' +
-      (it.tp || []).map(function (i) { return topics[i]; }).join(' ')).toLowerCase();
+      (it.tp || []).map(function (i) { return topics[i]; }).join(' ') + ' ' + tkOf(it).map(function (k) { return TOPN[k][1]; }).join(' ')).toLowerCase();
     return it._w;
   }
+  // The subjects an item is about (TOPICS): read from its own words, and for an item the bank tagged, from its tags
+  function tkOf(it) {
+    if (it._tk) return it._tk;
+    var txt = (it.t || '') + ' ' + (it.n || '') + ' ' + (it.o || ''), o = {};
+    TOPICS.forEach(function (t) { if (t[2].test(txt) || (t[3] && t[3].test(txt))) o[t[0]] = 1; });
+    // only the bank's own hand-made tags count: the last 24 hours are tagged by a loose word match (intel_live.py), and that match is what put 74 of them under Diplomacy (measured 18 Oct 2026)
+    if (it.hot == null && !it.pend) (it.tp || []).forEach(function (i) { (BANK_TP[topics[i]] || []).forEach(function (k) { o[k] = 1; }); });
+    return (it._tk = Object.keys(o));
+  }
+  function hasTopic(it, k) { var tk = tkOf(it); return k === 'rel' ? REL_KEYS.some(function (r) { return tk.indexOf(r) >= 0; }) : tk.indexOf(k) >= 0; }
+  function topicName(k) { return k === 'rel' ? 'All religion' : TOPN[k] ? TOPN[k][1] : k; }
   // The focus picks an item answers to: its place's country, or its own headline and note naming one (never the outlet's
   // name, or every post by "Iran International" would count as Iran).
   function fxOf(it) {
     if (it._fx) return it._fx;
     var c = P[it.p] ? P[it.p][1] : (it.pw || ''), cs = keysOf(it).map(function (k) { return P[k] ? P[k][1] : ''; }).concat([c]);
     var txt = (it.t || '') + ' ' + (it.n || '');
-    var tps = (it.tp || []).map(function (i) { return topics[i]; });
     it._fx = FOCUS.filter(function (f) {
-      return f[2].some(function (x) { return cs.indexOf(x) >= 0; }) || f[3].test(txt) || (f[0] === 'islam' && tps.indexOf('Radical Islam') >= 0);
+      return f[2].some(function (x) { return cs.indexOf(x) >= 0; }) || f[3].test(txt);
     }).map(function (f) { return f[0]; });
     return it._fx;
   }
@@ -326,13 +380,14 @@
   function hotTop() { return HOTS.filter(function (h) { return h.hot >= HOT_MIN; }).slice(0, HOT_TOP); }
   function hotById(id) { return HOTS.filter(function (h) { return h.id === id; })[0] || null; }
   function pass(it, skip) {
+    if (skip !== 'link' && LSET && !LSET[it.id]) return false;
     if (skip !== 'hot' && S.hot && S.lens === 'live') {
       if (S.hot === 'all') { if (!HOTALL[it.id]) return false; }
       else { var hs = hotById(S.hot); if (hs && !hs.ids[it.id]) return false; }
     }
     if (skip !== 'fx' && S.fx.length) { var fx = fxOf(it); if (!S.fx.some(function (k) { return fx.indexOf(k) >= 0; })) return false; }
     if (skip !== 'likes' && S.lmin && !(likesN(it) >= S.lmin)) return false;
-    if (skip !== 'tp' && S.tp.length && !S.tp.some(function (t) { return (it.tp || []).indexOf(t) >= 0; })) return false;
+    if (skip !== 'tp' && S.tp.length && !S.tp.some(function (k) { return hasTopic(it, k); })) return false;
     if (skip !== 'kind' && S.kind && kindOf(it) !== S.kind) return false;
     if (skip !== 'pf' && S.pf.length && S.pf.indexOf(pfOf(it)) < 0) return false;
     if (S.heat && S.lens === 'live' && (it.hot || 0) < S.heat) return false;
@@ -365,7 +420,12 @@
 
   /* ------------------------------------------------------------ everything that redraws */
   function render(keepSpot) {
-    shown = sortList(items.filter(function (it) { return pass(it); }));
+    LSET = null;
+    var base = items.filter(function (it) { return pass(it, 'link'); });
+    LINKS = S.lens === 'readers' || !G ? [] : buildLinks(base);
+    if (S.link) { var L0 = linkByKey(S.link); if (L0) LSET = L0.ids; else S.link = ''; }
+    if (S.with) { var w0 = itemById(S.with); if (w0) LSET = linksOf(w0, base).ids; else S.with = ''; }
+    shown = sortList(LSET ? base.filter(function (it) { return LSET[it.id]; }) : base);
     limit = PAGE_N;
     drawLens();
     drawList();
@@ -377,6 +437,9 @@
     drawState();
     drawLegend();
     liveNote();
+    drawLinkList();
+    drawCmd();
+    drawPills();
     writeUrl();
     if (!keepSpot && $('ir-spot').open) closeSpot();
     RHOOK.forEach(function (f) { try { f(); } catch (e) { /* the creator tools never break the room */ } });
@@ -390,6 +453,7 @@
     if (it.own) b += ' · <span class="own">Creator\'s own</span>';
     if (it.by) b += ' · <span class="by">Sent by ' + esc(it.by) + '</span>';
     if (it.pend) b += ' · <span class="pend">Being checked</span>';
+    if (isNew(it)) b = ' · <span class="new">New</span>' + b;
     return b;
   }
   function thumb(it) {
@@ -421,12 +485,14 @@
     $('ir-more').hidden = shown.length <= limit;
     $('ir-more').textContent = 'Show ' + Math.min(PAGE_N, shown.length - limit) + ' more (' + (shown.length - limit) + ' left)';
     var n = shown.length, w = S.lens === 'live' ? (n === 1 ? 'story' : 'stories') : S.lens === 'readers' ? (n === 1 ? 'find' : 'finds') : (n === 1 ? 'item' : 'items');
-    $('ir-count').innerHTML = '<b class="num">' + n + '</b> ' + w + (n === items.length ? (S.lens === 'bank' ? ' in the bank' : S.lens === 'live' ? ' in 24 hours' : ' waiting') : ' match');
+    var nn = S.lens === 'live' && SEEN_AT ? shown.filter(isNew).length : 0;
+    $('ir-count').innerHTML = '<b class="num">' + n + '</b> ' + w + (n === items.length ? (S.lens === 'bank' ? ' in the bank' : S.lens === 'live' ? ' in 24 hours' : ' waiting') : ' match') +
+      (nn ? ' <span class="ir-newn" title="Since your last visit to the room on this device">' + nn + ' new</span>' : '');
     $('ir-copy').hidden = !n; $('ir-tour').hidden = !n;
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=8ea5a36611): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=713044bcbd): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -675,6 +741,7 @@
       var gs = gPins.childNodes;
       for (var i = 0; i < gs.length && i < vis.length; i++) gs[i].setAttribute('transform', 'translate(' + vis[i].x.toFixed(1) + ' ' + vis[i].y.toFixed(1) + ')');
       for (var j = 0; j < edges.length && vis.length + j < gs.length; j++) gs[vis.length + j].setAttribute('transform', 'translate(' + edges[j].x.toFixed(1) + ' ' + edges[j].y.toFixed(1) + ')');
+      drawLinksNow();
       return;
     }
     pinSig = sig;
@@ -707,6 +774,7 @@
     });
     gPins.innerHTML = html;
     $('ir-tip').hidden = true;
+    drawLinksNow();
   }
   function drawLegend() {
     var el = $('ir-legend'), n = shown.length, sh = '';
@@ -720,6 +788,8 @@
     el.hidden = false;
   }
   function pinAt(el) {
+    var lk = el && el.closest && el.closest('.ir-lk');
+    if (lk) { var o = LDRAW[+lk.getAttribute('data-l')]; return o ? { link: o.L, x: o.mid[0], y: o.mid[1] } : null; }
     var ed = el && el.closest && el.closest('.ir-edge');
     if (ed) { var e = edges[+ed.getAttribute('data-e')]; return e ? { edge: e, x: e.x, y: e.y } : null; }
     var g = el && el.closest && el.closest('.ir-gl');
@@ -736,7 +806,7 @@
     glyphs.forEach(function (g) { var d = Math.hypot(g.x - x, g.y - y); if (d <= GR + 6 && d < bd) { bd = d; best = g; } });
     if (best) return best;
     pinData.forEach(function (m) { var d = Math.hypot(m.x - x, m.y - y), reach = m.exp ? (m.m > 1 ? 7 : GR + 6) : pinR(m.n) + 6; if (d <= reach && d < bd) { bd = d; best = m; } });
-    return best;
+    return best || linkHit(x, y);
   }
   function openGlyph(g) {
     var i = shown.indexOf(g.it);
@@ -763,6 +833,7 @@
     if (!m) return;
     stopTour();
     if (m.edge) { flyTo(V.k, m.edge.lon, m.edge.lat); return; }
+    if (m.link) { pickLink(m.link.k); return; }
     if (m.it) { openGlyph(m); return; }
     if (m.keys.length > 1) { fitTo(placePts(m.keys), Math.min(MAXK, V.k * 2), MAXK); return; }          // several places under one circle: go closer, so they come apart
     S.place = S.place === m.keys[0] ? '' : m.keys[0];
@@ -840,6 +911,12 @@
   function hover(ev, r) {
     var tip = $('ir-tip'), m = pinAt(ev.target);
     if (!m) { tip.hidden = true; return; }
+    if (m.link) {
+      tip.classList.add('wide');
+      tip.innerHTML = '<span class="tip-k">Connection \u00b7 ' + m.link.n + ' items</span>' + esc(m.link.a + ' and ' + m.link.b) + '<small>' + esc(linkWhy(m.link, true)) + '. Tap to see only these.</small>';
+      tip.style.left = m.x + 'px'; tip.style.top = (m.y - 8) + 'px'; tip.hidden = false;
+      return;
+    }
     if (m.edge) {
       tip.classList.remove('wide');
       tip.innerHTML = m.edge.n + (m.edge.n === 1 ? ' item' : ' items') + ' on the far side<small>Tap to turn the globe to them.</small>';
@@ -851,7 +928,8 @@
       if (rc && !rc.x) { if (rc.lk != null) nums.push(fmtN(rc.lk) + ' likes'); if (rc.vw != null) nums.push((rc['~'] ? '~' : '') + fmtN(rc.vw) + ' views'); }
       if (it.hot != null) nums.push('Hot ' + it.hot);
       if (it._v != null) nums.push('Viral ' + it._v);
-      tip.innerHTML = '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + '. Tap to open.</small>';
+      var tth = it.sn ? '' : it.th || (ytId(it.u) ? 'https://i.ytimg.com/vi/' + ytId(it.u) + '/mqdefault.jpg' : '');
+      tip.innerHTML = (tth ? '<span class="tip-im" style="background-image:url(' + esc(tth) + ')">' + (kindOf(it) === 'video' ? PLAY_SVG : '') + '</span>' : '') + '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + '. Tap to open.</small>';
       tip.classList.add('wide');
       tip.style.left = m.x + 'px'; tip.style.top = (m.y - 10) + 'px'; tip.hidden = false;
       return;
@@ -941,12 +1019,7 @@
 
   /* ------------------------------------------------------------ chips, place, kind, state */
   function drawChips() {
-    var c = new Array(topics.length).fill(0);
-    items.forEach(function (it) { if (pass(it, 'tp')) (it.tp || []).forEach(function (t) { c[t]++; }); });
-    var order = topics.map(function (t, i) { return i; }).filter(function (i) { return c[i] || S.tp.indexOf(i) >= 0; });
-    order.sort(function (a, b) { return (S.tp.indexOf(b) >= 0) - (S.tp.indexOf(a) >= 0) || c[b] - c[a]; });
-    $('ir-topics').innerHTML = '<button class="ir-chip" type="button" data-t="" aria-pressed="' + (S.tp.length ? 'false' : 'true') + '">Every topic</button>' +
-      order.map(function (i) { return '<button class="ir-chip" type="button" data-t="' + i + '" aria-pressed="' + (S.tp.indexOf(i) >= 0) + '">' + esc(topics[i]) + ' <i>' + c[i] + '</i></button>'; }).join('');
+    drawTopics();
     [].forEach.call($('ir-kind').querySelectorAll('button'), function (b) {
       var k = b.getAttribute('data-k');
       b.setAttribute('aria-pressed', k === S.kind ? 'true' : 'false');
@@ -978,6 +1051,20 @@
     drawHot();
     drawFocus();
   }
+  // The subjects, counted in what the other filters leave; the busiest first, a subject with nothing here greyed at the end
+  // (never hidden, so a reader sees the room does not cover it yet). The chips WRAP: nothing runs off the right edge.
+  function drawTopics() {
+    var keys = TOPICS.map(function (t) { return t[0]; }), c = { rel: 0 };
+    keys.forEach(function (k) { c[k] = 0; });
+    items.forEach(function (it) { if (!pass(it, 'tp')) return; var tk = tkOf(it), r = 0; tk.forEach(function (k) { c[k]++; if (REL_KEYS.indexOf(k) >= 0) r = 1; }); c.rel += r; });
+    var all = keys.slice(); all.splice(all.indexOf('islam'), 0, 'rel');
+    var base = all.slice();
+    all.sort(function (a, b) { return ((c[b] > 0 || S.tp.indexOf(b) >= 0) - (c[a] > 0 || S.tp.indexOf(a) >= 0)) || c[b] - c[a] || base.indexOf(a) - base.indexOf(b); });
+    $('ir-topics').innerHTML = '<button class="ir-chip ir-tc" type="button" data-t="" aria-pressed="' + !S.tp.length + '">Every topic</button>' + all.map(function (k) {
+      var on = S.tp.indexOf(k) >= 0, zero = !c[k] && !on;
+      return '<button class="ir-chip ir-tc' + (zero ? ' is-zero' : '') + (k === 'rel' ? ' ir-tc-rel' : '') + '" type="button" data-t="' + k + '" aria-pressed="' + on + '"' + (zero ? ' disabled title="Nothing in this view yet"' : '') + '>' + esc(topicName(k)) + ' <i>' + c[k] + '</i></button>';
+    }).join('');
+  }
   // The hot row: Everything, Hot topics, and once Hot topics is on, its six hottest stories. Live lens only.
   function drawHot() {
     var row = $('ir-hotrow'), el = $('ir-hots'); if (!row || !el) return;
@@ -987,11 +1074,11 @@
     var onLive = S.lens === 'live', all = 0;
     LIVE.forEach(function (it) { if (HOTALL[it.id] && (S.lens !== 'live' || pass(it, 'hot'))) all++; });
     var html = '<button class="ir-chip ir-hc" type="button" data-hot="" aria-pressed="' + !(onLive && S.hot) + '">Everything</button>' +
-      '<button class="ir-chip ir-hc ir-hc-all" type="button" data-hot="all" aria-pressed="' + (onLive && !!S.hot) + '">' + flame() + '<span>Hot topics</span> <i>' + all + '</i></button>';
-    if (onLive && S.hot) {
+      '<button class="ir-chip ir-hc ir-hc-all" type="button" data-hot="all" aria-pressed="' + (onLive && S.hot === 'all') + '">' + flame() + '<span>All hot</span> <i>' + all + '</i></button>';
+    if (top.length) {
       html += '<span class="ir-hc-sep" aria-hidden="true"></span>' + top.map(function (h) {
         var n = h.its.filter(function (it) { return pass(it, 'hot'); }).length;
-        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (S.hot === h.id) + '" title="' + esc(h.title) + '"><b class="num">' + h.hot + '</b><span>' + esc(h.name) + '</span> <i>' + n + '</i></button>';
+        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (onLive && S.hot === h.id) + '" title="' + esc(h.title) + '"><b class="num">' + h.hot + '</b><span>' + esc(h.name) + '</span>' + (onLive ? ' <i>' + n + '</i>' : '') + '</button>';
       }).join('');
     }
     el.innerHTML = html;
@@ -1017,7 +1104,7 @@
     } else if (S.lens === 'bank') b.push(fullRange() ? 'The bank, all time' : 'The bank, ' + bLabel(S.from) + (S.to !== S.from ? ' to ' + bLabel(S.to) : ''));
     else b.push('From readers');
     if (S.fx.length) b.push(S.fx.map(function (k) { return FOCUS[FXI[k]][1]; }).join(' or '));
-    if (S.tp.length) b.push(S.tp.map(function (i) { return topics[i]; }).join(' or '));
+    if (S.tp.length) b.push(S.tp.map(topicName).join(' or '));
     if (S.place) b.push(S.place.indexOf('c:') === 0 ? S.place.slice(2) : S.place.split(',').map(placeName).join(', '));
     if (S.pf.length) b.push(S.pf.map(pfName).join(' or '));
     if (S.kind) b.push(KINDS.filter(function (k) { return k[0] === S.kind; })[0][1]);
@@ -1107,10 +1194,268 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>Clear</button>' : '') : '';
   }
   function clearAll() {
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
     say('');
     render();
+  }
+
+  /* ------------------------------------------------------------ the command bar, the filters panel and the pills
+     18 October 2026, Armin: "right now the intelligence room just looks so fucking cluttered! When I go in there, I don't
+     even see ... the globe ... I just see a whole bunch of filters ... that entire top section might be something that you
+     expand". Measured that day: the globe began 1,102px down on a 1366x900 screen and 1,867px down on a phone. So the map
+     comes first, under one bar: search, Topic, Region, Filters and Add. Every filter lives in ONE panel that opens from the
+     bar (a sheet from the bottom on a phone, from the right on a computer), and its chips wrap, so nothing runs off the
+     right edge where a mouse cannot reach it (the old rows scrolled sideways with the scrollbar hidden). What is switched
+     on shows as a pill under the bar, each with its own cross, so a reader always sees why the list is what it is. */
+  function nActive() {
+    return S.tp.length + S.fx.length + (S.place || S.nowhere ? 1 : 0) + S.pf.length + (S.kind ? 1 : 0) + (S.heat && S.lens === 'live' ? 1 : 0) + (S.vmin ? 1 : 0) +
+      (S.within && S.lens === 'live' ? 1 : 0) + (S.crmin ? 1 : 0) + (S.lmin ? 1 : 0) + (S.top ? 1 : 0) + (S.edu ? 1 : 0) + (S.lens === 'bank' && !fullRange() ? 1 : 0);
+  }
+  function drawCmd() {
+    var set = function (id, n) { var el = $(id); if (!el) return; el.textContent = n ? String(n) : ''; el.parentNode.classList.toggle('on', !!n); };
+    set('ir-cb-tp', S.tp.length); set('ir-cb-fx', S.fx.length + (S.place || S.nowhere ? 1 : 0)); set('ir-cb-n', nActive());
+    var n = shown.length, dn = $('ir-dr-n');
+    if (dn) dn.textContent = n.toLocaleString('en-US') + ' ' + (S.lens === 'live' ? (n === 1 ? 'story' : 'stories') : n === 1 ? 'item' : 'items');
+  }
+  function openDrawer(sec) {
+    var d = $('ir-drawer'); if (!d) return;
+    stopTour();
+    if (!d.open) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
+    var el = sec === 'topic' ? $('ir-dr-topic') : sec === 'region' ? $('ir-dr-region') : null, bar = $('ir-bar');
+    if (el && bar) bar.scrollTop = el.offsetTop - bar.offsetTop - 8; else if (bar) bar.scrollTop = 0;
+    [].forEach.call(d.querySelectorAll('.ir-dr-s'), function (s) { s.classList.toggle('is-to', s === el); });
+  }
+  function closeDrawer() { var d = $('ir-drawer'); if (d && d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } }
+  function drawPills() {
+    var el = $('ir-pills'); if (!el) return;
+    var p = [], kn = function (k) { return (KINDS.filter(function (x) { return x[0] === k; })[0] || ['', k])[1]; };
+    if (S.link) { var L = linkByKey(S.link); p.push(['link:', 'Connection: ' + (L ? L.a + ' and ' + L.b : S.link.replace('|', ' and '))]); }
+    if (S.with) { var wi = itemById(S.with); p.push(['with:', 'Connected to: ' + (wi ? cut(wi.t, 40) : 'one story')]); }
+    if (S.hot && S.lens === 'live') { var h = S.hot === 'all' ? null : hotById(S.hot); p.push(['hot:', h ? 'Story: ' + h.name : 'Hot stories']); }
+    S.tp.forEach(function (k) { p.push(['tp:' + k, topicName(k)]); });
+    S.fx.forEach(function (k) { p.push(['fx:' + k, FOCUS[FXI[k]][1]]); });
+    if (S.nowhere) p.push(['place:', 'No single place']); else if (S.place) p.push(['place:', S.place.indexOf('c:') === 0 ? S.place.slice(2) : S.place.split(',').map(placeName).join(', ')]);
+    S.pf.forEach(function (x) { p.push(['pf:' + x, 'On ' + pfName(x)]); });
+    if (S.kind) p.push(['kind:', kn(S.kind)]);
+    if (S.within && S.lens === 'live') p.push(['within:', 'Last ' + S.within + ' h']);
+    if (S.heat && S.lens === 'live') p.push(['heat:', 'Heat ' + S.heat + '+']);
+    if (S.lmin) p.push(['lmin:', fmtN(S.lmin) + '+ likes']);
+    if (S.vmin) p.push(['vmin:', 'Viral ' + S.vmin + '+']);
+    if (S.crmin) p.push(['crmin:', 'Credibility ' + S.crmin + '+']);
+    if (S.top) p.push(['top:', 'Top picks']);
+    if (S.edu) p.push(['edu:', 'Explainers']);
+    if (S.lens === 'bank' && !fullRange()) p.push(['time:', $('ir-range').textContent]);
+    if (S.q) p.push(['q:', '"' + S.q + '"']);
+    el.innerHTML = p.map(function (x) { return '<button type="button" class="ir-pill" data-unpill="' + esc(x[0]) + '" aria-label="' + esc('Remove ' + x[1]) + '"><span>' + esc(x[1]) + '</span><b aria-hidden="true">&times;</b></button>'; }).join('') +
+      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>Clear all</button>' : '');
+    el.hidden = !p.length;
+  }
+  function unpill(v) {
+    var i = v.indexOf(':'), k = v.slice(0, i), x = v.slice(i + 1), cut1 = function (a) { var j = a.indexOf(x); if (j >= 0) a.splice(j, 1); };
+    if (k === 'link') S.link = ''; else if (k === 'with') S.with = ''; else if (k === 'hot') S.hot = '';
+    else if (k === 'tp') cut1(S.tp); else if (k === 'fx') cut1(S.fx); else if (k === 'pf') cut1(S.pf);
+    else if (k === 'place') { S.place = ''; S.nowhere = false; }
+    else if (k === 'kind') S.kind = ''; else if (k === 'within') S.within = 0; else if (k === 'heat') S.heat = 0; else if (k === 'lmin') S.lmin = 0;
+    else if (k === 'vmin') S.vmin = 0; else if (k === 'crmin') S.crmin = 0; else if (k === 'top') S.top = false; else if (k === 'edu') S.edu = false;
+    else if (k === 'time') { S.from = 0; S.to = buckets.length - 1; $('ir-from').value = 0; $('ir-to').value = S.to; }
+    else if (k === 'q') { S.q = ''; $('ir-q').value = ''; }
+    say(''); render();
+    if (k === 'link' || k === 'with') frameShown();
+  }
+
+  /* ------------------------------------------------------------ what is new since the last visit (a reason to come back) */
+  var SEEN_AT = (function () { var v = store('ir-seen'); return typeof v === 'number' && v > 0 ? v : 0; })();
+  function isNew(it) { return !!SEEN_AT && it.hot != null && Date.parse(it.d || '') > SEEN_AT; }
+
+  /* ------------------------------------------------------------ CONNECTIONS
+     18 October 2026, Armin: "show lines of connections between different news items on the globe, so people can see what
+     news is connected to what ... if people click on the lines, it will show why they're connected ... Maybe they could
+     filter for the connections." None of the map dashboards read for the benchmark (research/intel-benchmark-2026-10-18.md)
+     lets a reader light up only what is connected; this does.
+     A connection is between two COUNTRIES (a city's items count for its country), drawn from what the filters leave, so a
+     topic or a region filter changes the lines too. Three reasons, each counted, never guessed:
+       story    the same story is being reported from both (the room's own story groups, data/show-packs.json)
+       actor    the same person, force or body is named in items from both (ACTORS below: Hezbollah, the IRGC, Trump...)
+       mention  items from one name the other ("France burns ... coming to America")
+     The strongest connections are drawn as arcs that rise off the globe, gold for a shared story, pale for a shared actor,
+     dim for a mention; a tap on one (or on its row under Connections) shows only what it joins, with its reasons. An item's
+     own spotlight offers "What connects to this". The lines can be switched off from the map's buttons. */
+  var ACTORS = [
+    ['hezbollah', 'Hezbollah', /\bhezbollah\b/i], ['hamas', 'Hamas', /\bhamas\b|\bsinwar\b/i], ['houthis', 'The Houthis', /\bhouthis?\b|\bansar ?allah\b/i],
+    ['irgc', 'The IRGC', /\birgc\b|\brevolutionary guards?\b|\bquds force\b|\biran'?s guards\b/i], ['khamenei', 'Khamenei', /\bkhamenei\b|\bsupreme leader\b/i],
+    ['pahlavi', 'Reza Pahlavi', /\bpahlavi\b/i], ['netanyahu', 'Netanyahu', /\bnetanyahu\b|\bbibi\b/i], ['idf', 'The IDF', /\bidf\b|\bisraeli army\b/i],
+    ['trump', 'Trump', /\btrump\b/i], ['vance', 'JD Vance', /\bvance\b/i], ['rubio', 'Rubio', /\brubio\b/i], ['hegseth', 'Hegseth', /\bhegseth\b/i],
+    ['putin', 'Putin', /\bputin\b|\bkremlin\b/i], ['zelensky', 'Zelensky', /\bzelensk\w*/i], ['xi', 'Xi Jinping', /\bxi jinping\b|\bpresident xi\b/i],
+    ['macron', 'Macron', /\bmacron\b/i], ['starmer', 'Starmer', /\bstarmer\b/i], ['farage', 'Farage', /\bfarage\b/i], ['robinson', 'Tommy Robinson', /\btommy robinson\b/i],
+    ['meloni', 'Meloni', /\bmeloni\b/i], ['orban', 'Orban', /\borb[aá]n\b/i], ['erdogan', 'Erdogan', /\berdo[gğ]an\b/i], ['mbs', 'Mohammed bin Salman', /\bbin salman\b|\bmbs\b/i],
+    ['sharaa', 'Al-Sharaa', /\bsharaa\b|\bjolani\b/i], ['abbas', 'Mahmoud Abbas', /\bmahmoud abbas\b|\bpalestinian authority\b/i], ['modi', 'Modi', /\bmodi\b/i], ['maduro', 'Maduro', /\bmaduro\b/i],
+    ['musk', 'Elon Musk', /\bmusk\b/i], ['isis', 'ISIS', /\bisis\b|\bislamic state\b|\bdaesh\b/i], ['qaeda', 'Al-Qaeda', /\bal-?qaeda\b/i], ['taliban', 'The Taliban', /\btaliban\b/i],
+    ['brotherhood', 'The Muslim Brotherhood', /\bmuslim brotherhood\b/i], ['un', 'The UN', /\bunited nations\b|\bsecurity council\b|\bguterres\b|\bunrwa\b/i], ['nato', 'NATO', /\bnato\b/i],
+    ['eu', 'The EU', /\beuropean union\b|\beuropean commission\b|\bvon der leyen\b/i], ['iaea', 'The IAEA', /\biaea\b|\bgrossi\b/i], ['icc', 'The ICC', /\bicc\b|\binternational criminal court\b/i],
+    ['opec', 'OPEC', /\bopec\b/i], ['hormuz', 'The Strait of Hormuz', /\bhormuz\b/i], ['redsea', 'The Red Sea', /\bred sea\b|\bbab el-?mandeb\b/i], ['antifa', 'Antifa', /\bantifa\b/i],
+    ['nokings', 'No Kings', /\bno ?kings\b/i], ['muslims', 'Muslims', /\bmuslims?\b|\bislamist\w*\b/i]
+  ];
+  var ACN = {}; ACTORS.forEach(function (a) { ACN[a[0]] = a[1]; });
+  // The countries an item can NAME (for "mentions"), in the names the places use; each needs a place on the map to draw to
+  var NAMES = [['Iran', /\biran\w*\b|\btehran\b/i], ['Israel', /\bisrael\w*\b|\btel aviv\b/i], ['United States', /\bU\.S\.|\b(USA|US|America|American|Americans|Washington|White House|Pentagon)\b/],
+    ['Russia', /\brussia\w*\b|\bmoscow\b|\bkremlin\b/i], ['Ukraine', /\bukrain\w*\b|\bkyiv\b/i], ['China', /\bchina\b|\bchinese\b|\bbeijing\b/i], ['France', /\bfrance\b|\bfrench\b|\bparis\b/i],
+    ['United Kingdom', /\bbritain\b|\bbritish\b|\b(UK|London)\b/], ['Germany', /\bgerman\w*\b|\bberlin\b/i], ['Lebanon', /\bleban\w*\b|\bbeirut\b/i], ['Syria', /\bsyria\w*\b|\bdamascus\b/i],
+    ['Yemen', /\byemen\w*\b|\bsanaa\b/i], ['Gaza', /\bgaza\b/i], ['West Bank', /\bwest bank\b|\bjudea\b/i], ['Qatar', /\bqatar\w*\b|\bdoha\b/i], ['Saudi Arabia', /\bsaudi\w*\b|\briyadh\b/i],
+    ['Turkey', /\bturkey\b|\bturkish\b|\bankara\b/i], ['Iraq', /\biraq\w*\b|\bbaghdad\b/i], ['Egypt', /\begypt\w*\b|\bcairo\b/i], ['Canada', /\bcanad\w*\b|\bottawa\b/i],
+    ['Italy', /\bital(y|ian)\b|\brome\b/i], ['India', /\bindia\b|\bindian government\b/i], ['Pakistan', /\bpakistan\w*\b/i], ['Afghanistan', /\bafghan\w*\b|\bkabul\b/i], ['Venezuela', /\bvenezuel\w*\b/i],
+    ['United Arab Emirates', /\buae\b|\bemirat\w*\b|\bdubai\b|\babu dhabi\b/i]];
+  var ANCH = null;
+  function anchors() {          // each country's point: its own place where it has one, else its first place on the map
+    if (ANCH) return ANCH;
+    ANCH = {};
+    Object.keys(P).forEach(function (k) { var v = P[k]; if (!v || v[2] == null || !v[1]) return; if (!ANCH[v[1]] || v[0] === v[1]) ANCH[v[1]] = [v[3], v[2], k]; });
+    return ANCH;
+  }
+  function countryOf(it) { return P[it.p] ? P[it.p][1] : ''; }
+  function actorsOf(it) { if (!it._ac) { var t = (it.t || '') + ' ' + (it.n || ''); it._ac = ACTORS.filter(function (a) { return a[2].test(t); }).map(function (a) { return a[0]; }); } return it._ac; }
+  function namesOf(it) { if (!it._nm) { var t = (it.t || '') + ' ' + (it.n || ''), own = countryOf(it); it._nm = NAMES.filter(function (n) { return n[0] !== own && n[1].test(t); }).map(function (n) { return n[0]; }); } return it._nm; }
+  var LINKS = [], LSET = null, LT = 'items', LKON = store('ir-links') !== 'off', LTYPE = '';
+  function linkByKey(k) { for (var i = 0; i < LINKS.length; i++) if (LINKS[i].k === k) return LINKS[i]; return null; }
+  function itemById(id) { for (var i = 0; i < items.length; i++) if (String(items[i].id) === id) return items[i]; return null; }
+  function buildLinks(base, only) {
+    var A = anchors(), by = {}, out = {};
+    var add = function (a, b, type, key, name, ia, ib, w) {
+      if (!a || !b || a === b || !A[a] || !A[b]) return;
+      var x = a < b ? a : b, y = a < b ? b : a, k = x + '|' + y, L = out[k] || (out[k] = { k: k, a: x, b: y, w: 0, ids: {}, why: {} });
+      var r = L.why[type + ':' + key] || (L.why[type + ':' + key] = { t: type, key: key, name: name, ids: {} });
+      ia.concat(ib).forEach(function (it) { L.ids[it.id] = 1; r.ids[it.id] = 1; });
+      L.w += w;
+    };
+    base.forEach(function (it) { var c = countryOf(it); if (c) (by[c] = by[c] || []).push(it); });
+    var cs = Object.keys(by);
+    // the same story, told from two places
+    var st = {};
+    base.forEach(function (it) { var h = STORY_OF[it.id], c = countryOf(it); if (!h || !c) return; var s1 = st[h.id] || (st[h.id] = { h: h, by: {} }); (s1.by[c] = s1.by[c] || []).push(it); });
+    Object.keys(st).forEach(function (sid) {
+      var s1 = st[sid], ks = Object.keys(s1.by);
+      for (var i = 0; i < ks.length; i++) for (var j = i + 1; j < ks.length; j++) add(ks[i], ks[j], 'story', sid, s1.h.name, s1.by[ks[i]], s1.by[ks[j]], 2 * Math.min(s1.by[ks[i]].length, s1.by[ks[j]].length) + 1);
+    });
+    // the same actor named from two places
+    var ac = {};
+    base.forEach(function (it) { var c = countryOf(it); if (!c) return; actorsOf(it).forEach(function (a) { var m = ac[a] || (ac[a] = {}); (m[c] = m[c] || []).push(it); }); });
+    Object.keys(ac).forEach(function (a) {
+      var ks = Object.keys(ac[a]).sort(function (x, y) { return ac[a][y].length - ac[a][x].length; }).slice(0, 6);          // a name said everywhere joins its six busiest places, not every pair
+      for (var i = 0; i < ks.length; i++) for (var j = i + 1; j < ks.length; j++) add(ks[i], ks[j], 'actor', a, ACN[a], ac[a][ks[i]], ac[a][ks[j]], Math.min(ac[a][ks[i]].length, ac[a][ks[j]].length));
+    });
+    // one place's items naming another
+    cs.forEach(function (c) {
+      var m = {};
+      by[c].forEach(function (it) { namesOf(it).forEach(function (n) { (m[n] = m[n] || []).push(it); }); });
+      Object.keys(m).forEach(function (n) { add(c, n, 'mention', n, c + ' items name ' + n, m[n], by[n] ? by[n].slice(0, 0) : [], m[n].length); });
+    });
+    var list = Object.keys(out).map(function (k) {
+      var L = out[k];
+      L.n = Object.keys(L.ids).length;
+      L.reasons = Object.keys(L.why).map(function (r) { var x = L.why[r]; x.n = Object.keys(x.ids).length; return x; })
+        .sort(function (p, q) { return ({ story: 0, actor: 1, mention: 2 }[p.t] - { story: 0, actor: 1, mention: 2 }[q.t]) || q.n - p.n; });
+      L.type = L.reasons[0].t;
+      return L;
+    }).filter(function (L) { return L.n >= 2 && L.w >= 2; });
+    if (only) list = list.filter(function (L) { return L.reasons.some(function (r) { return r.t === only; }); });
+    return list.sort(function (p, q) { return q.w - p.w || q.n - p.n; });
+  }
+  // what one item connects to: its story elsewhere, the actors it names elsewhere, the countries it names
+  function linksOf(it, base) {
+    var c = countryOf(it), ids = {}, n = 0;
+    ids[it.id] = 1;
+    var h = STORY_OF[it.id], ac = actorsOf(it), nm = namesOf(it), tk = tkOf(it);
+    base.forEach(function (x) {
+      if (x === it) return;
+      var cx = countryOf(x); if (!cx || cx === c) return;
+      // a country it names counts only for items there on one of its own subjects, so naming America does not join it to all of America
+      if ((h && STORY_OF[x.id] === h) || actorsOf(x).some(function (a) { return ac.indexOf(a) >= 0; }) || (nm.indexOf(cx) >= 0 && tkOf(x).some(function (k) { return tk.indexOf(k) >= 0; }))) { ids[x.id] = 1; n++; }
+    });
+    return { ids: ids, n: n };
+  }
+  function linkWhy(L, short) {
+    var s = L.reasons.filter(function (r) { return r.t === 'story'; }), a = L.reasons.filter(function (r) { return r.t === 'actor'; }), m = L.reasons.filter(function (r) { return r.t === 'mention'; });
+    var out = [];
+    if (s.length) out.push((s.length === 1 ? 'Same story: ' + cut(s[0].name, short ? 40 : 70) : s.length + ' stories told from both'));
+    if (a.length) out.push('Both name ' + a.slice(0, short ? 2 : 4).map(function (r) { return r.name; }).join(', ') + (a.length > (short ? 2 : 4) ? ' and more' : ''));
+    if (m.length && !s.length) out.push(m.map(function (r) { return r.name; }).slice(0, 2).join('; '));
+    return out.join(' · ');
+  }
+  // the list's second tab: every connection in what is shown, strongest first
+  function drawLinkList() {
+    var el = $('ir-links'), tab = $('ir-ltab'); if (!el || !tab) return;
+    var all = LINKS, n = all.length;
+    $('ir-ltab-n').textContent = n ? String(n) : '';
+    tab.hidden = S.lens === 'readers';
+    [].forEach.call(tab.querySelectorAll('[data-ltab]'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-ltab') === LT ? 'true' : 'false'); });
+    var onL = LT === 'links' && S.lens !== 'readers';
+    el.hidden = !onL; $('ir-items').hidden = onL; $('ir-more').hidden = onL || shown.length <= limit;
+    root.classList.toggle('ir-on-links', onL);
+    if (!onL) return;
+    var types = [['', 'All'], ['story', 'Same story'], ['actor', 'Same people'], ['mention', 'Mentions']];
+    var shownL = LTYPE ? all.filter(function (L) { return L.reasons.some(function (r) { return r.t === LTYPE; }); }) : all;
+    el.innerHTML = '<p class="ir-lk-h">How what you see connects across the map. Tap one to see only what it joins, and why.</p>' +
+      '<div class="ir-lk-t" role="group" aria-label="Kind of connection">' + types.map(function (t) { return '<button type="button" class="ir-chip" data-ltype="' + t[0] + '" aria-pressed="' + (LTYPE === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+      (shownL.length ? '<ol class="ir-lk-l">' + shownL.slice(0, 40).map(function (L) {
+        return '<li><button type="button" class="ir-lk-r lk-' + L.type + (S.link === L.k ? ' on' : '') + '" data-link="' + esc(L.k) + '"><span class="ir-lk-ab"><b>' + esc(L.a) + '</b><i aria-hidden="true"></i><b>' + esc(L.b) + '</b></span>' +
+          '<span class="ir-lk-w">' + esc(linkWhy(L, true)) + '</span><span class="ir-lk-n num">' + L.n + ' items</span></button></li>';
+      }).join('') + '</ol>' : '<p class="ir-empty">No two places are connected in what is shown. Widen the filters, or pick Everything.</p>');
+  }
+
+  /* the arcs on the map: drawn after the marks on every frame (they move with the globe), under them in the SVG */
+  var gLinks = null, LDRAW = [];
+  function linkCap() { return CW < 520 ? 6 : 10; }
+  function drawLinksNow() {
+    if (!gLinks || !PJ) return;
+    LDRAW = [];
+    if (!LKON || S.lens === 'readers' || !LINKS.length) { if (gLinks.firstChild) gLinks.innerHTML = ''; return; }
+    var A = anchors(), sel = S.link ? linkByKey(S.link) : null;
+    var wi = S.with ? itemById(S.with) : null, wc = wi ? countryOf(wi) : '';
+    var list = S.link ? (sel ? [sel] : []) : wc ? LINKS.filter(function (L) { return L.a === wc || L.b === wc; }).slice(0, linkCap()) : LINKS.slice(0, linkCap());
+    var maxW = list.reduce(function (m, L) { return Math.max(m, L.w); }, 1), html = '', cx = CW / 2, cy = CH / 2, globe = V.mode === 'globe';
+    list.forEach(function (L, li) {
+      var a = A[L.a], b = A[L.b]; if (!a || !b) return;
+      var pa = [a[0], a[1]], pb = [b[0], b[1]], ip = G.geoInterpolate(pa, pb), dist = G.geoDistance(pa, pb), segs = [], cur = [], pts = [];
+      var N = 40, lift = globe ? 0.05 + 0.16 * Math.min(1, dist / 1.6) : 0;
+      var A2 = PJ(pa), B2 = PJ(pb), chord = A2 && B2 ? Math.hypot(B2[0] - A2[0], B2[1] - A2[1]) : 0;
+      for (var i = 0; i <= N; i++) {
+        var t = i / N, g = ip(t);
+        if (globe && !seen(g[0], g[1])) { if (cur.length > 1) segs.push(cur); cur = []; continue; }
+        var p = PJ(g); if (!p || !isFinite(p[0])) continue;
+        var up = Math.sin(Math.PI * t);
+        if (globe) { var f = 1 + lift * up; p = [cx + (p[0] - cx) * f, cy + (p[1] - cy) * f]; }
+        else if (chord) { var nx = -(B2[1] - A2[1]) / chord, ny = (B2[0] - A2[0]) / chord; if (ny > 0) { nx = -nx; ny = -ny; } var h = Math.min(120, chord * 0.22) * up; p = [p[0] + nx * h, p[1] + ny * h]; }
+        cur.push(p); pts.push(p);
+      }
+      if (cur.length > 1) segs.push(cur);
+      if (!segs.length) return;
+      var d = segs.map(function (s) { return 'M' + s.map(function (q) { return q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join('L'); }).join('');
+      var sw = (1.2 + 2.6 * Math.sqrt(L.w / maxW)).toFixed(2), on = S.link === L.k;
+      html += '<g class="ir-lk lk-' + L.type + (on ? ' on' : '') + '" data-l="' + li + '" role="button" tabindex="0" aria-label="' + esc(L.a + ' and ' + L.b + ': ' + linkWhy(L, true)) + '">' +
+        '<path class="lk-g" d="' + d + '" style="stroke-width:' + (+sw * 3.2).toFixed(1) + '"/><path class="lk-b" d="' + d + '" style="stroke-width:' + sw + '"/><path class="lk-f" d="' + d + '"/><path class="lk-h" d="' + d + '"/></g>';
+      LDRAW.push({ L: L, pts: pts, mid: pts[Math.floor(pts.length / 2)] });
+    });
+    gLinks.innerHTML = html;
+  }
+  function linkHit(x, y) {
+    var best = null, bd = 9;
+    LDRAW.forEach(function (o) {
+      for (var i = 1; i < o.pts.length; i++) {
+        var p = o.pts[i - 1], q = o.pts[i], dx = q[0] - p[0], dy = q[1] - p[1], l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((x - p[0]) * dx + (y - p[1]) * dy) / l2));
+        var d = Math.hypot(x - (p[0] + t * dx), y - (p[1] + t * dy));
+        if (d < bd) { bd = d; best = o; }
+      }
+    });
+    return best ? { link: best.L, x: best.mid[0], y: best.mid[1] } : null;
+  }
+  function pickLink(k) {
+    stopTour();
+    S.link = S.link === k ? '' : k; S.with = '';
+    if (S.link) { S.hot = ''; LT = 'items'; }
+    say(''); render();
+    var L = S.link ? linkByKey(S.link) : null;
+    if (L) { var A = anchors(); fitTo([[A[L.a][0], A[L.a][1]], [A[L.b][0], A[L.b][1]]], 1, 8); say(L.a + ' and ' + L.b + ': ' + linkWhy(L) + '. ' + shown.length + ' items.', true); }
+    else frameShown();
   }
 
   /* ------------------------------------------------------------ the address keeps the view, so a view can be sent and saved */
@@ -1129,6 +1474,8 @@
     if (S.lmin) q.push('likes=' + S.lmin);
     if (S.fx.length) q.push('focus=' + S.fx.join('.'));
     if (S.hot && S.lens === 'live') q.push('hot=' + encodeURIComponent(S.hot));
+    if (S.link) q.push('link=' + encodeURIComponent(S.link));
+    if (S.with) q.push('with=' + encodeURIComponent(S.with));
     if (S.top) q.push('top=1');
     if (S.edu) q.push('edu=1');
     if (S.lens === 'bank' && !fullRange()) q.push('from=' + buckets[S.from] + '&to=' + buckets[S.to]);
@@ -1145,7 +1492,7 @@
     var u = new URLSearchParams(search);
     useLens(u.get('lens') || defLens, true);
     S.q = (u.get('q') || '').slice(0, 120);
-    S.tp = (u.get('topic') || '').split('.').filter(function (x) { return x !== '' && topics[+x]; }).map(Number);
+    S.tp = (u.get('topic') || '').split('.').filter(function (k, i, a) { return (k === 'rel' || TOPN[k]) && a.indexOf(k) === i; });
     var p = u.get('place') || '';
     S.place = ''; S.nowhere = false;
     if (p === 'global') S.nowhere = true; else if (p.indexOf('c:') === 0 || (p && p.split(',').every(function (k) { return P[k]; }))) S.place = p;
@@ -1156,6 +1503,7 @@
     S.heat = pick(HEATS, u.get('heat')); S.within = pick(WITHIN, u.get('within')); S.vmin = pick(VIRALS, u.get('viral')); S.crmin = pick(CREDS, u.get('cred'));
     S.lmin = pick(LIKES, u.get('likes'));
     S.fx = (u.get('focus') || '').split('.').filter(function (k, i, a) { return FXI[k] != null && a.indexOf(k) === i; });
+    S.link = (u.get('link') || '').slice(0, 80); S.with = (u.get('with') || '').slice(0, 40);
     var hv = u.get('hot') || '';
     S.hot = S.lens === 'live' && (hv === 'all' || hotById(hv)) ? hv : '';
     if (SORTS[S.lens].some(function (s) { return s[0] === u.get('sort'); })) S.sort = u.get('sort');
@@ -1196,14 +1544,17 @@
     [/\bhague|icj|icc\b/, 'the-hague'], [/\bgeneva|human rights council|\bwho\b/, 'geneva'], [/\bun headquarters|general assembly|security council\b/, 'un-ny'],
     [/\bcampus(es)?|universit(y|ies)|college|columbia|harvard\b/, 'us-campus'], [/\bnew york|nyc\b/, 'new-york'], [/\bwashington|congress|white house\b/, 'washington'],
     [/\b(us|usa|america(n)?|united states)\b/, 'c:United States'], [/\bcanada|toronto\b/, 'c:Canada'], [/\baustralia|sydney\b/, 'c:Australia'], [/\bsouth africa\b/, 'c:South Africa']];
-  var TOPIC_WORDS = [
-    [/\bhamas\b|\bterror(ist|ists)?\b|tunnel|human shield|hostage/, 'Hamas'], [/\bgenocid/, 'The genocide claim'], [/\bfamine|starv|hunger|aid\b|ghf\b/, 'The famine claim'],
-    [/\bmedia|press|bbc|cnn|nyt|new york times|reporter|journalis[mt]\b|news\b/, 'Media bias'], [/\bun\b|unrwa|ngo|amnesty|elite|united nations/, 'UN, NGOs and elites'],
-    [/own words|horse'?s mouth|admit|confess|they say/, 'In their own words'], [/blood libel|debunk|myth|lie(s)?\b/, 'Blood libels debunked'], [/propaganda|bot(s)?\b|influence|al ?jazeera/, 'Propaganda networks'],
-    [/pallywood|staged|fake|actor|crisis actor|doll/, 'Staged footage'], [/\bstats?\b|statistic|numbers|data\b|chart|figures|casualt/, 'Data and numbers'], [/histor|1948|1967|nakba|mandate/, 'History'],
-    [/islamis|jihad|radical islam|sharia|caliphate/, 'Radical Islam'], [/child (soldier|fighter)|children (fight|soldier)|kids with guns/, 'Child fighters'], [/journalist/, 'Journalists'],
-    [/double standard|hypocris/, 'Double standards'], [/\bqatar/, 'Qatar'], [/\biran/, 'Iran'], [/campus|academi|professor|universit/, 'Campuses'], [/far.right|nazi|fascis/, 'Far-right extremism'],
-    [/jewish voice|anti.?zionist jew|neturei/, 'Anti-Israel Jewish voices'], [/in context|out of context|quote/, 'Israeli quotes in context'], [/israel and the us|us aid|us.israel|american aid/, 'Israel and the US']];
+  // The words that name a subject in a question ("AI", "war", "the economy"), for the ask box: [pattern, TOPICS key]
+  var TOPIC_ASK = [[/\b(ai|artificial intelligence|chatgpt|openai|grok|deepfakes?)\b/, 'ai'], [/\b(tech|technology|cyber\w*|hack(ers|ing)?|internet|social media)\b/, 'tech'],
+    [/\b(wars?|military|army|troops|missiles?|drones?|strikes?|bomb\w*|weapons?)\b/, 'war'], [/\b(terror\w*|jihad\w*|isis|hamas|hezbollah|houthis?|extremis\w*)\b/, 'terror'],
+    [/\b(islam\w*|muslims?|mosques?|sharia|quran)\b/, 'islam'], [/\b(christian\w*|church\w*|pope|catholic\w*)\b/, 'christian'], [/\b(jews?|jewish|judaism|antisemit\w*|synagogues?)\b/, 'jewish'],
+    [/\b(hindu\w*|sikh\w*|buddhis\w*|atheis\w*|secular\w*|apostat\w*|blasphem\w*)\b/, 'faith'], [/\b(histor\w*|ancient|empire)\b/, 'history'],
+    [/\b(econom\w*|inflation|recession|jobs|wages|cost of living)\b/, 'economy'], [/\b(financ\w*|markets?|stocks?|crypto|bitcoin|banking)\b/, 'finance'], [/\b(trade|tariffs?|sanctions?|exports?|imports?)\b/, 'trade'],
+    [/\b(oil|energy|gas prices|hormuz|opec)\b/, 'energy'], [/\b(nuclear|uranium|enrichment|iaea)\b/, 'nuclear'], [/\b(elections?|votes?|voting|polls?|politics|midterms?|campaign)\b/, 'politics'],
+    [/\b(protests?|riots?|rall(y|ies)|unrest|uprising)\b/, 'protest'], [/\b(human rights|free speech|censorship|executions?|women'?s rights)\b/, 'rights'],
+    [/\b(immigra\w*|migrants?|asylum|refugees?|deport\w*|borders?)\b/, 'immigration'], [/\b(crime|courts?|trials?|police|judges?|murders?)\b/, 'crime'],
+    [/\b(diplomac\w*|peace talks|un|united nations|unrwa|icc|icj|ngos?)\b/, 'diplomacy'], [/\b(media|press|bbc|cnn|nyt|propaganda|fake news|bias|staged|pallywood|journalis\w*)\b/, 'media'],
+    [/\b(campus\w*|universit(y|ies)|college|students?|schools?)\b/, 'education'], [/\b(health|hospitals?|famine|starv\w*|vaccin\w*|disease)\b/, 'health']];
   var PF_WORDS = [[/\b(?:on|from|in) x\b|\btwitter\b|\btweets?\b|\bx posts?\b|\bx only\b/, 'X'], [/\byoutube\b/, 'YouTube'], [/\btelegram\b/, 'Telegram'],
     [/\binstagram\b|\binsta\b/, 'Instagram'], [/\bfacebook\b/, 'Facebook'], [/\bthreads\b/, 'Threads'], [/\btiktok\b/, 'TikTok']];
   var STOP = /\b(happened|happen|happening|going|at|say|said|says|told|tell|show|me|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|is|are|was|were|i|want|need|please|some|can|you|to|and|or|by|it|this|these|those|evidence|proof|proves|prove|items?|things?|stuff|posts?|anything|everything|related|showing|where|who|how|did|do|does|uses?|using|used|has|have|had|they|their|them)\b/g;
@@ -1255,11 +1606,13 @@
       }
     }
     // topics: the word stays in the search too when it is a thing (hospital), not a topic name
-    TOPIC_WORDS.forEach(function (tw) { var ix = topics.indexOf(tw[1]); if (ix >= 0 && tw[0].test(t) && ns.tp.indexOf(ix) < 0 && ns.tp.length < 2) ns.tp.push(ix); });
-    if (ns.place === 'us-campus') ns.tp = ns.tp.filter(function (ix) { return topics[ix] !== 'Campuses'; });
-    ns.tp = ns.tp.filter(function (ix) { return !(ns.place && (topics[ix] === 'Qatar' || topics[ix] === 'Iran') && ns.place.toLowerCase().indexOf(topics[ix].toLowerCase()) >= 0); });
+    // subjects: a topic's name said outright ("AI", "religion", "war") or its words; two at most
+    if (/\breligio(n|ns|us)\b|\bfaiths?\b/.test(t)) ns.tp.push('rel');
+    TOPIC_ASK.forEach(function (ta) { if (ns.tp.length < 2 && ns.tp.indexOf(ta[1]) < 0 && ta[0].test(t)) ns.tp.push(ta[1]); });
+    if (ns.place === 'us-campus') ns.tp = ns.tp.filter(function (k) { return k !== 'education'; });
     PLACE_WORDS.forEach(function (pw) { if (pw[1] === ns.place) eat(new RegExp(pw[0].source, 'g')); });
-    TOPIC_WORDS.forEach(function (tw) { if (ns.tp.indexOf(topics.indexOf(tw[1])) >= 0) eat(new RegExp('\\b(' + tw[1].toLowerCase().replace(/[^a-z ]/g, '') + ')\\b', 'g')); });
+    TOPIC_ASK.forEach(function (ta) { if (ns.tp.indexOf(ta[1]) >= 0) eat(new RegExp(ta[0].source, 'g')); });
+    if (ns.tp.indexOf('rel') >= 0) eat(/\breligio(n|ns|us)\b|\bfaiths?\b/g);
     var rest = t.replace(STOP, ' ').replace(/[^a-z0-9֐-ۿ' -]/g, ' ').replace(/\s+/g, ' ').trim();
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
@@ -1286,7 +1639,7 @@
     var noun = S.lens === 'live' ? (shown.length === 1 ? 'story' : 'stories') : (shown.length === 1 ? 'item' : 'items');
     var kindW = { video: 'videos', article: 'articles', doc: 'documents', post: 'posts' }[S.kind] || noun;
     var parts = [shown.length + ' ' + kindW];
-    if (S.tp.length) parts.push('on ' + S.tp.map(function (x) { var w = topics[x]; return /^(Hamas|UN|Qatar|Iran|Israel|Anti-Israel)\b/.test(w) ? w : w.charAt(0).toLowerCase() + w.slice(1); }).join(' or '));
+    if (S.tp.length) parts.push('on ' + S.tp.map(function (k) { var w = topicName(k); return /^(AI|Islam|Christianity|Judaism|Health|History)\b/.test(w) ? w : w.charAt(0).toLowerCase() + w.slice(1); }).join(' or '));
     if (S.q) parts.push('that mention "' + S.q + '"');
     if (S.pf.length) parts.push('on ' + S.pf.map(pfName).join(' or '));
     if (S.place) parts.push('in ' + (S.place.indexOf('c:') === 0 ? S.place.slice(2) : placeName(S.place)));
@@ -1329,7 +1682,8 @@
     var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc((it.k === 'image' ? 'Picture' : KIND_N[kindOf(it)]) + ' on ' + pfName(pfOf(it))) + '</span>' +
       (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (crOf(it) != null ? '<span title="How credible the source is, from the room\'s own table">Source credibility ' + crOf(it) + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + 'Viral ' + it._v + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
       (it.edu ? '<span class="ed">Explainer</span>' : '') + (it.own ? '<span class="own">Creator\'s own</span>' : '') + (it.pend ? '<span class="pend">Being checked</span>' : '') +
-      (it.tp || []).map(function (t) { return '<span>' + esc(topics[t]) + '</span>'; }).join('');
+      tkOf(it).map(function (k) { return '<span class="tpc">' + esc(TOPN[k][1]) + '</span>'; }).join('') +
+      (S.lens === 'bank' ? (it.tp || []).map(function (t) { return '<span class="bt" title="Tagged in the bank">' + esc(topics[t]) + '</span>'; }).join('') : '');
     var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? ' (the date it shows)' : '') : it.pend ? 'Sent ' + ago(it.ms) : 'No date on it';
     var where = [it.p === 'global' && it.pw ? it.pw : placeName(it.p)].concat((it.a || []).map(placeName)).join(', ');
     var by = it.by ? ' · sent by ' + esc(it.by) : '';
@@ -1342,7 +1696,7 @@
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
       spotReach(it) +
       (it.hotWhy ? '<p class="ir-s-o">Why it is hot: ' + esc(it.hotWhy) + (it.also && it.also.length ? '. Also carried by ' + esc(it.also.join(', ')) : '') + '.</p>' : '') +
-      (it.n ? '<p class="ir-s-n">' + esc(it.n) + '</p>' : '') +
+      (it.n ? '<p class="ir-s-n">' + esc(it.n) + '</p>' : '') + spotLinks(it) +
       (it.o ? '<p class="ir-s-o">In the bank: ' + esc(it.o) + '</p>' : '') +
       (it.pend ? '<p class="ir-s-o">A reader sent this in. It is not checked yet, so it is not on the map: open it with that in mind.</p>' : '') +
       '<div class="ir-s-a"><a class="ir-s-open" href="' + esc(it.u) + '" target="_blank" rel="noopener">Open on ' + esc(srcName) + '</a>' +
@@ -1353,6 +1707,17 @@
     wireMedia(dlg.querySelector('.ir-xm'), it);
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
+  }
+  function spotLinks(it) {
+    if (S.lens === 'readers' || !countryOf(it)) return '';
+    var base = items.filter(function (x) { return pass(x, 'link'); }), r = linksOf(it, base);
+    if (!r.n) return '';
+    var why = [], h = STORY_OF[it.id], ac = actorsOf(it).map(function (a) { return ACN[a]; }), nm = namesOf(it);
+    if (h) why.push('the same story');
+    if (ac.length) why.push(ac.slice(0, 3).join(', '));
+    if (nm.length) why.push(nm.slice(0, 3).join(', '));
+    return '<div class="ir-s-lk">' + ICO.link + '<span><b>Connected to ' + r.n + (r.n === 1 ? ' item' : ' items') + ' in other places</b><small>Through ' + esc(why.join('; ')) + '</small></span>' +
+      '<button type="button" class="ir-s-b" data-with="' + esc(String(it.id)) + '">Show on the map</button></div>';
   }
   function spotReach(it) {
     var r = reachOf(it), p = pfOf(it), nm = pfName(p), bits = [];
@@ -1394,12 +1759,12 @@
     var who = it.h || 'X', h = '';
     vids.forEach(function (r) {
       var d = fmtDur(r.s || it.dur), gif = r.t === 'g';
-      h += '<div class="ir-xv" style="--ar:' + arOf(r) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" loading="lazy" decoding="async">' +
+      h += '<div class="ir-xv" style="--ar:' + arOf(r) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (h ? '' : ' fetchpriority="high"') + '>' +
         '<button type="button" class="ir-xv-play" data-xplay="' + md.indexOf(r) + '" aria-label="' + esc((gif ? 'Play the clip' : 'Play the video') + ' from ' + who + ' here' + (d ? ', ' + d + ' long' : '')) + '">' + PLAY_SVG + '<span class="num">' + esc(gif ? 'GIF' : d || 'Play') + '</span></button></div>';
     });
     if (ph.length) {
       h += '<div class="ir-xp ir-xp-n' + ph.length + '"' + (ph.length === 1 ? ' style="--ar:' + arOf(ph[0]) + '"' : '') + '>' + ph.map(function (r, j) {
-        return '<button type="button" data-lb="' + j + '" aria-label="' + esc('See picture ' + (j + 1) + ' of ' + ph.length + ' from ' + who + ' full size') + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" loading="lazy" decoding="async"><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
+        return '<button type="button" data-lb="' + j + '" aria-label="' + esc('See picture ' + (j + 1) + ' of ' + ph.length + ' from ' + who + ' full size') + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (j < 2 ? ' fetchpriority="high"' : ' loading="lazy"') + '><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
       }).join('') + '</div>';
     }
     return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>X marks this as possibly sensitive. Show it</button>' : '') + '</div>';
@@ -1457,28 +1822,35 @@
     });
     return twP;
   }
-  // X's own player, in place of ours: the post as X draws it, video and all
+  /* X's own player, in place of ours: the post as X draws it, video and all. 18 October 2026 (Armin: "I can't see any
+     visuals for the tweets when they're videos and pictures"): measured that day, 23 of 156 X videos came without their
+     video file, and X's player then drew NOTHING (a frame 0 pixels high, 12 seconds on), so the reader was left with a
+     line of text. Now the post's own picture stays, with one large "Watch it on X" over it, the whole time X's player is
+     loading, and X's player takes its place only once it has really drawn. If it never does, the picture and the button
+     stay: the reader always sees the video's picture and always has one tap to it. */
   function xEmbed(holder, it) {
-    var id = tweetId(it.u), link = '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">Watch it on X</a>';
-    holder.className = 'ir-xv is-embed'; holder.removeAttribute('style');
-    holder.innerHTML = '<p class="ir-xm-msg">This video would not play here, so X\'s own player is loading. ' + link + '</p>';
-    if (!id) { holder.innerHTML = '<p class="ir-xm-msg">This video would not play here. ' + link + '</p>'; return; }
-    var b = document.createElement('div'); holder.appendChild(b);
-    var gone = function (why) { if (holder.isConnected) holder.innerHTML = '<p class="ir-xm-msg">This video would not play here' + why + '. ' + link + '</p>'; };
+    var id = tweetId(it.u), md = mediaOf(it), r = md.filter(function (x) { return x.t !== 'p'; })[0] || md[0];
+    holder.classList.add('is-embed'); holder.classList.remove('is-on');
+    holder.innerHTML = (r ? '<img src="' + esc(pic(r, 'large')) + '" alt="" decoding="async">' : '') +
+      '<a class="ir-xv-out" href="' + esc(it.u) + '" target="_blank" rel="noopener">' + PLAY_SVG + '<span>Watch it on X</span></a>' +
+      '<p class="ir-xm-msg" aria-live="polite">' + (id ? 'Loading X\'s own player' : 'This one plays on X') + '</p>';
+    if (!id) return;
+    var msg = holder.querySelector('.ir-xm-msg'), b = document.createElement('div');
+    b.className = 'ir-xv-emb'; holder.appendChild(b);
+    var gone = function () { if (holder.isConnected && msg) msg.textContent = 'X\'s player did not load here. Tap above to watch it on X.'; };
     twJs().then(function (T) { return T.widgets.createTweet(id, b, { theme: 'dark', dnt: true, align: 'center', conversation: 'none' }); })
       .then(function (w) {
         if (!w) throw new Error('none');
-        // X can draw nothing at all (a deleted post, a blocker): the message and the link stay until it has really drawn
         var n = 0;
         (function drawn() {
           if (!holder.isConnected) return;
           var f = b.querySelector('iframe');
-          if (f && f.getBoundingClientRect().height > 120) { var m = holder.querySelector('.ir-xm-msg'); if (m) m.remove(); return; }
-          if (n++ > 80) { gone(', and X did not show it either'); return; }
+          if (f && f.getBoundingClientRect().height > 120) { holder.classList.add('is-x'); holder.removeAttribute('style'); [].slice.call(holder.children).forEach(function (c) { if (c !== b) c.remove(); }); return; }
+          if (n++ > 48) { b.remove(); gone(); return; }
           setTimeout(drawn, 250);
         })();
       })
-      .catch(function () { gone(', and X\'s player is blocked in this browser'); });
+      .catch(function () { b.remove(); gone(); });
   }
   // The pictures, full screen: arrows, a swipe, a tap to see it at its real size, Escape or the cross to close
   var LB = null;
@@ -1693,7 +2065,7 @@
     var lines = [f.what.trim()];
     if (f.date) lines.push('When: ' + f.date);
     if (f.place) lines.push('Where: ' + f.place);
-    if (f.topics.length) lines.push('Topics: ' + f.topics.map(function (i) { return topics[i]; }).join(' · '));
+    if (f.topics.length) lines.push('Topics: ' + f.topics.map(topicName).join(' · '));
     if (f.edu) lines.push('Explainer: yes');
     if (f.gr) lines.push('Graphic: yes');
     if (f.who === 'mine') lines.push('Mine: yes, I made it');
@@ -1718,7 +2090,7 @@
       '<div class="ir-a-grid"><div class="ir-a-f"><label for="ir-a-date">When it happened</label><input id="ir-a-date" type="date" max="' + today + '"></div>' +
       '<div class="ir-a-f"><label for="ir-a-place">Where</label><select id="ir-a-place"><option value="">Not sure, or no one place</option>' + places + '<option value="other">Somewhere else</option></select><input id="ir-a-where" maxlength="60" placeholder="Where? City and country" hidden></div></div>' +
       '<div class="ir-a-f"><span class="ir-a-lab" id="ir-a-tl">Topics <small>up to three</small></span><div class="ir-a-tops" role="group" aria-labelledby="ir-a-tl">' +
-      topics.map(function (n, i) { return '<button type="button" class="ir-chip" data-at="' + i + '" aria-pressed="false">' + esc(n) + '</button>'; }).join('') + '</div></div>' +
+      TOPICS.map(function (t) { return '<button type="button" class="ir-chip" data-at="' + t[0] + '" aria-pressed="false">' + esc(t[1]) + '</button>'; }).join('') + '</div></div>' +
       '<label class="ir-a-chk"><input type="checkbox" id="ir-a-edu"><span><b>It is an explainer</b> A lesson, a history, a breakdown of a subject, rather than footage of one moment</span></label>' +
       '<label class="ir-a-chk"><input type="checkbox" id="ir-a-gr"><span><b>It shows graphic violence</b> So it is marked before anyone opens it</span></label></details>' +
       '<p class="ir-a-msg" id="ir-a-msg" aria-live="polite"></p>' +
@@ -1730,7 +2102,7 @@
     var who = (document.querySelector('input[name="ir-who"]:checked') || {}).value || 'find';
     var pv = $('ir-a-place').value, place = pv === 'other' ? $('ir-a-where').value.trim() : pv ? P[pv][0] : '';
     return { url: $('ir-a-url').value.trim(), what: $('ir-a-what').value, who: who, date: $('ir-a-date').value, placeKey: pv, place: place, where: $('ir-a-where').value,
-      topics: [].map.call($('ir-add').querySelectorAll('.ir-a-tops [aria-pressed="true"]'), function (b) { return +b.getAttribute('data-at'); }),
+      topics: [].map.call($('ir-add').querySelectorAll('.ir-a-tops [aria-pressed="true"]'), function (b) { return b.getAttribute('data-at'); }).filter(function (k) { return TOPN[k]; }),
       edu: $('ir-a-edu').checked, gr: $('ir-a-gr').checked };
   }
   function keepDraft() { sstore(DKEY, af()); }
@@ -1856,6 +2228,12 @@
       var t = ev.target.closest ? ev.target : ev.target.parentNode;
       var b;
       if ((b = t.closest('[data-clear]'))) { clearAll(); return; }
+      if ((b = t.closest('[data-open]'))) { openDrawer(b.getAttribute('data-open')); return; }
+      if ((b = t.closest('[data-dr-x]'))) { closeDrawer(); return; }
+      if ((b = t.closest('[data-unpill]'))) { unpill(b.getAttribute('data-unpill')); return; }
+      if ((b = t.closest('[data-ltab]'))) { LT = b.getAttribute('data-ltab'); drawLinkList(); drawList(); drawLinkList(); return; }
+      if ((b = t.closest('[data-ltype]'))) { LTYPE = b.getAttribute('data-ltype'); drawLinkList(); return; }
+      if ((b = t.closest('[data-link]'))) { pickLink(b.getAttribute('data-link')); return; }
       if ((b = t.closest('button[data-lens]'))) { useLens(b.getAttribute('data-lens')); say(''); return; }
       if ((b = t.closest('button[data-pf]'))) {
         var pv = b.getAttribute('data-pf');
@@ -1867,7 +2245,8 @@
       if ((b = t.closest('button[data-hot]'))) {
         var hv = b.getAttribute('data-hot');
         if (hv && S.lens !== 'live') useLens('live', true);
-        S.hot = !hv ? '' : hv === 'all' ? (S.hot === 'all' ? '' : 'all') : (S.hot === hv ? 'all' : hv);
+        S.hot = !hv ? '' : hv === 'all' ? (S.hot === 'all' ? '' : 'all') : (S.hot === hv ? '' : hv);
+        if (S.hot) { S.link = ''; S.with = ''; }
         say(''); render(); if (!S.place) frameShown(); return;
       }
       if ((b = t.closest('button[data-fx]'))) {
@@ -1878,7 +2257,8 @@
       if ((b = t.closest('button[data-board]'))) { var bi = shown.indexOf(BOARD_IT); if (bi >= 0) { stopTour(); openSpot(bi); } return; }
       if ((b = t.closest('.ir-chip'))) {
         var v = b.getAttribute('data-t');
-        if (v === '') S.tp = []; else { v = +v; var at = S.tp.indexOf(v); if (at >= 0) S.tp.splice(at, 1); else S.tp.push(v); }
+        if (v == null) return;
+        if (v === '') S.tp = []; else { var at = S.tp.indexOf(v); if (at >= 0) S.tp.splice(at, 1); else S.tp.push(v); }
         say(''); render(); return;
       }
       if ((b = t.closest('#ir-kind button'))) { S.kind = b.getAttribute('data-k'); render(); return; }
@@ -1886,7 +2266,7 @@
       if ((b = t.closest('#ir-edu'))) { S.edu = !S.edu; render(); return; }
       if ((b = t.closest('#ir-stream'))) { stream(); return; }
       if ((b = t.closest('#ir-exit'))) { stream(false); return; }
-      if ((b = t.closest('#ir-ctl'))) { var on = !document.documentElement.classList.contains('ir-ctl-on'); document.documentElement.classList.toggle('ir-ctl-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); setTimeout(refit, 60); return; }
+      if ((b = t.closest('#ir-ctl'))) { openDrawer('all'); return; }
       if ((b = t.closest('#ir-save'))) { drawViews(true); return; }
       if ((b = t.closest('[data-view]'))) { var vw = views()[+b.getAttribute('data-view')]; if (vw) { readUrl(vw.q); render(); if (S.place) focusPlace(S.place); say('Showing your view "' + vw.n + '".'); } return; }
       if ((b = t.closest('[data-unview]'))) { var vs = views(); vs.splice(+b.getAttribute('data-unview'), 1); store(VKEY, vs); drawViews(); return; }
@@ -1900,6 +2280,7 @@
         if (z === 'full') { stream(); return; }
         stopTour();
         poke();
+        if (z === 'links') { LKON = !LKON; store('ir-links', LKON ? 'on' : 'off'); b.setAttribute('aria-pressed', LKON ? 'true' : 'false'); b.setAttribute('aria-label', LKON ? 'Hide the connection lines' : 'Show the connection lines'); requestDraw(); say(LKON ? 'Connection lines on: ' + LINKS.length + ' connections in what is shown.' : 'Connection lines off.'); return; }
         if (z === 'home') home();
         else if (z === 'proj') setMode(V.mode === 'globe' ? 'flat' : 'globe');
         else zoomAt(z === 'in' ? 1.8 : 1 / 1.8, box.clientWidth / 2, box.clientHeight / 2);
@@ -1937,11 +2318,14 @@
       if (b.hasAttribute('data-x')) closeSpot();
       else if (b.hasAttribute('data-step')) openSpot(spotAt + (+b.getAttribute('data-step')));
       else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
+      else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say('What connects to "' + cut(wi2 ? wi2.t : '', 60) + '": ' + shown.length + ' items.', true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       else if (b.hasAttribute('data-map')) { var k = shown[spotAt].p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     });
     dlg.addEventListener('cancel', function () { spotAt = -1; setTimeout(function () { dlg.innerHTML = ''; }, 0); });
     // closed by any route at all: empty it, so a video in it cannot go on playing where nobody can see or stop it
     dlg.addEventListener('close', function () { if (!dlg.open) { spotAt = -1; dlg.innerHTML = ''; } });
+    var dr = $('ir-drawer');
+    if (dr) dr.addEventListener('click', function (ev) { if (ev.target === dr) closeDrawer(); });
     var ad = $('ir-add');
     ad.addEventListener('click', function (ev) {
       if (ev.target === ad) { closeAdd(); return; }
@@ -1974,6 +2358,7 @@
       if (SHOWING) return;          // the show screen has its own keys
       var typing = ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
       if (dlg.open && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) { var s = spotAt + (ev.key === 'ArrowRight' ? 1 : -1); if (s >= 0 && s < shown.length) openSpot(s); return; }
+      if (dr && dr.open) return;
       if (!typing && !dlg.open && !ad.open && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
         if (ev.key === 'f' || ev.key === 'F') { stream(); return; }
         if (tourT && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) { tourStep(ev.key === 'ArrowRight' ? 1 : -1); clearInterval(tourT); tourT = setInterval(function () { tourStep(1); }, TOUR_MS); return; }
@@ -1983,7 +2368,7 @@
         if (ev.key === '+' || ev.key === '=') zoomAt(1.5, box.clientWidth / 2, box.clientHeight / 2);
         if (ev.key === '-') zoomAt(1 / 1.5, box.clientWidth / 2, box.clientHeight / 2);
       }
-      if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.closest && ev.target.closest('.ir-pin,.ir-gl,.ir-edge')) { ev.preventDefault(); openPin(pinAt(ev.target)); }
+      if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.closest && ev.target.closest('.ir-pin,.ir-gl,.ir-edge,.ir-lk')) { ev.preventDefault(); openPin(pinAt(ev.target)); }
     });
     document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && document.documentElement.classList.contains('ir-show')) stream(false); });
     map.addEventListener('pointerdown', onDown);
@@ -2051,8 +2436,14 @@
     map.insertAdjacentHTML('afterbegin', '<defs><radialGradient id="irg"><stop offset="0" stop-color="#F4C430" stop-opacity=".5"/><stop offset="1" stop-color="#F4C430" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="irl"><stop offset="0" stop-color="#FFE7A8" stop-opacity=".65"/><stop offset="1" stop-color="#FFB547" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="irs"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>');
+    gLinks = document.createElementNS(SVGNS, 'g'); gLinks.setAttribute('class', 'links');
+    map.appendChild(gLinks);
     gPins = document.createElementNS(SVGNS, 'g'); gPins.setAttribute('class', 'pins');
     map.appendChild(gPins);
+    var lkb = $('ir-lk'); if (lkb) { lkb.setAttribute('aria-pressed', LKON ? 'true' : 'false'); lkb.setAttribute('aria-label', LKON ? 'Hide the connection lines' : 'Show the connection lines'); }
+    var seenNow = function () { store('ir-seen', Date.now()); };
+    window.addEventListener('pagehide', seenNow);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) seenNow(); });
     cv = $('ir-globe');
     if (G && res[1] && res[1].objects && cv && cv.getContext) {
       ctx = cv.getContext('2d');
@@ -2085,7 +2476,7 @@
     window.IRoom = { shown: function () { return shown.slice(); }, lens: function () { return S.lens; }, said: function () { return $('ir-said').textContent; },
       live: function () { return LIVE.slice(); }, bank: function () { return BANK.slice(); }, liveAt: function () { return LIVE_AT; },
       byId: function (id) { return BYID[id] || RD.filter(function (it) { return it.id === id; })[0] || null; },
-      topics: function () { return topics.slice(); }, topicsOn: function () { return S.tp.map(function (i) { return topics[i]; }); },
+      topics: function () { return TOPICS.map(function (t) { return t[1]; }); }, topicsOn: function () { return S.tp.map(topicName); }, subjects: tkOf,
       when: function (it) { return fmtDate(it.d); }, where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); },
       code: function (it) { return it._code || String(it.id); }, pf: pfOf, kind: kindOf, mark: function (it) { return mark(it); }, fmt: fmtN, yt: ytId,
       reach: function (it) { var r = reachOf(it); return r && !r.x ? { likes: r.lk, views: r.vw, replies: r.rp, platform: pfName(pfOf(it)), viral: it._v } : null; },
@@ -2097,7 +2488,7 @@
       placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); },
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur };
-    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=8ea5a36611'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=713044bcbd'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

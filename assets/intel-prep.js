@@ -254,7 +254,7 @@
   tools.appendChild(sw);
   var panel = document.createElement('section');
   panel.className = 'ir-sm'; panel.id = 'ir-sm'; panel.hidden = true; panel.setAttribute('aria-label', 'Make a show');
-  var anchor = $('ir-board');
+  var anchor = $('ir-main');          // the show maker is one bar, right above the map (18 Oct 2026: the map comes first)
   anchor.parentNode.insertBefore(panel, anchor);
   var msg = document.createElement('p');
   msg.className = 'ir-crmsg'; msg.id = 'ir-crmsg'; msg.setAttribute('aria-live', 'polite');
