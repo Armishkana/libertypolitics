@@ -64,21 +64,54 @@
   if (!st || typeof st !== 'object') st = {};
   st = { on: st.on === true, kind: st.kind === 'video' ? 'video' : 'live', tone: ['plain', 'mid', 'bold'].indexOf(st.tone) >= 0 ? st.tone : 'mid', aim: st.aim === 'watch' ? 'watch' : 'clicks' };
   function save() { store(KEY, st); }
-  var ui = { open: false, tab: 'titles', pick: { titles: '', covers: '', descs: '' }, page: { titles: 0, covers: 0, descs: 0 }, sig: '', pack: null, set: [] };
+  // set: the show, in its order. best: the order the room worked out (and why each item sits where it does). mine: true once
+  // the creator has changed it. acts: each change, in order, for the log. rest: how far the "not in the show" list is open.
+  var ui = { open: false, tab: 'titles', pick: { titles: '', covers: '', descs: '' }, page: { titles: 0, covers: 0, descs: 0 }, sig: '', mem: '', pack: null, set: [], pool: [],
+    best: null, mine: false, acts: [], rest: 8, sent: '' };
+  // What creators pick and how they reorder, counted by build/show_learn.py from showedits/ (data/show-learn.json): a title
+  // or cover shape that creators keep choosing rises a little in the list. Absent or old, nothing changes.
+  var LEARN = null;
+  (function () { var w = root.getAttribute('data-words'); if (!w) return; fetch(w.replace(/show-words\.json.*$/, 'show-learn.json'), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d && d.schema === 1 && d.picks) { LEARN = d; if (ui.pack) draw(); } }).catch(function () { }); })();
+  var ORDER_KEY = 'ir-show-order';          // his own order for a set, on this device, so a reload keeps it
 
-  // Named people, groups and places, most specific first. FOE: the stance's adversaries, the only names a "losing
-  // control?" style question is ever asked about.
+  /* ---------------------------------------------------------------- what the show is about
+     18 October 2026. Armin picked the France riots story (111 items: Macron, Paris, Lyon, Limoges) and every title said
+     "The the US Story They Are Not Showing You". Two faults. The subject came from a fixed list of 29 names with no France,
+     no Macron and no Paris in it, so the one name it did know ("U.S.", in one headline of 25) won. And "the US" went through
+     cap1() and then bare(), which only strips a lower-case "the ", so "The" was written twice.
+     So now: (1) the subject is MEASURED from the set, never looked up: the country each item is placed in, the names its
+     own headlines repeat, and the story's own place and title (the list below only adds what a name IS: a person, a group,
+     the stance's adversary); (2) every option, written or built, passes fits(): it may not name a person or a place that
+     too few of the items carry, and lint() refuses doubled words, "undefined", a dangling word or quote, an over-long title.
+     build/phone-test.html (the gate every publish passes) runs both against every story of the hour. */
+  // Named people, groups and places the room knows something ABOUT: kind (person, group, place), whether the stance counts
+  // them an adversary (the only names a "losing control?" question is ever asked about), and the country they speak for.
   var ENT = [
-    ['Khamenei', 'KHAMENEI', /\bkhamenei\b/i, 1], ['the IRGC', 'IRGC', /\birgc\b|revolutionary guards?/i, 1], ['Pezeshkian', 'PEZESHKIAN', /\bpezeshkian\b/i, 1],
-    ['Araghchi', 'ARAGHCHI', /\baraghchi\b/i, 1], ['Hezbollah', 'HEZBOLLAH', /\bhezbollah\b/i, 1], ['Hamas', 'HAMAS', /\bhamas\b/i, 1], ['the Houthis', 'HOUTHIS', /\bhouthis?\b/i, 1],
-    ['Netanyahu', 'NETANYAHU', /\bnetanyahu\b/i, 0], ['Trump', 'TRUMP', /\btrump\b/i, 0], ['Rubio', 'RUBIO', /\brubio\b/i, 0], ['Vance', 'VANCE', /\bvance\b/i, 0],
-    ['Hegseth', 'HEGSETH', /\bhegseth\b/i, 0], ['Putin', 'PUTIN', /\bputin\b/i, 0], ['Erdogan', 'ERDOGAN', /\berdo[gğ]an\b/i, 0], ['Pahlavi', 'PAHLAVI', /\bpahlavi\b/i, 0],
-    ['the Strait of Hormuz', 'HORMUZ', /\bhormuz\b/i, 0, 1], ['the West Bank', 'WEST BANK', /west bank/i, 0, 1], ['Gaza', 'GAZA', /\bgaza\b/i, 0, 1], ['Iran', 'IRAN', /\biran\w*|\btehran\b|islamic republic/i, 0],
-    ['Israel', 'ISRAEL', /\bisrael\w*|\bidf\b/i, 0], ['Lebanon', 'LEBANON', /\bleban\w*/i, 0], ['Syria', 'SYRIA', /\bsyria\w*/i, 0], ['Yemen', 'YEMEN', /\byemen\w*/i, 0],
-    ['Qatar', 'QATAR', /\bqatar\w*/i, 0], ['the UN', 'UN', /\bU\.N\.|\bUN\b|United Nations|UNRWA/, 0], ['China', 'CHINA', /\bchin(a|ese)\b/i, 0], ['Russia', 'RUSSIA', /\brussia\w*/i, 0],
-    ['Europe', 'EUROPE', /\beurope\w*/i, 0], ['the US', 'USA', /\bU\.S\.|\bUSA?\b|White House|Pentagon|\bAmerica\b/, 0]
+    ['Khamenei', 'KHAMENEI', /\bkhamenei\b/i, 1, 'person', 'Iran'], ['the IRGC', 'IRGC', /\birgc\b|revolutionary guards?/i, 1, 'group', 'Iran'], ['Pezeshkian', 'PEZESHKIAN', /\bpezeshkian\b/i, 1, 'person', 'Iran'],
+    ['Araghchi', 'ARAGHCHI', /\baraghchi\b/i, 1, 'person', 'Iran'], ['Hezbollah', 'HEZBOLLAH', /\bhezbollah\b/i, 1, 'group', 'Lebanon'], ['Hamas', 'HAMAS', /\bhamas\b/i, 1, 'group', 'Gaza'],
+    ['the Houthis', 'HOUTHIS', /\bhouthis?\b/i, 1, 'group', 'Yemen'], ['Netanyahu', 'NETANYAHU', /\bnetanyahu\b/i, 0, 'person', 'Israel'], ['Trump', 'TRUMP', /\btrump\b/i, 0, 'person', 'the US'],
+    ['Rubio', 'RUBIO', /\brubio\b/i, 0, 'person', 'the US'], ['Vance', 'VANCE', /\bvance\b/i, 0, 'person', 'the US'], ['Hegseth', 'HEGSETH', /\bhegseth\b/i, 0, 'person', 'the US'],
+    ['Putin', 'PUTIN', /\bputin\b/i, 0, 'person', 'Russia'], ['Erdogan', 'ERDOGAN', /\berdo[gğ]an\b/i, 0, 'person', 'Turkey'], ['Pahlavi', 'PAHLAVI', /\bpahlavi\b/i, 0, 'person', 'Iran'],
+    ['Macron', 'MACRON', /\bmacron\b/i, 0, 'person', 'France'], ['Le Pen', 'LE PEN', /\ble ?pen\b/i, 0, 'person', 'France'], ['Bardella', 'BARDELLA', /\bbardella\b/i, 0, 'person', 'France'],
+    ['Starmer', 'STARMER', /\bstarmer\b/i, 0, 'person', 'the UK'], ['Farage', 'FARAGE', /\bfarage\b/i, 0, 'person', 'the UK'], ['Merz', 'MERZ', /\bmerz\b/i, 0, 'person', 'Germany'],
+    ['Meloni', 'MELONI', /\bmeloni\b/i, 0, 'person', 'Italy'], ['Zelensky', 'ZELENSKY', /\bzelens[kc]yy?\b/i, 0, 'person', 'Ukraine'], ['Xi', 'XI', /\bxi jinping\b|\bxi\b(?= (says|warns|meets|and|to)\b)/i, 0, 'person', 'China'],
+    ['Modi', 'MODI', /\bmodi\b/i, 0, 'person', 'India'], ['Orban', 'ORBAN', /\borb[aá]n\b/i, 0, 'person', 'Hungary'], ['Sisi', 'SISI', /\bsisi\b/i, 0, 'person', 'Egypt'],
+    ['Musk', 'MUSK', /\bmusk\b/i, 0, 'person', 'the US'], ['Biden', 'BIDEN', /\bbiden\b/i, 0, 'person', 'the US'], ['Obama', 'OBAMA', /\bobama\b/i, 0, 'person', 'the US'],
+    ['Mamdani', 'MAMDANI', /\bmamdani\b/i, 0, 'person', 'the US'], ['Ilhan Omar', 'OMAR', /\bilhan omar\b/i, 0, 'person', 'the US'], ['Carney', 'CARNEY', /\bcarney\b/i, 0, 'person', 'Canada'],
+    ['the Strait of Hormuz', 'HORMUZ', /\bhormuz\b/i, 0, 'place', 'Iran'], ['the West Bank', 'WEST BANK', /west bank/i, 0, 'place', 'the West Bank'], ['Gaza', 'GAZA', /\bgaza\b/i, 0, 'place', 'Gaza'],
+    ['the UN', 'UN', /\bU\.N\.|\bUN\b|United Nations|UNRWA/, 0, 'group', ''], ['NATO', 'NATO', /\bnato\b/i, 0, 'group', ''], ['the EU', 'EU', /\bE\.U\.|\bEU\b|European Union/, 0, 'group', ''],
+    ['Europe', 'EUROPE', /\beurope\b|\beuropean\b(?! union)/i, 0, 'place', '']
   ];
+  // How a title says a country (the map names it "United States"; a title says "the US"), and the words that mean it.
+  var SAY = { 'United States': 'the US', 'United Kingdom': 'the UK', 'United Arab Emirates': 'the UAE', 'West Bank': 'the West Bank', 'Saudi Arabia': 'Saudi Arabia' };
+  var CUP = { 'the US': 'USA', 'the UK': 'UK', 'the UAE': 'UAE', 'the West Bank': 'WEST BANK' };
+  var DEMONYM = { France: 'french', Italy: 'italian', Germany: 'german', Iran: 'iranian', Israel: 'israeli', 'the US': 'america|american|americans|u\\.s\\.|usa|white house|pentagon',
+    'the UK': 'british|britain|u\\.k\\.|england|london', Russia: 'russian|kremlin|moscow', China: 'chinese|beijing', Ukraine: 'ukrainian|kyiv', Lebanon: 'lebanese|beirut', Syria: 'syrian|damascus',
+    Turkey: 'turkish|ankara', Egypt: 'egyptian|cairo', Spain: 'spanish|madrid', Sweden: 'swedish', Poland: 'polish', India: 'indian', Pakistan: 'pakistani', Canada: 'canadian',
+    Yemen: 'yemeni', Iraq: 'iraqi|baghdad', Qatar: 'qatari|doha', Gaza: 'gazan', Venezuela: 'venezuelan', Mexico: 'mexican', Netherlands: 'dutch', Belgium: 'belgian', Greece: 'greek', 'Saudi Arabia': 'saudi|riyadh' };
   var SMALL = /^(a|an|and|as|at|but|by|for|in|of|on|or|the|to|vs|via|with|from|into|over)$/i;
+  // capitalised words that are not names: they start sentences, shout, or name a group rather than a subject
+  var NOTNAME = /^(i|im|it|its|we|you|he|she|they|this|that|these|those|the|a|an|and|but|or|if|as|at|in|on|of|to|for|from|by|with|not|no|now|just|breaking|watch|live|new|news|video|update|alert|holy|here|there|why|what|who|how|when|where|my|our|your|his|her|their|mr|mrs|ms|dr|president|minister|prime|police|government|state|city|town|hall|muslims?|islam|islamic|islamist|christians?|jews?|jewish|left|right|leftist|antifa|god|allah|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|yesterday|january|february|march|april|may|june|july|august|september|october|november|december|x|twitter|youtube|fox|cnn|bbc|reuters|ap|nbc|cbs|abc|msnbc|wion|full|report|footage|moment|people|everyone|nobody)$/i;
   function titleCase(t) {
     var ws = String(t).split(' ');
     return ws.map(function (w, i) {
@@ -88,38 +121,63 @@
     }).join(' ');
   }
   function noDash(t) { return String(t).replace(/\s*[–—]\s*/g, ', ').replace(/\s+-\s+/g, ', '); }
-  // A headline as a title: no "LIVE:" or outlet tail, no dashes, cut at a clause when long, title case.
-  function headline(it) {
-    var t = String(it.t || '').replace(/\s+/g, ' ').trim();
-    t = t.replace(/^(LIVE|WATCH|BREAKING|TRENDING|JUST IN|NEW)\b[!:|\s-]*/i, '');
-    t = t.replace(/\s+[|–—-]\s+[^|–—-]{2,40}$/, '').replace(/[.!]+$/, '');
-    t = t.replace(/^['"\u2018\u201c]+/, '').replace(/['"\u2019\u201d]+$/, '');          // a quote that is the whole headline: the words, not the marks
-    t = noDash(t);
-    return titleCase(clip(t, 70));
+  // A headline as a title: no "LIVE:" or outlet tail, no emoji, no dashes, cut at a clause when long, title case.
+  function cleanHead(t) {
+    t = String(t || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/\s+/g, ' ').trim();
+    for (var k = 0; k < 2; k++) t = t.replace(/^(LIVE|WATCH|BREAKING|TRENDING|JUST IN|NEW|NOW|UPDATE|HOLY \w+)\b[!:|\s-]*/i, '');
+    t = t.replace(/\s+[|–—-]\s+[^|–—-]{2,40}$/, '').replace(/\s*#\w+/g, '').replace(/[.!]+$/, '');
+    if (/^['"‘“]/.test(t) && /['"’”]$/.test(t) && !/["“”]|['‘’](?![a-z])/.test(t.slice(1, -1))) t = t.slice(1, -1);          // a quote that is the whole headline: the words, not the marks
+    return noDash(t).trim();
   }
+  function headline(it) { var t = cleanHead(it.t); return titleCase(t.length <= 84 ? t : clip(t, 70)); }          // a whole headline up to 84 characters beats a cut one
   function clip(t, n) {
     t = String(t).trim();
     if (t.length <= n) return t;
-    var rx = /[:,;]\s|\s(as|after|while|amid|but|over)\s/g, m, at = -1;
+    var rx = /[:,;.?!]\s|\s(as|after|while|amid|but|over)\s/g, m, at = -1;
     while ((m = rx.exec(t))) if (m.index >= 24 && m.index <= n) at = m.index;
     if (at > 0) return t.slice(0, at).replace(/[\s,:;]+$/, '');
-    return t.slice(0, n).replace(/\s+\S*$/, '').replace(/[\s,:;]+$/, '');
+    t = t.slice(0, n).replace(/\s+\S*$/, '').replace(/[\s,:;]+$/, '');
+    while (/\s(a|an|and|as|at|but|by|for|in|of|on|or|the|to|is|are|was|with|from|who|that|which|when|while|where|than|into|his|her|their|its|this|these|my|our)$/i.test(t)) t = t.replace(/\s+\S+$/, '');
+    return t;
   }
   function listOf(xs) { xs = xs.filter(Boolean); return xs.length < 2 ? (xs[0] || '') : xs.slice(0, -1).join(', ') + ' and ' + xs[xs.length - 1]; }
   function words(n) { return String(n).split(/\s+/).filter(Boolean).length; }
-  function bare(name) { return name.replace(/^the /, ''); }
+  function bare(name) { return String(name).replace(/^the /i, ''); }
   function cap1(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function rxWord(w) { return new RegExp('(^|[^a-z])(' + w + ')([^a-z]|$)', 'i'); }
+  // a country: its name as written ("US", never the word "us"), or its people and capital in any case
+  function rxPlace(name) {
+    var a = new RegExp('(^|[^A-Za-z])' + bare(name).replace(/ /g, '\\s') + '([^A-Za-z]|$)'), b = DEMONYM[name] ? new RegExp('(^|[^a-z])(' + DEMONYM[name] + ')([^a-z]|$)', 'i') : null;
+    return { source: a.source, test: function (s) { return a.test(s) || (!!b && b.test(s)); } };
+  }
+  // every country the map knows, so a title can never name one the items do not carry, even in an hour with none of it
+  var COUNTRIES = ['Afghanistan', 'Argentina', 'Armenia', 'Australia', 'Azerbaijan', 'Belgium', 'Brazil', 'Canada', 'China', 'Colombia', 'Cuba', 'Egypt', 'France', 'Gaza', 'Germany', 'Greece',
+    'Hungary', 'India', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Japan', 'Jordan', 'Lebanon', 'Libya', 'Mexico', 'Netherlands', 'Nigeria', 'North Korea', 'Norway', 'Pakistan', 'Poland',
+    'Qatar', 'Russia', 'Saudi Arabia', 'Somalia', 'South Africa', 'South Korea', 'Spain', 'Sudan', 'Sweden', 'Switzerland', 'Syria', 'Taiwan', 'Turkey', 'Ukraine', 'the UAE', 'the UK',
+    'the US', 'Venezuela', 'the West Bank', 'Yemen'];
+  // a headline's SHOUTING taken down to normal case; acronyms stay
+  function calm(t) { return String(t).replace(/\b[A-Z][A-Z']{3,}\b/g, function (w) { return /^(IRGC|NATO|IAEA|OPEC|UNRWA|MAGA|USA|NYPD|IDF)$/.test(w) ? w : w.toLowerCase(); }); }
+  function textOf(it) { return String(it.t || '') + ' ' + String(it.n || ''); }
 
-  // What the set measurably is.
+  // What happened, in one noun a title can carry, and the words in the items that say it.
+  var EVENTS = [
+    ['Riots', /\briot(s|ers?|ing)?\b/i], ['Protests', /\bprotest(s|ers?|ing)?\b|\bdemonstrat\w+/i], ['Clashes', /\bclash(es|ed)?\b/i], ['Fires', /\bburn(s|ing|ed|t)?\b|\bablaze\b|\bon fire\b|\btorch(ed|es)?\b|\bfires?\b/i, 1],
+    ['Arrests', /\barrest(s|ed)?\b|\bdetain(ed|s)?\b/i], ['Strikes', /\bstrikes?\b|\bairstrikes?\b/i], ['Attack', /\battack(s|ed)?\b/i], ['War', /\bwar\b/i], ['Ceasefire', /\bceasefire\b|\btruce\b/i],
+    ['Sanctions', /\bsanction(s|ed)?\b/i], ['Election', /\belection(s)?\b|\bmidterms?\b|\bballot\b|\bvot(e|ers|ing)\b/i], ['Crackdown', /\bcrackdown\b/i], ['Talks', /\btalks\b|\bnegotiat\w+/i],
+    ['Shooting', /\bshooting\b|\bgunman\b/i], ['Missiles', /\bmissiles?\b/i], ['Drones', /\bdrones?\b/i], ['Tankers', /\btankers?\b/i], ['Coup', /\bcoup\b/i], ['Trial', /\btrial\b|\bindict\w+/i],
+    ['Resignation', /\bresign(s|ed|ation)?\b/i], ['Collapse', /\bcollaps(e|es|ed|ing)\b/i, 1], ['Chaos', /\bchaos\b|\bwar zone\b|\bmayhem\b/i, 1]
+  ];
+  var NUMRX = /\b((?:at least|over|more than|nearly|almost|some)\s+)?(\d{1,3}(?:,\d{3})+|\d{2,})\s+(?:people\s+)?(arrested|detained|dead|killed|injured|wounded|missing|protesters|rioters|troops|soldiers|missiles|drones|homes|buildings|cars|outlets|countries)\b/i;
+
+  // What the set measurably is. Every name in it carries its share: the part of the items that name it.
   function analyse(set) {
-    var n = set.length, by = {}, ents = {}, outlets = {}, kinds = { video: 0, post: 0, article: 0, image: 0 }, views = 0, maxLike = 0, t0 = Infinity, t1 = 0;
+    var n = set.length, by = {}, outlets = {}, kinds = { video: 0, post: 0, article: 0, image: 0 }, views = 0, maxLike = 0, t0 = Infinity, t1 = 0, W = [], wsum = 0;
     set.forEach(function (it, i) {
       var h = R.storyOf ? R.storyOf(it) : null;
       if (h) { (by[h.id] = by[h.id] || { h: h, n: 0 }).n++; }
       var r = R.reach(it) || {}, lk = R.likes ? R.likes(it) : likes(it);
       var w = 1 + (it.hot || 0) / 50 + (lk ? Math.log(1 + lk) / Math.LN10 / 2 : 0) + (i < 3 ? 0.5 : 0);
-      var txt = (it.t || '') + ' ' + (it.n || '');
-      ENT.forEach(function (e) { if (e[2].test(txt)) ents[e[0]] = (ents[e[0]] || 0) + w; });
+      W.push(w); wsum += w;
       var o = it.h || it.nm || ''; if (o) outlets[o] = (outlets[o] || 0) + w;
       kinds[typeOf(it)] = (kinds[typeOf(it)] || 0) + 1;
       if (r.views) views += r.views;
@@ -128,83 +186,187 @@
     });
     var stories = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.n - a.n || b.h.score - a.h.score; });
     var dom = stories.length && stories[0].n / n >= 0.5 ? stories[0].h : null;
-    // the story's own title (one event, worded once for the whole group) names its subject better than any one headline
-    if (dom && dom.title) ENT.forEach(function (e) { if (e[2].test(dom.title)) ents[e[0]] = (ents[e[0]] || 0) + 3; });
-    var E = Object.keys(ents).sort(function (a, b) { return ents[b] - ents[a]; });
-    // a story is about the first name its own title gives, most specific first (the IRGC before Iran)
-    if (dom && dom.title) { var first = ENT.filter(function (e) { return e[2].test(dom.title); })[0]; if (first) E = [first[0]].concat(E.filter(function (e) { return e !== first[0]; })); }
-    // a person and their own country are one subject: Khamenei with Iran, Netanyahu with Israel
-    var PAIR = { Khamenei: 'Iran', 'the IRGC': 'Iran', Pezeshkian: 'Iran', Araghchi: 'Iran', Netanyahu: 'Israel', Trump: 'the US', Rubio: 'the US', Vance: 'the US', Hegseth: 'the US', Putin: 'Russia' };
-    E = E.filter(function (e) { return !E.some(function (p) { return PAIR[p] === e && E.indexOf(p) < E.indexOf(e); }); });
-    var O = Object.keys(outlets).sort(function (a, b) { return outlets[b] - outlets[a]; });
+    var domTitle = dom ? String(dom.title || '') : '';
+    // ---- the names: every name is scored by the items that carry it (plain share and share weighted by heat)
+    var names = {};
+    function add(key, e) { if (!names[key]) { e.hits = 0; e.wh = 0; names[key] = e; } return names[key]; }
+    function country(it) { var c = R.placeOf ? R.placeOf(it) : ''; return c ? (SAY[c] || c) : ''; }
+    ENT.forEach(function (e) { add(e[0], { name: e[0], up: e[1], rx: e[2], foe: !!e[3], kind: e[4], of: e[5] }); });
+    var cs = COUNTRIES.slice();
+    set.forEach(function (it) { var c = country(it); if (c && cs.indexOf(c) < 0) cs.push(c); });
+    cs.forEach(function (c) { if (!names[c]) add(c, { name: c, up: CUP[c] || bare(c).toUpperCase(), rx: rxPlace(c), foe: false, kind: 'place', of: c }); });
+    // names the headlines themselves repeat, capitalised in the middle of a sentence-case headline (Lyon, Limoges, Marseille)
+    var cand = {};
+    set.concat(dom ? [{ t: domTitle }] : []).forEach(function (it) {
+      var ws = String(it.t || '').replace(/[^\w\s'’.,:!?-]/g, ' ').split(/\s+/).filter(Boolean);
+      var caps = ws.filter(function (w) { return /^[A-Z]/.test(w) && w.length > 3; }).length, long = ws.filter(function (w) { return w.length > 3; }).length || 1;
+      if (caps / long > 0.6) return;          // a Title Case or SHOUTING headline says nothing about which words are names
+      ws.forEach(function (w, i) {
+        var bareW = w.replace(/^['’]+|['’.,:!?]+$|['’]s$/g, '');
+        if (!i || /[.!?:]$/.test(ws[i - 1]) || !/^[A-Z][a-zà-ÿ]{2,}$/.test(bareW) || NOTNAME.test(bareW)) return;
+        cand[bareW] = (cand[bareW] || 0) + 1;
+      });
+    });
+    Object.keys(cand).forEach(function (w) {
+      if (Object.keys(names).some(function (k) { return names[k].rx.test(w); })) return;          // already known (Macron, France)
+      var placeish = set.filter(function (it) { return new RegExp('\\b(in|across|from|near|outside)\\s+' + w + '\\b(?!\\s+[A-Z])').test(it.t || ''); }).length >= 2;
+      add(w, { name: w, up: w.toUpperCase(), rx: rxWord(w), foe: false, kind: placeish ? 'place' : 'name', of: '', open: true });
+    });
+    Object.keys(names).forEach(function (k) {
+      var e = names[k];
+      e.placed = 0;
+      set.forEach(function (it, i) { var c = country(it); if (e.kind === 'place' && c === e.name) e.placed++; if (e.rx.test(textOf(it)) || (e.kind === 'place' && c === e.name)) { e.hits++; e.wh += W[i]; } });
+      e.share = n ? Math.max(e.hits / n, wsum ? e.wh / wsum : 0) : 0;
+      e.inTitle = !!domTitle && e.rx.test(domTitle);
+      if (e.inTitle) e.share = Math.max(e.share, 0.34);          // the story's own title names its subject
+    });
+    // the story's own place (show_packs measured it over all of the story's items, not only these 25)
+    if (dom && dom.s && dom.s.p && R.placeOf) { var sc = country({ p: dom.s.p }); if (sc && names[sc]) { names[sc].share = Math.max(names[sc].share, 0.5); names[sc].placed = Math.max(names[sc].placed || 0, 0.5 * n); } }
+    var ok = Object.keys(names).map(function (k) { return names[k]; }).filter(function (e) { return e.share >= SHARE_MIN; }).sort(function (a, b) { return b.share - a.share; });
+    // a person and their own country are one subject (Macron with France, Khamenei with Iran): keep the stronger first
+    var E = ok.filter(function (e) { return !(e.kind === 'place' && ok.some(function (p) { return p.of === e.name && p !== e && p.share >= e.share; })); });
+    // THE PLACE is where the items happen, not whose people they name: "Israeli settlers attack ... in West Bank" is placed
+    // in the West Bank (18 October 2026: it was titled "Israel Attack"). The country most items are placed in wins when it
+    // holds 30% of them; only a set with no such country falls back to the most named one.
+    var places = ok.filter(function (e) { return e.kind === 'place' && !e.open; });
+    var place = places.slice().sort(function (a, b) { return b.placed - a.placed; }).filter(function (e) { return e.placed >= 0.3 * n; })[0] || places[0] || null;
+    var person = ok.filter(function (e) { return e.kind === 'person' || e.kind === 'group'; })[0] || null;
+    var spots = ok.filter(function (e) { return e.kind === 'place' && e.open && e !== place; });
+    // ---- what happened, and the hardest number the items state
+    var ev = EVENTS.map(function (x) { var c = 0; set.forEach(function (it) { if (x[1].test(textOf(it))) c++; }); if (domTitle && x[1].test(domTitle)) c += n / 10; return { w: x[0], s: n ? c / n : 0, mood: !!x[2] }; })
+      .filter(function (x) { return x.s >= 0.15; }).sort(function (a, b) { return b.s - a.s; });
+    var evs = ev.filter(function (x) { return !x.mood; });          // "France Riots", never "France Chaos": a mood is not an event
+    var num = null, byHeat = set.map(function (it, i) { return [it, W[i]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    for (var j = 0; j < byHeat.length && !num; j++) { var m = NUMRX.exec(String(byHeat[j][0].t || '')); if (m) num = { say: titleCase(((m[1] || '').trim() ? cap1(m[1].trim().toLowerCase()) + ' ' : '') + m[2] + ' ' + cap1(m[3].toLowerCase())), up: m[2] + ' ' + m[3].toUpperCase(), it: byHeat[j][0] }; }
+    var quote = null, qm = /["“‘]([^"”’]{6,40})["”’]/.exec(domTitle);
+    if (qm && words(qm[1]) >= 2 && words(qm[1]) <= 6) quote = qm[1].trim();
+    var O = Object.keys(outlets).sort(function (a, b) { return (a.charAt(0) === '@') - (b.charAt(0) === '@') || outlets[b] - outlets[a]; });
     var span = t1 && t0 < Infinity ? (Date.now() - t0) / 3600000 : null, era;
     if (span != null && span <= 30) era = 'today';
     else if (span != null && span <= 24 * 8) era = 'this week';
     else if (span != null && t0 >= Date.parse('2023-10-07')) era = 'since October 7';
     else era = '';
-    return { n: n, dom: dom, stories: stories.map(function (s) { return s.h; }), E: E, foe: function (e) { return ENT.some(function (x) { return x[0] === e && x[3]; }); },
-      actor: function (e) { return !!e && ENT.some(function (x) { return x[0] === e && !x[4]; }); },
-      short: function (e) { var x = ENT.filter(function (y) { return y[0] === e; })[0]; return x ? x[1] : String(e).toUpperCase(); },
+    var mentions = function (re) { var c = 0; set.forEach(function (it) { if (re.test(textOf(it))) c++; }); return c; };
+    return { n: n, dom: dom, stories: stories.map(function (s) { return s.h; }), E: E, all: names, place: place, person: person, spots: spots,
+      ev: evs[0] ? evs[0].w : '', ev2: evs[1] ? evs[1].w : '', fire: ev.some(function (x) { return x.w === 'Fires'; }), chaos: ev.some(function (x) { return x.w === 'Chaos'; }), num: num, quote: quote, mentions: mentions,
       O: O, kinds: kinds, views: views, maxLike: maxLike, era: era, lead: set[0], H: headline(dom && dom.title ? { t: dom.title } : set[0]) };
   }
+  var SHARE_MIN = 0.15;
+  // The story in one sentence, as a sentence: the story's own first line (show_packs writes it in sentence case), else the
+  // strongest headline with its shouting taken down.
+  function sentence(A) {
+    var d = A.dom && A.dom.s && A.dom.s.desc ? String(A.dom.s.desc) : '', m = /^.*?[.?!](\s|$)/.exec(d);
+    var t = m && m[0].length >= 20 && m[0].length <= 220 ? m[0].trim() : clip(cleanHead(A.lead ? A.lead.t : A.H), 140);
+    return cap1(calm(noDash(cleanHead(t))));
+  }
+  function say(e) { return e ? e.name : ''; }          // "the US", "France", "Macron": what a title writes
 
-  // The room's own words, when there is no written set for the show (a mix of stories, the bank, readers' finds).
+  // THE GATE. An option may name only what the items carry: every known or measured name in it must hold SHARE_MIN of the set
+  // (or be in the story's own title). Fails closed for the option, never for the show: the story's own headline always passes.
+  function fits(A, text) {
+    var bad = '';
+    Object.keys(A.all).some(function (k) { var e = A.all[k]; if (e.share < SHARE_MIN && e.rx.test(text)) { bad = e.name; return true; } return false; });
+    return !bad;
+  }
+  function lint(text, kind) {
+    var t = String(text || '');
+    if (!t.trim() || /undefined|NaN|\bnull\b|\[object/.test(t)) return false;
+    if (/\b(\w+)\s+\1\b/i.test(t.replace(/\b(\d+)\b/g, ''))) return false;          // "The the US", "France France"
+    if ((t.match(/"/g) || []).length % 2 || (t.match(/[“]/g) || []).length !== (t.match(/[”]/g) || []).length) return false;
+    if (/\s(a|an|and|of|the|to|is|for|with|from)$/i.test(t.replace(/[?!.]+$/, ''))) return false;
+    if (/: $|  |\s[,:.]/.test(t) || (kind === 'titles' && /, and /.test(t))) return false;
+    if (kind === 'titles' && t.length > 80) return false;
+    if (kind === 'covers' && words(t) > 4) return false;
+    return true;
+  }
+
+  // The room's own words, when there is no written set for the show. Each option is built from a fact the set carries
+  // (the place, the person, what happened, a number, a quote, the clips) and is offered only when that fact is there.
   function roomWords(A) {
     var live = st.kind === 'live', N = A.n, V = A.kinds.video || 0, E1 = A.E[0], E2 = A.E[1], E3 = A.E[2];
     var single = !!A.dom || A.stories.length <= 1 || N <= 2;
-    var name = A.dom && A.dom.w && A.dom.w.name ? A.dom.w.name : E1 ? cap1(E1) : clip(A.H, 40);
+    var P = say(A.place), PER = A.person && (A.person.kind === 'person' || A.person.kind === 'group') ? say(A.person) : '';
+    // subj names the show in two to four words: the place and what happened ("France Riots", "US Election", "West Bank
+    // Attack": a compound never takes "the" twice), else the one name nearly every item carries. the: the same, ready to
+    // follow a verb ("the France Riots", "Paxton"). pl: whether the event is plural, for "Are"/"Is", "Matter"/"Matters".
+    var EV = A.ev, Pc = P ? cap1(P) : '', Pb = P ? cap1(bare(P)) : '';
+    var lone = !EV ? (PER && A.person.share >= 0.5 ? PER : E1 && E1.kind !== 'place' && E1.share >= 0.6 ? cap1(say(E1)) : '') : '';
+    var subj = EV && Pb ? Pb + ' ' + EV : lone, the = EV && Pb ? 'the ' + subj : subj, pl = /s$/.test(EV);
+    var VIOLENT = /^(Riots|Protests|Clashes|Attack|War|Shooting|Strikes|Missiles|Drones)$/.test(EV);
+    var name = A.dom && A.dom.w && A.dom.w.name ? A.dom.w.name : subj || clip(A.H, 40);
     var names = A.stories.filter(function (h) { return h.w && h.w.name; }).slice(0, 3).map(function (h) { return h.w.name; });
-    if (names.length < 2) names = A.E.slice(0, 3).map(cap1);
+    if (names.length < 2) names = A.E.filter(function (e) { return !e.open; }).slice(0, 3).map(function (e) { return cap1(say(e)); });
     if (names.length < 2) single = true;
-    var vs = A.actor(E1) && A.actor(E2), foe = E1 && A.foe(E1), when = A.era === 'today' ? 'Today' : A.era === 'this week' ? 'This Week' : '';
+    var two = A.spots.filter(function (e) { return e.share >= 0.08; }).slice(0, 2).map(say);
+    var pr = PER ? '(?:' + A.person.rx.source + ')' : '', where = !!PER && A.mentions(new RegExp(pr + '[^.]{0,40}(nowhere to be|hiding|missing|silent)|where is ' + pr, 'i')) >= 2;
+    var when = A.era === 'today' ? 'Today' : A.era === 'this week' ? 'This Week' : '';
     var T = [];
-    function t(tone, aim, s) { if (s && s.indexOf('undefined') < 0) T.push({ t: noDash(s), tone: tone, aim: aim }); }
+    function t(id, tone, aim, s) { if (s) T.push({ t: noDash(s), tone: tone, aim: aim, id: id }); }
     if (single) {
-      t('plain', 'clicks', A.H);
-      t('plain', 'clicks', E1 && E2 ? titleCase(cap1(E1) + ' and ' + E2 + ': The Latest, Source by Source') : titleCase(name + ': The Latest'));
-      if (A.H.length <= 50) t('plain', 'watch', A.H + (live ? ': Live Breakdown' : ': What We Know'));
-      t('plain', 'watch', titleCase(name + ': Every Source in One Place'));
-      t('mid', 'clicks', vs ? cap1(E1) + ' vs ' + cap1(E2) + ': What Just Happened' : titleCase(name + ': What Just Happened'));
-      t('mid', 'clicks', 'Why ' + titleCase(name) + ' Matters More Than It Looks');
-      t('mid', 'watch', V >= 3 ? titleCase(name + ', Explained in ' + V + ' Clips') : titleCase(name + ': The Full Story, in Order'));
-      t('mid', 'watch', 'What ' + titleCase(name) + ' Really Means for ' + (A.actor(E2) ? cap1(E2) : 'the Region'));
-      t('bold', 'clicks', foe ? 'Is ' + cap1(E1) + ' Losing Control?' : 'Nobody Is Talking About This ' + titleCase(bare(name)) + ' Story');
-      t('bold', 'clicks', live ? A.short(E1 || name) + '?! Live Reaction' : 'Watch This Before You Believe the Headlines');
-      t('bold', 'watch', 'The ' + titleCase(bare(name)) + ' Story They Are Not Showing You');
-      t('bold', 'watch', titleCase(name) + ': The Part Nobody Is Telling You');
+      t('head', 'plain', 'clicks', A.H);
+      if (A.num && subj) t('num-colon', 'plain', 'clicks', subj + ': ' + A.num.say);
+      if (subj && two.length === 2) t('from-to', 'plain', 'watch', subj + ': From ' + two[0] + ' to ' + two[1]);
+      if (subj) t('in-clips', 'plain', 'watch', V >= 3 ? subj + ', in ' + V + ' Videos' : subj + ': What the Sources Show');
+      if (EV && subj && A.era === 'today') t('hour', 'plain', 'watch', subj + ', Hour by Hour');
+      if (EV && PER && subj && !A.person.foe && PER !== Pc) t('test', 'mid', 'clicks', PER + '\'s Biggest Test Yet? ' + cap1(the));
+      if (EV && subj) t('how-bad', 'mid', 'clicks', 'How Bad ' + (pl ? 'Are ' : 'Is ') + the + ', Really?');
+      if (EV && P) t('beyond', 'mid', 'watch', 'Why ' + the + (pl ? ' Matter' : ' Matters') + ' Far Beyond ' + Pc);
+      var E2ok = E2 && E2 !== A.place && E2 !== A.person && !E2.open && say(E2) !== P;
+      if (subj) t('next', 'mid', 'watch', E2ok ? 'What ' + the + (pl || !EV ? ' Mean' : ' Means') + ' for ' + cap1(say(E2)) : cap1(the) + ': What Happens Next');
+      if (A.num && P) t('num-now', 'bold', 'clicks', A.num.say + '. This Is ' + Pc + ' Right Now');
+      if (A.fire && P) t('burning', 'bold', 'clicks', Pc + ' Is Burning' + (live ? ': Live' : ''));
+      if (where) t('where', 'bold', 'clicks', 'Where Is ' + PER + '? ' + subj);
+      if (PER && A.person.foe) t('losing', 'bold', 'clicks', 'Is ' + PER + ' Losing Control?');
+      if (PER && A.quote) t('quote', 'bold', 'clicks', PER + ': "' + titleCase(A.quote) + '"');
+      if (subj) t('nobody', 'bold', 'watch', 'What Nobody Is Telling You About ' + the);
+      if (subj) t('sharing', 'bold', 'watch', live ? subj + ' LIVE: Every Clip, Every Reaction' : cap1(the) + ': The Footage Everyone Is Sharing');
+      if (!EV && E1) { t('latest', 'plain', 'clicks', cap1(say(E1)) + ': What Just Happened'); t('matters', 'mid', 'clicks', 'Why ' + cap1(say(E1)) + ' Matters More Than You Think'); }
     } else {
-      t('plain', 'clicks', titleCase(listOf(names)) + ': ' + (when ? when + '\'s' : 'The') + ' Biggest Stories');
-      t('plain', 'clicks', titleCase(listOf(names.slice(0, 2))) + (when ? ': ' + when + ' in ' + N + ' Sources' : ': ' + N + ' Sources'));
-      t('plain', 'watch', N + ' Stories You Need to Know: ' + titleCase(names[0]) + ' and More');
-      t('plain', 'watch', titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and Everything Else, Explained');
-      t('mid', 'clicks', E1 && E2 && E3 ? cap1(E1) + ', ' + E2 + ' and ' + E3 + ': Everything That Happened' + (when ? ' ' + when : '') : '');
-      t('mid', 'clicks', titleCase(names[0]) + ' Is Only the Start');
-      t('mid', 'watch', titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and What Comes Next');
-      t('mid', 'watch', 'How ' + titleCase(names[0]) + ' and ' + titleCase(names[1] || '') + ' Connect');
-      t('bold', 'clicks', foe ? cap1(E1) + ' Just Had a Very Bad ' + (A.era === 'today' ? 'Day' : 'Week') + '?' : 'The ' + N + ' Stories Everyone Is Fighting About');
-      t('bold', 'clicks', live ? 'LIVE: ' + titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and Your Questions' : 'Watch These ' + N + ' Clips Before You Pick a Side');
-      t('bold', 'watch', 'What the Media Will Not Connect: ' + titleCase(names[0]) + ' and ' + titleCase(names[1] || ''));
-      t('bold', 'watch', 'The Real Story Behind ' + titleCase(listOf(names.slice(0, 2))));
+      t('m-biggest', 'plain', 'clicks', titleCase(listOf(names)) + ': ' + (when ? when + '\'s' : 'The') + ' Biggest Stories');
+      t('m-sources', 'plain', 'clicks', titleCase(listOf(names.slice(0, 2))) + (when ? ': ' + when + ' in ' + N + ' Sources' : ': ' + N + ' Sources'));
+      t('m-need', 'plain', 'watch', N + ' Stories You Need to Know: ' + titleCase(names[0]) + ' and More');
+      t('m-explained', 'plain', 'watch', titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and Everything Else, Explained');
+      if (E1 && E2 && E3) t('m-three', 'mid', 'clicks', cap1(say(E1)) + ', ' + say(E2) + ' and ' + say(E3) + ': Everything That Happened' + (when ? ' ' + when : ''));
+      t('m-start', 'mid', 'clicks', titleCase(names[0]) + ' Is Only the Start');
+      t('m-next', 'mid', 'watch', titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and What Comes Next');
+      t('m-connect', 'mid', 'watch', 'How ' + titleCase(names[0]) + ' and ' + titleCase(names[1] || '') + ' Connect');
+      t('m-bad', 'bold', 'clicks', E1 && E1.foe ? cap1(say(E1)) + ' Just Had a Very Bad ' + (A.era === 'today' ? 'Day' : 'Week') + '?' : 'The ' + N + ' Stories Everyone Is Fighting About');
+      t('m-live', 'bold', 'clicks', live ? 'LIVE: ' + titleCase(names[0]) + ', ' + titleCase(names[1] || '') + ' and Your Questions' : 'Watch These ' + N + ' Clips Before You Pick a Side');
+      t('m-media', 'bold', 'watch', 'What the Media Will Not Connect: ' + titleCase(names[0]) + ' and ' + titleCase(names[1] || ''));
+      t('m-real', 'bold', 'watch', 'The Real Story Behind ' + titleCase(listOf(names.slice(0, 2))));
     }
-    T = T.filter(function (x) { return x.t.length <= 80 && !/: $|, and |  /.test(x.t); }).map(function (x) { return { t: titleCase(x.t), tone: x.tone, aim: x.aim }; });
-    var s1 = A.short(E1 || name), s2 = vs ? A.short(E2) : '';
-    var C = [
-      { t: s2 ? s1 + ' VS ' + s2 : s1 + ' LATEST', tone: 'plain' }, { t: (N > 1 ? N + ' SOURCES' : 'THE SOURCE') + (when ? ', ' + when.toUpperCase() : ''), tone: 'plain' },
-      { t: 'WHAT JUST HAPPENED', tone: 'mid' }, { t: s1 + ': THE TRUTH', tone: 'mid' },
-      { t: foe ? s1 + ' CORNERED?' : 'WATCH THIS', tone: 'bold' }, { t: live ? 'WE\'RE LIVE' : 'IT\'S HAPPENING', tone: 'bold' }
-    ].filter(function (x) { return words(x.t) <= 4; });
+    T = T.map(function (x) { return { t: titleCase(x.t), tone: x.tone, aim: x.aim, id: x.id }; });
+    var up = function (s) { return String(s).toUpperCase(); };
+    var C = [];
+    function c(id, tone, s) { if (s) C.push({ t: s, tone: tone, id: id }); }
+    if (subj) c('c-subj', 'plain', up(subj));
+    if (A.num) c('c-num', 'plain', A.num.up.replace(/^(AT LEAST|OVER|MORE THAN|NEARLY|ALMOST|SOME)\s+/i, ''));
+    c('c-count', 'plain', (N > 1 ? N + ' SOURCES' : 'THE SOURCE') + (when ? ', ' + when.toUpperCase() : ''));
+    if (A.fire && P) c('c-fire', 'mid', up(bare(Pc)) + ' ON FIRE');
+    if (A.chaos) c('c-chaos', 'mid', 'TOTAL CHAOS');
+    c('c-what', 'mid', 'WHAT JUST HAPPENED');
+    if (where) c('c-where', 'bold', 'WHERE IS ' + A.person.up + '?');
+    if (PER && A.person.foe) c('c-corner', 'bold', A.person.up + ' CORNERED?');
+    if (VIOLENT && P) c('c-out', 'bold', up(EV) + ' OUT OF CONTROL?');
+    c('c-watch', 'bold', live ? 'WE\'RE LIVE' : 'WATCH THIS');
     var src = A.O.slice(0, 3), more = A.O.length - src.length;
     var from = src.length ? ' from ' + listOf(src.concat(more > 0 ? [more + ' more'] : [])) : '';
     var what = N + (N === 1 ? ' source' : ' sources'), onVid = V ? (V === N ? (N === 1 ? ', on video' : ', all on video') : ', ' + V + ' of them on video') : '';
-    var lead = A.H.replace(/[.?!]+$/, '');
+    var lead = sentence(A).replace(/[.?!]+$/, '');
+    var fact = A.num && A.num.it ? clip(cleanHead(A.num.it.t), 110).replace(/[.?!]+$/, '') : '';
+    if (fact && fact.toLowerCase() === lead.toLowerCase()) fact = '';
+    var factLine = fact ? ' ' + cap1(calm(fact)) +(A.num.it.h || A.num.it.nm ? ' (' + (A.num.it.h || A.num.it.nm) + ')' : '') + '.' : '';
+    var spotsLine = two.length === 2 ? ' From ' + two[0] + ' to ' + two[1] + ', ' : ' ';
     var D = [
-      { t: lead + '. ' + what + from + onVid + (A.era ? ', ' + A.era : '') + '. ' + (live ? 'On this live show we go through every one of them, in order.' : 'This video goes through every one of them, in order.'), tone: 'plain' },
-      { t: titleCase(name) + ': what happened, who said what, and what it means. ' + (live ? 'Live, we' : 'We') + ' go through ' + what + from + onVid + ', each one linked below.', tone: 'mid' },
-      { t: 'Everyone is talking about ' + (single ? bare(name) : listOf(names.slice(0, 2))) + '. Here is what the ' + (V ? 'clips' : 'sources') + ' actually show' + from + ', and what the coverage leaves out. Every source is linked below, so check it yourself.', tone: 'bold' }
-    ].map(function (x) { return { t: noDash(x.t), tone: x.tone }; });
-    var introB = 'Welcome in. ' + lead + '. We have ' + what + onVid + ', and we are going through every one. ';
-    var intro = { plain: introB + 'Tell me in the chat what you make of it.', mid: introB + 'Stay to the end, because the last one changes how the first one reads. Put your take in the chat.', bold: 'Welcome in. ' + lead + '. You have seen the headlines. Now we look at the actual ' + (V ? 'footage' : 'sources') + ', ' + what + onVid + ', and you decide. Drop your take in the chat.' };
-    var hook = { plain: lead + '. Here is what the ' + (V ? 'clips' : 'sources') + ' show.', mid: lead + '. Here is what it shows, and what it does not.', bold: 'You have seen the headline. You have not seen this.' };
+      { t: (subj ? subj + ': ' : '') + lead + '.' + factLine + ' ' + cap1(what) + from + onVid + (A.era ? ', ' + A.era : '') + '. ' + (live ? 'On this live show we go through every one of them, in order.' : 'This video goes through every one of them, in order.'), tone: 'plain', id: 'd-plain' },
+      { t: (single ? cap1(subj || name) : titleCase(listOf(names.slice(0, 2)))) + ': what happened, who said what, and what it means.' + factLine + ' ' + (live ? 'Live, we' : 'We') + ' go through ' + what + from + onVid + ', each one linked below.', tone: 'mid', id: 'd-mid' },
+      { t: 'Everyone is talking about ' + (single ? (the || bare(name)) : listOf(names.slice(0, 2))) + '.' + (two.length === 2 ? spotsLine + 'here is what the ' + (V ? 'clips' : 'sources') + ' actually show' : ' Here is what the ' + (V ? 'clips' : 'sources') + ' actually show') + from + ', and what the coverage leaves out. Every source is linked below, so check it yourself.', tone: 'bold', id: 'd-bold' }
+    ].map(function (x) { return { t: noDash(x.t).replace(/\.\./g, '.').replace(/\s+/g, ' '), tone: x.tone, id: x.id }; });
+    var opener = lead + '.' + factLine;
+    var introB = 'Welcome in. ' + opener + ' We have ' + what + onVid + ', and we are going through every one. ';
+    var intro = { plain: introB + 'Tell me in the chat what you make of it.', mid: introB + 'Stay to the end, because the last one changes how the first one reads. Put your take in the chat.',
+      bold: 'Welcome in. ' + opener + ' You have seen the headlines. Now we look at the actual ' + (V ? 'footage' : 'sources') + ', ' + what + onVid + ', and you decide. Drop your take in the chat.' };
+    var hook = { plain: (A.num ? A.num.say + '. ' : '') + lead + '. Here is what the ' + (V ? 'clips' : 'sources') + ' show.', mid: lead + '. Here is what it shows, and what it does not.', bold: A.num ? A.num.say + '. And that is not even the worst of it.' : 'You have seen the headline. You have not seen this.' };
     return { titles: T, covers: C, descs: D, intro: intro, hook: hook, src: 'room' };
   }
   // The written words of the show's main story, when the show is mostly that story and the words were written for it.
@@ -212,20 +374,33 @@
     var w = A.dom && A.dom.w;
     if (!w || !Array.isArray(w.titles) || !w.titles.length) return null;
     var ok = function (x) { return x && typeof x.t === 'string' && x.t.trim(); };
-    return { titles: w.titles.filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, aim: x.aim, w: 1 }; }), covers: (w.covers || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, w: 1 }; }),
-      descs: (w.descs || []).filter(ok).map(function (x) { return { t: noDash(x.t), tone: x.tone, w: 1 }; }), intro: w.intro || {}, hook: w.hook || {}, src: 'written' };
+    return { titles: w.titles.filter(ok).map(function (x, i) { return { t: noDash(x.t), tone: x.tone, aim: x.aim, w: 1, id: 'w' + i }; }), covers: (w.covers || []).filter(ok).map(function (x, i) { return { t: noDash(x.t), tone: x.tone, w: 1, id: 'w' + i }; }),
+      descs: (w.descs || []).filter(ok).map(function (x, i) { return { t: noDash(x.t), tone: x.tone, w: 1, id: 'w' + i }; }), intro: w.intro || {}, hook: w.hook || {}, src: 'written' };
   }
   function build(set) {
     var A = analyse(set), room = roomWords(A), wr = writtenWords(A);
     var P = wr ? { titles: wr.titles.concat(room.titles), covers: wr.covers.concat(room.covers), descs: wr.descs.concat(room.descs),
       intro: Object.assign({}, room.intro, wr.intro), hook: Object.assign({}, room.hook, wr.hook), src: 'written' } : room;
-    ['titles', 'covers', 'descs'].forEach(function (k) { var seen = {}; P[k] = P[k].filter(function (x) { var key = x.t.toLowerCase(); if (seen[key]) return false; seen[key] = 1; return true; }); });
+    var dropped = [];
+    ['titles', 'covers', 'descs'].forEach(function (k) {
+      var seen = {};
+      P[k] = P[k].filter(function (x, i) {
+        var key = x.t.toLowerCase();
+        if (seen[key]) return false; seen[key] = 1;
+        var head = k === 'titles' && x.id === 'head';          // the story's own headline: the items' own words, always offered
+        if (!head && (!lint(x.t, k) || !fits(A, x.t))) { dropped.push(k + ': ' + x.t); return false; }
+        return true;
+      });
+    });
+    P.dropped = dropped;
     P.A = A;
     return P;
   }
-  // The options in the order the dials ask for: the chosen style and aim first, the written ones before the room's.
+  // The options in the order the dials ask for: the chosen style and aim first, the written ones before the room's, and
+  // then what creators actually pick (data/show-learn.json, build/show_learn.py: a template picked often rises a little).
   function ranked(list, kind) {
-    return list.map(function (x, i) { return { x: x, s: (x.w ? 10 : 0) + (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) - i / 1000 }; })
+    var L = LEARN, pk = L && L.picks && L.picks[kind] || {};
+    return list.map(function (x, i) { return { x: x, s: (x.w ? 10 : 0) + (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) + Math.min(1.5, (pk[x.id] || 0) / 4) - i / 1000 }; })
       .sort(function (a, b) { return b.s - a.s; }).map(function (o) { return o.x; });
   }
   var PAGE = { titles: 5, covers: 4, descs: 3 };
@@ -243,6 +418,123 @@
     var n = 0;
     return d + '\n\n' + (st.kind === 'live' ? 'On the show' : 'In this video') + ':\n' + ui.set.map(function (it) { n++; return n + '. ' + it.t.replace(/\s+/g, ' ').trim() + (it.h || it.nm ? ' (' + (it.h || it.nm) + ')' : '') + '\n' + it.u; }).join('\n') +
       '\n\nEvery source on one map: https://' + SITE_MARK;
+  }
+
+  /* ---------------------------------------------------------------- the run order
+     Armin, 18 October 2026: "come up with the best order of the items so that the most viral, most important things are
+     first. We don't jump around, so we start with something very viral, and then we do a couple of things that are very
+     close to the first item before we move to the next items ... give me the option to change ... Always take notes on how
+     people and I change it."
+     STRENGTH: how hot the item is and how far it has travelled (heat, its viral rank, likes, views), times how squarely it
+     is ON the show's subject: an item that names none of the set's main names, its country or what happened counts for
+     little more than a third (the Iran post in the France riots set, a Congress post in it: strong, but another story).
+     WHICH ITEMS GO IN: the strongest MAXN of everything the filters leave (never just the first MAXN of the room's sort), a
+     repost of the same thing kept once.
+     THE ORDER: threads. The strongest opens (for a live show a video or picture when one is nearly as strong: the opener is
+     on screen); then up to three that are closest to it, closest first; then the strongest left opens the next thread.
+     "Close" is the rare words two headlines share, weighted by how rare they are in this set: Limoges, Marseille, town
+     hall, Macron's absence. A word that half the set shares (France, riots) separates nothing; a word only one item has
+     links nothing; a name counts half again. Every change he makes is kept on this device and, when he opens the show screen
+     or copies the package, sent to showedits/ (build/show_learn.py counts them). */
+  var STOP = /^(the|and|for|that|this|these|those|with|from|have|has|had|are|was|were|will|would|could|should|just|now|they|their|them|there|then|what|when|where|which|who|whom|you|your|our|ours|not|but|all|out|into|about|after|over|more|most|than|very|been|being|its|his|her|she|him|how|why|can|does|did|doing|get|got|gets|says|said|say|today|tonight|yet|again|still|here|one|two|new|breaking|watch|live|video|full|report|update|amp|https|com|www|every|like|looking|look|people|country|make|made|going|know|think|thing|things|really|even|only|also|some|any|many|much|while|because|before|right|left|time|year|years|day|days|week|now|soon|happen|happening|want|need|see|seen|come|coming|take|taking|way|back|down|off|ever|never|always|another|other|same|first|last|next|big|huge|massive|literally|absolutely|holy|shit|fuck|damn|crap)$/;
+  var TOKS = {};          // the words of each item, by its code: kept here, never written onto the room's items
+  function toks(it) {
+    var key = R.code(it) + '|' + (it.t || '').length;
+    if (TOKS[key]) return TOKS[key];
+    var o = {};
+    String(it.t || '').replace(/[^A-Za-zÀ-ÿ0-9\s]/g, ' ').split(/\s+/).forEach(function (raw, i) {
+      var w = raw.toLowerCase();
+      if (w.length < 3 || STOP.test(w) || /^\d+$/.test(w)) return;
+      var name = i > 0 && /^[A-Z][a-zà-ÿ]/.test(raw);
+      w = w.replace(/(ings|ing|ers|ies|es|ed|s)$/, '') || w;
+      if (w.length >= 3) o[w] = Math.max(o[w] || 0, name ? 1.5 : 1);
+    });
+    return (TOKS[key] = o);
+  }
+  function vScore(it) {
+    var lk = R.likes ? R.likes(it) : likes(it), r = R.reach(it) || {};
+    return (it.hot || 0) + (it._v || 0) * 0.4 + (lk ? 9 * Math.log(1 + lk) / Math.LN10 : 0) + (r.views ? 5 * Math.log(1 + r.views) / Math.LN10 : 0);
+  }
+  // strength times subject: a function of an item, measured against the pool the filters leave
+  function scorer(pool) {
+    var A0 = analyse(pool), keys = A0.E.filter(function (e) { return e.share >= 0.3; }).slice(0, 3), place = A0.place && A0.place.share >= 0.3 ? A0.place : null;
+    var evRx = null; EVENTS.forEach(function (x) { if (x[0] === A0.ev) evRx = x[1]; });
+    if (place && keys.indexOf(place) < 0) keys.push(place);
+    if (!keys.length) return vScore;          // a mixed set has no one subject to be on: strength alone
+    var memo = {};
+    return function (it) {
+      var k = R.code(it); if (memo[k] != null) return memo[k];
+      var tx = textOf(it), c = R.placeOf ? R.placeOf(it) : '', on = keys.some(function (e) { return e.rx.test(tx) || (e.kind === 'place' && (SAY[c] || c) === e.name); }) || (!!evRx && evRx.test(tx));
+      return (memo[k] = vScore(it) * (on ? 1 : 0.36));
+    };
+  }
+  function simOf(list) {
+    var df = {}, N = list.length || 1;
+    list.forEach(function (it) { Object.keys(toks(it)).forEach(function (w) { df[w] = (df[w] || 0) + 1; }); });
+    var idf = function (w) { var d = df[w] || 0; return d < 2 || d >= N * 0.5 ? 0 : Math.log(N / d); };
+    return function (a, b) {
+      var ta = toks(a), tb = toks(b), s = 0;
+      Object.keys(ta).forEach(function (w) { if (tb[w]) s += idf(w) * Math.max(ta[w], tb[w]); });
+      var ha = R.storyOf ? R.storyOf(a) : null, hb = R.storyOf ? R.storyOf(b) : null;
+      if (ha && hb && ha !== hb) s -= 1;          // two different stories of the hour are two threads
+      return s;
+    };
+  }
+  function sameWords(a, b) {
+    var ta = Object.keys(toks(a)), tb = toks(b), n = 0; ta.forEach(function (w) { if (tb[w]) n++; });
+    var u = ta.length + Object.keys(tb).length - n; return u > 3 && n / u >= 0.8;
+  }
+  var NEAR = 1.1, THREAD = 4;
+  function pickSet(all) {
+    var score = scorer(all), sorted = all.slice().sort(function (a, b) { return score(b) - score(a); }), out = [], seenU = {};
+    for (var i = 0; i < sorted.length && out.length < MAXN; i++) {
+      var it = sorted[i], u = String(it.u || '').replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.|mobile\.)?/, '');
+      if (u && seenU[u]) continue;
+      if (out.some(function (x) { return sameWords(x, it); })) continue;          // the same clip reposted with the same words
+      if (u) seenU[u] = 1;
+      out.push(it);
+    }
+    out.score = score;
+    return out;
+  }
+  // Threads are found for the whole set first, then put in order: every item joins the thread it is closest to overall (the
+  // two Limoges town hall clips together, even though one also names Macron), at most THREAD to a thread. Then the thread
+  // holding the strongest item opens, each thread is told strongest first and then closest to that, and the next thread is
+  // the one holding the strongest item left.
+  function threadOrder(set) {
+    var score = set.score || vScore, sim = simOf(set), visual = function (it) { var k = typeOf(it); return k === 'video' || k === 'image'; };
+    var n = set.length, S = [], i, j;
+    for (i = 0; i < n; i++) { S.push([]); for (j = 0; j < n; j++) S[i].push(i === j ? 0 : sim(set[i], set[j])); }
+    var groups = set.map(function (it, k) { return [k]; });
+    for (;;) {
+      var best = -1, bi = -1, bj = -1;
+      for (i = 0; i < groups.length; i++) for (j = i + 1; j < groups.length; j++) {
+        if (groups[i].length + groups[j].length > THREAD) continue;
+        var tot = 0; groups[i].forEach(function (x) { groups[j].forEach(function (y) { tot += S[x][y]; }); });
+        var avg = tot / (groups[i].length * groups[j].length);
+        if (avg > best) { best = avg; bi = i; bj = j; }
+      }
+      if (bi < 0 || best < NEAR) break;
+      groups[bi] = groups[bi].concat(groups[bj]); groups.splice(bj, 1);
+    }
+    var top = function (g) { return Math.max.apply(null, g.map(function (k) { return score(set[k]); })); };
+    groups.sort(function (a, b) { return top(b) - top(a); });
+    // a live show opens on something to look at: the thread with a video or picture nearly as strong as the strongest goes first
+    if (st.kind === 'live' && groups.length > 1 && !groups[0].some(function (k) { return visual(set[k]) && score(set[k]) >= top(groups[0]) * 0.85; })) {
+      var vi = -1; groups.some(function (g, gi) { if (g.some(function (k) { return visual(set[k]) && score(set[k]) >= top(groups[0]) * 0.85; })) { vi = gi; return true; } return false; });
+      if (vi > 0) groups.unshift(groups.splice(vi, 1)[0]);
+    }
+    var out = [], why = {};
+    groups.forEach(function (g, gi) {
+      var lead = g.slice().sort(function (a, b) { return score(set[b]) - score(set[a]); });
+      var seed = lead[0];
+      if (gi === 0 && st.kind === 'live' && !visual(set[seed])) { var v = lead.filter(function (k) { return visual(set[k]) && score(set[k]) >= score(set[seed]) * 0.85; })[0]; if (v != null) seed = v; }
+      var at = out.length + 1;
+      out.push(set[seed]); why[R.code(set[seed])] = gi === 0 ? 'Opens the show: the strongest' : 'Next thread: the strongest left';
+      g.filter(function (k) { return k !== seed; }).sort(function (a, b) { return S[seed][b] - S[seed][a] || score(set[b]) - score(set[a]); })
+        .forEach(function (k) { out.push(set[k]); why[R.code(set[k])] = 'Same thread as #' + at; });
+    });
+    return { list: out, why: why, threads: groups.length };
   }
 
   /* ---------------------------------------------------------------- the switch, and the maker */
@@ -317,24 +609,78 @@
         '<button type="button" class="ir-sm-cp" data-cp="' + kind + '" data-i="' + i + '" aria-label="Copy this one">' + ICON.copy + '</button></li>';
     }).join('') + '</ul>' + (many ? '<button type="button" class="ir-sm-more" data-mk="more">' + ICON.redo + '<span>Other options</span></button>' : '');
   }
+  function bitsOf(it) {
+    var r = R.reach(it) || {}, lk = R.likes ? R.likes(it) : null, bits = [R.when(it), it.h || it.nm || it.src];
+    if (lk != null) bits.push(R.fmt(lk) + ' likes'); else if (r.views) bits.push(R.fmt(r.views) + ' views');
+    return bits.filter(Boolean).join(' · ');
+  }
+  var MOVE = {
+    up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>', down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+    out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>', add: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
+  };
   function runHtml() {
-    return '<ol class="ir-sm-run">' + ui.set.map(function (it, i) {
-      var r = R.reach(it) || {}, lk = R.likes ? R.likes(it) : null, bits = [R.when(it), it.h || it.nm || it.src];
-      if (lk != null) bits.push(R.fmt(lk) + ' likes'); else if (r.views) bits.push(R.fmt(r.views) + ' views');
-      return '<li><span class="num">' + (i + 1) + '</span>' + R.mark(it) + '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + esc(it.t) + '</a><small>' + esc(bits.filter(Boolean).join(' · ')) + '</small></li>';
+    var why = ui.best ? ui.best.why : {}, last = ui.set.length - 1;
+    var since = ui.acts.length - 1 - ui.acts.lastIndexOf('reset');          // the log keeps everything; the count is since the last reset
+    var head = '<div class="ir-sm-rhead"><p>' + (ui.mine ? '<b>Your order</b> · ' + since + (since === 1 ? ' change' : ' changes') + ', kept on this device'
+      : '<b>Best order</b> · the strongest first, then what is closest to it, then the next thread') + '</p>' +
+      (ui.mine ? '<button type="button" class="ir-sm-best" data-mk="best">' + ICON.redo + '<span>Back to the best order</span></button>' : '') + '</div>';
+    var list = '<ol class="ir-sm-run">' + ui.set.map(function (it, i) {
+      var c = R.code(it), w = why[c] || '';
+      return '<li data-c="' + esc(c) + '"><span class="num">' + (i + 1) + '</span>' + R.mark(it) + '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + esc(it.t) + '</a>' +
+        '<span class="ir-sm-mv"><button type="button" data-mv="up" data-i="' + i + '" aria-label="Move up"' + (i ? '' : ' disabled') + '>' + MOVE.up + '</button>' +
+        '<button type="button" data-mv="down" data-i="' + i + '" aria-label="Move down"' + (i < last ? '' : ' disabled') + '>' + MOVE.down + '</button>' +
+        '<button type="button" data-mv="out" data-i="' + i + '" aria-label="Take out of the show"' + (ui.set.length > 1 ? '' : ' disabled') + '>' + MOVE.out + '</button></span>' +
+        '<small>' + (w && !ui.mine ? '<em>' + esc(w) + '</em> · ' : '') + esc(bitsOf(it)) + '</small></li>';
     }).join('') + '</ol>';
+    var inSet = {}; ui.set.forEach(function (it) { inSet[R.code(it)] = 1; });
+    var sc = ui.best && ui.best.score || vScore, rest = ui.pool.filter(function (it) { return !inSet[R.code(it)]; }).sort(function (a, b) { return sc(b) - sc(a); });
+    var more = rest.length ? '<div class="ir-sm-rest"><p class="ir-sm-rl"><b>Not in the show: ' + rest.length + '</b> · the strongest first. Add one and it goes at the end' + (ui.set.length >= MAXN ? ' (the show holds ' + MAXN + ': take one out first)' : '') + '.</p>' +
+      '<ul>' + rest.slice(0, ui.rest).map(function (it) {
+        return '<li><button type="button" class="ir-sm-add" data-add="' + esc(R.code(it)) + '" aria-label="Add to the show"' + (ui.set.length >= MAXN ? ' disabled' : '') + '>' + MOVE.add + '</button>' + R.mark(it) +
+          '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + esc(it.t) + '</a><small>' + esc(bitsOf(it)) + '</small></li>';
+      }).join('') + '</ul>' + (rest.length > ui.rest ? '<button type="button" class="ir-sm-more" data-mk="rest">' + ICON.redo + '<span>Show ' + Math.min(12, rest.length - ui.rest) + ' more</span></button>' : '') + '</div>' : '';
+    return head + list + more;
+  }
+  function sigOf(list) { var s = list.map(function (it) { return R.code(it); }).join('.'), h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return list.length + ':' + (h >>> 0).toString(36); }
+  // His order for this set, kept on this device (the last 20 sets), and put back when the same filters come back.
+  function keepOrder() {
+    var all = store(ORDER_KEY); if (!all || typeof all !== 'object' || Array.isArray(all)) all = {};
+    if (ui.mine) all[ui.mem] = { at: Date.now(), codes: ui.set.map(function (it) { return R.code(it); }), acts: ui.acts.slice(-60) }; else delete all[ui.mem];
+    var ks = Object.keys(all).sort(function (a, b) { return all[b].at - all[a].at; }); ks.slice(20).forEach(function (k) { delete all[k]; });
+    store(ORDER_KEY, all);
+  }
+  // The words follow WHAT is in the show, never its order: a move keeps every pick; adding or taking out an item rebuilds them.
+  function rewords() {
+    var keep = ui.pick, sorted = ui.set.slice().sort(function (a, b) { return vScore(b) - vScore(a); });
+    ui.pack = ui.set.length ? build(sorted) : null;
+    ui.pick = keep;
   }
   function draw() {
     if (panel.hidden) return;
-    var all = R.shown(), set = all.slice(0, MAXN), n = all.length;
-    var sig = set.map(function (it) { return R.code(it); }).join('.') + '|' + st.kind;
-    if (sig !== ui.sig) { ui.sig = sig; ui.set = set; ui.pick = { titles: '', covers: '', descs: '' }; ui.page = { titles: 0, covers: 0, descs: 0 }; ui.pack = set.length ? build(set) : null; }
+    var all = R.shown(), n = all.length;
+    var mem = sigOf(all), sig = mem + '|' + st.kind;
+    if (sig !== ui.sig) {
+      var kindOnly = ui.mem === mem;
+      ui.sig = sig; ui.mem = mem; ui.pool = all; ui.page = { titles: 0, covers: 0, descs: 0 };
+      if (!kindOnly) ui.pick = { titles: '', covers: '', descs: '' };
+      var picked = n ? pickSet(all) : null;
+      ui.best = picked ? threadOrder(picked) : null;
+      if (ui.best) ui.best.score = picked.score;
+      ui.set = ui.best ? ui.best.list.slice() : []; ui.mine = false; ui.acts = []; ui.rest = 8;
+      var kept = store(ORDER_KEY), mine = kept && kept[mem];
+      if (mine && Array.isArray(mine.codes)) {
+        var byC = {}; all.forEach(function (it) { byC[R.code(it)] = it; });
+        var back = mine.codes.map(function (c) { return byC[c]; }).filter(Boolean);
+        if (back.length) { ui.set = back.slice(0, MAXN); ui.mine = true; ui.acts = Array.isArray(mine.acts) ? mine.acts.slice() : []; }
+      }
+      rewords();
+    }
     var A = ui.pack && ui.pack.A;
     var bar = '<div class="ir-sm-bar"><span class="ir-sm-ic" aria-hidden="true">' + ICON.play + '</span><p class="ir-sm-l"><b>' + (n ? 'Make a show from these ' + n : 'Your filters leave nothing') + '</b><span>' +
-      (n ? esc(mix(A)) + (n > MAXN ? ' · the first ' + MAXN + ' in your order go in' : '') : 'Loosen a filter and the show fills again') + '</span></p>' +
+      (n ? esc(mix(A)) + (n > MAXN ? ' · the strongest ' + ui.set.length + ' go in, in the best order' : '') : 'Loosen a filter and the show fills again') + '</span></p>' +
       (n ? '<button type="button" class="ir-sm-go" data-mk="toggle" aria-expanded="' + ui.open + '">' + (ui.open ? 'Close' : 'Make the show') + '</button>' : '') + '</div>';
     if (!n || !ui.open) { panel.innerHTML = bar; panel.classList.toggle('open', false); return; }
-    var tabs = [['titles', 'Titles'], ['covers', 'Cover text'], ['descs', 'Description'], ['run', 'Run order ' + set.length]];
+    var tabs = [['titles', 'Titles'], ['covers', 'Cover text'], ['descs', 'Description'], ['run', 'Run order ' + ui.set.length]];
     var body = '<div class="ir-sm-body"><p class="ir-sm-from"><span>Built from</span> ' + esc(R.filterLine ? R.filterLine() : '') + '</p>' +
       '<div class="ir-sm-dials">' + dial('kind', 'Making', KINDS2) + dial('tone', 'Style', TONES) + dial('aim', 'Aim for', AIMS) + '</div>' +
       '<div class="ir-sm-tabs" role="tablist">' + tabs.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + esc(t[1]) + '</button>'; }).join('') + '</div>' +
@@ -348,7 +694,41 @@
   function showUrl() {
     var t = chosen('titles'), c = chosen('covers'), A = ui.pack.A;
     return '?show=' + ui.set.map(function (it) { return 'on~' + R.code(it); }).join('.') + '&kind=' + st.kind + '&t=' + encodeURIComponent((t ? t.t : A.H).slice(0, 100)) +
-      (c ? '&c=' + encodeURIComponent(c.t.slice(0, 40)) : '') + '&i=' + encodeURIComponent(introText().slice(0, 420)) + (A.dom && A.dom.s ? '&st=' + encodeURIComponent(A.dom.id) : '');
+      (c ? '&c=' + encodeURIComponent(c.t.slice(0, 40)) : '') + '&i=' + encodeURIComponent(introText().slice(0, 420)) + (A.dom && A.dom.s ? '&st=' + encodeURIComponent(A.dom.id) : '') +
+      (chosen('descs') ? '&d=' + encodeURIComponent(firstLine(chosen('descs').t).slice(0, 200)) : '');
+  }
+  function firstLine(t) { var m = /^.*?[.?!](\s|$)/.exec(t); return (m ? m[0] : t).trim(); }
+  // THE NOTES ON HOW PEOPLE CHANGE IT. When a creator commits a show (opens its screen or copies its package), one record goes
+  // to showedits/<their account id>-<time>: the order the room proposed, the order they used, every change between, and which
+  // title, cover and description they took (and which shape of each). Only signed-in creators write; only the site reads.
+  // build/show_learn.py counts them (data/show-learn.json, back into ranked()), so an order or a title shape people keep
+  // changing is seen, and the rules here are changed from evidence. The last 30 also stay on this device.
+  function sendEdit(how) {
+    if (!ui.pack || !ui.best) return;
+    var t = chosen('titles') || {}, c = chosen('covers') || {}, d = chosen('descs') || {}, A = ui.pack.A;
+    var codes = function (l) { return l.map(function (it) { return R.code(it); }).join('.').slice(0, 900); };
+    var titles = ranked(ui.pack.titles, 'titles').map(function (x) { return x.t; });
+    var rec = { v: 1, how: how, from: String(R.filterLine ? R.filterLine() : '').slice(0, 160), story: A.dom ? String(A.dom.id).slice(0, 40) : '', pool: ui.pool.length,
+      auto: codes(ui.best.list), final: codes(ui.set), moved: ui.mine, acts: ui.acts.join(' ').slice(0, 600),
+      kind: st.kind, tone: st.tone, aim: st.aim, words: String(ui.pack.src || '').slice(0, 10),
+      title: String(t.t || '').slice(0, 100), titleId: String(t.id || '').slice(0, 24), titleAt: Math.max(-1, titles.indexOf(t.t)),
+      cover: String(c.t || '').slice(0, 40), coverId: String(c.id || '').slice(0, 24), descId: String(d.id || '').slice(0, 24) };
+    var key = JSON.stringify([rec.final, rec.title, rec.cover, rec.descId, how]);
+    if (key === ui.sent) return;
+    ui.sent = key;
+    var local = store('ir-show-edits'); if (!Array.isArray(local)) local = []; local.push(Object.assign({ at: new Date().toISOString() }, rec)); store('ir-show-edits', local.slice(-30));
+    lp(function (L) {
+      if (!L || L.off || !L.members.fb || !signedIn(L)) return;
+      L.members.fb().then(function (S) {
+        var u = S.auth && S.auth.currentUser; if (!u) return;
+        return S.F.setDoc(S.F.doc(S.db, 'showedits', u.uid + '-' + Date.now()), Object.assign({ uid: u.uid, at: S.F.serverTimestamp() }, rec));
+      }).catch(function () { /* refused or offline: the record stays on this device */ });
+    });
+  }
+  function move(i, to, act) {
+    if (to < 0 || to >= ui.set.length || i === to) return;
+    var it = ui.set.splice(i, 1)[0]; ui.set.splice(to, 0, it);
+    ui.mine = true; ui.acts.push(act + (i + 1)); keepOrder();
   }
   function packageText() {
     var t = chosen('titles'), c = chosen('covers'), d = chosen('descs'), n = 0;
@@ -367,11 +747,27 @@
     setTimeout(function () { b.classList.remove('done'); if (s) s.textContent = was; else b.setAttribute('aria-label', 'Copy this one'); }, 1800);
   }
   panel.addEventListener('click', function (ev) {
+    if (ev.target.closest('.ir-sm-show')) { sendEdit('screen'); return; }          // the link opens the screen; the record goes with it
     var b = ev.target.closest('button'); if (!b || !panel.contains(b)) return;
     var mk = b.getAttribute('data-mk');
     if (mk === 'toggle') { ui.open = !ui.open; draw(); if (ui.open) { var bd = panel.querySelector('.ir-sm-body'); if (bd && bd.getBoundingClientRect().top > innerHeight - 120) panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }
     if (mk === 'more') { ui.page[ui.tab]++; draw(); return; }
-    if (mk === 'copy') { copyText(packageText(), function () { flash(b, 'Copied: title, cover, description, intro, links'); }, function () { flash(b, 'Copying is blocked here'); }); return; }
+    if (mk === 'rest') { ui.rest += 12; draw(); return; }
+    if (mk === 'best') { ui.set = ui.best.list.slice(); ui.mine = false; ui.acts.push('reset'); keepOrder(); rewords(); draw(); var rb = panel.querySelector('[data-tab="run"]'); if (rb) rb.focus(); return; }
+    if (mk === 'copy') { sendEdit('copy'); copyText(packageText(), function () { flash(b, 'Copied: title, cover, description, intro, links'); }, function () { flash(b, 'Copying is blocked here'); }); return; }
+    if (b.hasAttribute('data-mv')) {
+      var mi = +b.getAttribute('data-i'), mv = b.getAttribute('data-mv'), sel;
+      if (mv === 'up') { move(mi, mi - 1, 'u'); sel = '[data-mv="up"][data-i="' + (mi - 1) + '"]'; }
+      else if (mv === 'down') { move(mi, mi + 1, 'd'); sel = '[data-mv="down"][data-i="' + (mi + 1) + '"]'; }
+      else if (ui.set.length > 1) { ui.acts.push('x' + (mi + 1) + ':' + R.code(ui.set[mi])); ui.set.splice(mi, 1); ui.mine = true; keepOrder(); rewords(); sel = '[data-mv="out"][data-i="' + Math.min(mi, ui.set.length - 1) + '"]'; }
+      draw(); var fb = sel && panel.querySelector(sel); if (fb && !fb.disabled) fb.focus(); return;
+    }
+    if (b.hasAttribute('data-add')) {
+      if (ui.set.length >= MAXN) return;
+      var ac = b.getAttribute('data-add'), ait = ui.pool.filter(function (x) { return R.code(x) === ac; })[0];
+      if (ait) { ui.set.push(ait); ui.mine = true; ui.acts.push('a' + ui.set.length + ':' + ac); keepOrder(); rewords(); }
+      draw(); var nb = panel.querySelector('.ir-sm-add'); if (nb) nb.focus(); return;
+    }
     if (b.hasAttribute('data-tab')) { ui.tab = b.getAttribute('data-tab'); draw(); var tb = panel.querySelector('[data-tab="' + ui.tab + '"]'); if (tb) tb.focus(); return; }
     if (b.hasAttribute('data-dial')) {
       var k = b.getAttribute('data-dial'); st[k] = b.getAttribute('data-v'); save();
@@ -388,6 +784,8 @@
   });
   if (R.onRender) R.onRender(draw);
   if (st.on) setOn(true);
+  // for build/phone-test.html, which checks every story of the hour against the gate: nothing here changes the page
+  window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st };
 
   /* ---------------------------------------------------------------- the show screen (?show=) */
   var q = new URLSearchParams(location.search);
@@ -403,7 +801,7 @@
     var title = q.get('t') || (story && story.title) || 'The Intel Room';
     var intro = q.get('i') || (story ? (video ? story.hook : story.intro) : '');
     var cover = (q.get('c') || '').slice(0, 40);
-    var desc = story ? story.desc : '';
+    var desc = q.get('d') || (story ? story.desc : '');          // the description the creator picked, else the story's own
     var at = Math.max(0, Math.min(rows.length, +q.get('n') || 0));          // 0 is the intro card
     document.documentElement.classList.add('ir-sh-on');
     var sh = document.createElement('div');
