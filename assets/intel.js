@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9df978e462) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=7bdcb29a17) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -611,7 +611,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9df978e462): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=7bdcb29a17): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1808,12 +1808,13 @@
     var by = it.by ? ' · sent by ' + esc(it.by) : '';
     dlg.innerHTML = '<div class="ir-s-in">' +
       '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + (i + 1) + ' of ' + shown.length + '</span><button class="ir-s-x" type="button" data-x aria-label="Close">&times;</button></div>' +
-      '<h2 id="ir-spot-t"' + (xWords(it) ? ' class="vh"' : '') + '>' + esc(it.t) + '</h2>' +
+      // an X post's WHOLE text, never its 160-character title (18 Oct 2026: "if i can't read the full thing, it is useless")
+      '<h2 id="ir-spot-t"' + (xWords(it) ? ' class="vh"' : fullText(it).length > 140 ? ' class="is-long"' : '') + '>' + esc(fullText(it)) + '</h2>' +
       '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + esc(it.h && it.src !== 'News' ? it.h + ' on ' + it.src : it.h || it.src) + by + '</p>' +
       // the thing itself straight under its headline (17 Oct 2026): the video or the pictures, then what is said about it
       (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : mediaOf(it).length ? mediaHtml(it) : heroHtml(it)) +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
-      spotReach(it) +
+      spotReach(it) + (rpKey(it) ? '<section class="ir-s-rp" id="ir-s-rp" aria-label="Most-liked replies"></section>' : '') +
       (it.hotWhy ? '<p class="ir-s-o">Why it is hot: ' + esc(it.hotWhy) + (it.also && it.also.length ? '. Also carried by ' + esc(it.also.join(', ')) : '') + '.</p>' : '') +
       (it.n ? '<p class="ir-s-n">' + esc(it.n) + '</p>' : '') + spotLinks(it) +
       (it.o ? '<p class="ir-s-o">In the bank: ' + esc(it.o) + '</p>' : '') +
@@ -1825,6 +1826,10 @@
       '</div>';
     wireMedia(dlg.querySelector('.ir-xm'), it);
     fitVideo(dlg.querySelector('.ir-s-v'), y, it.u);
+    if (rpKey(it)) repliesOf(it, function (e, st) {
+      var box = $('ir-s-rp'); if (!box || spotAt !== i) return;
+      box.innerHTML = repliesHead(it, e) + (e && e.r.length ? repliesHtml(it, e.r.slice(0, 3), false) + (e.r.length > 3 ? '<button type="button" class="ir-s-b ir-rp-all" data-rp-all>Show all ' + e.r.length + '</button>' : '') : repliesNone(it, st));
+    });
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
   }
@@ -1851,6 +1856,58 @@
     var when = r.at ? (Date.parse(r.at) ? ' Counted ' + ago(Date.parse(r.at)) + '.' : '') : '';
     return '<p class="ir-s-r">' + bits.join('') + '<small>On ' + esc(nm) + ', as ' + esc(nm) + ' shows them.' + when + (it._v != null ? ' ' + esc(viralWhy(it)) + '.' : '') + '</small></p>';
   }
+  /* ------------------------------------------------------------ the most-liked replies (18 October 2026)
+     Armin: "for every posts you have to have the options to check the comments with the highest likes. so we can read and
+     talk about people's comments on each post." build/intel_replies.py reads them (X through the X hunt's own account and
+     cap, YouTube free) into assets/intel-replies.json, which is fetched the first time a reply panel opens, never on load.
+     Keys: "x:<status id>", "yt:<video id>". The show screen (intel-prep.js) draws the same rows through R.repliesHtml. */
+  var RP = null, rpWait = null, YT_AV = /^https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[A-Za-z0-9_\-=\/.~]+$/;
+  function rpKey(it) {
+    var m = /^https:\/\/(?:www\.)?(?:x|twitter)\.com\/[A-Za-z0-9_]{1,15}\/status\/(\d{5,25})/.exec(it && it.u || '');
+    if (m) return 'x:' + m[1];
+    var y = it && it.u ? ytId(it.u) : '';
+    return y ? 'yt:' + y : '';
+  }
+  // cb(entry or null, 'ok' | 'unread' | 'off'): unread = the post is in no read yet; off = the file could not be fetched
+  function repliesOf(it, cb) {
+    var k = rpKey(it);
+    if (!k) { cb(null, 'none'); return; }
+    if (!rpWait) rpWait = fetch(root.getAttribute('data-replies') || '../assets/intel-replies.json').then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; }).then(function (d) { RP = d && d.posts && typeof d.posts === 'object' ? d.posts : null; return RP; });
+    rpWait.then(function () {
+      var e = RP && RP[k];
+      if (e && Array.isArray(e.r)) cb(e, 'ok'); else cb(null, RP ? 'unread' : 'off');
+    });
+  }
+  function rpWhere(it) { return rpKey(it).slice(0, 2) === 'yt' ? 'YouTube' : 'X'; }
+  function rpFace(k, r) {
+    var a = String(r.av || '');
+    if (k === 'x' && /^https:\/\/pbs\.twimg\.com\/profile_images\/\d+\/[A-Za-z0-9_-]+_normal\.(?:jpg|jpeg|png|webp)$/.test(a)) return a.replace(/_normal\.(\w+)$/, '_200x200.$1');
+    if (k === 'yt' && YT_AV.test(a)) return a.replace(/=s\d+-/, '=s176-');
+    return '';
+  }
+  function repliesHead(it, e) {
+    var n = e && e.r ? e.r.length : 0;
+    return '<p class="ir-rp-hd">' + ICO.reply + '<b>' + (n ? 'Top ' + n + ' ' : '') + (rpWhere(it) === 'X' ? 'replies' : 'comments') + '</b><span>most liked first, on ' + rpWhere(it) + (e && e.at && Date.parse(e.at) ? ', read ' + ago(Date.parse(e.at)) : '') + '</span></p>';
+  }
+  function repliesNone(it, st) {
+    var on = rpWhere(it), what = on === 'X' ? 'replies' : 'comments';
+    return '<p class="ir-rp-no">' + (st === 'ok' ? 'Nobody had replied when it was read.' : st === 'off' ? 'The ' + what + ' could not be loaded here.' : 'The top ' + what + ' are not read for this one yet.') +
+      ' <a href="' + esc(it.u) + '" target="_blank" rel="noopener">Read the ' + what + ' on ' + on + '</a></p>';
+  }
+  // the rows: a button each on the show screen (so one can be put on the screen alone), a link to the reply in the room
+  function repliesHtml(it, list, asButtons) {
+    var k = rpKey(it).slice(0, 2) === 'yt' ? 'yt' : 'x';
+    return '<ol class="ir-rp-l">' + list.map(function (r, n) {
+      var face = rpFace(k, r), nm = String(r.nm || ''), h = r.h && r.h !== nm ? r.h : '';
+      var inner = (face ? '<span class="ir-rp-av" style="background-image:url(' + esc(face) + ')"></span>' : '<span class="ir-rp-av is-mono">' + esc(nm.replace(/^@/, '').slice(0, 1).toUpperCase() || '?') + '</span>') +
+        '<span class="ir-rp-b"><span class="ir-rp-who"><b>' + esc(nm) + '</b>' + (h ? '<small>' + esc(h) + '</small>' : '') + (Date.parse(r.d) ? '<small>' + esc(ago(Date.parse(r.d))) + '</small>' : '') +
+        '<span class="ir-rp-lk" title="Likes">' + ICO.like + '<b class="num">' + fmtN(r.lk || 0) + '</b></span></span><span class="ir-rp-t">' + esc(r.t) + '</span></span>';
+      return '<li>' + (asButtons ? '<button type="button" class="ir-rp" data-rp="' + n + '" aria-label="Put this reply on the screen">' + inner + '</button>'
+        : '<a class="ir-rp" href="' + esc(r.u) + '" target="_blank" rel="noopener">' + inner + '</a>') + '</li>';
+    }).join('') + '</ol>';
+  }
+  function fullText(it) { return it && it.src === 'X' && it.tx && it.tx.length > String(it.t || '').length ? it.tx : String(it && it.t || ''); }
   function closeSpot() { var d = $('ir-spot'); spotAt = -1; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
 
   /* ------------------------------------------------------------ an X post's pictures and video (17 October 2026) */
@@ -2437,6 +2494,7 @@
       var b = ev.target.closest('button'); if (!b) return;
       if (b.hasAttribute('data-x')) closeSpot();
       else if (b.hasAttribute('data-step')) openSpot(spotAt + (+b.getAttribute('data-step')));
+      else if (b.hasAttribute('data-rp-all')) { var rit = shown[spotAt]; repliesOf(rit, function (e) { if (e && e.r.length) { var bx = $('ir-s-rp'); if (bx) bx.innerHTML = repliesHead(rit, e) + repliesHtml(rit, e.r, false); } }); }
       else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
       else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say('What connects to "' + cut(wi2 ? wi2.t : '', 60) + '": ' + shown.length + ' items.', true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       else if (b.hasAttribute('data-map')) { var k = shown[spotAt].p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
@@ -2608,8 +2666,10 @@
       focusName: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : ''; }, focusOn: function () { return S.fx.slice(); },
       placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); },
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
-      media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml };
-    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9df978e462'; document.body.appendChild(ps); }
+      media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml,
+      // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
+      rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago };
+    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=7bdcb29a17'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
