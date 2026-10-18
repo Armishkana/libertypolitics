@@ -257,7 +257,8 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-s-c .hotc{background:rgba(255,226,154,.14);color:var(--live)}.ir-s-c .hotc svg{width:13px;height:13px;fill:currentColor;vertical-align:-2px;margin-right:4px}
 .ir-s-c .own{background:var(--seal);color:var(--on-field)}
 .ir-s-c .pend{background:rgba(255,226,154,.14);color:var(--live)}
-.ir-s-v{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000 center/cover}
+/* a video's box is the video's own measured shape (--ar, set by fitVideo in intel.js), so a Short is tall, never cut */
+.ir-s-v{position:relative;--ar:1.7778;aspect-ratio:var(--ar);width:min(100%,calc(min(62vh,600px)*var(--ar)));margin-inline:auto;border-radius:12px;overflow:hidden;background:#000 center/cover}
 .ir-s-v iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .ir-s-v button{position:absolute;inset:0;margin:auto;width:76px;height:76px;border-radius:50%;border:0;background:rgba(244,196,48,.95);cursor:pointer;display:grid;place-items:center}
 .ir-s-v button svg{width:30px;height:30px;fill:var(--on-field);margin-left:4px}
@@ -732,8 +733,16 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
 .ir-sh-stage{min-height:0;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);gap:clamp(16px,2.4vw,48px);align-items:center;padding:clamp(14px,2.4vw,44px) clamp(14px,3vw,64px)}
 .ir-sh.has-notes .ir-sh-stage{padding-right:clamp(300px,24vw,460px)}
 .ir-sh-frame{min-width:0;height:100%;max-height:100%;display:grid;place-items:center;overflow:hidden}
-.ir-sh-frame.is-yt iframe{width:100%;aspect-ratio:16/9;max-height:100%;border:0;border-radius:12px;background:#000;box-shadow:0 30px 80px -40px #000,0 0 0 1px #2a2925}
-.ir-sh-frame.is-yt.is-tall iframe{width:auto;height:100%;aspect-ratio:9/16}
+/* the player is the video's own measured shape (--ar, from R.vshape), as big as the stage allows in BOTH directions, so it
+   is never cut (18 Oct 2026: a percentage height that did not resolve drew a Short 1094x1944 into a 620px stage) */
+.ir-sh-frame.is-yt iframe{display:block;width:min(100%,calc(70vh*var(--ar,1.7778)));height:auto;aspect-ratio:var(--ar,16/9);border:0;border-radius:12px;background:#000;box-shadow:0 30px 80px -40px #000,0 0 0 1px #2a2925}
+@media(min-width:901px){
+  .ir-sh-frame.is-yt{container-type:size}
+  .ir-sh-frame.is-yt iframe{width:min(100cqw,calc(100cqh*var(--ar,1.7778)))}
+  /* a tall video stands beside its headline, not adrift in a wide column */
+  .ir-sh-stage:has(.ir-sh-frame.is-tall){grid-template-columns:minmax(0,1fr) minmax(320px,1fr)}
+  .ir-sh-frame.is-tall{justify-items:end}
+}
 .ir-sh-frame.is-x,.ir-sh-frame.is-tg{overflow:auto;align-items:start;justify-items:center;scrollbar-width:thin}
 .ir-sh-frame.is-x .twitter-tweet{margin:0 auto!important}
 /* X draws a post 550px wide; on a 1080p share it is scaled up so a viewer can read it, and the frame scrolls if it is tall */
@@ -803,8 +812,7 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
   .ir-sh-stage{display:block;flex:1 0 auto;padding:12px}
   .ir-sh.has-notes .ir-sh-stage{padding-right:12px}
   .ir-sh-frame{display:block;height:auto;max-height:none;overflow:visible}
-  .ir-sh-frame.is-yt iframe{display:block;width:100%;height:auto;aspect-ratio:16/9}
-  .ir-sh-frame.is-yt.is-tall iframe{width:auto;height:70vh;max-width:100%;margin:0 auto;aspect-ratio:9/16}
+  .ir-sh-frame.is-yt iframe{margin:0 auto}
   .ir-sh-frame.is-x:not(.is-drawn) .ir-sh-card{position:static;transform:none;width:auto}
   .ir-sh-frame.is-x:not(.is-drawn) .ir-sh-tw{opacity:1}
   .ir-sh-info{margin-top:16px}
@@ -987,3 +995,35 @@ html.ir-show .ir-lens{margin:0}
 @media(max-width:700px){.ir-cmd .ir-lens{order:3}}
 html.ir-show .ir-cmd{display:flex!important}
 html.ir-show .ir-cmd>:not(.ir-lens){display:none!important}
+/* No item without a picture (18 Oct 2026; vis() in intel.js says the order). A post of words only: the author's face, sharp
+   on the same face blurred; the place: the room's own globe turned to it (a picture, drawn by the page); nothing at all:
+   the source's initials on its platform's colour. In the spotlight a post of words only is drawn as the post itself. */
+.ir-th-av{background:#141416}
+.ir-th-av .ir-th-i{inset:-14px;filter:blur(12px) saturate(1.3) brightness(.5)}
+.ir-th-a{position:relative;width:44px;height:44px;border-radius:50%;background:#2a2721 center/cover no-repeat;box-shadow:0 0 0 2px rgba(243,241,234,.92),0 6px 16px rgba(0,0,0,.55)}
+.ir-card .ir-th-a{width:54px;height:54px}
+@media(max-width:520px){.ir-card .ir-th-a{width:48px;height:48px}}
+.ir-th-loc{background-color:#0b0d12}
+.ir-th-mono{background:#1c1b18;background:linear-gradient(135deg,color-mix(in srgb,var(--pc,#8a7e62) 50%,#161512),#0c0c0e)}
+.ir-th-mono i{font:800 22px/1 var(--display);color:var(--ink);letter-spacing:.03em;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+.ir-lt-th.is-av{width:auto;height:68px;aspect-ratio:1;border-radius:50%;box-shadow:0 0 0 2px rgba(243,241,234,.9)}
+@media(max-width:520px){.ir-lt-th.is-av{height:44px}}
+.ir-post{margin:0;padding:18px 20px;border-radius:14px;background:linear-gradient(180deg,#1a1917,#121211);box-shadow:inset 0 0 0 1px #3a3527;display:grid;gap:14px}
+.ir-post-h{display:flex;align-items:center;gap:12px;min-width:0}
+.ir-post-av{width:56px;height:56px;flex:none;border-radius:50%;background:#2a2721 center/cover no-repeat;box-shadow:0 0 0 2px var(--pc,var(--field))}
+.ir-post-av.is-mono{display:grid;place-items:center;font:800 20px var(--display);color:var(--ink)}
+.ir-post-who{display:grid;min-width:0;line-height:1.25}
+.ir-post-who b{font:700 1.05rem var(--body);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-post-who small{color:var(--dim);font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-post-mk{width:22px;height:22px;flex:none;margin-left:auto}
+.ir-post-t{margin:0;font:500 clamp(1.15rem,1rem + .9vw,1.6rem)/1.42 var(--body);color:var(--ink);white-space:pre-line;overflow-wrap:anywhere}
+.ir-post-card{display:block;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px #3a3527;color:inherit;text-decoration:none}
+.ir-post-card:hover{box-shadow:inset 0 0 0 1px var(--field)}
+.ir-post-ci{display:block;aspect-ratio:1.91;background:#000 center/cover no-repeat}
+.ir-post-ct{display:block;padding:10px 14px 12px;font:600 1rem/1.35 var(--body);color:var(--ink)}
+.ir-post-ct small{display:block;margin-bottom:2px;color:var(--dim);font-size:.85rem;font-weight:500}
+.ir-hero{position:relative;margin:0 auto;width:min(100%,calc(min(62vh,600px)*1.7778));aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000}
+.ir-hero-i{position:absolute;inset:0;background:center/cover no-repeat}
+.ir-hero figcaption{position:absolute;right:8px;bottom:8px;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.66);color:#e4e1d6;font-size:12px}
+.ir-hero .ir-hero-pl{left:12px;right:auto;bottom:12px;padding:6px 12px;background:rgba(7,8,11,.74);color:var(--field);font:800 clamp(1rem,.9rem + .6vw,1.4rem)/1.1 var(--display);text-transform:uppercase;letter-spacing:.03em}
+.ir-sh-ci{display:block;width:100%;aspect-ratio:16/9;max-height:44vh;margin:0 0 18px;border-radius:10px;background:#000 center/cover no-repeat}

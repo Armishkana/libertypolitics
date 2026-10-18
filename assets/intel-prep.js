@@ -474,13 +474,17 @@
       twLoad = new Promise(function (res, rej) { var s = document.createElement('script'); s.src = 'https://platform.twitter.com/widgets.js'; s.async = true; s.onload = function () { var n = 0; (function wait() { if (window.twttr && window.twttr.widgets) res(window.twttr); else if (n++ > 50) rej(); else setTimeout(wait, 100); })(); }; s.onerror = rej; document.head.appendChild(s); });
       return twLoad; }
     function card(el, x, why) {
-      el.innerHTML = '<div class="ir-sh-card"><p class="ir-sh-ck">' + R.mark(x) + esc(x.h || x.src) + ' · ' + esc(R.when(x)) + '</p><p class="ir-sh-ct">' + esc(x.t) + '</p>' + (why ? '<p class="ir-sh-cw">' + esc(why) + '</p>' : '') + '</div>';
+      // the story's photo, a link card's picture or its place above the words (18 Oct 2026: no item without a picture)
+      var v = R.vis && !x.sn ? R.vis(x, true) : null, im = v && (v.k === 'pic' || v.k === 'loc') ? '<span class="ir-sh-ci" style="background-image:url(' + (v.k === 'loc' ? v.u : esc(v.u)) + ')"></span>' : '';
+      el.innerHTML = '<div class="ir-sh-card">' + im + '<p class="ir-sh-ck">' + R.mark(x) + esc(x.h || x.src) + ' · ' + esc(R.when(x)) + '</p><p class="ir-sh-ct">' + esc(x.t) + '</p>' + (why ? '<p class="ir-sh-cw">' + esc(why) + '</p>' : '') + '</div>';
     }
     function frame(el, x) {
       var y = R.yt(x.u), st2 = /(?:x|twitter)\.com\/[^\/]+\/status\/(\d+)/.exec(x.u || ''), tg = /t\.me\/(?:s\/)?([A-Za-z0-9_]+\/\d+)/.exec(x.u || '');
       if (y) {
-        var tall = /\/shorts\//.test(x.u);
-        el.className = 'ir-sh-frame is-yt' + (tall ? ' is-tall' : '');
+        // the player takes the video's own measured shape (R.vshape), as large as the stage allows and never cut (18 Oct 2026)
+        var mine1 = at, shape = function (a) { if (mine1 !== at) return; el.style.setProperty('--ar', a.toFixed(4)); el.classList.toggle('is-tall', a < 1); };
+        el.className = 'ir-sh-frame is-yt';
+        shape(R.vshape ? R.vshape(y, x.u, shape) : /\/shorts\//.test(x.u) ? 9 / 16 : 16 / 9);
         el.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + y + '?cc_load_policy=1&cc_lang_pref=en&hl=en&rel=0&playsinline=1&modestbranding=1" title="' + esc(x.t) + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
         return;
       }

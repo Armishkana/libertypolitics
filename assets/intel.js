@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=e98ab7805e) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=5f9b3e31a6) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -145,6 +145,27 @@
   function monthOf(d) { return d.length >= 7 ? d.slice(0, 7) : d.slice(0, 4) + '-06'; }
   function placeName(k) { return (P[k] || ['No single place'])[0]; }
   function ytId(u) { var m = /(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/.exec(u || ''); return m ? m[1] : ''; }
+  /* A YouTube video's own shape, MEASURED, never assumed from its link (18 Oct 2026: a Short was drawn into a wide box and
+     the show screen showed only its top third). YouTube keeps a picture at the video's own shape (oar2.jpg) for every video
+     that is not plain 16:9: a Short answers 1080x1920 or 720x1280, an old 4:3 video 320x240. A plain wide video has none
+     (YouTube answers its 120x90 stand-in, or an error), so it is 16:9. Until the picture answers, a /shorts/ link counts as
+     9:16. Every place that draws a video sizes its box from this, and a box sized from it shows the whole video. */
+  var VSHAPE = {};
+  function vShape(id, u, cb) {
+    var g = /\/shorts\//.test(u || '') ? 9 / 16 : 16 / 9;
+    if (VSHAPE[id]) { cb(VSHAPE[id]); return VSHAPE[id]; }
+    var im = new Image();
+    im.onload = function () { var w = im.naturalWidth, h = im.naturalHeight; VSHAPE[id] = w > 120 && h > 90 ? Math.max(0.4, Math.min(2.5, w / h)) : g; cb(VSHAPE[id]); };
+    im.onerror = function () { VSHAPE[id] = g; cb(g); };
+    im.src = 'https://i.ytimg.com/vi/' + id + '/oar2.jpg';
+    return g;
+  }
+  // a video's box takes the video's shape (--ar), and a tall one shows its own tall picture until it is played
+  function fitVideo(box, id, u) {
+    if (!box || !id) return;
+    var set = function (a) { box.style.setProperty('--ar', a.toFixed(4)); box.classList.toggle('is-tall', a < 1); if (a < 1.7 && box.style.backgroundImage) box.style.backgroundImage = 'url(https://i.ytimg.com/vi/' + id + '/oar2.jpg)'; };
+    set(vShape(id, u, set));
+  }
   function kindOf(it) { return it.k === 'document' || it.k === 'data' ? 'doc' : it.k === 'image' ? 'post' : it.k; }          // an image post is drawn as a post
   function crOf(it) { return it.cr != null ? it.cr : null; }
   function hostOf(u) { var m = /^https?:\/\/([^\/?#]+)/i.exec(u || ''); return m ? m[1].toLowerCase().replace(/^(www|m|mobile)\./, '') : ''; }
@@ -456,15 +477,113 @@
     if (isNew(it)) b = ' · <span class="new">New</span>' + b;
     return b;
   }
+  /* ------------------------------------------------------------ no item without a picture (18 October 2026)
+     Armin: "When you are showing these tweets in the intel room, either on the side or when I click on them, nothing
+     visual shows up. This is really bad ... something visual needs to be there". So every item is drawn with the best
+     picture it has, in this order:
+       1. its own: an X post's pictures or video, a YouTube video's frame
+       2. the story's photo: a news story's picture from Bing News (build/intel_live.py, NEWS_PICS: matched by headline)
+       3. the link card: an X post that links somewhere, the card's picture as X draws it (cd)
+       4. the author: an X post of words only is drawn as the post itself, the author's face, name and whole text (av, tx)
+       5. the place: the room's own globe turned to where it happened, the country lit (drawn here, once a place)
+       6. only an item with none of these (no place, no picture): the source's initials on its platform's colour
+     One chooser (vis) for every surface: the list, the spotlight, the tour's lower third and the map's tooltip. */
+  var AV_RX = /^https:\/\/pbs\.twimg\.com\/profile_images\/\d+\/[A-Za-z0-9_-]+_normal\.(?:jpg|jpeg|png|webp)$/,
+    CARD_RX = /^https:\/\/pbs\.twimg\.com\/card_img\/\d+\/[A-Za-z0-9_-]+\?format=(?:jpg|png|webp)$/,
+    BING_RX = /^https:\/\/www\.bing\.com\/th\?id=[A-Za-z0-9._-]{8,120}&pid=News&w=240&h=150&c=7$/;
+  function avOf(it, size) { return it && it.src === 'X' && AV_RX.test(it.av || '') ? it.av.replace(/_normal\.(\w+)$/, '_' + (size || '200x200') + '.$1') : ''; }
+  function cardOf(it) { return it && it.src === 'X' && it.cd && CARD_RX.test(it.cd.i || '') && !mediaOf(it).length ? it.cd : null; }
+  function xWords(it) { return it.src === 'X' && !mediaOf(it).length; }          // a post the page draws as the post itself
+  // {k: 'pic' | 'av' | 'loc' | 'mono', u: the picture's address (none for mono)}; big: the spotlight's size
+  function vis(it, big) {
+    var y = ytId(it.u), md = mediaOf(it), cd = cardOf(it);
+    if (y) return { k: 'pic', u: 'https://i.ytimg.com/vi/' + y + (big ? '/hqdefault.jpg' : '/mqdefault.jpg') };
+    if (md.length && !it.sn) return { k: 'pic', u: pic(md[0], big ? 'medium' : '240x240') };
+    if (it.th0) return { k: 'pic', u: it.th0 + (big ? '&w=960&h=540&c=7&rs=1' : '&w=240&h=150&c=7') };
+    if (cd) return { k: 'pic', u: cd.i + '&name=' + (big ? '800x419' : '280x150') };
+    if (it.th && !it.sn && /^https:\/\//.test(it.th)) return { k: 'pic', u: it.th };
+    var av = avOf(it, big ? '400x400' : '200x200');
+    if (av) return { k: 'av', u: av };
+    var lc = locator(it.p, big);
+    if (lc) return { k: 'loc', u: lc };
+    return { k: 'mono' };
+  }
+  function initials(it) {
+    var p = pfOf(it);
+    if (!it.nm && !it.h) return p === 'Telegram' ? 'TG' : p === 'Document' ? 'DOC' : p === 'Facebook' ? 'FB' : p === 'Instagram' ? 'IG' : p === 'Threads' ? 'THR' : p === 'Web' ? 'WEB' : p === 'Other' ? 'VID' : String(p).slice(0, 3).toUpperCase();
+    var w = String(it.nm || it.h || it.src || '').replace(/^@/, '').replace(/\.(com|org|net|gov|co|il|uk|tv|media|online)\b.*$/i, '').split(/[\s._-]+/).filter(function (x) { return /^[A-Za-z0-9]/.test(x) && !/^(the|of|and|news|www)$/i.test(x); });
+    return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase();
+  }
+  // The place, drawn from the room's own map: a globe turned to it, the land as on the big map, the country lit in the
+  // room's gold, a pin on the spot. One picture a place and size, made once and kept (a JPEG of a few KB).
+  var LOC = {};
+  function locator(k, big) {
+    var key = k + (big ? '|b' : '|s');
+    if (LOC[key] !== undefined) return LOC[key];
+    var pl = P[k];
+    if (!G || !LAND || !pl || pl[2] == null || pl[3] == null) return '';          // not cached: the map can still arrive
+    var out = '';
+    try {
+      var W = big ? 960 : 240, H = big ? 540 : 150, c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      var x = c.getContext('2d'), lon = +pl[3], lat = +pl[2], cn = TOPO[pl[1]] || pl[1], feats = BYNAME[cn] || [];
+      var pj = G.geoOrthographic().clipAngle(90).rotate([-lon, -lat]).translate([W / 2, H / 2]).scale(W * 1.4);
+      // frame the country when it is small enough to read, else stay close on the place; never so near the land is lost
+      var b = feats.length ? G.geoPath(pj).bounds({ type: 'FeatureCollection', features: feats }) : null;
+      if (b && isFinite(b[0][0])) {
+        var f = Math.min(W * 0.62 / Math.max(1, b[1][0] - b[0][0]), H * 0.62 / Math.max(1, b[1][1] - b[0][1]));
+        pj.scale(Math.max(W * 0.45, Math.min(W * 7, W * 1.4 * f)));
+      }
+      var path = G.geoPath(pj, x), R = pj.scale();
+      var bg = x.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#12141A'); bg.addColorStop(1, '#07080B');
+      x.fillStyle = bg; x.fillRect(0, 0, W, H);
+      x.beginPath(); path({ type: 'Sphere' }); x.fillStyle = '#0D0F14'; x.fill();
+      if (R < W * 1.2) { x.lineWidth = big ? 1.5 : 0.8; x.strokeStyle = 'rgba(244,196,48,0.35)'; x.stroke(); }
+      x.lineWidth = big ? 1 : 0.5; x.strokeStyle = 'rgba(233,217,166,0.07)'; x.beginPath(); path(GRAT || G.geoGraticule().step([15, 15])()); x.stroke();
+      x.beginPath(); LAND.forEach(function (ft) { path(ft); }); x.fillStyle = '#2A2721'; x.fill();
+      x.strokeStyle = 'rgba(138,126,98,0.6)'; x.lineWidth = big ? 1.2 : 0.6; x.stroke();
+      if (feats.length) { x.beginPath(); feats.forEach(function (ft) { path(ft); }); x.fillStyle = 'rgba(244,196,48,0.24)'; x.fill(); x.strokeStyle = '#F4C430'; x.lineWidth = big ? 2.4 : 1.2; x.stroke(); }
+      var pt = pj([lon, lat]);
+      if (pt) {
+        var s = big ? 3.2 : 1, gl = x.createRadialGradient(pt[0], pt[1], 0, pt[0], pt[1], 16 * s);
+        gl.addColorStop(0, 'rgba(244,196,48,0.55)'); gl.addColorStop(1, 'rgba(244,196,48,0)');
+        x.fillStyle = gl; x.beginPath(); x.arc(pt[0], pt[1], 16 * s, 0, 2 * Math.PI); x.fill();
+        x.fillStyle = '#F4C430'; x.strokeStyle = '#0B0D12'; x.lineWidth = 1.5 * s; x.beginPath(); x.arc(pt[0], pt[1], 4 * s, 0, 2 * Math.PI); x.fill(); x.stroke();
+      }
+      out = c.toDataURL('image/jpeg', big ? 0.86 : 0.8);
+    } catch (e) { out = ''; }
+    return (LOC[key] = out);
+  }
+  // the spotlight's picture when the item has no video or pictures of its own
+  function heroHtml(it) {
+    if (xWords(it)) {
+      var av = avOf(it, '400x400'), cd = cardOf(it), words = it.tx && it.tx.length > it.t.length ? it.tx : it.t;
+      return '<figure class="ir-post" style="--pc:' + pfColor(pfOf(it)) + '">' +
+        '<figcaption class="ir-post-h">' + (av ? '<span class="ir-post-av" style="background-image:url(' + esc(av) + ')"></span>' : '<span class="ir-post-av is-mono">' + esc(initials(it)) + '</span>') +
+        '<span class="ir-post-who"><b>' + esc(it.nm || it.h) + '</b><small>' + esc(it.h) + '</small></span>' + mark(it, 'ir-post-mk') + '</figcaption>' +
+        '<blockquote class="ir-post-t">' + esc(words) + '</blockquote>' +
+        (cd ? '<a class="ir-post-card" href="' + esc(it.u) + '" target="_blank" rel="noopener"><span class="ir-post-ci" style="background-image:url(' + esc(cd.i + '&name=800x419') + ')"></span>' +
+          (cd.t || cd.dm ? '<span class="ir-post-ct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + (cd.t ? esc(cd.t) : '') + '</span>' : '') + '</a>' : '') +
+        '</figure>';
+    }
+    var v = vis(it, true), where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
+    var lc = v.k === 'pic' ? locator(it.p, true) : '';
+    if (v.k === 'pic') return '<figure class="ir-hero"><span class="ir-hero-i" style="background-image:url(' + esc(v.u) + ')' + (lc ? ',url(' + lc + ')' : '') + '"></span>' + (it.th0 ? '<figcaption>Picture: Bing News</figcaption>' : '') + '</figure>';
+    if (v.k === 'loc') return '<figure class="ir-hero is-loc"><span class="ir-hero-i" style="background-image:url(' + v.u + ')"></span><figcaption class="ir-hero-pl">' + esc(where + (P[it.p] && P[it.p][1] && P[it.p][1] !== where ? ', ' + P[it.p][1] : '')) + '</figcaption></figure>';
+    return '';
+  }
   function thumb(it) {
-    var y = ytId(it.u), p = pfOf(it), m = mark(it), pc = ' style="--pc:' + pfColor(p) + '"';
+    var p = pfOf(it), m = mark(it), pc = '--pc:' + pfColor(p);
     var md = mediaOf(it), vid = kindOf(it) === 'video', d = vid ? fmtDur(it.dur || (md[0] && md[0].s)) : '';
     m += d ? '<b class="ir-th-d num">' + d + '</b>' : '';
     // a picture X marks as possibly sensitive is blurred in the list; the spotlight asks before it shows it
-    if (it.sn && md.length) return '<span class="ir-th is-sn' + (vid ? ' yt' : '') + '"' + pc + '><span class="ir-th-i" style="background-image:url(' + esc(pic(md[0], '240x240')) + ')"></span>' + m + '</span>';
-    if (it.th || y) return '<span class="ir-th' + (vid ? ' yt' : '') + '" style="--pc:' + pfColor(p) + ';background-image:url(' + esc(it.th || 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg') + ')">' + m + '</span>';
-    var s = p === 'Telegram' ? 'TG' : p === 'Document' ? 'DOC' : p === 'Facebook' ? 'FB' : p === 'Instagram' ? 'IG' : p === 'News' ? 'NEWS' : p === 'Web' ? 'WEB' : p === 'Threads' ? 'THR' : p === 'Other' ? 'VIDEO' : p;
-    return '<span class="ir-th"' + pc + '><i>' + esc(s) + '</i>' + m + '</span>';
+    if (it.sn && md.length) return '<span class="ir-th is-sn' + (vid ? ' yt' : '') + '" style="' + pc + '"><span class="ir-th-i" style="background-image:url(' + esc(pic(md[0], '240x240')) + ')"></span>' + m + '</span>';
+    var v = vis(it), under = v.k === 'pic' || v.k === 'av' ? locator(it.p) : '';          // shows only if the picture fails
+    if (v.k === 'pic') return '<span class="ir-th' + (vid ? ' yt' : '') + '" style="' + pc + ';background-image:url(' + esc(v.u) + ')' + (under ? ',url(' + under + ')' : '') + '">' + m + '</span>';
+    // an X post of words only: the author's face, sharp in the middle of the same face blurred (as a chat app previews it)
+    if (v.k === 'av') return '<span class="ir-th ir-th-av" style="' + pc + (under ? ';background-image:url(' + under + ')' : '') + '"><span class="ir-th-i" style="background-image:url(' + esc(v.u) + ')"></span><span class="ir-th-a" style="background-image:url(' + esc(v.u) + ')"></span>' + m + '</span>';
+    if (v.k === 'loc') return '<span class="ir-th ir-th-loc" style="' + pc + ';background-image:url(' + v.u + ')">' + m + '</span>';
+    return '<span class="ir-th ir-th-mono" style="' + pc + '"><i>' + esc(initials(it)) + '</i>' + m + '</span>';
   }
   function card(it, i) {
     var where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
@@ -492,7 +611,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=e98ab7805e): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=5f9b3e31a6): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -928,7 +1047,7 @@
       if (rc && !rc.x) { if (rc.lk != null) nums.push(fmtN(rc.lk) + ' likes'); if (rc.vw != null) nums.push((rc['~'] ? '~' : '') + fmtN(rc.vw) + ' views'); }
       if (it.hot != null) nums.push('Hot ' + it.hot);
       if (it._v != null) nums.push('Viral ' + it._v);
-      var tth = it.sn ? '' : it.th || (ytId(it.u) ? 'https://i.ytimg.com/vi/' + ytId(it.u) + '/mqdefault.jpg' : '');
+      var tv = it.sn ? null : vis(it), tth = tv && (tv.k === 'pic' || tv.k === 'av') ? tv.u : '';
       tip.innerHTML = (tth ? '<span class="tip-im" style="background-image:url(' + esc(tth) + ')">' + (kindOf(it) === 'video' ? PLAY_SVG : '') + '</span>' : '') + '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + '. Tap to open.</small>';
       tip.classList.add('wide');
       tip.style.left = m.x + 'px'; tip.style.top = (m.y - 10) + 'px'; tip.hidden = false;
@@ -1689,10 +1808,10 @@
     var by = it.by ? ' · sent by ' + esc(it.by) : '';
     dlg.innerHTML = '<div class="ir-s-in">' +
       '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + (i + 1) + ' of ' + shown.length + '</span><button class="ir-s-x" type="button" data-x aria-label="Close">&times;</button></div>' +
-      '<h2 id="ir-spot-t">' + esc(it.t) + '</h2>' +
+      '<h2 id="ir-spot-t"' + (xWords(it) ? ' class="vh"' : '') + '>' + esc(it.t) + '</h2>' +
       '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + esc(it.h && it.src !== 'News' ? it.h + ' on ' + it.src : it.h || it.src) + by + '</p>' +
       // the thing itself straight under its headline (17 Oct 2026): the video or the pictures, then what is said about it
-      (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : mediaHtml(it)) +
+      (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : mediaOf(it).length ? mediaHtml(it) : heroHtml(it)) +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
       spotReach(it) +
       (it.hotWhy ? '<p class="ir-s-o">Why it is hot: ' + esc(it.hotWhy) + (it.also && it.also.length ? '. Also carried by ' + esc(it.also.join(', ')) : '') + '.</p>' : '') +
@@ -1705,6 +1824,7 @@
       '<p class="ir-s-f">Weak, wrong, or missing context? <a href="#feedback" data-kind="wrong" data-about="' + esc(('Intel Room: ' + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="page:intel" data-close-spot>Say why in the discussion</a>. That is how the room gets better.</p>' +
       '</div>';
     wireMedia(dlg.querySelector('.ir-xm'), it);
+    fitVideo(dlg.querySelector('.ir-s-v'), y, it.u);
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
   }
@@ -1767,7 +1887,7 @@
         return '<button type="button" data-lb="' + j + '" aria-label="' + esc('See picture ' + (j + 1) + ' of ' + ph.length + ' from ' + who + ' full size') + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (j < 2 ? ' fetchpriority="high"' : ' loading="lazy"') + '><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
       }).join('') + '</div>';
     }
-    return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>X marks this as possibly sensitive. Show it</button>' : '') + '</div>';
+    return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>' + (it.g ? 'Graphic footage. Show it' : 'X marks this as possibly sensitive. Show it') + '</button>' : '') + '</div>';
   }
   // the clicks inside one .ir-xm; fallback(holder) replaces the native player when the video will not play
   function wireMedia(box, it, fallback) {
@@ -1905,8 +2025,8 @@
   function lowerThird(it) {
     var lt = $('ir-lt');
     if (!it) { lt.hidden = true; lt.innerHTML = ''; return; }
-    var y = ytId(it.u), th = it.th || (y ? 'https://i.ytimg.com/vi/' + y + '/mqdefault.jpg' : '');
-    lt.innerHTML = (th ? '<span class="ir-lt-th" style="background-image:url(' + esc(th) + ')"></span>' : '') +
+    var lv = it.sn ? { k: 'mono' } : vis(it), th = lv.u || '';
+    lt.innerHTML = (th ? '<span class="ir-lt-th' + (lv.k === 'av' ? ' is-av' : '') + '" style="background-image:url(' + (lv.k === 'loc' ? th : esc(th)) + ')"></span>' : '') +
       '<span class="ir-lt-b"><span class="ir-lt-k">' + esc(LENS[S.lens]) + (it.hot != null ? ' · <b>' + flame() + 'Hot ' + it.hot + '</b>' : it.q ? ' · <b>&#9733; Top pick</b>' : '') + '</span>' +
       '<span class="ir-lt-t">' + esc(it.t) + '</span><span class="ir-lt-m">' + mark(it, 'ir-mk') + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + ' · ' + esc(it.h || it.src) + '</span>' + reachLine(it) + '</span>' +
       '<span class="ir-lt-n num">' + (tourAt + 1) + '/' + Math.min(shown.length, 30) + '</span>';
@@ -2075,7 +2195,7 @@
     var places = placeOptions(BANK, false);
     var today = new Date().toISOString().slice(0, 10);
     return '<form class="ir-a" id="ir-a" novalidate>' +
-      '<div class="ir-a-top"><p class="ir-a-k"><span class="ir-a-badge">The main mission</span><span id="ir-a-xp">+' + XP.find + ' XP when it is accepted</span></p><button class="ir-s-x" type="button" data-a-x aria-label="Close">&times;</button></div>' +
+      '<div class="ir-a-top"><p class="ir-a-k"><span class="ir-a-badge">Act II · Scout</span><span id="ir-a-xp">+' + XP.find + ' XP when it is accepted</span></p><button class="ir-s-x" type="button" data-a-x aria-label="Close">&times;</button></div>' +
       '<h2 id="ir-add-h">Add to the Intel Room</h2>' +
       '<p class="ir-a-lede">Evidence nobody can find does nothing. Send the link, say what it shows, and I check it. Once it is on the map it carries your name, and anyone can use it.</p>' +
       '<div class="ir-a-f"><label for="ir-a-url">The link</label>' +
@@ -2410,8 +2530,9 @@
     it.id = 'L' + it.id;
     // news and YouTube are an article or a video; an X post keeps what it carries (a post, an image, a video, an article)
     it.k = it.src === 'X' ? (['post', 'image', 'video', 'article'].indexOf(it.k) >= 0 ? it.k : 'post') : it.k === 'video' ? 'video' : 'article';
-    if (it.src !== 'X') { delete it.m; delete it.sn; }
+    if (it.src !== 'X') { delete it.m; delete it.sn; delete it.av; delete it.cd; delete it.tx; }
     else if (!it.th && !it.sn && mediaOf(it).length) it.th = pic(mediaOf(it)[0], '240x240');
+    if (it.src === 'News' && BING_RX.test(it.th || '')) it.th0 = it.th.replace(/&w=240&h=150&c=7$/, '');          // th: the list's size
     return it;
   }
   var liveUrl = root.getAttribute('data-live'), reachUrl = root.getAttribute('data-reach');
@@ -2478,7 +2599,7 @@
       byId: function (id) { return BYID[id] || RD.filter(function (it) { return it.id === id; })[0] || null; },
       topics: function () { return TOPICS.map(function (t) { return t[1]; }); }, topicsOn: function () { return S.tp.map(topicName); }, subjects: tkOf,
       when: function (it) { return fmtDate(it.d); }, where: function (it) { return it.p === 'global' && it.pw ? it.pw : placeName(it.p); },
-      code: function (it) { return it._code || String(it.id); }, pf: pfOf, kind: kindOf, mark: function (it) { return mark(it); }, fmt: fmtN, yt: ytId,
+      code: function (it) { return it._code || String(it.id); }, pf: pfOf, kind: kindOf, mark: function (it) { return mark(it); }, fmt: fmtN, yt: ytId, vshape: vShape,
       reach: function (it) { var r = reachOf(it); return r && !r.x ? { likes: r.lk, views: r.vw, replies: r.rp, platform: pfName(pfOf(it)), viral: it._v } : null; },
       // for the show maker: the stories (hot topics) and their written words, which story an item is in, the filters in
       // words, and a call after every redraw
@@ -2487,8 +2608,8 @@
       focusName: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : ''; }, focusOn: function () { return S.fx.slice(); },
       placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); },
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
-      media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur };
-    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=e98ab7805e'; document.body.appendChild(ps); }
+      media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml };
+    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=5f9b3e31a6'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
