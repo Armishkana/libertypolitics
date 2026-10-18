@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=fb2575fa19) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=e98ab7805e) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -71,7 +71,7 @@
     ['uk', 'United Kingdom', ['United Kingdom'], /\b(Britain|British|UK|England|English Channel|London|Starmer|Farage|Downing Street|Westminster|Scotland|Welsh|Wales)\b/],
     ['europe', 'Europe', ['United Kingdom', 'France', 'Germany', 'Sweden', 'Ireland', 'Spain', 'Italy', 'Netherlands', 'Belgium', 'Switzerland', 'Norway', 'Denmark', 'Poland', 'Austria', 'Hungary', 'Greece', 'Portugal', 'Finland'], /\b(Europe\w*|EU|Britain|British|UK|London|France|French|Paris|Macron|Germany|German|Berlin|Sweden|Swedish|Ireland|Irish|Spain|Italy|Italian|Meloni|Brussels|Geneva|Poland|Polish|Hungary|Orban|Netherlands|Dutch|Belgium|Austria|Greece|Greek)\b/],
     ['russia', 'Russia and Ukraine', ['Russia', 'Ukraine'], /\b(Russia\w*|Putin|Kremlin|Moscow|Ukrain\w*|Zelensk\w*|Kyiv)\b/],
-    ['china', 'China and Taiwan', ['China', 'Taiwan', 'Hong Kong'], /\b(China|Chinese|Beijing|Xi Jinping|Taiwan\w*|CCP|Hong Kong)\b/],
+    ['china', 'China and East Asia', ['China', 'Taiwan', 'Hong Kong', 'Japan', 'South Korea', 'North Korea'], /\b(China|Chinese|Beijing|Xi Jinping|Taiwan\w*|CCP|Hong Kong|Japan\w*|Tokyo|Korea\w*|Seoul|Pyongyang)\b/],
     ['asia', 'South Asia', ['India', 'Pakistan', 'Afghanistan', 'Bangladesh', 'Sri Lanka'], /\b(India|Indian|Modi|New Delhi|Pakistan\w*|Islamabad|Afghan\w*|Taliban|Kabul|Bangladesh\w*|Kashmir)\b/],
     ['africa', 'Africa', ['Nigeria', 'Sudan', 'South Africa', 'Ethiopia', 'Somalia', 'Libya', 'Kenya', 'Mali', 'Algeria', 'Morocco', 'Tunisia', 'Congo'], /\b(Africa\w*|Nigeria\w*|Sudan\w*|Ethiopia\w*|Somali\w*|Libya\w*|Kenya\w*|Sahel|Mali|Algeria\w*|Morocc\w*|Tunisia\w*|Congo\w*|Darfur)\b/],
     ['latam', 'Latin America', ['Mexico', 'Venezuela', 'Brazil', 'Argentina', 'Colombia', 'Cuba', 'Chile', 'Peru'], /\b(Mexic\w*|Venezuel\w*|Maduro|Brazil\w*|Lula|Argentin\w*|Milei|Colombia\w*|Cuba\w*|Havana|Chile\w*|Peru\w*|Latin America\w*)\b/]
@@ -492,7 +492,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=fb2575fa19): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=e98ab7805e): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1303,7 +1303,7 @@
     ['United Kingdom', /\bbritain\b|\bbritish\b|\b(UK|London)\b/], ['Germany', /\bgerman\w*\b|\bberlin\b/i], ['Lebanon', /\bleban\w*\b|\bbeirut\b/i], ['Syria', /\bsyria\w*\b|\bdamascus\b/i],
     ['Yemen', /\byemen\w*\b|\bsanaa\b/i], ['Gaza', /\bgaza\b/i], ['West Bank', /\bwest bank\b|\bjudea\b/i], ['Qatar', /\bqatar\w*\b|\bdoha\b/i], ['Saudi Arabia', /\bsaudi\w*\b|\briyadh\b/i],
     ['Turkey', /\bturkey\b|\bturkish\b|\bankara\b/i], ['Iraq', /\biraq\w*\b|\bbaghdad\b/i], ['Egypt', /\begypt\w*\b|\bcairo\b/i], ['Canada', /\bcanad\w*\b|\bottawa\b/i],
-    ['Italy', /\bital(y|ian)\b|\brome\b/i], ['India', /\bindia\b|\bindian government\b/i], ['Pakistan', /\bpakistan\w*\b/i], ['Afghanistan', /\bafghan\w*\b|\bkabul\b/i], ['Venezuela', /\bvenezuel\w*\b/i],
+    ['Italy', /\bital(y|ian)\b|\brome\b/i], ['India', /\bindia\b|\bindian government\b/i], ['Pakistan', /\bpakistan\w*\b/i], ['Afghanistan', /\bafghan\w*\b|\bkabul\b/i], ['Venezuela', /\bvenezuel\w*\b/i], ['Cuba', /\bcuba\w*\b|\bhavana\b/i], ['Taiwan', /\btaiwan\w*\b/i], ['Japan', /\bjapan\w*\b|\btokyo\b/i], ['Mexico', /\bmexic\w*\b/i], ['Poland', /\bpoland\b|\bpolish\b/i],
     ['United Arab Emirates', /\buae\b|\bemirat\w*\b|\bdubai\b|\babu dhabi\b/i]];
   var ANCH = null;
   function anchors() {          // each country's point: its own place where it has one, else its first place on the map
@@ -2488,7 +2488,7 @@
       placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); },
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur };
-    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=fb2575fa19'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=e98ab7805e'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
