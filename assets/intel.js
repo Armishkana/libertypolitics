@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=0feef8ec8a) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9f11c6a1c4) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -708,7 +708,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=0feef8ec8a): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9f11c6a1c4): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1738,7 +1738,7 @@
     var h = location.hash === '#add' ? '' : location.hash;
     history.replaceState(null, '', location.pathname + query() + h);
   }
-  var defLens = 'bank', SHOWING = /[?&]show=/.test(location.search);
+  var defLens = 'bank', SHOWING = /[?&](show|s)=/.test(location.search);          // ?s=: a saved show (intel-prep.js loadSaved)
   function readUrl(search) {
     var u = new URLSearchParams(search);
     useLens(u.get('lens') || defLens, true);
@@ -2906,8 +2906,10 @@
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml,
       // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
-      rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago };
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=0feef8ec8a'; document.body.appendChild(ps); }
+      rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
+      // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
+      regime: isRegime };
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9f11c6a1c4'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
