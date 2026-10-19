@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=9f11c6a1c4 and assets/community-fa.js?v=9f11c6a1c4, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=c98da8f981 and assets/community-fa.js?v=c98da8f981, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -1915,7 +1915,7 @@ function sentPost(b, post, made) {
   if (!made || !(b.f.getAttribute('data-panel') || PANEL)) return;      // a site with no panel marks the video as the reader's own and asks for nothing more
   /* A reader who makes videos: the way to the panel, and where their channel is. */
   box.hidden = false;
-  const p = el('p'); p.append(tt('You make videos? The live show is looking for panelists.') + ' ', el('a', null, tt('Apply for the panel'), { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
+  const p = el('p'); p.append(tt('You make videos? Come on the live show, on the team.') + ' ', el('a', null, tt('Apply with a video'), { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
   box.append(p);
   if (profile && profile.channel) { box.append(el('p', 'fbhint', tt('Your channel is saved as {channel}. You can change it under your name at the top of the page.', { channel: profile.channel.replace(/^https:\/\//, '') }))); return; }
   const f = el('div', 'fbrow'), id = 'fbchan', input = el('input', null, null, { id, type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
@@ -3125,7 +3125,13 @@ function modTools(box) {
   box.append(hl, line, top, waitH, waitL, newH, newL, goH, goBox, pplH, el('div', 'row', null), pplL);
   pplH.nextSibling.append(copy); pplL.before(csvBox);
   if (SITE.noStats) { goH.hidden = true; goBox.hidden = true; }      // a site with no short links has no counts to show
-  const GO = ['yt', 'pin', 'qr', 'x', 'site', 'mail', 'other'], GOW = { yt: 'video description', pin: 'pinned comment', qr: 'QR code', x: 'X', site: 'this site', mail: 'newsletter', other: 'another tag', none: 'no tag' };
+  /* The same list as GO_TAGS in render.py and tagsOf in firestore.rules (render.py go_tags_check stops the build when they
+     differ). Since 19 October 2026 the panel page counts its own arrivals by tag, the band on each page included. */
+  const GO = ['yt', 'pin', 'qr', 'x', 'site', 'mail', 'fb', 'yc', 'nl', 'front', 'race', 'state', 'member', 'vote', 'guide', 'intel', 'talk', 'mission', 'gather', 'about', 'room', 'profile', 'grade', 'crew', 'other'],
+    GOW = { yt: 'video description', pin: 'pinned comment', qr: 'QR code', x: 'X', site: 'this site', mail: 'newsletter (old tag)', fb: 'Facebook', yc: 'YouTube community post', nl: 'newsletter',
+      front: 'band on the front page', race: 'band on a race', state: 'band on a state', member: 'band on a politician', vote: 'band on a vote', guide: 'band on How to vote', intel: 'band in the Intel Room',
+      talk: 'band on a discussion', mission: 'band on Missions', gather: 'band on Gatherings', about: 'band on About', room: 'band in the War Room', profile: 'band on a profile', grade: 'band on Your grade', crew: 'band on The team',
+      other: 'another tag', none: 'no tag' };
   function drawGo(days, err) {
     goBox.textContent = '';
     if (err) { goBox.append(el('p', 'said-note', err)); return; }
