@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=7bdcb29a17 and assets/community-fa.js?v=7bdcb29a17, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=01025cab05 and assets/community-fa.js?v=01025cab05, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -1064,7 +1064,15 @@ function hiSays() {
 }
 /* Closed by the reader: gone until their next visit. */
 function hiClosed() { try { return sessionStorage.getItem(HI.x) === String(hiVisit && hiVisit.start); } catch (x) { return false; } }
+/* 19 October 2026, Armin: the corner "should also only be about the live streams on YouTube ... is that going to make it
+   too confusing, too cluttered, and have too many calls to action?" It was: the note sat on top of the show's bubble, a
+   second call to action in the same corner. So the note is no longer drawn on either site. What it said lives where it
+   costs nothing: what the site did for a reader is the count on their picture in the header (paintHeader) and the list in
+   the account panel, and the page's own question near the top still asks them by name (hiNudge). HI_CORNER brings the
+   note back if he ever asks for it; the tests (community-test.html, site-iu discussion-test.html) say it stays away. */
+const HI_CORNER = false;
 function paintHi() {
+  if (!HI_CORNER) { if (hiBox) { hiBox.remove(); hiBox = null; } return; }
   if (!V || !hiVisit) return;
   const talk = $('talk'), main = D.getElementById('main');
   /* Not on the pages that are not for readers to linger on: the Intel Room is the show's screen on air, and the panel and

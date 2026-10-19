@@ -1,7 +1,10 @@
 /* The Intel Room (intel/). Loaded on this page only, after site.css, and uses its tokens: no colour is added here that
    site.css does not already name, except the sea and the land (darks between --sunk and --panel), the four steps of
-   gold a country glows by, and the warm white gold of the last 24 hours. Nothing is hidden and animated in: the rings
+   gold a country glows by, the warm white gold of the last 24 hours, and the three sides of who covered a story
+   (--lean-l, --lean-c, --lean-r: a muted blue, the brand's bone, a muted red, the colours every reader already reads as
+   left, centre and right). Nothing is hidden and animated in: the rings
    that pulse round a story of the last 24 hours are extra marks, and the circle under them is always drawn. */
+:root{--lean-l:#5B8FD6;--lean-c:#C9C1B0;--lean-r:#D0604A}          /* on :root: the spotlight dialog sits outside .ir */
 .ir{--sea:#07080A;--land:#201F1B;--land-edge:#45413A;--pin:var(--field);--live:#FFE29A;--glass:rgba(16,16,15,.82);
   max-width:1480px;margin:0 auto;padding:var(--s5) var(--gutter) var(--s7)}
 .ir .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -9,7 +12,7 @@
 .ir-top{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s4);margin-bottom:var(--s4)}
 .ir-top>*,.ir-bar>*,.ir-main>*{min-width:0}
 .ir-kick{display:flex;align-items:center;gap:8px;margin:0 0 6px;font:700 var(--t1)/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--field)}
-.ir-dot{width:8px;height:8px;border-radius:50%;background:var(--field);box-shadow:0 0 0 4px rgba(244,196,48,.18)}
+.ir-dot{width:8px;height:8px;border-radius:50%;background:var(--field);box-shadow:0 0 0 4px rgba(var(--ir-gold,244,196,48),.18)}
 .ir-kick-l:not(:empty){margin-left:4px;padding:3px 8px;border-radius:999px;background:rgba(255,226,154,.12);color:var(--live);letter-spacing:.12em}
 .ir-kick-l:not(:empty)::before{content:"";display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:var(--live);vertical-align:1px;animation:irblink 1.6s ease-in-out infinite}
 @keyframes irblink{50%{opacity:.35}}
@@ -19,7 +22,7 @@
 
 /* the one ask of the room: add to it */
 .ir-cta{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:var(--s4)}
-.ir-add-b{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 24px 0 18px;border-radius:999px;background:var(--field);color:var(--on-field);font:800 var(--t3)/1 var(--body);text-decoration:none;box-shadow:0 10px 30px -12px rgba(244,196,48,.6);transition:background .15s,transform .15s}
+.ir-add-b{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 24px 0 18px;border-radius:999px;background:var(--field);color:var(--on-field);font:800 var(--t3)/1 var(--body);text-decoration:none;box-shadow:0 10px 30px -12px rgba(var(--ir-gold,244,196,48),.6);transition:background .15s,transform .15s}
 .ir-add-b svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round}
 .ir-add-b:hover{background:var(--field-hi);transform:translateY(-1px)}
 .ir-add-s{min-height:48px;font-size:var(--t2)}
@@ -95,7 +98,7 @@
 /* the map and the list */
 .ir-main{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
 .ir-mapbox{position:relative;height:min(62vh,560px);min-height:340px;border-radius:16px;overflow:hidden;
-  background:radial-gradient(80% 70% at 58% 42%,rgba(244,196,48,.075) 0%,rgba(244,196,48,0) 60%),radial-gradient(130% 100% at 55% 40%,#121318 0%,var(--sea) 72%);
+  background:radial-gradient(80% 70% at 58% 42%,rgba(var(--ir-gold,244,196,48),.075) 0%,rgba(var(--ir-gold,244,196,48),0) 60%),radial-gradient(130% 100% at 55% 40%,#121318 0%,var(--sea) 72%);
   box-shadow:inset 0 0 0 1px #24231f,0 30px 60px -40px #000;touch-action:pan-y;user-select:none;-webkit-user-select:none}
 /* one finger scrolls the page over the map, two move it (intel.js onMove); on the full screen every finger is the map's */
 html.ir-show .ir-mapbox{touch-action:none}
@@ -105,7 +108,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-map{display:block;width:100%;height:100%;cursor:grab}
 .ir-map.drag{cursor:grabbing}
 .ir-map .gr{fill:none;stroke:rgba(233,217,166,.07);stroke-width:.6;vector-effect:non-scaling-stroke}
-.ir-map .gr.eq{stroke:rgba(244,196,48,.13);stroke-dasharray:3 5}
+.ir-map .gr.eq{stroke:rgba(var(--ir-gold,244,196,48),.13);stroke-dasharray:3 5}
 .ir-map .c{fill:var(--land);stroke:var(--land-edge);stroke-width:.55;vector-effect:non-scaling-stroke;transition:fill .3s}
 .ir-map .c:hover{fill:#24221d}
 .ir-map .c.h1{fill:#24201A}.ir-map .c.h2{fill:#2E2716}.ir-map .c.h3{fill:#3D3218}.ir-map .c.h4{fill:#54431A;stroke:#7A6223}
@@ -118,7 +121,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-pin.sel circle.core{fill:var(--ink);stroke:var(--field);stroke-width:3}
 .ir-pin.dim circle.core{fill:#6d5a1e}.ir-pin.dim circle.halo{fill:none}
 .ir-pin:hover circle.core,.ir-pin:focus circle.core{fill:var(--field-hi)}
-.ir-pin:focus{outline:none}.ir-pin:focus-visible circle.halo{fill:rgba(244,196,48,.4)}
+.ir-pin:focus{outline:none}.ir-pin:focus-visible circle.halo{fill:rgba(var(--ir-gold,244,196,48),.4)}
 .ir-pin .pulse{fill:none;stroke:var(--field);stroke-width:2;animation:irpulse 1.6s ease-out 3}
 @keyframes irpulse{from{opacity:1;r:10}to{opacity:0;r:46}}
 /* the last 24 hours: a warmer circle with two rings that keep pulsing outwards, faster on a hot story */
@@ -186,7 +189,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-c-m .pend{color:var(--live)}
 /* hot: a short gold bar filled to the score, with the number */
 .hot{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:3px 8px 3px 6px;border-radius:999px;font:700 var(--t1)/1 var(--body);color:var(--live);
-  background:linear-gradient(90deg,rgba(244,196,48,.32) var(--h),rgba(255,255,255,.05) var(--h))}
+  background:linear-gradient(90deg,rgba(var(--ir-gold,244,196,48),.32) var(--h),rgba(255,255,255,.05) var(--h))}
 .hot svg{width:13px;height:13px;fill:currentColor}
 .hot b{color:var(--ink)}
 .ir-more,.ir-more-n{margin:6px;min-height:44px;border-radius:var(--r);border:1px solid var(--line);background:none;color:var(--ink);font:600 var(--t2) var(--body);cursor:pointer}
@@ -226,7 +229,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-livenote a{color:var(--field);font-weight:700}
 
 /* how it grows */
-.ir-grow{margin-top:var(--s6);padding:var(--s5);border-radius:18px;background:linear-gradient(135deg,rgba(244,196,48,.09),rgba(244,196,48,0) 55%),var(--panel);box-shadow:inset 0 0 0 1px #2c2a25}
+.ir-grow{margin-top:var(--s6);padding:var(--s5);border-radius:18px;background:linear-gradient(135deg,rgba(var(--ir-gold,244,196,48),.09),rgba(var(--ir-gold,244,196,48),0) 55%),var(--panel);box-shadow:inset 0 0 0 1px #2c2a25}
 .ir-grow h2{font-size:var(--t5);margin:0 0 var(--s4)}
 .ir-steps{list-style:none;margin:0 0 var(--s5);padding:0;display:grid;gap:var(--s4)}
 .ir-steps li{display:grid;grid-template-columns:44px 1fr;gap:12px;align-items:start}
@@ -260,7 +263,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 /* a video's box is the video's own measured shape (--ar, set by fitVideo in intel.js), so a Short is tall, never cut */
 .ir-s-v{position:relative;--ar:1.7778;aspect-ratio:var(--ar);width:min(100%,calc(min(62vh,600px)*var(--ar)));margin-inline:auto;border-radius:12px;overflow:hidden;background:#000 center/cover}
 .ir-s-v iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-.ir-s-v button{position:absolute;inset:0;margin:auto;width:76px;height:76px;border-radius:50%;border:0;background:rgba(244,196,48,.95);cursor:pointer;display:grid;place-items:center}
+.ir-s-v button{position:absolute;inset:0;margin:auto;width:76px;height:76px;border-radius:50%;border:0;background:rgba(var(--ir-gold,244,196,48),.95);cursor:pointer;display:grid;place-items:center}
 .ir-s-v button svg{width:30px;height:30px;fill:var(--on-field);margin-left:4px}
 /* An X post's pictures and video (17 Oct 2026): the picture in the list, the video played here, the pictures full screen */
 .ir-th-d{position:absolute;right:3px;bottom:3px;padding:1px 4px;border-radius:4px;background:rgba(0,0,0,.8);color:#fff;font:700 12px/1.2 var(--body);letter-spacing:0;text-transform:none}
@@ -269,7 +272,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-xv{position:relative;--ar:1.7778;aspect-ratio:var(--ar);width:min(100%,calc(min(62vh,600px)*var(--ar)));margin:0 auto;border-radius:12px;overflow:hidden;background:#000}
 .ir-xv>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
 .ir-xv-f{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:#000}
-.ir-xv-play{position:absolute;inset:0;margin:auto;width:max-content;height:64px;padding:0 22px 0 16px;border-radius:999px;border:0;background:rgba(244,196,48,.95);color:var(--on-field);cursor:pointer;display:flex;align-items:center;gap:6px;font:800 var(--t2) var(--body);box-shadow:0 12px 30px -10px #000}
+.ir-xv-play{position:absolute;inset:0;margin:auto;width:max-content;height:64px;padding:0 22px 0 16px;border-radius:999px;border:0;background:rgba(var(--ir-gold,244,196,48),.95);color:var(--on-field);cursor:pointer;display:flex;align-items:center;gap:6px;font:800 var(--t2) var(--body);box-shadow:0 12px 30px -10px #000}
 .ir-xv-play svg{width:30px;height:30px;fill:currentColor}
 .ir-xv-play:hover{background:var(--field-hi)}
 .ir-xv.is-embed{aspect-ratio:auto;width:100%;background:none;overflow:visible;border-radius:0}
@@ -339,7 +342,7 @@ html.ir-show .ir-mapbox{touch-action:none}
 .ir-a-who span{display:grid;gap:3px;height:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--sunk)}
 .ir-a-who b{font-size:var(--t3)}
 .ir-a-who i{font-style:normal;font-weight:800;color:var(--field)}
-.ir-a-who input:checked+span{border-color:var(--field);background:rgba(244,196,48,.08)}
+.ir-a-who input:checked+span{border-color:var(--field);background:rgba(var(--ir-gold,244,196,48),.08)}
 .ir-a-who input:focus-visible+span{outline:3px solid var(--field);outline-offset:2px}
 .ir-a-more{border-radius:12px;background:var(--sunk);border:1px solid var(--line)}
 .ir-a-more>summary{min-height:48px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;padding:8px 14px;cursor:pointer;font:700 var(--t2) var(--body);list-style:none}
@@ -396,7 +399,7 @@ html.ir-show .ir-hist{height:70px}
    wire of the hottest stories across the top, a board of counts, gold corner marks on the display. The one set of
    colours added is the platforms' own (PF in intel.js), because he asked that a mark's colour say where it was posted;
    they are only ever on marks, dots and one thin bar, never on chrome. Corners stay the site's two sizes (8 and 14). */
-.ir{--mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;--hud:rgba(9,9,8,.8);--hair:rgba(244,196,48,.2);
+.ir{--mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;--hud:rgba(9,9,8,.8);--hair:rgba(var(--ir-gold,244,196,48),.2);
   --key:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='10'%3E%3Cpath d='M0 9H12M9 9V1H3v5h3V4' fill='none' stroke='%23F4C430' stroke-opacity='.42' stroke-width='1'/%3E%3C/svg%3E")}
 .ir-owl{width:22px;height:22px;flex:none;fill:none;stroke:var(--field);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .ir-owl .o-p{fill:var(--field);stroke:none}
@@ -414,8 +417,8 @@ html.ir-show .ir-hist{height:70px}
 .ir-wire:hover .ir-wire-t,.ir-wire:focus-within .ir-wire-t{animation-play-state:paused}
 @keyframes irwire{to{transform:translateX(-50%)}}
 .w-set{display:flex}
-.ir-wire button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-right:1px solid rgba(244,196,48,.1);background:none;color:var(--ink);font:600 var(--t2)/1.2 var(--body);white-space:nowrap;cursor:pointer}
-.ir-wire button:hover,.ir-wire button:focus-visible{background:rgba(244,196,48,.08);outline:none}
+.ir-wire button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-right:1px solid rgba(var(--ir-gold,244,196,48),.1);background:none;color:var(--ink);font:600 var(--t2)/1.2 var(--body);white-space:nowrap;cursor:pointer}
+.ir-wire button:hover,.ir-wire button:focus-visible{background:rgba(var(--ir-gold,244,196,48),.08);outline:none}
 .w-h{display:inline-flex;align-items:center;gap:3px;color:var(--live);font:800 var(--t1)/1 var(--body)}
 .w-h svg{width:13px;height:13px;fill:currentColor}
 .w-m{width:13px;height:13px;flex:none}
@@ -450,12 +453,12 @@ html.ir-show .ir-hist{height:70px}
 /* the board: what is in view, counted */
 .ir-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:var(--s3)}
 .ir-board:empty{display:none}
-.ir-b-t{position:relative;display:grid;align-content:start;gap:3px;min-width:0;padding:10px 12px 11px;border:0;border-radius:var(--r);background:linear-gradient(180deg,rgba(244,196,48,.06),rgba(244,196,48,0) 70%),var(--panel);color:var(--ink);text-align:left;font:inherit}
+.ir-b-t{position:relative;display:grid;align-content:start;gap:3px;min-width:0;padding:10px 12px 11px;border:0;border-radius:var(--r);background:linear-gradient(180deg,rgba(var(--ir-gold,244,196,48),.06),rgba(var(--ir-gold,244,196,48),0) 70%),var(--panel);color:var(--ink);text-align:left;font:inherit}
 .ir-b-k{font:800 var(--t1)/1 var(--display);letter-spacing:.16em;text-transform:uppercase;color:var(--field)}
 .ir-b-t>b{font:800 clamp(1.45rem,2.4vw,2rem)/1.05 var(--display);letter-spacing:.01em;color:var(--ink)}
 .ir-b-t small{font:500 var(--t1)/1.3 var(--body);color:var(--dim)}
 .ir-b-top{grid-column:1/-1;cursor:pointer}
-.ir-b-top:hover{background:linear-gradient(180deg,rgba(244,196,48,.12),rgba(244,196,48,0) 80%),var(--raise)}
+.ir-b-top:hover{background:linear-gradient(180deg,rgba(var(--ir-gold,244,196,48),.12),rgba(var(--ir-gold,244,196,48),0) 80%),var(--raise)}
 .ir-b-tt{font:650 var(--t2)/1.3 var(--body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ir-b-mix{grid-column:1/-1;display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden}
 .ir-b-mix span{min-width:3px}
@@ -463,8 +466,8 @@ html.ir-show .ir-hist{height:70px}
 
 /* the display: a globe on a grid, gold corner marks, a slow sweep, the owl at the top left */
 .ir-mapbox{border-radius:var(--r2);
-  background:radial-gradient(70% 70% at 50% 46%,rgba(244,196,48,.06) 0%,rgba(244,196,48,0) 62%),
-    linear-gradient(rgba(244,196,48,.035) 1px,transparent 1px) 0 0/44px 44px,linear-gradient(90deg,rgba(244,196,48,.035) 1px,transparent 1px) 0 0/44px 44px,
+  background:radial-gradient(70% 70% at 50% 46%,rgba(var(--ir-gold,244,196,48),.06) 0%,rgba(var(--ir-gold,244,196,48),0) 62%),
+    linear-gradient(rgba(var(--ir-gold,244,196,48),.035) 1px,transparent 1px) 0 0/44px 44px,linear-gradient(90deg,rgba(var(--ir-gold,244,196,48),.035) 1px,transparent 1px) 0 0/44px 44px,
     radial-gradient(130% 100% at 50% 45%,#0F1014 0%,#050506 75%);
   box-shadow:inset 0 0 0 1px #2a2822,0 30px 60px -40px #000}
 .ir-mapbox::before{content:"";position:absolute;inset:8px;z-index:2;pointer-events:none;
@@ -479,7 +482,7 @@ html.ir-show .ir-hist{height:70px}
 .ir-sweep{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
 /* the turning disc is the layer's ::before, so it may be bigger than the box and is still clipped to it */
 .ir-sweep::before{content:"";position:absolute;left:calc(var(--sx,50%) - var(--sr,0px));top:calc(var(--sy,50%) - var(--sr,0px));width:calc(var(--sr,0px) * 2);height:calc(var(--sr,0px) * 2);border-radius:50%;
-  background:conic-gradient(from 0deg,rgba(244,196,48,0) 0deg,rgba(244,196,48,0) 318deg,rgba(244,196,48,.06) 350deg,rgba(255,226,154,.15) 359.5deg,rgba(255,226,154,0) 360deg);animation:irsweep 10s linear infinite}
+  background:conic-gradient(from 0deg,rgba(var(--ir-gold,244,196,48),0) 0deg,rgba(var(--ir-gold,244,196,48),0) 318deg,rgba(var(--ir-gold,244,196,48),.06) 350deg,rgba(255,226,154,.15) 359.5deg,rgba(255,226,154,0) 360deg);animation:irsweep 10s linear infinite}
 @keyframes irsweep{to{transform:rotate(1turn)}}
 @media(prefers-reduced-motion:reduce){.ir-sweep{display:none}}
 .ir-hud{position:absolute;left:12px;top:12px;z-index:3;display:flex;align-items:center;gap:10px;padding:8px 12px 8px 9px;border-radius:var(--r);background:var(--hud);box-shadow:inset 0 0 0 1px var(--hair);backdrop-filter:blur(6px);pointer-events:none}
@@ -497,9 +500,9 @@ html.ir-show .ir-hist{height:70px}
 .ir-pin circle.seg{fill:none;stroke-width:3.2}
 .ir-pin.dim .seg{opacity:.35}
 .ir-cl{cursor:default}
-.ir-cl .cl-r{fill:rgba(8,8,7,.45);stroke:rgba(244,196,48,.4);stroke-width:1;stroke-dasharray:2 3}
+.ir-cl .cl-r{fill:rgba(8,8,7,.45);stroke:rgba(var(--ir-gold,244,196,48),.4);stroke-width:1;stroke-dasharray:2 3}
 .ir-cl .cl-c{fill:var(--field)}
-.ir-cl.sel .cl-r{fill:rgba(244,196,48,.08);stroke:var(--field);stroke-dasharray:none;stroke-width:1.4}
+.ir-cl.sel .cl-r{fill:rgba(var(--ir-gold,244,196,48),.08);stroke:var(--field);stroke-dasharray:none;stroke-width:1.4}
 .ir-cl.live .cl-r{stroke:rgba(255,226,154,.55)}
 .ir-cl.dim{opacity:.4}
 .ir-cl .cl-more{fill:var(--dim);font:700 13px var(--body);text-anchor:middle;paint-order:stroke;stroke:#050506;stroke-width:3px}
@@ -735,13 +738,13 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
   background-image:repeating-linear-gradient(0deg,rgba(233,217,166,.045) 0 1px,transparent 1px 72px),repeating-linear-gradient(90deg,rgba(233,217,166,.035) 0 1px,transparent 1px 72px);
   animation:ir-sh-grid 140s linear infinite alternate}
 .ir-sh-bg i{position:absolute;width:70vmax;height:70vmax;border-radius:50%;filter:blur(40px);opacity:.55}
-.ir-sh-bg i:first-child{left:-20vmax;top:-25vmax;background:radial-gradient(closest-side,rgba(244,196,48,.16),rgba(244,196,48,0));animation:ir-sh-a 90s ease-in-out infinite alternate}
+.ir-sh-bg i:first-child{left:-20vmax;top:-25vmax;background:radial-gradient(closest-side,rgba(var(--ir-gold,244,196,48),.16),rgba(var(--ir-gold,244,196,48),0));animation:ir-sh-a 90s ease-in-out infinite alternate}
 .ir-sh-bg i:last-child{right:-25vmax;bottom:-30vmax;background:radial-gradient(closest-side,rgba(208,138,60,.13),rgba(208,138,60,0));animation:ir-sh-b 110s ease-in-out infinite alternate}
 @keyframes ir-sh-grid{to{transform:translate(72px,36px)}}
 @keyframes ir-sh-a{to{transform:translate(18vmax,10vmax)}}
 @keyframes ir-sh-b{to{transform:translate(-16vmax,-8vmax)}}
 @media(prefers-reduced-motion:reduce){.ir-sh-bg::before,.ir-sh-bg i{animation:none}}
-.ir-sh-bar{display:flex;align-items:center;gap:clamp(12px,1.6vw,28px);padding:clamp(10px,1.4vw,22px) clamp(14px,2.2vw,40px);border-bottom:1px solid rgba(244,196,48,.18);background:linear-gradient(180deg,rgba(6,6,7,.85),rgba(6,6,7,.4))}
+.ir-sh-bar{display:flex;align-items:center;gap:clamp(12px,1.6vw,28px);padding:clamp(10px,1.4vw,22px) clamp(14px,2.2vw,40px);border-bottom:1px solid rgba(var(--ir-gold,244,196,48),.18);background:linear-gradient(180deg,rgba(6,6,7,.85),rgba(6,6,7,.4))}
 .ir-sh-brand{display:flex;align-items:center;gap:12px;flex:none;min-height:44px;color:var(--dim);text-decoration:none;font:800 clamp(.95rem,1.15vw,1.3rem)/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
 .ir-sh-brand img{width:clamp(32px,2.6vw,48px);height:auto}
 .ir-sh-brand b{color:var(--field);margin-right:6px}
@@ -809,21 +812,21 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
 .ir-sh-open h1{font-size:clamp(2.2rem,5.2vw,6rem);line-height:.92;text-wrap:balance}
 .ir-sh-d{margin:clamp(12px,1.6vw,26px) 0 0;max-width:62ch;color:var(--dim);font-size:clamp(1rem,1.5vw,1.7rem);line-height:1.4}
 .ir-sh-agenda{list-style:none;margin:clamp(18px,2.6vw,44px) 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:10px clamp(16px,2vw,36px);counter-reset:ag}
-.ir-sh-agenda li{display:flex;align-items:flex-start;gap:12px;padding-top:10px;border-top:1px solid rgba(244,196,48,.22);color:var(--ink);font-size:clamp(.95rem,1.2vw,1.4rem);line-height:1.3}
+.ir-sh-agenda li{display:flex;align-items:flex-start;gap:12px;padding-top:10px;border-top:1px solid rgba(var(--ir-gold,244,196,48),.22);color:var(--ink);font-size:clamp(.95rem,1.2vw,1.4rem);line-height:1.3}
 .ir-sh-agenda .ir-mk{margin-top:.2em}
 .ir-sh-notes{position:absolute;right:clamp(14px,2vw,32px);top:calc(clamp(10px,1.4vw,22px)*2 + 48px);width:clamp(280px,22vw,420px);max-height:60%;overflow:auto;padding:16px 18px;border-radius:12px;background:rgba(18,18,17,.94);box-shadow:inset 0 0 0 1px #5e4a1c,0 20px 50px -30px #000}
 .ir-sh-nl{margin:0 0 8px;color:var(--field);font:700 var(--t1) var(--body);text-transform:uppercase;letter-spacing:.08em}
 .ir-sh-nt{margin:0;font-size:clamp(1rem,1.15vw,1.25rem);line-height:1.55}
-.ir-sh-foot{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:12px clamp(12px,1.4vw,24px);padding:10px clamp(14px,2.2vw,40px) clamp(10px,1.2vw,18px);border-top:1px solid rgba(244,196,48,.14);background:linear-gradient(0deg,rgba(6,6,7,.9),rgba(6,6,7,.4))}
+.ir-sh-foot{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:12px clamp(12px,1.4vw,24px);padding:10px clamp(14px,2.2vw,40px) clamp(10px,1.2vw,18px);border-top:1px solid rgba(var(--ir-gold,244,196,48),.14);background:linear-gradient(0deg,rgba(6,6,7,.9),rgba(6,6,7,.4))}
 .ir-sh-nav{min-width:52px;min-height:52px;padding:0}
 .ir-sh-strip{list-style:none;margin:0;padding:2px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;overscroll-behavior:contain}
 .ir-sh-strip::-webkit-scrollbar{display:none}
 .ir-sh-strip button{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:center;gap:8px;width:clamp(180px,14vw,260px);min-height:52px;padding:6px 12px;border-radius:10px;border:1px solid #2e2d29;background:rgba(25,25,24,.75);color:var(--dim);font:600 var(--t1)/1.25 var(--body);text-align:left;cursor:pointer}
 .ir-sh-strip button:hover{border-color:#5a5852;color:var(--ink)}
-.ir-sh-strip button[aria-current="true"]{border-color:var(--field);background:rgba(244,196,48,.1);color:var(--ink)}
+.ir-sh-strip button[aria-current="true"]{border-color:var(--field);background:rgba(var(--ir-gold,244,196,48),.1);color:var(--ink)}
 .ir-sh-sn{color:var(--field);font:800 1.05rem/1 var(--display)}
 .ir-sh-stt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ir-sh-mark{margin:0;padding-left:clamp(4px,.8vw,16px);white-space:nowrap;color:rgba(244,196,48,.85);font:800 clamp(.95rem,1.25vw,1.55rem)/1 var(--display);letter-spacing:.08em;text-transform:uppercase;pointer-events:none;text-shadow:0 2px 12px #000}
+.ir-sh-mark{margin:0;padding-left:clamp(4px,.8vw,16px);white-space:nowrap;color:rgba(var(--ir-gold,244,196,48),.85);font:800 clamp(.95rem,1.25vw,1.55rem)/1 var(--display);letter-spacing:.08em;text-transform:uppercase;pointer-events:none;text-shadow:0 2px 12px #000}
 /* ---- THE ITEM ON THE SCREEN, rebuilt 18 Oct 2026 (Armin: "you have so much space to make the tweet bigger. Use it! ... if i
    can't read the full thing, it is useless ... the comments with the highest likes ... on a small screen, everything get
    mixed together"). Every size below is a starting point: fitText() in intel-prep.js sets the font of the post, the
@@ -859,7 +862,7 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
 .ir-sh-who small{color:var(--dim);font-size:clamp(.85rem,1.6vh,1.2rem);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ir-sh-pt{margin:0;font:560 1.4rem/1.38 var(--body);color:var(--ink);white-space:pre-line;overflow-wrap:anywhere;text-wrap:pretty}
 .ir-sh-acts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;margin:0}
-.ir-sh-rpb{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 18px;border-radius:999px;border:1px solid var(--field);background:rgba(244,196,48,.1);color:var(--ink);font:700 clamp(.95rem,1.05vw,1.2rem) var(--body);cursor:pointer}
+.ir-sh-rpb{display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 18px;border-radius:999px;border:1px solid var(--field);background:rgba(var(--ir-gold,244,196,48),.1);color:var(--ink);font:700 clamp(.95rem,1.05vw,1.2rem) var(--body);cursor:pointer}
 .ir-sh-rpb svg{width:20px;height:20px;fill:none;stroke:var(--field);stroke-width:2;stroke-linejoin:round}
 .ir-sh-rpb b{color:var(--field);font:800 1.1em var(--display)}
 .ir-sh-rpb b:empty{display:none}
@@ -875,14 +878,14 @@ html.ir-sh-on body>*:not(.ir-sh){display:none!important}
 .ir-sh-rph .ir-rp-hd{flex:1 1 auto}
 .ir-sh-rpx{flex:none;min-width:44px;min-height:44px;border-radius:50%;border:1px solid #3a3833;background:rgba(25,25,24,.85);color:var(--dim);font:400 1.6rem/1 var(--body);cursor:pointer}
 .ir-sh-rpx:hover{border-color:var(--field);color:var(--field)}
-.ir-sh-rpq{margin:0 0 14px;padding:12px 16px;border-left:3px solid var(--field);border-radius:0 10px 10px 0;background:rgba(244,196,48,.06);color:var(--ink);font:500 clamp(1rem,1.1vw,1.3rem)/1.45 var(--body);white-space:pre-line;overflow-wrap:anywhere}
+.ir-sh-rpq{margin:0 0 14px;padding:12px 16px;border-left:3px solid var(--field);border-radius:0 10px 10px 0;background:rgba(var(--ir-gold,244,196,48),.06);color:var(--ink);font:500 clamp(1rem,1.1vw,1.3rem)/1.45 var(--body);white-space:pre-line;overflow-wrap:anywhere}
 .ir-sh-rp .ir-rp-t{font-size:clamp(1.05rem,1.25vw,1.6rem)}
 .ir-sh-rp .ir-rp-who{font-size:clamp(.9rem,.95vw,1.15rem)}
 .ir-sh-rpt{margin:10px 0 0;color:var(--dim);font-size:clamp(.85rem,.9vw,1.05rem)}
 /* one reply on the screen alone */
 .ir-sh-rbig{position:absolute;inset:0;z-index:4;display:flex;align-items:stretch;justify-content:center;padding:clamp(14px,2.4vw,44px) clamp(14px,3vw,64px);background:rgba(6,6,7,.9)}
 .ir-sh-rbig[hidden]{display:none}
-.ir-sh-rbin{box-sizing:border-box;width:100%;max-width:1500px;min-height:0;display:flex;flex-direction:column;gap:clamp(12px,1.8vh,26px);padding:clamp(20px,3vh,44px) clamp(22px,2.6vw,52px);border-radius:20px;background:linear-gradient(180deg,#1d1b17,#121110);box-shadow:inset 0 0 0 2px rgba(244,196,48,.45),0 40px 90px -40px #000}
+.ir-sh-rbin{box-sizing:border-box;width:100%;max-width:1500px;min-height:0;display:flex;flex-direction:column;gap:clamp(12px,1.8vh,26px);padding:clamp(20px,3vh,44px) clamp(22px,2.6vw,52px);border-radius:20px;background:linear-gradient(180deg,#1d1b17,#121110);box-shadow:inset 0 0 0 2px rgba(var(--ir-gold,244,196,48),.45),0 40px 90px -40px #000}
 .ir-sh-rbh{display:flex;align-items:center;gap:16px;margin:0;flex:none;min-width:0}
 .ir-sh-rbh .ir-rp-av{width:clamp(52px,7vh,92px);height:clamp(52px,7vh,92px)}
 .ir-sh-rbh .ir-rp-who{flex:1 1 auto;font-size:clamp(1.1rem,2.2vh,1.8rem)}
@@ -1005,9 +1008,9 @@ html.ir-show .ir-sug{display:none!important}
 .ir-hs[aria-pressed="true"] b{color:var(--on-field)}
 .ir-pills{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
 .ir-pills[hidden]{display:none}
-.ir-pill{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 6px 0 14px;border-radius:999px;border:1px solid var(--field-edge);background:rgba(244,196,48,.1);color:var(--ink);font:600 var(--t2)/1 var(--body);cursor:pointer;max-width:100%}
+.ir-pill{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 6px 0 14px;border-radius:999px;border:1px solid var(--field-edge);background:rgba(var(--ir-gold,244,196,48),.1);color:var(--ink);font:600 var(--t2)/1 var(--body);cursor:pointer;max-width:100%}
 .ir-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ir-pill b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:rgba(244,196,48,.18);color:var(--field);font-size:18px;line-height:1}
+.ir-pill b{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:rgba(var(--ir-gold,244,196,48),.18);color:var(--field);font-size:18px;line-height:1}
 .ir-pill:hover b{background:var(--field);color:var(--on-field)}
 .ir-pill-clr{padding:0 14px;border-color:var(--line);background:none;color:var(--dim)}
 .ir-said:empty{display:none}
@@ -1083,8 +1086,8 @@ html.ir-show .ir-sug{display:none!important}
 .ir-lk-n{color:var(--field);font-size:12px;font-weight:700}
 /* the connection lines on the map: they rise off the globe; a pale glow, the line, and points of light running along it */
 .ir-lk path{fill:none;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
-.ir-lk .lk-g{stroke:var(--lc,#F4C430);stroke-opacity:.1}
-.ir-lk .lk-b{stroke:var(--lc,#F4C430);stroke-opacity:.6}
+.ir-lk .lk-g{stroke:var(--lc,var(--ir-goldh,#F4C430));stroke-opacity:.1}
+.ir-lk .lk-b{stroke:var(--lc,var(--ir-goldh,#F4C430));stroke-opacity:.6}
 .ir-lk .lk-f{stroke:#FFF6D8;stroke-opacity:.9;stroke-width:1.6;stroke-dasharray:1.5 22;animation:irflow 2.4s linear infinite}
 .ir-lk .lk-h{stroke:transparent;stroke-width:18;pointer-events:stroke;cursor:pointer}
 .ir-lk.lk-actor{--lc:#E9D9A6}
@@ -1110,14 +1113,14 @@ html.ir-show .ir-sug{display:none!important}
 .ir-tip .tip-im svg{position:absolute;inset:0;margin:auto;width:30px;height:30px;fill:#fff;filter:drop-shadow(0 0 4px #000)}
 /* an X video whose file X keeps to itself: its picture stays, with one large way to watch it on X */
 .ir-xv.is-embed:not(.is-x){aspect-ratio:var(--ar);width:min(100%,calc(min(62vh,600px)*var(--ar)));background:#000;overflow:hidden;border-radius:12px}
-.ir-xv-out{position:absolute;inset:0;z-index:2;margin:auto;width:max-content;height:60px;padding:0 22px 0 16px;border-radius:999px;background:rgba(244,196,48,.95);color:var(--on-field);display:flex;align-items:center;gap:8px;font:800 var(--t3)/1 var(--body);text-decoration:none}
+.ir-xv-out{position:absolute;inset:0;z-index:2;margin:auto;width:max-content;height:60px;padding:0 22px 0 16px;border-radius:999px;background:rgba(var(--ir-gold,244,196,48),.95);color:var(--on-field);display:flex;align-items:center;gap:8px;font:800 var(--t3)/1 var(--body);text-decoration:none}
 .ir-xv-out svg{width:26px;height:26px;fill:currentColor}
 .ir-xv-out:hover{background:var(--field-hi)}
 .ir-xv.is-embed:not(.is-x) .ir-xm-msg{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:8px 12px;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#ddd;font-size:var(--t1)}
 .ir-xv-emb{position:absolute;left:0;right:0;top:0;opacity:0;pointer-events:none}
 .ir-xv.is-x .ir-xv-emb{position:static;opacity:1;pointer-events:auto}
 .ir-s-c .tpc{border-color:var(--field-edge)}
-.ir-s-lk{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:14px 0;padding:12px 14px;border-radius:12px;border:1px solid var(--field-edge);background:rgba(244,196,48,.07)}
+.ir-s-lk{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:14px 0;padding:12px 14px;border-radius:12px;border:1px solid var(--field-edge);background:rgba(var(--ir-gold,244,196,48),.07)}
 .ir-s-lk>svg{width:22px;height:22px;flex:none;fill:none;stroke:var(--field);stroke-width:2;stroke-linecap:round}
 .ir-s-lk span{flex:1 1 200px;display:grid;gap:2px}
 .ir-s-lk small{color:var(--dim)}
@@ -1164,3 +1167,29 @@ html.ir-show .ir-cmd>:not(.ir-lens){display:none!important}
 .ir-hero figcaption{position:absolute;right:8px;bottom:8px;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.66);color:#e4e1d6;font-size:12px}
 .ir-hero .ir-hero-pl{left:12px;right:auto;bottom:12px;padding:6px 12px;background:rgba(7,8,11,.74);color:var(--field);font:800 clamp(1rem,.9rem + .6vw,1.4rem)/1.1 var(--display);text-transform:uppercase;letter-spacing:.03em}
 .ir-sh-ci{display:block;width:100%;aspect-ratio:16/9;max-height:44vh;margin:0 0 18px;border-radius:10px;background:#000 center/cover no-repeat}
+
+/* WHO COVERED IT (18 Oct 2026; intel.js "who covered it"). The spread bar: one segment per side, as wide as the number
+   of rated outlets on that side. On a card it sits with the tags; under a trending story it is a 3px underline; in the
+   spotlight it is the headline of the "Who covered it" block. The Blindspot mark says which side was silent. */
+.ir-sp{display:inline-flex;gap:2px;height:8px;width:72px;border-radius:999px;overflow:hidden;vertical-align:middle;background:var(--raise)}
+.ir-sp i{display:block;min-width:4px;height:100%}
+.ir-sp-L{background:var(--lean-l)}.ir-sp-C{background:var(--lean-c)}.ir-sp-R{background:var(--lean-r)}
+.ir-sp-chip{position:absolute;left:12px;right:12px;bottom:3px;width:auto;height:3px;gap:1px;background:transparent;opacity:.9}
+.ir-hs{position:relative}
+.ir-sp-big{display:flex;width:100%;height:12px;margin:6px 0 10px}
+.ir-bs{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 7px;border-radius:999px;background:rgba(208,96,74,.16);color:#F2B4A6;font:700 var(--t1)/1 var(--body);white-space:nowrap}
+.ir-bs svg,.ir-hc-bs svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.ir-hc-bs{color:#F2B4A6}
+.ir-hc-bs[aria-pressed="true"]{color:var(--on-field)}
+.ir-brief{display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--field);border:1.5px solid var(--field);font-weight:800;text-decoration:none}
+.ir-brief:hover{background:var(--field);color:var(--on-field)}
+.ir-brief svg{width:14px;height:14px;fill:currentColor}
+.ir-s-sp{margin:4px 0 0;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--sunk)}
+.ir-s-sp h3{margin:0;font:800 var(--t2)/1.2 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--field)}
+.ir-s-sp ul{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:6px;font-size:var(--t2);line-height:1.4}
+.ir-s-sp li{padding-left:14px;position:relative;color:var(--ink)}
+.ir-s-sp li::before{content:"";position:absolute;left:0;top:.45em;width:8px;height:8px;border-radius:50%;background:currentColor}
+.ir-s-sp li.ir-sp-L::before{background:var(--lean-l)}.ir-s-sp li.ir-sp-C::before{background:var(--lean-c)}.ir-s-sp li.ir-sp-R::before{background:var(--lean-r)}
+.ir-s-sp li{background:none}
+.ir-s-sp li b{color:var(--ink)}
+.ir-s-bs{margin:0 0 8px;font-size:var(--t2);line-height:1.45;color:var(--ink)}

@@ -21,7 +21,9 @@
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
-  var SITE_MARK = 'libertypolitics.com/intel';
+  // Iran Uncensored's room hands its own name, address and stamp in the same #ir-cfg intel.js reads (site-iu/build/news.py)
+  var CFG = (function () { var el = document.getElementById('ir-cfg'); try { return el ? JSON.parse(el.textContent) || {} : {}; } catch (e) { return {}; } })();
+  var SITE_MARK = CFG.mark || 'libertypolitics.com/intel', BRAND = CFG.brand || 'Liberty Politics', SEAL = CFG.seal || '../assets/seal.png';
   var ICON = {
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4M10 9l4 2-4 2z"/></svg>',
     copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>',
@@ -215,8 +217,8 @@
     });
     Object.keys(names).forEach(function (k) {
       var e = names[k];
-      e.placed = 0;
-      set.forEach(function (it, i) { var c = country(it); if (e.kind === 'place' && c === e.name) e.placed++; if (e.rx.test(textOf(it)) || (e.kind === 'place' && c === e.name)) { e.hits++; e.wh += W[i]; } });
+      e.placed = 0; e.said = 0;
+      set.forEach(function (it, i) { var c = country(it); if (e.kind === 'place' && c === e.name) e.placed++; if (e.rx.test(it.t || '')) e.said++; if (e.rx.test(textOf(it)) || (e.kind === 'place' && c === e.name)) { e.hits++; e.wh += W[i]; } });
       e.share = n ? Math.max(e.hits / n, wsum ? e.wh / wsum : 0) : 0;
       e.inTitle = !!domTitle && e.rx.test(domTitle);
       if (e.inTitle) e.share = Math.max(e.share, 0.34);          // the story's own title names its subject
@@ -264,9 +266,16 @@
 
   // THE GATE. An option may name only what the items carry: every known or measured name in it must hold SHARE_MIN of the set
   // (or be in the story's own title). Fails closed for the option, never for the show: the story's own headline always passes.
+  // ONE ITEM NEVER LICENSES A NAME (19 Oct 2026). In a story of 4 items one stray headline is 25%, so a written title built
+  // on it ("Zelenskyy Warns Ukraine Will Not Prevail If US Takes Russia's Side" for a 1,000-drone strike) passed while the
+  // phone gate, which asks for two headlines, stopped every publish of the site. So a name also needs two headlines that
+  // say it, or the story's own title, or 15% of the items placed there: the same standard the phone gate counts.
   function fits(A, text) {
     var bad = '';
-    Object.keys(A.all).some(function (k) { var e = A.all[k]; if (e.share < SHARE_MIN && e.rx.test(text)) { bad = e.name; return true; } return false; });
+    Object.keys(A.all).some(function (k) {
+      var e = A.all[k], carried = e.share >= SHARE_MIN && (e.said >= 2 || e.inTitle || e.placed >= SHARE_MIN * A.n);
+      if (!carried && e.rx.test(text)) { bad = e.name; return true; } return false;
+    });
     return !bad;
   }
   function lint(text, kind) {
@@ -321,6 +330,15 @@
       if (PER && A.quote) t('quote', 'bold', 'clicks', PER + ': "' + titleCase(A.quote) + '"');
       if (subj) t('nobody', 'bold', 'watch', 'What Nobody Is Telling You About ' + the);
       if (subj) t('sharing', 'bold', 'watch', live ? subj + ' LIVE: Every Clip, Every Reaction' : cap1(the) + ': The Footage Everyone Is Sharing');
+      // A BLINDSPOT (18 Oct 2026, intel.js "who covered it"): one side of the media carried the story and the other not once,
+      // counted by intel_live.py from our lean table. The fact is the count; the titles say only that.
+      var BS = A.dom && A.dom.s && A.dom.s.bs && A.dom.s.ls ? A.dom.s : null;
+      var bsSubj = subj || Pc || (E1 ? cap1(say(E1)) : ''), bsThe = subj ? the : bsSubj;
+      if (BS && bsSubj) {
+        var quiet = BS.bs === 'L' ? 'Left' : 'Right', loud = BS.bs === 'L' ? 'Right' : 'Left', nLoud = BS.ls[BS.bs === 'L' ? 2 : 0];
+        t('bs-count', 'plain', 'clicks', bsSubj + ': ' + nLoud + ' ' + loud + ' Outlets Covered It, None on the ' + quiet);
+        t('bs-why', 'bold', 'watch', 'Why Is the ' + quiet + ' Silent on ' + bsThe + '?');
+      }
       if (!EV && E1) { t('latest', 'plain', 'clicks', cap1(say(E1)) + ': What Just Happened'); t('matters', 'mid', 'clicks', 'Why ' + cap1(say(E1)) + ' Matters More Than You Think'); }
     } else {
       t('m-biggest', 'plain', 'clicks', titleCase(listOf(names)) + ': ' + (when ? when + '\'s' : 'The') + ' Biggest Stories');
@@ -349,6 +367,7 @@
     if (where) c('c-where', 'bold', 'WHERE IS ' + A.person.up + '?');
     if (PER && A.person.foe) c('c-corner', 'bold', A.person.up + ' CORNERED?');
     if (VIOLENT && P) c('c-out', 'bold', up(EV) + ' OUT OF CONTROL?');
+    if (single && A.dom && A.dom.s && A.dom.s.bs) c('c-silent', 'bold', 'THE ' + (A.dom.s.bs === 'L' ? 'LEFT' : 'RIGHT') + ' IS SILENT');
     c('c-watch', 'bold', live ? 'WE\'RE LIVE' : 'WATCH THIS');
     var src = A.O.slice(0, 3), more = A.O.length - src.length;
     var from = src.length ? ' from ' + listOf(src.concat(more > 0 ? [more + ' more'] : [])) : '';
@@ -417,9 +436,11 @@
   }
   // The options in the order the dials ask for: the chosen style and aim first, the written ones before the room's, and
   // then what creators actually pick (data/show-learn.json, build/show_learn.py: a template picked often rises a little).
+  // A Blindspot angle (bs-*, c-silent) rises whatever the dials say: one side's silence is the story's strongest fact.
   function ranked(list, kind) {
     var L = LEARN, pk = L && L.picks && L.picks[kind] || {};
-    return list.map(function (x, i) { return { x: x, s: (x.w ? 10 : 0) + (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) + Math.min(1.5, (pk[x.id] || 0) / 4) - i / 1000 }; })
+    return list.map(function (x, i) { return { x: x, s: (x.w ? 10 : 0) + (x.tone === st.tone ? 4 : 0) + (kind === 'titles' && x.aim === st.aim ? 2 : 0) +
+        (/^(bs-|c-silent)/.test(x.id || '') ? 5 : 0) + Math.min(1.5, (pk[x.id] || 0) / 4) - i / 1000 }; })
       .sort(function (a, b) { return b.s - a.s; }).map(function (o) { return o.x; });
   }
   var PAGE = { titles: 5, covers: 4, descs: 3 };
@@ -826,7 +847,7 @@
     var sh = document.createElement('div');
     sh.className = 'ir-sh'; sh.id = 'ir-sh';
     sh.innerHTML = '<div class="ir-sh-bg" aria-hidden="true"><i></i><i></i></div>' +
-      '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="Back to the Intel Room"><img src="../assets/seal.png" alt="" width="40" height="40"><span><b>Liberty Politics</b> Intel Room</span></a>' +
+      '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="Back to the Intel Room"><img src="' + esc(SEAL) + '" alt="" width="40" height="40"><span><b>' + esc(BRAND) + '</b> Intel Room</span></a>' +
       '<p class="ir-sh-title">' + esc(title) + '</p>' +
       '<p class="ir-sh-count num" id="ir-sh-count" aria-live="polite"></p><time class="ir-sh-clock num" id="ir-sh-clock"></time>' +
       '<div class="ir-sh-tools"><button type="button" id="ir-sh-notes" aria-pressed="false">' + ICON.notes + '<span>Host notes</span></button><button type="button" id="ir-sh-full">' + ICON.full + '<span>Full screen</span></button></div></header>' +
@@ -835,7 +856,7 @@
       '<footer class="ir-sh-foot"><button type="button" class="ir-sh-nav" id="ir-sh-prev" aria-label="Previous">' + ICON.prev + '</button><ol class="ir-sh-strip" id="ir-sh-strip" aria-label="The rundown"></ol><button type="button" class="ir-sh-nav" id="ir-sh-next" aria-label="Next">' + ICON.next + '</button>' +
       '<p class="ir-sh-mark" aria-hidden="true">' + SITE_MARK + '</p></footer>';
     document.body.appendChild(sh);
-    document.title = title + ' | Liberty Politics';
+    document.title = title + ' | ' + BRAND;
     if (!rows.length) { $('ir-sh-stage').innerHTML = '<div class="ir-sh-card"><h1>This show has nothing in it</h1><p>Its items have left the room since the link was made. Plan it again in <a href="' + esc(location.pathname) + '">the Intel Room</a>.</p></div>'; }
     var narrow = matchMedia('(max-width:900px)').matches;
     function notes(on) { $('ir-sh-pad').hidden = !on; $('ir-sh-notes').setAttribute('aria-pressed', on ? 'true' : 'false'); sh.classList.toggle('has-notes', on); if (typeof refitSoon === 'function') refitSoon(); }

@@ -9,6 +9,18 @@
    sign-up (.mb-res below). */
 .fq{display:grid;gap:var(--s4);margin-top:var(--s5)}
 .fq-lead{margin:0;font:700 clamp(1.05rem,3.6vw,1.3rem)/1.35 var(--body);color:var(--ink);max-width:34rem}
+/* signed in (19 October 2026): the mark that says the reader already enlisted, by name, above the button to the next act */
+.fq-in{display:inline-flex;align-items:center;gap:10px;justify-self:start;margin:0;padding:8px 16px 8px 10px;border:1px solid var(--field);border-radius:999px;background:rgba(0,0,0,.45);color:var(--ink);font:700 1rem/1.25 var(--body);max-width:100%;overflow-wrap:anywhere}
+.fq-in[hidden]{display:none}
+.fq-in svg{flex:none;width:24px;height:24px;padding:3px;border-radius:50%;background:var(--field);color:var(--on-field)}
+/* the Enlist act's card once the reader has an account */
+.act-li.is-enlisted .act-x{color:var(--field)}
+/* signed in (19 October 2026): the mark that says the reader already enlisted, by name, above the button to the next act */
+.fq-in{display:inline-flex;align-items:center;gap:10px;justify-self:start;margin:0;padding:8px 16px 8px 10px;border:1px solid var(--field);border-radius:999px;background:rgba(0,0,0,.45);color:var(--ink);font:700 1rem/1.25 var(--body);max-width:100%;overflow-wrap:anywhere}
+.fq-in[hidden]{display:none}
+.fq-in svg{flex:none;width:24px;height:24px;padding:3px;border-radius:50%;background:var(--field);color:var(--on-field)}
+/* the Enlist act's card once the reader has an account */
+.act-li.is-enlisted .act-x{color:var(--field)}
 .fq .fq-go{justify-self:stretch;min-height:56px;padding:0 32px;font-size:1.125rem;letter-spacing:.01em;box-shadow:0 8px 28px rgba(0,0,0,.38)}
 @media(min-width:560px){.fq .fq-go{justify-self:start;min-width:17rem}}
 .mb-form input[type=text],.mb-form input[type=url],.mb-form input[type=number],.mb-form input[type=datetime-local],.mb-form select,.mb-form textarea,.mb-sheet select,.mb-filter select{display:block;width:100%;min-height:48px;padding:10px 14px;font:500 1rem/1.4 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);caret-color:var(--field)}
@@ -297,3 +309,37 @@ a.mb-tag:hover,a.mb-tag:focus-visible{background:color-mix(in oklab,var(--field)
 .mb-crew-name{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0;font-size:1.1rem;overflow-wrap:anywhere}
 .mb-crew-bio{margin:0;color:var(--ink);opacity:.88;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .mb-crew-who .mb-hint{margin:0}
+
+/* ---- the board grows itself (19 October 2026, Armin: "Significantly improve Gatherings ... Think outside the box"): the
+   night everyone meets, the map of where we meet, Host one in two minutes, and Tonight / Tomorrow on every cover.
+   members.js driveBox, mapBox, kitsBox, soon. Nothing here hides content to animate it back. */
+.mb-soon{position:absolute;inset-block-start:10px;inset-inline-end:10px;padding:6px 10px;border-radius:999px;background:var(--field);color:var(--on-field);
+  font:800 .8rem/1 var(--body);letter-spacing:.04em;text-transform:uppercase;box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.mb-soon.now{background:#C8102E;color:#fff}
+.mb-front .mb-soon{inset-block-start:8px;inset-inline-end:8px;padding:5px 8px;font-size:.75rem}
+.mb-drive{display:grid;gap:var(--s3);padding:var(--s4);border-radius:var(--r2,10px);background:radial-gradient(120% 140% at 0% 0%,rgba(217,180,90,.16),rgba(217,180,90,0) 60%),var(--panel);border-inline-start:3px solid var(--field)}
+.mb-drive-n{display:flex;align-items:baseline;gap:10px;margin:0;color:var(--field)}
+.mb-drive-n b{font:800 clamp(3rem,15vw,4.6rem)/.9 var(--display)}
+.mb-drive-n span{font:800 1rem/1.2 var(--body);text-transform:uppercase;letter-spacing:.06em}
+.mb-drive-t{display:grid;gap:var(--s2);justify-items:start;min-width:0}
+.mb-drive-t p{margin:0;max-width:36rem}
+.mb-drive-c{font-weight:700}
+@media(min-width:620px){.mb-drive{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--s5)}.mb-drive-n{flex-direction:column;align-items:center;gap:4px}}
+.mb-map{display:grid;gap:var(--s2);min-width:0}
+.mb-map .mb-h2,.mb-map p{margin:0}
+.mb-map-n{font:800 1.25rem/1.2 var(--body);color:var(--field)}
+.mb-tiles{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:3px;width:100%;max-width:30rem;margin-block:var(--s2)}
+.mb-tile{display:grid;place-items:center;aspect-ratio:1;min-width:0;border-radius:4px;background:var(--sunk);color:var(--dim);font:700 12px/1 var(--body);border:1px solid var(--line)}
+.mb-tile.on{background:var(--field);border-color:var(--field);color:var(--on-field);box-shadow:0 0 12px rgba(217,180,90,.45)}
+.mb-tile.was{background:rgba(217,180,90,.18);border-color:var(--field-lo,#8E7434);color:var(--ink)}
+.mb-map-key{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;font-size:.9rem;color:var(--dim)}
+.mb-map-key .mb-tile{width:16px;height:16px;aspect-ratio:auto}
+.mb-map-key .mb-tile + span{margin-inline-end:10px}
+.mb-places .mb-chip b{display:inline}
+.mb-light{justify-self:start}
+.mb-empty-go{justify-self:start;width:max-content;max-width:100%}
+.mb-kits{display:grid;gap:var(--s2)}
+.mb-kits .mb-h2,.mb-kits > .mb-hint{margin:0}
+.mb-kit-list{margin-top:var(--s2)}
+@media(min-width:1000px){.mb-kit-list{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.mb-kit-row .mb-acts .btn{flex:0 1 auto}

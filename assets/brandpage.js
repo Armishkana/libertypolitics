@@ -269,6 +269,93 @@ const CSS = `
 #bp .bp-sentgrid .acts button.armed{background:var(--ink);color:var(--bg)}
 #bp .bp-sentbig{margin:14px 0 0;border:1px solid var(--line);border-radius:calc(var(--r) * 2);background:var(--panel);padding:12px}
 #bp .bp-sentbig img.full{display:block;width:100%;height:auto;border-radius:var(--r)}
+/* THE PITCH (Armin, 19 Oct 2026: "completely different creative ideas that people could choose from ... a brand page that
+   would take someone's breath away"). Every direction is painted in its own colours and set in its own typeface. */
+@font-face{font-family:bpf-bodoni;src:url(../assets/brandfonts/bodoni.woff2) format('woff2');font-weight:900;font-display:swap}
+@font-face{font-family:bpf-caslon;src:url(../assets/brandfonts/caslon.woff2) format('woff2');font-display:swap}
+@font-face{font-family:bpf-archivo;src:url(../assets/brandfonts/archivo.woff2) format('woff2');font-display:swap}
+@font-face{font-family:bpf-instrument;src:url(../assets/brandfonts/instrument.woff2) format('woff2');font-display:swap}
+@font-face{font-family:bpf-cormorant;src:url(../assets/brandfonts/cormorant.woff2) format('woff2');font-style:italic;font-weight:300 700;font-display:swap}
+#bp .bp-open{margin:22px calc(var(--gutter) * -1) 0;padding:clamp(28px,6vw,56px) var(--gutter) clamp(22px,4vw,36px);background:#0d0f14;color:#f4efe6;border-radius:0}
+@media (min-width:760px){#bp .bp-open{margin-inline:0;border-radius:calc(var(--r) * 2.5);padding-inline:clamp(28px,4vw,48px)}}
+#bp .bp-kick{margin:0;font-size:.8rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#d8b26a}
+#bp .bp-big{font-family:var(--display);font-weight:900;text-transform:uppercase;font-size:clamp(2.1rem,8.4vw,4.6rem);line-height:.96;margin:12px 0 0;max-width:15ch;letter-spacing:.005em;color:#fff}
+#bp .bp-open .bp-lede2{font-size:clamp(1.02rem,3.6vw,1.2rem);line-height:1.55;margin:16px 0 0;max-width:40rem;color:rgba(244,239,230,.86)}
+#bp .bp-toc{list-style:none;margin:26px calc(var(--gutter) * -1) 0;padding:0 var(--gutter) 4px;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,40%);gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+#bp .bp-toc::-webkit-scrollbar{display:none}
+@media (min-width:760px){#bp .bp-toc{grid-auto-flow:row;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));overflow:visible;margin-inline:0;padding:0}}
+#bp .bp-toc li{scroll-snap-align:start;min-width:0}
+#bp .bp-toc button{font:inherit;display:block;width:100%;padding:0;border:0;background:none;color:inherit;text-align:start;cursor:pointer}
+#bp .bp-toc .pic{position:relative;display:block;aspect-ratio:4/5;border-radius:12px;overflow:hidden;background:#1d2029;box-shadow:0 14px 34px rgba(0,0,0,.45);transition:transform .25s}
+#bp .bp-toc button:hover .pic{transform:translateY(-3px)}
+#bp .bp-toc .pic img{width:100%;height:100%;object-fit:cover;display:block}
+#bp .bp-toc .nm{display:flex;gap:6px;align-items:baseline;margin-top:10px;font-weight:800;font-size:.98rem;line-height:1.2}
+#bp .bp-toc .nm i{font-style:normal;color:#d8b26a;font-size:.8rem;flex:none}
+#bp .bp-toc .id{display:block;color:rgba(244,239,230,.7);font-size:.84rem;line-height:1.35;margin-top:3px}
+#bp .bp-toc .heart{position:absolute;top:8px;right:8px;background:#fff;color:#d6263b;border-radius:99px;padding:4px 9px;font-size:.78rem;font-weight:800;display:inline-flex;gap:4px;align-items:center}
+#bp .bp-toc .heart[hidden]{display:none}
+#bp .bp-toc .rec{position:absolute;left:8px;bottom:8px;background:rgba(13,15,20,.82);color:#fff;border-radius:99px;padding:4px 9px;font-size:.72rem;font-weight:800;letter-spacing:.04em}
+#bp .bp-scrollhint{margin:12px 0 0;color:rgba(244,239,230,.62);font-size:.86rem}
+@media (min-width:760px){#bp .bp-scrollhint{display:none}}
+#bp .bp-dir{--dg:var(--panel);--di:var(--ink);--da:var(--field);margin:18px calc(var(--gutter) * -1) 0;padding:clamp(26px,6vw,52px) var(--gutter);background:var(--dg);color:var(--di);scroll-margin-top:12px;position:relative}
+@media (min-width:760px){#bp .bp-dir{margin-inline:0;border-radius:calc(var(--r) * 2.5);padding-inline:clamp(28px,4vw,52px)}}
+#bp .bp-dir.picked{box-shadow:0 0 0 4px var(--da) inset}
+#bp .bp-dnum{margin:0;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:.78rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--da)}
+#bp .bp-dnum .pill{letter-spacing:.04em;text-transform:none;font-size:.82rem;background:var(--di);color:var(--dg);border-radius:99px;padding:4px 11px}
+#bp .bp-dname{margin:10px 0 0;font-size:clamp(2.2rem,9vw,4.4rem);line-height:.98;font-weight:400;color:var(--di);text-transform:none;letter-spacing:-.01em;font-family:var(--df,var(--display))}
+#bp .bp-didea{margin:10px 0 0;font-size:clamp(1.15rem,4.4vw,1.6rem);line-height:1.3;font-style:italic;opacity:.9;max-width:34rem}
+#bp .bp-dgrid{display:grid;gap:22px;margin-top:22px}
+@media (min-width:900px){#bp .bp-dgrid{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);align-items:start;gap:36px}}
+#bp .bp-dposter{margin:0}
+#bp .bp-dposter button{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in;border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.28);aspect-ratio:4/5}
+#bp .bp-dposter img,#bp .bp-duse img{width:100%;height:100%;object-fit:cover;display:block;transition:filter .3s}
+#bp .bp-dir img.soft{filter:blur(5px)}
+#bp .bp-dtext>p{margin:0 0 14px;line-height:1.6;font-size:1.04rem}
+#bp .bp-dtext .lead{font-size:1.18rem;line-height:1.5;font-weight:600}
+#bp .bp-dtext .why{opacity:.85}
+#bp .bp-dtext .bp-h5{margin:18px 0 8px;font-size:.76rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--da)}
+#bp .bp-dir .bp-sw{background:transparent;color:var(--di);border-color:color-mix(in srgb,var(--di) 28%,transparent)}
+#bp .bp-dir .bp-sw small{color:var(--di);opacity:.7}
+#bp .bp-dtype{margin:0;font-size:.95rem;opacity:.85}
+#bp .bp-dacts{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0 4px}
+#bp .bp-dacts button{font:inherit;font-weight:800;font-size:1rem;min-height:52px;padding:10px 20px;border-radius:99px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:2px solid var(--di);background:transparent;color:var(--di)}
+#bp .bp-dacts .bp-dpick{background:var(--di);color:var(--dg)}
+#bp .bp-dacts .bp-dpick[aria-pressed="true"]{background:var(--da);border-color:var(--da);color:#fff}
+#bp .bp-dacts button[aria-pressed="true"].bp-dno{background:color-mix(in srgb,var(--di) 14%,transparent)}
+#bp .bp-dacts button:disabled{opacity:.6;cursor:progress}
+#bp .bp-dir .bp-didea,#bp .bp-dir .bp-dtext p,#bp .bp-dir figcaption,#bp .bp-dir .bp-dname{color:var(--di)}
+#bp .bp-dir .bp-tag{color:var(--da);border-color:currentColor}
+#bp .bp-dir .bp-cbox{color:var(--di);background:transparent;border-color:color-mix(in srgb,var(--di) 30%,transparent)}
+#bp .bp-dir .bp-ctog{color:var(--di)}
+#bp .bp-dir .bp-ctog .bp-ic{color:var(--da)}
+#bp .bp-dir .bp-cbox .bp-sub,#bp .bp-dir .bp-cbox .bp-sent,#bp .bp-dir .bp-ctog em{color:inherit;opacity:.75}
+#bp .bp-dir .bp-note{color:var(--ink)}
+#bp .bp-dir .bp-cbox .bp-btn.main{background:var(--di);color:var(--dg);border-color:var(--di)}
+#bp .bp-duse-h{margin:30px 0 12px;font-size:.76rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--da)}
+#bp .bp-duse{list-style:none;margin:0 calc(var(--gutter) * -1);padding:0 var(--gutter) 8px;display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-width:thin}
+@media (min-width:760px){#bp .bp-duse{margin-inline:0;padding-inline:0}}
+#bp .bp-duse li{flex:none;scroll-snap-align:start;margin:0}
+#bp .bp-duse button{display:block;height:clamp(200px,52vw,300px);padding:0;border:0;background:rgba(127,127,127,.15);cursor:zoom-in;border-radius:10px;overflow:hidden;box-shadow:0 12px 30px rgba(0,0,0,.22)}
+#bp .bp-duse figcaption{font-size:.82rem;margin-top:8px;opacity:.8;max-width:20rem;line-height:1.35}
+#bp .bp-dall{font:inherit;font-weight:800;margin-top:18px;min-height:48px;padding:10px 18px;border-radius:99px;border:2px solid var(--di);background:transparent;color:var(--di);cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+#bp .bp-mix{margin:18px 0 0;padding:clamp(20px,4vw,30px);border:2px dashed var(--line);border-radius:calc(var(--r) * 2);background:var(--panel)}
+#bp .bp-mix h2{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:clamp(1.4rem,5vw,1.9rem);line-height:1.05;margin:0 0 8px}
+#bp .bp-mix p{margin:0;line-height:1.55;max-width:44rem}
+#bp .bp-picks{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
+#bp .bp-after{margin-top:var(--bp-gap)}
+#bp .bp-after>h2{font-family:var(--display);font-weight:800;font-size:clamp(1.5rem,5vw,2rem);text-transform:uppercase;line-height:1.05;margin:0 0 6px}
+#bp details.bp-fold{margin-top:12px;border:1px solid var(--line);border-radius:calc(var(--r) * 1.6);background:var(--panel)}
+#bp details.bp-fold>summary{list-style:none;cursor:pointer;display:flex;gap:12px;align-items:center;min-height:64px;padding:12px 16px;font-weight:800;font-size:1.05rem}
+#bp details.bp-fold>summary::-webkit-details-marker{display:none}
+#bp details.bp-fold>summary small{display:block;font-weight:500;color:var(--dim);font-size:.88rem;margin-top:2px}
+#bp details.bp-fold>summary .bp-ic{color:var(--field)}
+#bp details.bp-fold>summary::after{content:'+';margin-inline-start:auto;font-size:1.5rem;color:var(--dim);font-weight:400}
+#bp details.bp-fold[open]>summary::after{content:'\\2212'}
+#bp details.bp-fold>.in{padding:0 16px 18px}
+#bp details.bp-fold>.in>.bp-sec{margin-top:0;padding-top:0;border-top:0}
+#bp details.bp-fold>.in>.bp-sec>h2{display:none}
+#bp details.bp-fold .bp-promise,#bp details.bp-fold .bp-better{border:0;padding:0;margin:0;background:none}
+#bp details.bp-fold .bp-promise>h2,#bp details.bp-fold .bp-better>h2{display:none}
 `;
 
 /* Drawn icons, one stroke and one weight (Lucide's shapes), so nothing on the page depends on how a phone draws emoji. */
@@ -628,7 +715,10 @@ function paint() {
   hello.append(el('h1', null, person ? `Hi ${first(B.person)}. Here is your brand.` : `${B.name} brand`));
   BOX.append(hello);
   if (person) {
-    BOX.append(paintSay(), betterChip(), paintLooks(), paintSent(), paintPromise(), paintBetter());
+    // The pitch first, alone: the designs as whole worlds, then one line of what I need next, then everything else folded.
+    BOX.append(paintPitch());
+    paintAfter(person);
+    return;
   } else {
     BOX.append(el('p', 'bp-lede', `The ${B.name} brand in one place: the kit, the words on every account, and the story. Only you can open this page.`), betterChip());
     const look = B.looks.find(l => l.k === ST.look) || B.looks[0];
@@ -670,6 +760,223 @@ function paint() {
   progress();
 }
 
+/* ------------------------------------------------------------------ the pitch
+   Armin, 19 Oct 2026, on draft 4: "I don't understand why you didn't create multiple creative options for her ... so
+   confusing and hard to use ... I want them to be in tears when they see what you have." So a person's page now opens
+   the way an agency presents: every direction side by side as a poster, then each one as a world of its own (its colours
+   on the page, its name in its own typeface, the idea in one line, why it could be her, and the brand in use), one
+   button that says This is the one. Everything else (photos, story, words, kit, the page itself) waits below, folded. */
+const NUM = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+const FACES = { bodoni: "bpf-bodoni,'Bodoni Moda',Didot,serif", caslon: "bpf-caslon,'Libre Caslon Display',Georgia,serif", archivo: "bpf-archivo,'Archivo Black',Arial Black,sans-serif",
+  instrument: "bpf-instrument,'Instrument Serif',Georgia,serif", cormorant: "bpf-cormorant,'Cormorant Garamond',Georgia,serif" };
+const USE = [['youtube-banner', 'Your YouTube banner'], ['youtube-thumb-1', 'A Pretty Well Read thumbnail'], ['youtube-thumb-2', 'A Current Events Condensed thumbnail'],
+  ['youtube-thumb-3', 'A live show thumbnail'], ['instagram-story', 'A story'], ['instagram-quote', 'A quote post'], ['x-header', 'Your X header'], ['everywhere-profile', 'Your profile picture']];
+let IO = null;
+/* A picture shown small at once (its thumbnail), whole when it comes near the screen, fetched once for the whole page. */
+function lazy(img, f) {
+  if (!f) return img;
+  if (ST.done[f.id]) { img.src = ST.done[f.id]; return img; }
+  img.src = thumbOf(f);
+  img.classList.add('soft');
+  img._go = () => fullUrl(f).then(u => { img.src = u; img.classList.remove('soft'); }).catch(() => img.classList.remove('soft'));
+  if (!('IntersectionObserver' in window)) { img._go(); return img; }
+  if (!IO) IO = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { IO.unobserve(e.target); if (e.target._go) e.target._go(); } }), { rootMargin: '900px 500px' });
+  IO.observe(img);
+  return img;
+}
+/* Where a link on the page leads: the fold it sits in opens first, then it is scrolled to. */
+function goTo(id, focus) {
+  const t = $(id);
+  if (!t) return;
+  const d = t.closest('details');
+  if (d && !d.open) d.open = true;
+  t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // a glide a browser drops or stalls (a page in the background, a busy phone) never leaves her short of it: it jumps
+  const at = () => Math.abs(t.getBoundingClientRect().top - (parseFloat(getComputedStyle(t).scrollMarginTop) || 0) - (parseFloat(getComputedStyle(D.documentElement).scrollPaddingTop) || 0)) <= 24;      // the site keeps room for its header
+  [700, 1600].forEach(ms => setTimeout(() => { if (!at()) t.scrollIntoView({ block: 'start' }); }, ms));
+  if (focus) { const ta = t.querySelector('textarea'); if (ta) setTimeout(() => ta.focus({ preventScroll: true }), 450); }
+}
+/* A section folded under one line that says what is inside. It stays open across a redraw once she opened it. */
+function fold(key, icon, title, sub, node) {
+  const d = el('details', 'bp-fold', null, { id: 'bp-f-' + key });
+  if ((ST.open || (ST.open = {}))[key]) d.open = true;
+  const s = el('summary');
+  const t = el('span', null, title);
+  if (sub) t.append(el('small', null, sub));
+  s.append(ico(icon, 22), t);
+  d.append(s);
+  const inner = el('div', 'in');
+  inner.append(node);
+  d.append(inner);
+  d.addEventListener('toggle', () => { ST.open[key] = d.open; });
+  return d;
+}
+function paintPitch() {
+  const B = ST.doc, looks = B.looks, n = looks.length, many = n > 1;
+  const box = el('div', 'bp-pitch', null, { id: 'bp-look' });
+  const open = el('header', 'bp-open');
+  open.append(el('p', 'bp-kick', `For ${T(B.person)}${B.draft ? ' · Draft ' + B.draft : ''}`));
+  open.append(el('h2', 'bp-big', many ? `${NUM[n] || n} ways the world could see ${T(B.name)}.` : `${T(B.name)}, as the world will see it.`));
+  open.append(el('p', 'bp-lede2', many
+    ? `${NUM[n] || n} complete brands, not ${(NUM[n] || n).toString().toLowerCase()} pictures: each its own idea, logo, colours and type, with every picture your channel needs, made from real photos of you.`
+    : 'A complete brand, with its own idea, logo, colours and type, and every picture your channel needs. Every face in it is a real photo of you.'));
+  const toc = el('ol', 'bp-toc', null, { 'aria-label': 'The directions', style: `--n:${Math.min(n, 5)}` });
+  looks.forEach((l, i) => {
+    const li = el('li');
+    const b = el('button', null, null, { type: 'button', 'data-go': l.k, 'aria-label': `${l.name}: see direction ${i + 1}` });
+    const pic = el('span', 'pic');
+    pic.append(lazy(el('img', null, null, { alt: '' }), fileById(l.show)));
+    const heart = el('span', 'heart', null, { 'data-heart': l.k });
+    heart.append(ico('heart', 14), el('span', null, 'Your pick'));
+    heart.hidden = v('look') !== l.k;
+    pic.append(heart);
+    if (l.rec && many) pic.append(el('span', 'rec', 'My pick for you'));
+    const nm = el('span', 'nm');
+    nm.append(el('i', null, String(i + 1).padStart(2, '0')), el('span', null, l.name));
+    b.append(pic, nm, el('span', 'id', T(l.idea)));
+    b.addEventListener('click', () => goTo('bp-d-' + l.k));
+    li.append(b);
+    toc.append(li);
+  });
+  open.append(toc);
+  if (many) open.append(el('p', 'bp-scrollhint', `Swipe for all ${n}, then scroll down: each one opens as a world of its own.`));
+  box.append(open, paintSay());      // I speak to her right under the posters, never above them
+  looks.forEach((l, i) => box.append(direction(l, i, n)));
+  if (many) {
+    const mix = el('section', 'bp-mix', null, { id: 'bp-mix' });
+    mix.append(el('h2', null, 'Love parts of two?'), el('p', null, 'The colours of one, the type of another, the photo from a third: say it here and I build it as the next draft. Or tell me what none of them has yet.'));
+    mix.append(commentBox('sec:look', 'Mix them, or tell me what is missing', 'For example: Common Ground, but with the night sky of Midnight Atlas.'));
+    box.append(mix);
+  }
+  return box;
+}
+function direction(l, i, n) {
+  const t = l.theme || {}, mine = v('look') === l.k;
+  const s = el('section', 'bp-dir bp-look' + (mine ? ' picked' : ''), null, { id: 'bp-d-' + l.k, 'data-look': l.k, 'aria-label': `${l.name}, direction ${i + 1} of ${n}` });
+  if (t.ground) s.style.setProperty('--dg', t.ground);
+  if (t.ink) s.style.setProperty('--di', t.ink);
+  if (t.accent) s.style.setProperty('--da', t.accent);
+  if (FACES[t.face]) s.style.setProperty('--df', FACES[t.face]);
+  const num = el('p', 'bp-dnum', n > 1 ? `Direction ${i + 1} of ${n}` : 'Your brand');
+  if (l.rec && n > 1) num.append(el('span', 'pill bp-badge', 'My pick for you'));
+  const dt = draftTag(); if (dt) num.append(dt);
+  s.append(num, el('h2', 'bp-dname', l.name));
+  if (l.idea) s.append(el('p', 'bp-didea', `“${T(l.idea)}”`));
+  const grid = el('div', 'bp-dgrid');
+  const fig = el('figure', 'bp-dposter bp-shot');
+  const show = fileById(l.show);
+  const pb = el('button', null, null, { type: 'button', 'aria-label': `See ${l.name} full size` });
+  const pimg = lazy(el('img', null, null, { alt: `${l.name}: the idea in one picture`, 'data-full': show ? show.id : '' }), show);
+  pb.append(pimg);
+  pb.addEventListener('click', () => { if (pimg._go) pimg._go(); fullView(pimg, `${l.name}: the idea in one picture`); });
+  fig.append(pb);
+  const tx = el('div', 'bp-dtext');
+  tx.append(el('p', 'lead', T(l.short)), el('p', 'why', T(l.why)));
+  tx.append(el('p', 'bp-h5', 'Colours (tap one to copy its code)'), swatches(l));
+  tx.append(el('p', 'bp-h5', 'Type'), el('p', 'bp-dtype', (l.fonts || []).join(' and ') + '. Free on Google Fonts, so you can use them in Canva today.'));
+  const acts = el('div', 'bp-dacts');
+  const pick = el('button', 'bp-dpick', null, { type: 'button', 'aria-pressed': mine ? 'true' : 'false', 'data-pick': l.k });
+  pick.append(ico('heart', 20), el('span', null, mine ? 'Your pick' : (n > 1 ? 'This is the one' : 'I love it')));
+  pick.addEventListener('click', async () => {
+    pick.disabled = true;
+    const was = v('look') === l.k;
+    if (await save('look', was ? '' : l.k)) { ST.look = was ? ST.doc.rec : l.k; markPicks(); refreshKit(); }
+    pick.disabled = false;
+  });
+  const no = react('react:look:' + l.k, 'x', 'Not me', 'no');
+  no.classList.add('bp-dno');
+  no.append(el('span', null, 'Not me'));
+  acts.append(pick, no);
+  tx.append(acts, commentBox('look:' + l.k, 'Tell me what to change', 'A colour, the type, the photo, the feel: anything. Two words is enough.'));
+  grid.append(fig, tx);
+  s.append(grid);
+  // the brand in use: the other pages of its book, then the pictures a stranger meets first
+  s.append(el('p', 'bp-duse-h', 'In use'));
+  const strip = el('ul', 'bp-duse', null, { 'aria-label': `${l.name} in use` });
+  const items = (l.book || []).slice(1).map(b => [fileById(b.id), b.title]).concat(USE.map(([k, cap]) => [fileById(`${l.k}-${k}`), cap]));
+  items.filter(x => x[0]).forEach(([f, cap]) => {
+    const li = el('li');
+    const fg = el('figure', null, null, { style: 'margin:0' });
+    const b = el('button', null, null, { type: 'button', 'aria-label': `See ${cap} full size`, style: `aspect-ratio:${T(f.w) || 4} / ${T(f.h) || 5}` });
+    const img = lazy(el('img', null, null, { alt: cap }), f);
+    b.append(img);
+    b.addEventListener('click', () => { if (img._go) img._go(); fullView(img, `${l.name}: ${cap}`); });
+    fg.append(b, el('figcaption', null, cap));
+    li.append(fg);
+    strip.append(li);
+  });
+  s.append(strip);
+  const all = ibtn('bp-dall', 'down', `All ${(l.files || []).length} pictures, ready to download`);
+  all.addEventListener('click', () => { ST.look = l.k; refreshKit(); goTo('bp-kit'); });
+  s.append(all);
+  return s;
+}
+/* After a pick: the marks move without a redraw, so she keeps her place on the page. */
+function markPicks() {
+  const p = v('look');
+  D.querySelectorAll('#bp .bp-dir').forEach(s => {
+    const on = s.dataset.look === p;
+    s.classList.toggle('picked', on);
+    const b = s.querySelector('[data-pick]');
+    if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.lastChild.textContent = on ? 'Your pick' : (ST.doc.looks.length > 1 ? 'This is the one' : 'I love it'); }
+  });
+  D.querySelectorAll('#bp [data-heart]').forEach(h => { h.hidden = h.dataset.heart !== p; });
+  const picks = $('bp-mypick');
+  if (picks) picks.textContent = p ? `Your pick: ${(ST.doc.looks.find(l => l.k === p) || {}).name || p}.` : 'You have not picked one yet.';
+  const say = D.querySelector('#bp-say .bp-ask');
+  if (say) say.textContent = ask();
+  progress();
+}
+function refreshKit() {
+  const k = $('bp-kit');
+  if (k) k.replaceWith(paintKit());
+  const c = $('bp-cmp');
+  const nc = paintCompare();
+  if (c && nc) c.replaceWith(nc);
+}
+/* Everything after the pitch: what I need from her next (the steps), then each part folded under one line. */
+function paintAfter(person) {
+  const B = ST.doc;
+  const after = el('section', 'bp-after', null, { id: 'bp-next-up' });
+  after.append(el('h2', null, 'What I need from you'));
+  after.append(el('p', 'bp-sub', v('look') ? `Your pick: ${(B.looks.find(l => l.k === v('look')) || {}).name || v('look')}.` : 'You have not picked one yet.', { id: 'bp-mypick', style: 'margin:0 0 6px' }));
+  const steps = el('ol', 'bp-steps', null, { id: 'bp-steps' });
+  STEPS.map(r => oneLook() && STEP_ONE[r[0]] ? [r[0], ...STEP_ONE[r[0]]] : r).forEach(([k, t, sub], i) => {
+    const li = el('li', null, null, { 'data-k': k, 'data-n': String(i + 1) });
+    const a = el('a', null, null, { href: '#bp-' + k });
+    a.addEventListener('click', ev => { ev.preventDefault(); goTo('bp-' + k, k !== 'look'); });
+    const i_ = el('i', null, String(i + 1)), tx = el('span', null, t);
+    tx.append(el('small', null, sub));
+    a.append(i_, tx); li.append(a); steps.append(li);
+  });
+  after.append(steps);
+  const bar = el('div', 'bp-meter', null, { id: 'bp-bar', role: 'presentation' }); bar.append(el('b')); after.append(bar);
+  after.append(el('p', 'bp-sub', '', { id: 'bp-sum', style: 'margin-top:8px' }));
+  const go = el('button', 'bp-btn main bp-go', '', { type: 'button', id: 'bp-go' });
+  go.addEventListener('click', () => { const k = go.dataset.k; if (k) goTo('bp-' + k, k !== 'look'); });
+  after.append(go, el('p', 'bp-tally', '', { id: 'bp-tally' }));
+  BOX.append(after);
+  const story = paintStory(); story.append(commentBox('sec:story', 'Tell me what to change in your story', 'What is wrong or missing, in your own words.'));
+  const talk = sec('talk', 'Anything else', 'Anything about your brand or your channel that has no box of its own: tell me here. I read every word, Armin sees it too, and my answer appears right here.');
+  talk.append(commentBox('', 'Write to me', 'Something to add, something you do not like, an idea for your channel: write it here.', true));
+  const cmp = paintCompare();
+  const parts = [
+    ['sent', 'image', 'Send me photos of you', 'Better photos make every design better', paintSent()],
+    ['story', 'pen', 'Your story', 'Five questions: I write your bios from them', story],
+    ['words', 'copy', 'Your words', 'Every bio and About, written for each app', paintWords()],
+    ['kit', 'down', 'Your pictures', 'Every picture of the design you pick, to download', paintKit()],
+  ];
+  if (cmp) parts.push(['cmp', 'eye', 'Your banner today, and in your pick', 'How a phone, a computer and a TV cut it', cmp]);
+  if (B.plan && B.plan.headline) parts.push(['plan', 'spark', 'The plan behind it', 'Why these directions, and how the channel could grow', paintPlan()]);
+  parts.push(['promise', 'check', 'Nothing here is final', `Draft ${B.draft || 1}, and how the next one is made`, paintPromise()],
+    ['talk', 'chat', 'Anything else', 'A note about anything, to me', talk],
+    ['better', 'spark', 'Make this page better for the whole team', 'What the team asked for, and what I did', paintBetter()]);
+  parts.forEach(([k, icon, t, sub, node]) => BOX.append(fold(k, icon, t, sub, node)));
+  BOX.append(paintNext());
+  tally();
+  progress();
+}
+
 function react(key, icon, label, val, after) {
   const b = ibtn(null, icon, null, label);
   b.classList.add('ico');
@@ -683,127 +990,6 @@ function react(key, icon, label, val, after) {
   });
   b.setAttribute('data-r', key);
   return b;
-}
-
-/* The designs: each one a big picture of the brand in use (the showcase build-people-kit.py draws from the kit
-   itself), with the pick, a heart or a cross, and its own conversation. Swiped on a phone, three across on a computer. */
-function paintLooks() {
-  const B = ST.doc, s = el('section', null, null, { id: 'bp-look', style: 'scroll-margin-top:80px' });
-  const row = el('div', 'bp-looks', null, { 'aria-label': 'Your designs' });
-  const photo = fileById('photo');
-  B.looks.forEach((l, i) => {
-    const card = el('article', 'bp-look' + (v('look') === l.k ? ' picked' : ''), null, { 'data-look': l.k, 'aria-label': `${l.name}, design ${i + 1} of ${B.looks.length}` });
-    const book = bookOf(l);
-    const fig = book || el('figure', 'bp-shot');
-    const show = book ? null : (fileById(l.show || '') || fileById(l.files.find(id => /youtube-banner/.test(id)) || '') || photo);
-    if (show) {
-      const ready = ST.done[show.id];
-      const img = el('img', ready ? null : 'soft', null, { src: ready || thumbOf(show), alt: `${l.name}: your channel, your thumbnails, X, a story and the colors, in this design`, 'data-full': show.id });
-      fig.append(img);
-      if (!ready) fullUrl(show).then(u => { img.src = u; img.classList.remove('soft'); }).catch(() => img.classList.remove('soft'));
-    }
-    card.append(fig);
-    const body = el('div', 'body');
-    const h = el('h3', null, l.name); const dt = draftTag(); if (dt) h.append(dt);
-    body.append(h);
-    // the marks sit under the picture, never on it: the picture is the design, whole
-    if (B.looks.length > 1 && (l.rec || v('look') === l.k)) {
-      const marks = el('div', 'bp-row');
-      if (l.rec) marks.append(el('span', 'bp-badge', 'My pick for you'));
-      if (v('look') === l.k) { const m = el('span', 'bp-mine'); m.append(ico('check', 16), el('span', null, 'Your pick')); marks.append(m); }
-      body.append(marks);
-    }
-    body.append(el('p', null, l.short));
-    const more = el('details', 'bp-more');
-    more.append(el('summary', null, 'Why this design'), el('p', 'bp-why', l.why));
-    more.append(el('p', 'bp-type', 'Colors (tap one to copy its code):'), swatches(l), el('p', 'bp-type', 'Type: ' + l.fonts.join(' and ')));
-    body.append(more);
-    const acts = el('div', 'bp-acts');
-    const pick = el('button', 'pick', v('look') === l.k ? '✓ My design' : 'Pick this design', { type: 'button', 'aria-pressed': v('look') === l.k ? 'true' : 'false' });
-    pick.addEventListener('click', async () => {
-      pick.disabled = true;
-      if (await save('look', l.k)) { ST.look = l.k; paint(); const c = D.querySelector(`.bp-look[data-look="${l.k}"]`); if (c) c.scrollIntoView({ block: 'nearest', inline: 'center' }); $('bp-look').scrollIntoView(); }
-      pick.disabled = false;
-    });
-    if (B.looks.length > 1) acts.append(pick);
-    const love = react('react:look:' + l.k, 'heart', 'Love it', 'love'), no = react('react:look:' + l.k, 'x', 'Not me', 'no');
-    // with nothing to pick, these two ARE the answer, so they carry their words, not only an icon
-    if (B.looks.length === 1) [love, no].forEach(x => { x.classList.remove('ico'); x.append(el('span', null, x.title)); });
-    acts.append(love, no);
-    const see = ibtn(null, 'eye', 'All pictures', `See all ${l.files.length} pictures in ${l.name}`);
-    see.addEventListener('click', () => { ST.look = l.k; paint(); $('bp-kit').scrollIntoView(); });
-    acts.append(see);
-    body.append(acts, commentBox('look:' + l.k, 'Tell me what to change', B.looks.length > 1 ? 'A color, a font, the photo, the feel: anything. Mixing two designs is fine too.' : 'A color, a font, the photo, the feel: anything.'));
-    card.append(body);
-    row.append(card);
-  });
-  if (B.looks.length === 1) row.classList.add('one');
-  s.append(row);
-  if (B.looks.length > 1) {
-    const pager = el('div', 'bp-pager', null, { role: 'group', 'aria-label': 'Designs' });
-    const cards = () => Array.from(row.children);
-    B.looks.forEach((l, i) => {
-      const b = el('button', null, null, { type: 'button', 'aria-label': `Show ${l.name}`, 'aria-current': i === 0 ? 'true' : 'false' });
-      b.append(el('i'));
-      b.addEventListener('click', () => { const c = cards()[i]; row.scrollTo({ left: c.offsetLeft - row.offsetLeft - (row.clientWidth - c.clientWidth) / 2, behavior: 'smooth' }); });
-      pager.append(b);
-    });
-    let tick = 0;
-    row.addEventListener('scroll', () => {
-      cancelAnimationFrame(tick);
-      tick = requestAnimationFrame(() => {
-        const mid = row.scrollLeft + row.clientWidth / 2;
-        let best = 0, d = 1e9;
-        cards().forEach((c, i) => { const cm = c.offsetLeft - row.offsetLeft + c.clientWidth / 2; if (Math.abs(cm - mid) < d) { d = Math.abs(cm - mid); best = i; } });
-        pager.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-current', i === best ? 'true' : 'false'));
-      });
-    }, { passive: true });
-    s.append(pager, el('p', 'bp-hint', `Swipe to see all ${B.looks.length} designs.`));
-  }
-  const cmp = paintCompare();
-  if (cmp) s.append(cmp);
-  if (B.looks.length > 1) s.append(commentBox('sec:look', 'Tell me about the designs as a whole', 'Want a mix of two, a color you love, a font you hate? Say it here.'));
-  return s;
-}
-
-/* A design built as an identity system (people/system_look.py) arrives with its brand book: the cover, the idea, the
-   wordmark, the mark, colour, type, photography, the series, the brand in use and the rules, one page each. Swiped,
-   with the page's name and number under it; each page fetched full size only when it comes near the screen; a tap
-   shows it on its own, a tap again closes it. A design without a book shows its one picture, as before. */
-function bookOf(l) {
-  const pages = (l.book || []).map(b => ({ b, f: fileById(b.id) })).filter(x => x.f);
-  if (!pages.length) return null;
-  const box = el('div', 'bp-book');
-  const strip = el('div', 'bp-book-strip', null, { 'aria-label': `${l.name}: the brand book, ${pages.length} pages` });
-  const cap = el('p', 'bp-book-cap', `1 of ${pages.length}: ${pages[0].b.title}`, { 'aria-live': 'polite' });
-  const load = (img, f) => { if (img.dataset.got) return; img.dataset.got = '1'; fullUrl(f).then(u => { img.src = u; img.classList.remove('soft'); }).catch(() => img.classList.remove('soft')); };
-  const seen = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { load(e.target, fileById(e.target.dataset.id)); seen.unobserve(e.target); } }), { root: strip, rootMargin: '0px 120% 0px 120%' }) : null;
-  pages.forEach(({ b, f }, i) => {
-    const page = el('figure', 'bp-book-page');
-    const ready = ST.done[f.id];
-    const img = el('img', ready ? null : 'soft', null, { src: ready || thumbOf(f), alt: `${l.name}, page ${i + 1}: ${b.title}`, 'data-id': f.id });
-    const open = el('button', 'bp-book-open', null, { type: 'button', 'aria-label': `See page ${i + 1}, ${b.title}, full size` });
-    open.append(img);
-    open.addEventListener('click', () => { load(img, f); fullView(img, `${l.name}, page ${i + 1}: ${b.title}`); });
-    page.append(open);
-    strip.append(page);
-    if (ready) img.dataset.got = '1'; else if (i < 2 || !seen) load(img, f); else seen.observe(img);
-  });
-  let tick = 0;
-  strip.addEventListener('scroll', () => {
-    cancelAnimationFrame(tick);
-    tick = requestAnimationFrame(() => {
-      const n = Math.min(pages.length - 1, Math.max(0, Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth))));
-      cap.textContent = `${n + 1} of ${pages.length}: ${pages[n].b.title}`;
-    });
-  }, { passive: true });
-  const step = d => strip.scrollBy({ left: d * strip.clientWidth, behavior: 'smooth' });
-  const prev = ibtn('bp-book-nav', 'left', null, 'Previous page'), next = ibtn('bp-book-nav', 'right', null, 'Next page');
-  prev.addEventListener('click', () => step(-1)); next.addEventListener('click', () => step(1));
-  const bar = el('div', 'bp-book-bar');
-  bar.append(prev, cap, next);
-  box.append(strip, bar);
-  return box;
 }
 
 /* One picture on its own, as large as the screen allows. Tap anywhere, or Escape, to close. */
@@ -1119,6 +1305,14 @@ function paintSent() {
 
 /* Liberty Politics speaking to her: what I made, what I did since her last visit (only deeds that exist), and the one
    thing I want to hear from her now. */
+/* The one thing I ask her now, in the greeting: it moves on as she does each thing. */
+function ask() {
+  if (ST.doc.kind !== 'person') return 'Anything that is wrong? Tell me under it and I will fix it.';
+  return oneLook() && !stepDone('look') ? 'Look at your design. Tap I love it, or tell me under it what you would change.'
+    : !oneLook() && !v('look') ? 'Look at all of them, then tap This is the one on the one that feels like you.'
+    : !Object.keys(ST.mine).some(k => k.startsWith('story:')) ? 'Tell me about yourself in Your story: I write your bios from it.'
+      : 'Anything that is not you? Tell me under it and I will fix it.';
+}
 function paintSay() {
   const B = ST.doc, me = R.user().uid, last = ST.last;
   const box = el('div', 'bp-say', null, { id: 'bp-say' });
@@ -1126,7 +1320,9 @@ function paintSay() {
   const bub = el('div', 'bub');
   const lines = [];
   if (!last) {
-    lines.push([`I made you ${B.looks.length === 1 ? 'a design' : B.looks.length + ' designs'} for ${T(B.name)}, every picture your accounts need and every line of text, from your channel, your Shorts and your Sunday Edit. This is draft ${B.draft || 1}: nothing here is final.`]);
+    lines.push([B.looks.length > 1
+      ? `I made you ${(NUM[B.looks.length] || B.looks.length).toString().toLowerCase()} completely different brands for ${T(B.name)}, each with every picture your accounts need, from your channel, your Shorts and your Sunday Edit. This is draft ${B.draft || 1}: nothing here is final.`
+      : `I made you a brand for ${T(B.name)}, every picture your accounts need and every line of text, from your channel, your Shorts and your Sunday Edit. This is draft ${B.draft || 1}: nothing here is final.`]);
   } else {
     const deeds = [];
     const answered = ST.notes.filter(r => String(r.about || '').startsWith('re:') && ms(r.createdAt) > last && ST.notes.some(n => 're:' + n.id === r.about && n.uid === me)).length;
@@ -1137,12 +1333,8 @@ function paintSay() {
     if (built) deeds.push(`I built something ${T(built.who) || 'a teammate'} asked for: ${T(built.asked)}`);
     lines.push([deeds.length ? `Good to see you again. Since you were last here: ${deeds.join(' ')}` : 'Good to see you again.']);
   }
-  const ask = oneLook() && !stepDone('look') ? 'Look at your design. Tap Love it, or tell me under it what you would change.'
-    : !oneLook() && !v('look') ? 'Tell me which design feels like you, and what you would change.'
-    : !Object.keys(ST.mine).some(k => k.startsWith('story:')) ? 'Tell me about yourself in Your story: I write your bios from it.'
-      : 'Anything that is not you? Tell me under it and I will fix it.';
   lines.forEach(([t]) => bub.append(el('p', null, t)));
-  bub.append(el('p', 'bp-ask', ask));
+  bub.append(el('p', 'bp-ask', ask()));
   box.append(bub);
   return box;
 }

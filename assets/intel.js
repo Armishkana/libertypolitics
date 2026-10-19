@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=7bdcb29a17) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=01025cab05) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -22,37 +22,82 @@
   if (!root || !window.fetch) return;
   var $ = function (id) { return document.getElementById(id); };
   var SVGNS = 'http://www.w3.org/2000/svg';
+  /* ONE ENGINE, TWO ROOMS (19 October 2026). Liberty Politics' room (intel/) carries no #ir-cfg and runs exactly as it always
+     did. Iran Uncensored's (news/, build/news.py of that site) hands this file a config in <script type="application/json"
+     id="ir-cfg">: its words (t: English sentence -> its Persian, the key is the English as written here), its topics,
+     regions, places and actors, the map's first view, the feed's shape, the regime's servers, the clock and what may load
+     before a tap. Every visible sentence here goes through T(), every number a reader sees through N() or LN(); with no
+     config both give back exactly what they are handed, so an improvement made here reaches both rooms. A sentence added
+     here without T() shows in English on the Persian page: site-iu/build/news.py lists every T('...') key and stops the
+     Iran build while one has no Persian. */
+  var CFG = (function () { var el = document.getElementById('ir-cfg'); if (!el) return {}; try { var c = JSON.parse(el.textContent); return c && typeof c === 'object' ? c : {}; } catch (e) { return {}; } })();
+  var TT = CFG.t && typeof CFG.t === 'object' ? CFG.t : null, FA = CFG.lang === 'fa';
+  function T(s, v) {
+    var r = TT && typeof TT[s] === 'string' ? TT[s] : s;
+    if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); });
+    return r;
+  }
+  function N(n) { var s = String(n); return FA ? s.replace(/\d/g, function (d) { return '\u06F0\u06F1\u06F2\u06F3\u06F4\u06F5\u06F6\u06F7\u06F8\u06F9'.charAt(+d); }).replace(/\./g, '\u066B') : s; }
+  function LN(n) { return FA ? N(n.toLocaleString('en-US').replace(/,/g, '\u066C')) : n.toLocaleString('en-US'); }
+  function rxOf(a, i) { try { return new RegExp(a[i], a[i + 1] || ''); } catch (e) { return /(?!)/; } }          // a pattern handed as [source, flags]
+  function cName(c) { return CFG.countries && CFG.countries[c] || c; }          // a country as this page names it
+  var GOLD = CFG.gold || '244,196,48', GOLDH = CFG.goldHex || '#F4C430';          // the room's gold on the canvas (Iran Uncensored: its sun gold)
+  var DA = CFG.dirAuto ? ' dir="auto"' : '';          // a headline in either language runs its own way
+  function bd(h) { return DA ? '<bdi>' + h + '</bdi>' : h; }
+  function dh(h) { return DA ? '<span dir="auto">' + h + '</span>' : h; }          // a run of the outlet's own words inside a line          // an outlet's name in the other language, kept whole inside a line
+  /* THE REGIME RULE (Iran Uncensored only: CFG.regime is the pipeline's DENY_DIRECT, ../../site/build/test_news_site.py keeps
+     the copies equal). An item from regime media or a server in Iran is shown, marked, and NEVER linked or fetched from:
+     opening it would show the regime's servers who is reading. Liberty Politics hands no list, so nothing is ever one. */
+  var REGIME = Array.isArray(CFG.regime) ? CFG.regime : null;
+  function regimeHost(h) {
+    if (!REGIME || !h) return false;
+    h = String(h).toLowerCase().replace(/\.$/, '');
+    if (h === 'ir' || /\.ir$/.test(h) || /\.xn--mgba3a4f16a$/.test(h)) return true;
+    for (var i = 0; i < REGIME.length; i++) if (h === REGIME[i] || h.slice(-REGIME[i].length - 1) === '.' + REGIME[i]) return true;
+    return false;
+  }
+  function isRegime(it) {
+    if (!REGIME || !it) return false;
+    var m = /^https?:\/\/([^\/:?#\s]+)/i.exec(String(it.u || ''));
+    return it.rg === 1 || regimeHost(m ? m[1] : '') || regimeHost(it.dm || '');
+  }
+  /* PICTURES ONLY ON A TAP (Iran Uncensored's Persian page: CFG.light). Readers inside Iran are on slow, watched connections,
+     and a picture from X, YouTube or Bing tells a third party who is reading. So nothing from another site loads until the
+     reader taps it, unless they switch pictures on for this device (Views and tools). Liberty Politics: always on. */
+  var picsOn = !CFG.light || (function () { try { return localStorage.getItem('ir-pics') === 'on'; } catch (e) { return false; } })();
+  function pics() { return picsOn; }
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  var FIRST = '2023-10';          // the timeline runs from the month of 7 October; anything older is one bar, "Earlier"
+  var MONV = Array.isArray(CFG.months) && CFG.months.length === 12 ? CFG.months : MON;          // the months a reader sees (MON stays for reading what is typed)
+  var FIRST = CFG.first || '2023-10';          // the timeline runs from the month of 7 October; anything older is one bar, "Earlier"
   var PAGE_N = 40;
   var MAXK = 400;          // deep enough that Gaza City, Khan Younis and Rafah come apart
   var TOUR_MS = 12000;
   // Where an item was posted: the key, the name a reader sees, the colour of its marks. The platforms' own colours, toned
   // to sit on the room's black; News is the brand's gold and a website the seal's pale gold, so the chrome stays gold.
-  var PF = [['X', 'X', '#ECEAE3'], ['YouTube', 'YouTube', '#FF5348'], ['Telegram', 'Telegram', '#3FAEEA'], ['Instagram', 'Instagram', '#E8467F'],
-    ['Facebook', 'Facebook', '#5F8BF2'], ['Threads', 'Threads', '#A88DFF'], ['TikTok', 'TikTok', '#32E3DC'], ['News', 'News', '#F4C430'],
-    ['Web', 'Websites', '#D9C68C'], ['Document', 'Documents', '#D08A3C'], ['Other', 'Other video', '#8FC955']];
+  var PF = [['X', T('X'), '#ECEAE3'], ['YouTube', T('YouTube'), '#FF5348'], ['Telegram', T('Telegram'), '#3FAEEA'], ['Instagram', T('Instagram'), '#E8467F'],
+    ['Facebook', T('Facebook'), '#5F8BF2'], ['Threads', T('Threads'), '#A88DFF'], ['TikTok', T('TikTok'), '#32E3DC'], ['News', T('News'), CFG.goldHex || GOLDH],
+    ['Web', T('Websites'), '#D9C68C'], ['Document', T('Documents'), '#D08A3C'], ['Other', T('Other video'), '#8FC955']];
   var PFC = {}; PF.forEach(function (p) { PFC[p[0]] = p; });
   // What it is: one shape per kind, drawn about 0,0 (the list's thumbnails carry the same mark)
   var SHAPE = { video: 'M-5 -6.2 6.8 0-5 6.2z', post: 'M0 -7 7 0 0 7-7 0z', article: 'M-5.4 -5.4h10.8v10.8h-10.8z', doc: 'M0 -6.8 5.9 -3.4v6.8L0 6.8-5.9 3.4v-6.8z' };
-  var KIND_N = { video: 'Video', post: 'Post', article: 'Article', doc: 'Document' };
+  var KIND_N = { video: T('Video'), post: T('Post'), article: T('Article'), doc: T('Document') };
   var HIDES = { Instagram: 1, Facebook: 1, Threads: 1, TikTok: 1 };          // no public like count without a login: never guessed
-  var MISSION = { find: 'send-intel', mine: 'send-your-own' };
+  var MISSION = CFG.mission || { find: 'send-intel', mine: 'send-your-own' };          // Iran Uncensored: one mission, send-news, and no "I made it" 
   var XP = { find: +root.getAttribute('data-xp-find') || 40, mine: +root.getAttribute('data-xp-own') || 90 };
   // The map's own country names for the places' countries, where the two differ.
   var TOPO = { 'Gaza': 'Palestine', 'West Bank': 'Palestine', 'United States': 'United States of America' };
-  var KINDS = [['', 'All'], ['video', 'Videos'], ['post', 'Posts'], ['article', 'Articles'], ['doc', 'Documents and data']];
-  var LENS = { live: 'Last 24 hours', bank: 'The bank', readers: 'From readers' };
+  var KINDS = [['', T('All')], ['video', T('Videos')], ['post', T('Posts')], ['article', T('Articles')], ['doc', T('Documents and data')]];
+  var LENS = { live: T('Last 24 hours'), bank: T('The bank'), readers: T('From readers') };
   // Each lens's orders; viral, likes and views stay only where the lens has a measured number (trimmed after loading).
-  var SORTS = { live: [['hot', 'Hottest first'], ['new', 'Newest first'], ['viral', 'Most viral'], ['likes', 'Most liked'], ['views', 'Most viewed']],
-    bank: [['new', 'Newest first'], ['old', 'Oldest first'], ['top', 'Top picks first'], ['viral', 'Most viral'], ['likes', 'Most liked'], ['views', 'Most viewed']], readers: [['new', 'Newest first']] };
-  var HEATS = [[0, 'Any heat'], [40, 'Warm 40+'], [70, 'Hot 70+'], [90, 'On fire 90+']];
-  var VIRALS = [[0, 'Any reach'], [50, 'Top half'], [75, 'Top quarter'], [90, 'Top 10%']];
-  var WITHIN = [[0, '24 hours'], [12, '12 h'], [6, '6 h'], [3, '3 h'], [1, '1 h']];
+  var SORTS = { live: [['hot', T('Hottest first')], ['new', T('Newest first')], ['viral', T('Most viral')], ['likes', T('Most liked')], ['views', T('Most viewed')]],
+    bank: [['new', T('Newest first')], ['old', T('Oldest first')], ['top', T('Top picks first')], ['viral', T('Most viral')], ['likes', T('Most liked')], ['views', T('Most viewed')]], readers: [['new', T('Newest first')]] };
+  var HEATS = [[0, T('Any heat')], [40, T('Warm 40+')], [70, T('Hot 70+')], [90, T('On fire 90+')]];
+  var VIRALS = [[0, T('Any reach')], [50, T('Top half')], [75, T('Top quarter')], [90, T('Top 10%')]];
+  var WITHIN = [[0, T('24 hours')], [12, T('12 h')], [6, T('6 h')], [3, T('3 h')], [1, T('1 h')]];
   // How credible the SOURCE is, 0 to 100, from the room's own table (intel_live.py for news and video, intel_x.py for X)
-  var CREDS = [[0, 'Any source'], [50, '50+'], [70, '70+'], [85, '85+']];
+  var CREDS = [[0, T('Any source')], [50, N('50+')], [70, N('70+')], [85, N('85+')]];
   // A floor on the likes an item has on its own platform (views on Telegram do not count as likes).
-  var LIKES = [[0, 'Any'], [100, '100+'], [1000, '1K+'], [10000, '10K+'], [100000, '100K+']];
+  var LIKES = [[0, T('Any')], [100, N('100+')], [1000, T('1K+')], [10000, T('10K+')], [100000, T('100K+')]];
   /* FOCUS (Armin, 17 October 2026: "I should be able to filter it based on country or based on topic. If I wanted to
      focus on Islam, the Middle East, Iran, Israel, China, the United States"). One row of quick picks, for everyone, on
      every lens. A pick matches an item placed in one of its countries, or whose own headline names it. Several picks
@@ -76,7 +121,9 @@
     ['africa', 'Africa', ['Nigeria', 'Sudan', 'South Africa', 'Ethiopia', 'Somalia', 'Libya', 'Kenya', 'Mali', 'Algeria', 'Morocco', 'Tunisia', 'Congo'], /\b(Africa\w*|Nigeria\w*|Sudan\w*|Ethiopia\w*|Somali\w*|Libya\w*|Kenya\w*|Sahel|Mali|Algeria\w*|Morocc\w*|Tunisia\w*|Congo\w*|Darfur)\b/],
     ['latam', 'Latin America', ['Mexico', 'Venezuela', 'Brazil', 'Argentina', 'Colombia', 'Cuba', 'Chile', 'Peru'], /\b(Mexic\w*|Venezuel\w*|Maduro|Brazil\w*|Lula|Argentin\w*|Milei|Colombia\w*|Cuba\w*|Havana|Chile\w*|Peru\w*|Latin America\w*)\b/]
   ];
-  var FXI = {}; FOCUS.forEach(function (f, i) { FXI[f[0]] = i; });
+  // Iran Uncensored's row is Iran's regions, the places abroad and the regime's neighbours: [key, name, [countries or place keys], source, flags]
+  if (Array.isArray(CFG.focus)) FOCUS = CFG.focus.map(function (f) { return [f[0], f[1], f[2] || [], f[3] ? rxOf(f, 3) : /(?!)/]; });
+  var FXI = {}, FXK = Array.isArray(CFG.focus); FOCUS.forEach(function (f, i) { FXI[f[0]] = i; });
   /* TOPICS (Armin, 18 October 2026: "the topics filter makes absolutely no sense ... you put the U.S. and Israel together as
      one topic ... topics could be war and military, Islam, Christianity, Judaism, or other religions, or religion as a whole,
      history, AI, tech, finance, economics, trade"). A topic is a SUBJECT, never a country: countries are the Region row.
@@ -109,13 +156,17 @@
     ['jewish', 'Judaism and antisemitism', /\b(jews?|jewish|judaism|synagogues?|rabbis?|anti-?semit\w*|holocaust|zionis\w*|torah|kosher|shabbat|yom kippur|hanukkah|passover)\b/i, null, 'rel'],
     ['faith', 'Other faiths and secularism', /\b(religio(n|ns|us)|hindu\w*|sikh\w*|buddhis\w*|atheis\w*|secular\w*|apostat\w*|ex-?muslims?|blasphem\w*|baha'?i\w*|zoroastr\w*|yazidi\w*|druze|faith|theocra\w*|god\b|gods\b|temples?)\b/i, null, 'rel']
   ];
+  // Iran Uncensored's topics are the regime's pulse (its data/news-sources.json, the same patterns the feed is tagged with):
+  // [key, name, source, flags]. No religion group there.
+  if (Array.isArray(CFG.topics)) TOPICS = CFG.topics.map(function (t) { return [t[0], t[1], rxOf(t, 2), null, '']; });
   var TOPN = {}; TOPICS.forEach(function (t) { TOPN[t[0]] = t; });
-  var REL_KEYS = ['islam', 'christian', 'jewish', 'faith'];
+  var REL_KEYS = CFG.topics ? [] : ['islam', 'christian', 'jewish', 'faith'];
   // The bank's own evidence tags, as subjects (a bank item gets these as well as what its words say)
   var BANK_TP = { 'Hamas': ['terror', 'war'], 'The genocide claim': ['war', 'media'], 'The famine claim': ['health', 'media'], 'Media bias': ['media'], 'UN, NGOs and elites': ['diplomacy'],
     'Blood libels debunked': ['media', 'jewish'], 'Propaganda networks': ['media'], 'Staged footage': ['media'], 'History': ['history'], 'Radical Islam': ['islam', 'terror'], 'Child fighters': ['war', 'terror'],
     'Journalists': ['media'], 'Israel and the US': ['diplomacy'], 'Double standards': ['media'], 'Qatar': ['diplomacy'], 'Campuses': ['education'], 'Far-right extremism': ['terror'],
     'Anti-Israel Jewish voices': ['jewish'], 'Israeli quotes in context': ['media'] };
+  if (CFG.bankTp) BANK_TP = CFG.bankTp;
   var HOT_MIN = 50, HOT_TOP = 6;          // "Hot topics": every story at 50+ heat; its row of sub-topics: the six hottest
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
@@ -128,22 +179,22 @@
   function sstore(k, v) { try { if (v === undefined) return JSON.parse(sessionStorage.getItem(k) || 'null'); if (v === null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
   function ago(ms) {
     var m = Math.round((Date.now() - ms) / 60000);
-    if (m < 1) return 'just now';
-    if (m < 60) return m + ' min ago';
+    if (m < 1) return T('just now');
+    if (m < 60) return T('{n} min ago', { n: N(m) });
     var h = Math.round(m / 60);
-    if (h < 36) return h + (h === 1 ? ' hour ago' : ' hours ago');
-    var d = Math.round(h / 24); return d + (d === 1 ? ' day ago' : ' days ago');
+    if (h < 36) return h === 1 ? T('1 hour ago') : T('{n} hours ago', { n: N(h) });
+    var d = Math.round(h / 24); return d === 1 ? T('1 day ago') : T('{n} days ago', { n: N(d) });
   }
   function fmtDate(d) {
-    if (!d) return 'No date';
-    if (d.length > 10) { var ms = Date.parse(d); return isNaN(ms) ? d.slice(0, 10) : ago(ms); }
+    if (!d) return T('No date');
+    if (d.length > 10) { var ms = Date.parse(d); return isNaN(ms) ? N(d.slice(0, 10)) : ago(ms); }
     var p = d.split('-');
-    if (p.length === 3) return (+p[2]) + ' ' + MON[+p[1] - 1] + ' ' + p[0];
-    if (p.length === 2) return MON[+p[1] - 1] + ' ' + p[0];
-    return p[0];
+    if (p.length === 3) return N(+p[2]) + ' ' + MONV[+p[1] - 1] + ' ' + N(p[0]);
+    if (p.length === 2) return MONV[+p[1] - 1] + ' ' + N(p[0]);
+    return N(p[0]);
   }
   function monthOf(d) { return d.length >= 7 ? d.slice(0, 7) : d.slice(0, 4) + '-06'; }
-  function placeName(k) { return (P[k] || ['No single place'])[0]; }
+  function placeName(k) { return (P[k] || [T('No single place')])[0]; }
   function ytId(u) { var m = /(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/.exec(u || ''); return m ? m[1] : ''; }
   /* A YouTube video's own shape, MEASURED, never assumed from its link (18 Oct 2026: a Short was drawn into a wide box and
      the show screen showed only its top third). YouTube keeps a picture at the video's own shape (oar2.jpg) for every video
@@ -154,6 +205,7 @@
   function vShape(id, u, cb) {
     var g = /\/shorts\//.test(u || '') ? 9 / 16 : 16 / 9;
     if (VSHAPE[id]) { cb(VSHAPE[id]); return VSHAPE[id]; }
+    if (!pics()) return g;          // a page that loads nothing before a tap does not ask YouTube for the shape either
     var im = new Image();
     im.onload = function () { var w = im.naturalWidth, h = im.naturalHeight; VSHAPE[id] = w > 120 && h > 90 ? Math.max(0.4, Math.min(2.5, w / h)) : g; cb(VSHAPE[id]); };
     im.onerror = function () { VSHAPE[id] = g; cb(g); };
@@ -192,7 +244,42 @@
     return h + path;
   }
   function flame() { return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 6 5 11a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3-1-3 0-7 1-9.5z"/></svg>'; }
-  function hotTag(it) { return it.hot != null ? '<span class="hot" style="--h:' + Math.max(4, it.hot) + '%" title="' + esc(it.hotWhy || '') + '">' + flame() + '<b class="num">' + it.hot + '</b> Hot</span>' : ''; }
+  function hotTag(it) { return it.hot != null ? '<span class="hot" style="--h:' + Math.max(4, it.hot) + '%" title="' + esc(it.hotWhy || '') + '">' + flame() + '<b class="num">' + N(it.hot) + '</b> ' + T('Hot') + '</span>' : ''; }
+
+  /* ------------------------------------------------------------ who covered it (18 Oct 2026)
+     The coverage spread: of the outlets the room found carrying a story, how many lean Left, Centre and Right. Counted
+     every hour by intel_live.py spread() (a whole topic: show_packs.py story_spread()) from our own lean table,
+     data/outlet-lean.json, which also says how it was made. A Blindspot (bs) is a story one side carried and the other
+     side not once; the rule has one home, intel_live.blind(). The page only draws what the files say, never decides. */
+  var SIDES = [['L', 'Left'], ['C', 'Centre'], ['R', 'Right']];
+  function spreadOf(it) {
+    if (it.ls) return it;
+    var h = STORY_OF[it.id];
+    return h && h.s && h.s.ls ? h.s : null;
+  }
+  function spreadWords(ls) { return 'Outlets that carried it: ' + SIDES.map(function (s, i) { return ls[i] + ' ' + s[1]; }).join(', ') + (ls[3] ? ', ' + ls[3] + ' not rated' : ''); }
+  function spreadBar(ls, cls) {
+    if (!ls || !(ls[0] + ls[1] + ls[2])) return '';
+    return '<span class="ir-sp' + (cls ? ' ' + cls : '') + '" role="img" aria-label="' + esc(spreadWords(ls)) + '" title="' + esc(spreadWords(ls)) + '">' +
+      SIDES.map(function (s, i) { return ls[i] ? '<i class="ir-sp-' + s[0] + '" style="flex:' + ls[i] + '"></i>' : ''; }).join('') + '</span>';
+  }
+  function blindWords(bs) { return 'No ' + (bs === 'L' ? 'left' : 'right') + '-leaning outlet carried this'; }
+  function blindTag(o) {
+    return o && o.bs ? '<span class="ir-bs" title="' + esc(blindWords(o.bs) + ', of the outlets the room found') + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>' +
+      (o.bs === 'L' ? 'Left' : 'Right') + ' silent</span>' : '';
+  }
+  function spreadTag(it) { return it.ls ? spreadBar(it.ls, 'ir-sp-card') + blindTag(it) : blindTag(spreadOf(it)); }
+  function spotSpread(it) {
+    var o = spreadOf(it); if (!o) return '';
+    var whole = o !== it, rated = o.ls[0] + o.ls[1] + o.ls[2];
+    return '<section class="ir-s-sp" aria-label="Who covered it"><h3>Who covered ' + (whole ? 'this story' : 'it') + '</h3>' + spreadBar(o.ls, 'ir-sp-big') +
+      '<ul>' + SIDES.map(function (s, i) {
+        var ns = (o.lsn && o.lsn[s[0]]) || [];
+        return '<li class="ir-sp-' + s[0] + '"><b>' + s[1] + ' ' + o.ls[i] + '</b>' + (ns.length ? ' ' + esc(ns.slice(0, 6).join(', ')) + (ns.length > 6 ? ' and ' + (ns.length - 6) + ' more' : '') : ' none') + '</li>';
+      }).join('') + '</ul>' +
+      (o.bs ? '<p class="ir-s-bs">' + blindTag(o) + ' ' + esc(blindWords(o.bs)) + ', of the ' + rated + ' rated outlets the room found. A story only one side tells is worth asking why.</p>' : '') +
+      '<p class="ir-s-o">Lean is our own table, guided by the published media-bias charts. Local stations and most outlets outside the US, UK, Canada, Australia and Israel are not rated' + (o.ls[3] ? ' (' + o.ls[3] + ' here)' : '') + '. Think one is wrong? Say so in the discussion.</p></section>';
+  }
 
   /* ------------------------------------------------------------ where it was posted, and how many liked it there */
   function pfOf(it) {
@@ -219,6 +306,7 @@
   function viewsOf(it) { var r = reachOf(it); return r && !r.x && r.vw != null ? r.vw : null; }
   function fmtN(n) {
     if (n == null) return '';
+    if (FA) { if (n < 1000) return N(n); var fk = n < 1e6 ? n / 1e3 : n / 1e6; return N(fk < 10 ? fk.toFixed(1).replace(/\.0$/, '') : Math.round(fk)) + '\u00a0' + T(n < 1e6 ? 'thousand' : 'million'); }
     if (n < 1000) return String(n);
     if (n < 1e6) { var k = n / 1e3; return (k < 10 ? k.toFixed(1).replace(/\.0$/, '') : Math.round(k)) + 'K'; }
     var m = n / 1e6; return (m < 10 ? m.toFixed(1).replace(/\.0$/, '') : Math.round(m)) + 'M';
@@ -241,8 +329,8 @@
   }
   function viralWhy(it) {
     if (it._v == null) return '';
-    var p = pfOf(it), n = VN[p] || 0, w = p === 'Telegram' ? 'views' : 'likes';
-    return 'More ' + w + ' than ' + it._v + '% of the ' + n + ' ' + pfName(p) + ' items in the room with a count';
+    var p = pfOf(it), n = VN[p] || 0;
+    return T(p === 'Telegram' ? 'More views than {v}% of the {n} {pf} items in the room with a count' : 'More likes than {v}% of the {n} {pf} items in the room with a count', { v: N(it._v), n: N(n), pf: pfName(p) });
   }
   var ICO = {
     like: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.3-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.7-7 10-7 10z"/></svg>',
@@ -259,16 +347,16 @@
   }
   function reachLine(it) {
     var r = reachOf(it), p = pfOf(it), out = [];
-    if (r && r.x) return '<span class="ir-rch ir-rch-x">' + esc(pfName(p)) + ' hides this count now (deleted, private or behind a login)</span>';
+    if (r && r.x) return '<span class="ir-rch ir-rch-x">' + esc(T('{pf} hides this count now (deleted, private or behind a login)', { pf: pfName(p) })) + '</span>';
     if (r) {
-      if (r.lk != null) out.push('<span title="' + esc(r.lk.toLocaleString('en-US') + ' likes on ' + pfName(p)) + '">' + ICO.like + '<b class="num">' + fmtN(r.lk) + '</b></span>');
-      if (r.vw != null) out.push('<span title="' + esc((r['~'] ? 'About ' : '') + r.vw.toLocaleString('en-US') + ' views on ' + pfName(p)) + '">' + ICO.view + '<b class="num">' + (r['~'] ? '~' : '') + fmtN(r.vw) + '</b></span>');
-      if (r.rp != null) out.push('<span title="' + esc(r.rp.toLocaleString('en-US') + ' replies') + '">' + ICO.reply + '<b class="num">' + fmtN(r.rp) + '</b></span>');
-      if (r.rs != null) out.push('<span title="' + esc(r.rs.toLocaleString('en-US') + ' reposts') + '">' + ICO.repost + '<b class="num">' + fmtN(r.rs) + '</b></span>');
+      if (r.lk != null) out.push('<span title="' + esc(T('{n} likes on {pf}', { n: LN(r.lk), pf: pfName(p) })) + '">' + ICO.like + '<b class="num">' + fmtN(r.lk) + '</b></span>');
+      if (r.vw != null) out.push('<span title="' + esc(T(r['~'] ? 'About {n} views on {pf}' : '{n} views on {pf}', { n: LN(r.vw), pf: pfName(p) })) + '">' + ICO.view + '<b class="num">' + (r['~'] ? '~' : '') + fmtN(r.vw) + '</b></span>');
+      if (r.rp != null) out.push('<span title="' + esc(T('{n} replies', { n: LN(r.rp) })) + '">' + ICO.reply + '<b class="num">' + fmtN(r.rp) + '</b></span>');
+      if (r.rs != null) out.push('<span title="' + esc(T('{n} reposts', { n: LN(r.rs) })) + '">' + ICO.repost + '<b class="num">' + fmtN(r.rs) + '</b></span>');
     }
     return out.length ? '<span class="ir-rch">' + out.join('') + '</span>' : '';
   }
-  function viralTag(it) { return it._v != null ? '<span class="vir" style="--h:' + Math.max(4, it._v) + '%" title="' + esc(viralWhy(it)) + '">' + ICO.viral + '<b class="num">' + it._v + '</b> Viral</span>' : ''; }
+  function viralTag(it) { return it._v != null ? '<span class="vir" style="--h:' + Math.max(4, it._v) + '%" title="' + esc(viralWhy(it)) + '">' + ICO.viral + '<b class="num">' + N(it._v) + '</b> ' + T('Viral') + '</span>' : ''; }
   function reduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
 
   /* ------------------------------------------------------------ the three lenses */
@@ -280,7 +368,7 @@
     S.lens = l; items = setOf(l);
     S.sort = SORTS[l][0][0];          // each lens opens on its own order (hottest, newest); the address can still name another
     var hint = $('ir-maphint');
-    if (hint) hint.textContent = l === 'live' ? 'The last 24 hours. Drag to turn the globe (two fingers on a phone), tap a mark.' : l === 'readers' ? 'Finds readers sent, not checked yet.' : BANK.length + ' items in the bank. Drag to turn the globe (two fingers on a phone), tap a mark.';
+    if (hint) hint.textContent = l === 'live' ? T('The last 24 hours. Drag to turn the globe (two fingers on a phone), tap a mark.') : l === 'readers' ? T('Finds readers sent, not checked yet.') : T('{n} items in the bank. Drag to turn the globe (two fingers on a phone), tap a mark.', { n: N(BANK.length) });
     $('ir-sort').innerHTML = SORTS[l].map(function (s) { return '<option value="' + s[0] + '">' + s[1] + '</option>'; }).join('');
     $('ir-sort').value = S.sort;
     root.setAttribute('data-shows', l);
@@ -294,17 +382,20 @@
     ['live', 'bank', 'readers'].forEach(function (l) {
       if (l === 'live' && !liveShown()) return;
       var n = setOf(l).length, on = S.lens === l;
-      var sub = l === 'live' ? (LIVE_AT ? 'updated ' + ago(LIVE_AT) : '') : l === 'readers' ? (rdState === 'loading' ? 'loading' : 'being checked') : 'checked';
+      var sub = l === 'live' ? (LIVE_AT ? T('updated {t}', { t: ago(LIVE_AT) }) : '') : l === 'readers' ? (rdState === 'loading' ? T('loading') : T('being checked')) : T('checked');
       html += '<button type="button" role="tab" class="ir-lens-' + l + '" data-lens="' + l + '" aria-selected="' + on + '">' +
-        (l === 'live' ? '<i class="ir-live-dot" aria-hidden="true"></i>' : '') + '<b>' + LENS[l] + '</b> <span class="num">' + n + '</span><small>' + esc(sub) + '</small></button>';
+        (l === 'live' ? '<i class="ir-live-dot" aria-hidden="true"></i>' : '') + '<b>' + LENS[l] + '</b> <span class="num">' + N(n) + '</span><small>' + esc(sub) + '</small></button>';
     });
     el.innerHTML = html; el.hidden = false;
-    $('ir-kick-l').textContent = S.lens === 'live' && liveFresh() ? 'Live' : '';
+    $('ir-kick-l').textContent = S.lens === 'live' && liveFresh() ? T('Live') : '';
   }
   function liveNote() {
     var el = $('ir-livenote');
     if (S.lens === 'live') {
-      el.innerHTML = 'The last 24 hours, read every hour from public news and video feeds' + (LIVE_AT ? ', last ' + esc(ago(LIVE_AT)) : '') + '. <b>Hot</b> is measured: how many different outlets carry a story, or how fast a video is being watched. Seen something that should be here? <a href="#add">Add it</a>.';
+      el.innerHTML = T('The last 24 hours, read every hour from public news and video feeds{last}. <b>Hot</b> is measured: how many different outlets carry a story, or how fast a video is being watched. ', { last: LIVE_AT ? T(', last {t}', { t: esc(ago(LIVE_AT)) }) : '' }) +
+        // say it when X is missing, so a host does not hunt for posts that are not coming (18 Oct 2026: none for a day)
+        (LIVE.length && !LIVE.some(function (it) { return it.src === 'X'; }) ? T('X posts are paused for now; news and video still arrive every hour. ') : '') +
+        T('<b>Blindspot</b> marks a story one side of the media carried and the other did not. ') + T('Seen something that should be here? <a href="#add">Add it</a>.');
       el.hidden = false;
     } else if (S.lens === 'readers') {
       el.innerHTML = 'What readers sent in that I have not checked yet. A find goes on the map, with its sender\'s name, once it is checked. <a href="#add">Add yours</a>.';
@@ -348,7 +439,7 @@
     return (it._tk = Object.keys(o));
   }
   function hasTopic(it, k) { var tk = tkOf(it); return k === 'rel' ? REL_KEYS.some(function (r) { return tk.indexOf(r) >= 0; }) : tk.indexOf(k) >= 0; }
-  function topicName(k) { return k === 'rel' ? 'All religion' : TOPN[k] ? TOPN[k][1] : k; }
+  function topicName(k) { return k === 'rel' ? T('All religion') : TOPN[k] ? TOPN[k][1] : k; }
   // The focus picks an item answers to: its place's country, or its own headline and note naming one (never the outlet's
   // name, or every post by "Iran International" would count as Iran).
   function fxOf(it) {
@@ -356,7 +447,7 @@
     var c = P[it.p] ? P[it.p][1] : (it.pw || ''), cs = keysOf(it).map(function (k) { return P[k] ? P[k][1] : ''; }).concat([c]);
     var txt = (it.t || '') + ' ' + (it.n || '');
     it._fx = FOCUS.filter(function (f) {
-      return f[2].some(function (x) { return cs.indexOf(x) >= 0; }) || f[3].test(txt);
+      return f[2].some(function (x) { return cs.indexOf(x) >= 0 || (FXK && keysOf(it).indexOf(x) >= 0); }) || f[3].test(txt);          // Iran Uncensored's regions also list place keys
     }).map(function (f) { return f[0]; });
     return it._fx;
   }
@@ -399,11 +490,14 @@
     HOTS = list;
   }
   function hotTop() { return HOTS.filter(function (h) { return h.hot >= HOT_MIN; }).slice(0, HOT_TOP); }
+  // a Blindspot item: its own story says so, or the topic it belongs to does (who covered it, above)
+  function isBlind(it) { var o = spreadOf(it); return !!(o && o.bs); }
   function hotById(id) { return HOTS.filter(function (h) { return h.id === id; })[0] || null; }
   function pass(it, skip) {
     if (skip !== 'link' && LSET && !LSET[it.id]) return false;
     if (skip !== 'hot' && S.hot && S.lens === 'live') {
       if (S.hot === 'all') { if (!HOTALL[it.id]) return false; }
+      else if (S.hot === 'blind') { if (!isBlind(it)) return false; }
       else { var hs = hotById(S.hot); if (hs && !hs.ids[it.id]) return false; }
     }
     if (skip !== 'fx' && S.fx.length) { var fx = fxOf(it); if (!S.fx.some(function (k) { return fx.indexOf(k) >= 0; })) return false; }
@@ -468,13 +562,14 @@
 
   function badges(it) {
     var b = '';
-    if (it.q) b += ' · <span class="q">&#9733; Top pick</span>';
-    if (it.g) b += ' · <span class="gr">Graphic</span>';
-    if (it.edu) b += ' · <span class="ed">Explainer</span>';
-    if (it.own) b += ' · <span class="own">Creator\'s own</span>';
-    if (it.by) b += ' · <span class="by">Sent by ' + esc(it.by) + '</span>';
-    if (it.pend) b += ' · <span class="pend">Being checked</span>';
-    if (isNew(it)) b = ' · <span class="new">New</span>' + b;
+    if (it.q) b += ' · <span class="q">&#9733; ' + T('Top pick') + '</span>';
+    if (it.g) b += ' · <span class="gr">' + T('Graphic') + '</span>';
+    if (it.edu) b += ' · <span class="ed">' + T('Explainer') + '</span>';
+    if (it.own) b += ' · <span class="own">' + T('Creator\'s own') + '</span>';
+    if (it.by) b += ' · <span class="by">' + T('Sent by {who}', { who: esc(it.by) }) + '</span>';
+    if (it.pend) b += ' · <span class="pend">' + T('Being checked') + '</span>';
+    if (isRegime(it)) b += ' · <span class="rg">' + T('Regime media') + '</span>';
+    if (isNew(it)) b = ' · <span class="new">' + T('New') + '</span>' + b;
     return b;
   }
   /* ------------------------------------------------------------ no item without a picture (18 October 2026)
@@ -496,6 +591,7 @@
   function xWords(it) { return it.src === 'X' && !mediaOf(it).length; }          // a post the page draws as the post itself
   // {k: 'pic' | 'av' | 'loc' | 'mono', u: the picture's address (none for mono)}; big: the spotlight's size
   function vis(it, big) {
+    if (!pics() && !it._pics) { var lc0 = locator(it.p, big); return lc0 ? { k: 'loc', u: lc0 } : { k: 'mono' }; }          // nothing from another site before a tap
     var y = ytId(it.u), md = mediaOf(it), cd = cardOf(it);
     if (y) return { k: 'pic', u: 'https://i.ytimg.com/vi/' + y + (big ? '/hqdefault.jpg' : '/mqdefault.jpg') };
     if (md.length && !it.sn) return { k: 'pic', u: pic(md[0], big ? 'medium' : '240x240') };
@@ -538,17 +634,17 @@
       var bg = x.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#12141A'); bg.addColorStop(1, '#07080B');
       x.fillStyle = bg; x.fillRect(0, 0, W, H);
       x.beginPath(); path({ type: 'Sphere' }); x.fillStyle = '#0D0F14'; x.fill();
-      if (R < W * 1.2) { x.lineWidth = big ? 1.5 : 0.8; x.strokeStyle = 'rgba(244,196,48,0.35)'; x.stroke(); }
+      if (R < W * 1.2) { x.lineWidth = big ? 1.5 : 0.8; x.strokeStyle = 'rgba(' + GOLD + ',0.35)'; x.stroke(); }
       x.lineWidth = big ? 1 : 0.5; x.strokeStyle = 'rgba(233,217,166,0.07)'; x.beginPath(); path(GRAT || G.geoGraticule().step([15, 15])()); x.stroke();
       x.beginPath(); LAND.forEach(function (ft) { path(ft); }); x.fillStyle = '#2A2721'; x.fill();
       x.strokeStyle = 'rgba(138,126,98,0.6)'; x.lineWidth = big ? 1.2 : 0.6; x.stroke();
-      if (feats.length) { x.beginPath(); feats.forEach(function (ft) { path(ft); }); x.fillStyle = 'rgba(244,196,48,0.24)'; x.fill(); x.strokeStyle = '#F4C430'; x.lineWidth = big ? 2.4 : 1.2; x.stroke(); }
+      if (feats.length) { x.beginPath(); feats.forEach(function (ft) { path(ft); }); x.fillStyle = 'rgba(' + GOLD + ',0.24)'; x.fill(); x.strokeStyle = GOLDH; x.lineWidth = big ? 2.4 : 1.2; x.stroke(); }
       var pt = pj([lon, lat]);
       if (pt) {
         var s = big ? 3.2 : 1, gl = x.createRadialGradient(pt[0], pt[1], 0, pt[0], pt[1], 16 * s);
-        gl.addColorStop(0, 'rgba(244,196,48,0.55)'); gl.addColorStop(1, 'rgba(244,196,48,0)');
+        gl.addColorStop(0, 'rgba(' + GOLD + ',0.55)'); gl.addColorStop(1, 'rgba(' + GOLD + ',0)');
         x.fillStyle = gl; x.beginPath(); x.arc(pt[0], pt[1], 16 * s, 0, 2 * Math.PI); x.fill();
-        x.fillStyle = '#F4C430'; x.strokeStyle = '#0B0D12'; x.lineWidth = 1.5 * s; x.beginPath(); x.arc(pt[0], pt[1], 4 * s, 0, 2 * Math.PI); x.fill(); x.stroke();
+        x.fillStyle = GOLDH; x.strokeStyle = '#0B0D12'; x.lineWidth = 1.5 * s; x.beginPath(); x.arc(pt[0], pt[1], 4 * s, 0, 2 * Math.PI); x.fill(); x.stroke();
       }
       out = c.toDataURL('image/jpeg', big ? 0.86 : 0.8);
     } catch (e) { out = ''; }
@@ -557,19 +653,19 @@
   // the spotlight's picture when the item has no video or pictures of its own
   function heroHtml(it) {
     if (xWords(it)) {
-      var av = avOf(it, '400x400'), cd = cardOf(it), words = it.tx && it.tx.length > it.t.length ? it.tx : it.t;
+      var lit = pics() || it._pics, av = lit ? avOf(it, '400x400') : '', cd = lit ? cardOf(it) : null, words = it.tx && it.tx.length > it.t.length ? it.tx : it.t;
       return '<figure class="ir-post" style="--pc:' + pfColor(pfOf(it)) + '">' +
         '<figcaption class="ir-post-h">' + (av ? '<span class="ir-post-av" style="background-image:url(' + esc(av) + ')"></span>' : '<span class="ir-post-av is-mono">' + esc(initials(it)) + '</span>') +
         '<span class="ir-post-who"><b>' + esc(it.nm || it.h) + '</b><small>' + esc(it.h) + '</small></span>' + mark(it, 'ir-post-mk') + '</figcaption>' +
-        '<blockquote class="ir-post-t">' + esc(words) + '</blockquote>' +
+        '<blockquote class="ir-post-t"' + DA + '>' + esc(words) + '</blockquote>' +
         (cd ? '<a class="ir-post-card" href="' + esc(it.u) + '" target="_blank" rel="noopener"><span class="ir-post-ci" style="background-image:url(' + esc(cd.i + '&name=800x419') + ')"></span>' +
           (cd.t || cd.dm ? '<span class="ir-post-ct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + (cd.t ? esc(cd.t) : '') + '</span>' : '') + '</a>' : '') +
         '</figure>';
     }
     var v = vis(it, true), where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
     var lc = v.k === 'pic' ? locator(it.p, true) : '';
-    if (v.k === 'pic') return '<figure class="ir-hero"><span class="ir-hero-i" style="background-image:url(' + esc(v.u) + ')' + (lc ? ',url(' + lc + ')' : '') + '"></span>' + (it.th0 ? '<figcaption>Picture: Bing News</figcaption>' : '') + '</figure>';
-    if (v.k === 'loc') return '<figure class="ir-hero is-loc"><span class="ir-hero-i" style="background-image:url(' + v.u + ')"></span><figcaption class="ir-hero-pl">' + esc(where + (P[it.p] && P[it.p][1] && P[it.p][1] !== where ? ', ' + P[it.p][1] : '')) + '</figcaption></figure>';
+    if (v.k === 'pic') return '<figure class="ir-hero"><span class="ir-hero-i" style="background-image:url(' + esc(v.u) + ')' + (lc ? ',url(' + lc + ')' : '') + '"></span>' + (it.th0 ? '<figcaption>' + T('Picture: Bing News') + '</figcaption>' : '') + '</figure>';
+    if (v.k === 'loc') return '<figure class="ir-hero is-loc"><span class="ir-hero-i" style="background-image:url(' + v.u + ')"></span><figcaption class="ir-hero-pl">' + esc(where + (P[it.p] && P[it.p][1] && P[it.p][1] !== where && cName(P[it.p][1]) !== where && (!DA || where.indexOf(cName(P[it.p][1])) !== 0) ? T(', ') + cName(P[it.p][1]) : '')) + '</figcaption></figure>';
     return '';
   }
   function thumb(it) {
@@ -577,7 +673,7 @@
     var md = mediaOf(it), vid = kindOf(it) === 'video', d = vid ? fmtDur(it.dur || (md[0] && md[0].s)) : '';
     m += d ? '<b class="ir-th-d num">' + d + '</b>' : '';
     // a picture X marks as possibly sensitive is blurred in the list; the spotlight asks before it shows it
-    if (it.sn && md.length) return '<span class="ir-th is-sn' + (vid ? ' yt' : '') + '" style="' + pc + '"><span class="ir-th-i" style="background-image:url(' + esc(pic(md[0], '240x240')) + ')"></span>' + m + '</span>';
+    if (it.sn && md.length && pics()) return '<span class="ir-th is-sn' + (vid ? ' yt' : '') + '" style="' + pc + '"><span class="ir-th-i" style="background-image:url(' + esc(pic(md[0], '240x240')) + ')"></span>' + m + '</span>';
     var v = vis(it), under = v.k === 'pic' || v.k === 'av' ? locator(it.p) : '';          // shows only if the picture fails
     if (v.k === 'pic') return '<span class="ir-th' + (vid ? ' yt' : '') + '" style="' + pc + ';background-image:url(' + esc(v.u) + ')' + (under ? ',url(' + under + ')' : '') + '">' + m + '</span>';
     // an X post of words only: the author's face, sharp in the middle of the same face blurred (as a chat app previews it)
@@ -587,31 +683,32 @@
   }
   function card(it, i) {
     var where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
-    var meta = '<span>' + esc(it.pend && !it.d ? 'Sent ' + ago(it.ms) : fmtDate(it.d)) + '</span> · ' + esc(where) + ' · ' + esc(it.h || it.src) + badges(it);
-    var tags = hotTag(it) + viralTag(it) + reachLine(it);
+    var meta = '<span>' + esc(it.pend && !it.d ? T('Sent {t}', { t: ago(it.ms) }) : fmtDate(it.d)) + '</span> · ' + esc(where) + ' · ' + bd(esc(it.h || it.src)) + badges(it);
+    var tags = hotTag(it) + viralTag(it) + reachLine(it) + spreadTag(it);
     return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
-      '<span><span class="ir-c-t">' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
+      '<span><span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
   }
+  function moreText() { return T('Show {n} more ({m} left)', { n: N(Math.min(PAGE_N, shown.length - limit)), m: N(shown.length - limit) }); }
   function drawList() {
     var ol = $('ir-items');
     if (!shown.length) {
       ol.innerHTML = S.lens === 'readers' && !items.length
-        ? '<li class="ir-empty">' + (rdState === 'loading' ? 'Loading what readers sent.' : rdState === 'off' ? 'Readers\' finds show here on the live site.' : 'Nothing waiting to be checked right now.') + '<br><a href="#add">Be the next to add something</a></li>'
-        : '<li class="ir-empty">Nothing here matches all of that.<br><button type="button" data-clear>Clear every filter</button></li>';
+        ? '<li class="ir-empty">' + (rdState === 'loading' ? T('Loading what readers sent.') : rdState === 'off' ? T('Readers\' finds show here on the live site.') : T('Nothing waiting to be checked right now.')) + '<br><a href="#add">' + T('Be the next to add something') + '</a></li>'
+        : '<li class="ir-empty">' + T('Nothing here matches all of that.') + '<br><button type="button" data-clear>' + T('Clear every filter') + '</button></li>';
     } else {
       ol.innerHTML = shown.slice(0, limit).map(card).join('');
     }
     $('ir-more').hidden = shown.length <= limit;
-    $('ir-more').textContent = 'Show ' + Math.min(PAGE_N, shown.length - limit) + ' more (' + (shown.length - limit) + ' left)';
-    var n = shown.length, w = S.lens === 'live' ? (n === 1 ? 'story' : 'stories') : S.lens === 'readers' ? (n === 1 ? 'find' : 'finds') : (n === 1 ? 'item' : 'items');
+    $('ir-more').textContent = moreText();
+    var n = shown.length, w = S.lens === 'live' ? (n === 1 ? T('story') : T('stories')) : S.lens === 'readers' ? (n === 1 ? T('find') : T('finds')) : (n === 1 ? T('item') : T('items'));
     var nn = S.lens === 'live' && SEEN_AT ? shown.filter(isNew).length : 0;
-    $('ir-count').innerHTML = '<b class="num">' + n + '</b> ' + w + (n === items.length ? (S.lens === 'bank' ? ' in the bank' : S.lens === 'live' ? ' in 24 hours' : ' waiting') : ' match') +
-      (nn ? ' <span class="ir-newn" title="Since your last visit to the room on this device">' + nn + ' new</span>' : '');
+    $('ir-count').innerHTML = '<b class="num">' + N(n) + '</b> ' + w + (n === items.length ? (S.lens === 'bank' ? T(' in the bank') : S.lens === 'live' ? T(' in 24 hours') : T(' waiting')) : T(' match')) +
+      (nn ? ' <span class="ir-newn" title="' + T('Since your last visit to the room on this device') + '">' + T('{n} new', { n: N(nn) }) + '</span>' : '');
     $('ir-copy').hidden = !n; $('ir-tour').hidden = !n;
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=7bdcb29a17): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=01025cab05): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -678,7 +775,7 @@
     ctx.clearRect(0, 0, CW, CH);
     if (globe && R < Math.hypot(CW, CH)) {          // the haze round the rim
       var hz = ctx.createRadialGradient(cx, cy, R * 0.97, cx, cy, R * 1.18);
-      hz.addColorStop(0, 'rgba(244,196,48,0.26)'); hz.addColorStop(0.3, 'rgba(244,196,48,0.08)'); hz.addColorStop(1, 'rgba(244,196,48,0)');
+      hz.addColorStop(0, 'rgba(' + GOLD + ',0.26)'); hz.addColorStop(0.3, 'rgba(' + GOLD + ',0.08)'); hz.addColorStop(1, 'rgba(' + GOLD + ',0)');
       ctx.fillStyle = hz; ctx.beginPath(); ctx.arc(cx, cy, R * 1.18, 0, 2 * Math.PI); ctx.fill();
     }
     ctx.beginPath(); path({ type: 'Sphere' });
@@ -687,16 +784,16 @@
     ctx.fill();
     ctx.lineWidth = 0.6; ctx.strokeStyle = 'rgba(233,217,166,0.08)';
     ctx.beginPath(); path(GRAT); ctx.stroke();
-    ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(244,196,48,0.2)'; ctx.beginPath(); path(EQ); ctx.stroke(); ctx.setLineDash([]);
+    ctx.setLineDash([3, 5]); ctx.strokeStyle = 'rgba(' + GOLD + ',0.2)'; ctx.beginPath(); path(EQ); ctx.stroke(); ctx.setLineDash([]);
     ctx.beginPath(); land.forEach(function (f) { path(f); }); ctx.fillStyle = '#25231E'; ctx.fill();
     Object.keys(HEAT).forEach(function (n) {          // each country glows by how much of what is shown is about it
       if (!byName[n] || n === SELC) return;
       ctx.beginPath(); byName[n].forEach(function (f) { path(f); }); ctx.fillStyle = HEATC[HEAT[n]]; ctx.fill();
     });
     ctx.beginPath(); land.forEach(function (f) { path(f); }); ctx.strokeStyle = 'rgba(138,126,98,0.55)'; ctx.lineWidth = 0.6; ctx.stroke();
-    if (SELC && byName[SELC]) { ctx.beginPath(); byName[SELC].forEach(function (f) { path(f); }); ctx.fillStyle = 'rgba(244,196,48,0.1)'; ctx.fill(); ctx.strokeStyle = '#F4C430'; ctx.lineWidth = 1.4; ctx.stroke(); }
+    if (SELC && byName[SELC]) { ctx.beginPath(); byName[SELC].forEach(function (f) { path(f); }); ctx.fillStyle = 'rgba(' + GOLD + ',0.1)'; ctx.fill(); ctx.strokeStyle = GOLDH; ctx.lineWidth = 1.4; ctx.stroke(); }
     ctx.beginPath(); path(G.geoCircle().center(nightAt()).radius(90)()); ctx.fillStyle = 'rgba(0,0,0,0.24)'; ctx.fill();
-    if (globe) { ctx.beginPath(); path({ type: 'Sphere' }); ctx.strokeStyle = 'rgba(244,196,48,0.5)'; ctx.lineWidth = 1.1; ctx.stroke(); }
+    if (globe) { ctx.beginPath(); path({ type: 'Sphere' }); ctx.strokeStyle = 'rgba(' + GOLD + ',0.5)'; ctx.lineWidth = 1.1; ctx.stroke(); }
     var sw = $('ir-sweep');
     if (sw) {          // the sweep sits on the globe; once the globe is bigger than the box it covers the box
       var big = !globe || R * 2 > Math.hypot(CW, CH);
@@ -704,7 +801,7 @@
       sw.hidden = big;
     }
     var hud = $('ir-hud-c');
-    if (hud) hud.textContent = Math.abs(V.lat).toFixed(1) + '°' + (V.lat >= 0 ? 'N' : 'S') + ' ' + Math.abs(V.lon).toFixed(1) + '°' + (V.lon >= 0 ? 'E' : 'W') + '  ×' + (V.k < 10 ? V.k.toFixed(1) : Math.round(V.k));
+    if (hud) hud.textContent = N(Math.abs(V.lat).toFixed(1)) + '°' + (V.lat >= 0 ? T('N') : T('S')) + ' ' + N(Math.abs(V.lon).toFixed(1)) + '°' + (V.lon >= 0 ? T('E') : T('W')) + '  ×' + N(V.k < 10 ? V.k.toFixed(1) : Math.round(V.k));
     drawPinsNow();
   }
   function setView(lon, lat, k, now) {
@@ -754,7 +851,9 @@
     var mine = anim;
     setTimeout(function () { if (!landed && anim === mine) { cancelAnimationFrame(anim); moving = 0; setView(lon, lat, k, true); } }, dur + 150);
   }
-  function home() { if (V.mode === 'globe') flyTo(1, 32, 28); else flyTo(1, 12, 12); }          // the flat map's middle sits in the Atlantic so America and Asia both show
+  // Iran Uncensored's room is centred on Iran: home frames CFG.home (Iran, the Gulf and Israel), on the globe and the flat map
+  function home() { if (HOME) { fitTo(HOME, 1, 40); return; } if (V.mode === 'globe') flyTo(1, 32, 28); else flyTo(1, 12, 12); }
+  var HOME = Array.isArray(CFG.home) && CFG.home.length ? CFG.home : null;          // the flat map's middle sits in the Atlantic so America and Asia both show
   function loadHi() {
     hiLoaded = true;
     fetch(root.getAttribute('data-geo-hi')).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (t) {
@@ -793,7 +892,7 @@
     });
     PG.sort(function (a, b) { return b.n - a.n; });
     var nw = S.lens === 'readers' ? 0 : items.filter(function (it) { return it.p === 'global' && pass(it, 'place'); }).length;
-    var b = $('ir-nowhere'); b.hidden = !nw && !S.nowhere; b.textContent = 'No single place (' + nw + ')'; b.setAttribute('aria-pressed', S.nowhere ? 'true' : 'false');
+    var b = $('ir-nowhere'); b.hidden = !nw && !S.nowhere; b.textContent = T('No single place ({n})', { n: N(nw) }); b.setAttribute('aria-pressed', S.nowhere ? 'true' : 'false');
   }
   function drawPins() { groupPins(); pinSig = ''; requestDraw(); }
   function ringSegs(pc, n, r) {
@@ -866,30 +965,30 @@
     pinSig = sig;
     var html = '';
     vis.forEach(function (m, i) {
-      var dim = (sel.length || selC) && !m.sel, name = m.keys.length === 1 ? placeName(m.keys[0]) : m.keys.length + ' places';
+      var dim = (sel.length || selC) && !m.sel, name = m.keys.length === 1 ? placeName(m.keys[0]) : T('{n} places', { n: N(m.keys.length) });
       var cls = (live ? ' live' + (m.hot >= 70 ? ' hot' : '') : rd ? ' rd' : '') + (m.sel ? ' sel' : dim ? ' dim' : '');
       var pul = pulseK && m.keys.indexOf(pulseK) >= 0 ? '<circle class="pulse" r="10"/>' : '';
       var tr = ' transform="translate(' + m.x.toFixed(1) + ' ' + m.y.toFixed(1) + ')"';
       if (!m.exp) {
         var r = pinR(m.n);
-        html += '<g class="ir-pin' + cls + '" data-p="' + i + '" tabindex="0" role="button" aria-label="' + esc(name + ', ' + m.n + (m.n === 1 ? ' item' : ' items')) + '"' + tr + '>' +
+        html += '<g class="ir-pin' + cls + '" data-p="' + i + '" tabindex="0" role="button" aria-label="' + esc(name + ', ' + (m.n === 1 ? T('1 item') : T('{n} items', { n: N(m.n) }))) + '"' + tr + '>' +
           (live ? '<circle class="ring" r="' + r.toFixed(1) + '"/><circle class="ring r2" r="' + r.toFixed(1) + '"/>' : '') + pul +
           '<circle class="halo" r="' + (r + 10).toFixed(1) + '"/>' + ringSegs(m.pc, m.n, r + 3.6) + '<circle class="core" r="' + r.toFixed(1) + '"/>' +
-          '<circle class="shine" r="' + (r * 0.55).toFixed(1) + '" cx="' + (-r * 0.25).toFixed(1) + '" cy="' + (-r * 0.3).toFixed(1) + '"/><text>' + m.n + '</text></g>';
+          '<circle class="shine" r="' + (r * 0.55).toFixed(1) + '" cx="' + (-r * 0.25).toFixed(1) + '" cy="' + (-r * 0.3).toFixed(1) + '"/><text>' + N(m.n) + '</text></g>';
         return;
       }
       var its = m.gs[0].its.slice(0, m.m), body = '';
       its.forEach(function (it, j) {
         var o = seed(j, m.m), hotI = (it.hot || 0) >= 70 || (it._v || 0) >= 90;
-        body += '<g class="ir-gl' + (hotI ? ' big' : '') + '" data-g="' + esc(String(it.id)) + '" transform="translate(' + o[0].toFixed(1) + ' ' + o[1].toFixed(1) + ')" role="button" tabindex="0" aria-label="' + esc(KIND_N[kindOf(it)] + ' on ' + pfName(pfOf(it)) + ': ' + it.t) + '">' +
+        body += '<g class="ir-gl' + (hotI ? ' big' : '') + '" data-g="' + esc(String(it.id)) + '" transform="translate(' + o[0].toFixed(1) + ' ' + o[1].toFixed(1) + ')" role="button" tabindex="0" aria-label="' + esc(T('{kind} on {pf}', { kind: KIND_N[kindOf(it)], pf: pfName(pfOf(it)) }) + ': ' + it.t) + '">' +
           (hotI ? '<circle class="gl-hot" r="9"/>' : '') + '<path d="' + (SHAPE[kindOf(it)] || SHAPE.post) + '" fill="' + pfColor(pfOf(it)) + '"/></g>';
       });
       html += '<g class="ir-cl' + cls + '" data-p="' + i + '"' + tr + '>' + pul + (m.m > 1 ? '<circle class="cl-r" r="' + (footR(m.m) - 1).toFixed(1) + '"/>' : '') +
-        (m.m > 1 ? '<circle class="cl-c" r="2.4"/>' : '') + body + (m.n > m.m ? '<text class="cl-more" y="' + (footR(m.m) + 12).toFixed(1) + '">+' + (m.n - m.m) + ' in the list</text>' : '') + '</g>';
+        (m.m > 1 ? '<circle class="cl-c" r="2.4"/>' : '') + body + (m.n > m.m ? '<text class="cl-more" y="' + (footR(m.m) + 12).toFixed(1) + '">' + T('+{n} in the list', { n: N(m.n - m.m) }) + '</text>' : '') + '</g>';
     });
     edges.forEach(function (e, i) {
-      html += '<g class="ir-edge' + (live ? ' live' : '') + '" data-e="' + i + '" tabindex="0" role="button" aria-label="' + esc(e.n + (e.n === 1 ? ' item' : ' items') + ' on the far side of the globe. Turn the globe to them.') + '" transform="translate(' + e.x.toFixed(1) + ' ' + e.y.toFixed(1) + ')">' +
-        '<path d="M0 -21 5.5 -14.5h-11z" transform="rotate(' + (e.th / rdn).toFixed(1) + ')"/><circle r="12.5"/><text>' + e.n + '</text></g>';
+      html += '<g class="ir-edge' + (live ? ' live' : '') + '" data-e="' + i + '" tabindex="0" role="button" aria-label="' + esc(T(e.n === 1 ? '1 item on the far side of the globe. Turn the globe to them.' : '{n} items on the far side of the globe. Turn the globe to them.', { n: N(e.n) })) + '" transform="translate(' + e.x.toFixed(1) + ' ' + e.y.toFixed(1) + ')">' +
+        '<path d="M0 -21 5.5 -14.5h-11z" transform="rotate(' + (e.th / rdn).toFixed(1) + ')"/><circle r="12.5"/><text>' + N(e.n) + '</text></g>';
     });
     gPins.innerHTML = html;
     $('ir-tip').hidden = true;
@@ -900,10 +999,10 @@
     if (S.lens !== 'readers') ['video', 'post', 'article', 'doc'].forEach(function (k) {
       if (items.some(function (it) { return kindOf(it) === k; })) sh += '<span><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="' + SHAPE[k] + '"/></svg>' + KIND_N[k] + '</span>';
     });
-    var head = S.lens === 'live' ? '<i class="lg-live"></i> Last 24 hours · <b class="num">' + n + '</b> ' + (n === 1 ? 'story' : 'stories') + (LIVE_AT ? ' · updated ' + esc(ago(LIVE_AT)) : '')
-      : S.lens === 'readers' ? '<i class="lg-rd"></i> Sent by readers, being checked · <b class="num">' + n + '</b>'
-      : '<i class="lg-bank"></i> The bank · <b class="num">' + n + '</b> ' + (n === 1 ? 'item' : 'items') + (fullRange() ? '' : ' · ' + esc($('ir-range').textContent));
-    el.innerHTML = '<span class="lg-h">' + head + '</span>' + (sh ? '<span class="lg-k">' + sh + '<span class="lg-c">Colour: where it was posted</span></span>' : '');
+    var head = S.lens === 'live' ? '<i class="lg-live"></i> ' + T('Last 24 hours') + ' · <b class="num">' + N(n) + '</b> ' + (n === 1 ? T('story') : T('stories')) + (LIVE_AT ? ' · ' + T('updated {t}', { t: esc(ago(LIVE_AT)) }) : '')
+      : S.lens === 'readers' ? '<i class="lg-rd"></i> ' + T('Sent by readers, being checked') + ' · <b class="num">' + N(n) + '</b>'
+      : '<i class="lg-bank"></i> ' + T('The bank') + ' · <b class="num">' + N(n) + '</b> ' + (n === 1 ? T('item') : T('items')) + (fullRange() ? '' : ' · ' + esc($('ir-range').textContent));
+    el.innerHTML = '<span class="lg-h">' + head + '</span>' + (sh ? '<span class="lg-k">' + sh + '<span class="lg-c">' + T('Colour: where it was posted') + '</span></span>' : '');
     el.hidden = false;
   }
   function pinAt(el) {
@@ -959,7 +1058,7 @@
     S.nowhere = false;
     $('ir-place').value = S.place;
     render();
-    say(S.place ? 'Showing ' + shown.length + ' from ' + placeName(S.place) + '. Tap the place again to show every place.' : '');
+    say(S.place ? T('Showing {n} from {place}. Tap the place again to show every place.', { n: N(shown.length), place: placeName(S.place) }) : '');
   }
 
   // Drag (turns the globe, moves the flat map), pinch, scroll, double tap. On a phone, off the full screen, one finger
@@ -968,7 +1067,7 @@
   function isFull() { return document.documentElement.classList.contains('ir-show'); }
   function mapHint(why) {
     var el = $('ir-wheel'); if (!el) return;
-    el.textContent = why === 'touch' ? 'Use two fingers to move the map' : 'Click the map, or hold ' + (/Mac|iP(hone|ad)/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl') + ', to zoom it';
+    el.textContent = why === 'touch' ? T('Use two fingers to move the map') : T('Click the map, or hold {key}, to zoom it', { key: /Mac|iP(hone|ad)/.test(navigator.platform || '') ? 'Cmd' : 'Ctrl' });
     el.hidden = false; clearTimeout(hintT); hintT = setTimeout(function () { el.hidden = true; }, 1800);
   }
   function onDown(ev) {
@@ -1032,30 +1131,30 @@
     if (!m) { tip.hidden = true; return; }
     if (m.link) {
       tip.classList.add('wide');
-      tip.innerHTML = '<span class="tip-k">Connection \u00b7 ' + m.link.n + ' items</span>' + esc(m.link.a + ' and ' + m.link.b) + '<small>' + esc(linkWhy(m.link, true)) + '. Tap to see only these.</small>';
+      tip.innerHTML = '<span class="tip-k">' + T('Connection') + ' \u00b7 ' + T('{n} items', { n: N(m.link.n) }) + '</span>' + esc(T('{a} and {b}', { a: cName(m.link.a), b: cName(m.link.b) })) + '<small>' + esc(linkWhy(m.link, true)) + T('. Tap to see only these.') + '</small>';
       tip.style.left = m.x + 'px'; tip.style.top = (m.y - 8) + 'px'; tip.hidden = false;
       return;
     }
     if (m.edge) {
       tip.classList.remove('wide');
-      tip.innerHTML = m.edge.n + (m.edge.n === 1 ? ' item' : ' items') + ' on the far side<small>Tap to turn the globe to them.</small>';
+      tip.innerHTML = T(m.edge.n === 1 ? '1 item on the far side' : '{n} items on the far side', { n: N(m.edge.n) }) + '<small>' + T('Tap to turn the globe to them.') + '</small>';
       tip.style.left = m.x + 'px'; tip.style.top = (m.y - 14) + 'px'; tip.hidden = false;
       return;
     }
     if (m.it) {
       var it = m.it, rc = reachOf(it), nums = [];
-      if (rc && !rc.x) { if (rc.lk != null) nums.push(fmtN(rc.lk) + ' likes'); if (rc.vw != null) nums.push((rc['~'] ? '~' : '') + fmtN(rc.vw) + ' views'); }
-      if (it.hot != null) nums.push('Hot ' + it.hot);
-      if (it._v != null) nums.push('Viral ' + it._v);
+      if (rc && !rc.x) { if (rc.lk != null) nums.push(T('{n} likes', { n: fmtN(rc.lk) })); if (rc.vw != null) nums.push(T('{n} views', { n: (rc['~'] ? '~' : '') + fmtN(rc.vw) })); }
+      if (it.hot != null) nums.push(T('Hot {n}', { n: N(it.hot) }));
+      if (it._v != null) nums.push(T('Viral {n}', { n: N(it._v) }));
       var tv = it.sn ? null : vis(it), tth = tv && (tv.k === 'pic' || tv.k === 'av') ? tv.u : '';
-      tip.innerHTML = (tth ? '<span class="tip-im" style="background-image:url(' + esc(tth) + ')">' + (kindOf(it) === 'video' ? PLAY_SVG : '') + '</span>' : '') + '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + '. Tap to open.</small>';
+      tip.innerHTML = (tth ? '<span class="tip-im" style="background-image:url(' + esc(tth) + ')">' + (kindOf(it) === 'video' ? PLAY_SVG : '') + '</span>' : '') + '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + dh(esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t)) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + T('. Tap to open.') + '</small>';
       tip.classList.add('wide');
       tip.style.left = m.x + 'px'; tip.style.top = (m.y - 10) + 'px'; tip.hidden = false;
       return;
     }
     tip.classList.remove('wide');
     var names = m.keys.map(placeName);
-    tip.innerHTML = esc(names.length > 3 ? names.slice(0, 3).join(', ') + ' and ' + (names.length - 3) + ' more' : names.join(', ')) + '<small>' + m.n + (m.n === 1 ? ' item. ' : ' items. ') + (m.hot ? 'Hottest ' + m.hot + '. ' : '') + (m.keys.length > 1 ? 'Tap to go closer.' : m.exp && m.m > 1 ? 'Tap the middle to show only these.' : 'Tap to show them.') + '</small>';
+    tip.innerHTML = esc(names.length > 3 ? T('{list} and {n} more', { list: names.slice(0, 3).join(T(', ')), n: N(names.length - 3) }) : names.join(T(', '))) + '<small>' + (m.n === 1 ? T('1 item. ') : T('{n} items. ', { n: N(m.n) })) + (m.hot ? T('Hottest {n}. ', { n: N(m.hot) }) : '') + (m.keys.length > 1 ? T('Tap to go closer.') : m.exp && m.m > 1 ? T('Tap the middle to show only these.') : T('Tap to show them.')) + '</small>';
     tip.style.left = m.x + 'px'; tip.style.top = (m.y - (m.exp ? footR(m.m) : pinR(m.n))) + 'px'; tip.hidden = false;
   }
 
@@ -1077,7 +1176,7 @@
     if (!G || m === V.mode) return;
     V.mode = m; store('ir-proj', m); pinSig = '';
     var b = $('ir-proj');
-    if (b) { b.setAttribute('aria-label', m === 'globe' ? 'Lay the map flat' : 'Show the globe'); b.setAttribute('data-mode', m); }
+    if (b) { b.setAttribute('aria-label', m === 'globe' ? T('Lay the map flat') : T('Show the globe')); b.setAttribute('data-mode', m); }
     root.setAttribute('data-map', m);
     setView(V.lon, V.lat, V.k, true);
   }
@@ -1093,7 +1192,7 @@
     ['ir-from', 'ir-to'].forEach(function (id) { $(id).max = buckets.length - 1; });
     $('ir-from').value = 0; $('ir-to').value = buckets.length - 1;
   }
-  function bLabel(i) { if (i === 0) return 'Earlier'; var k = buckets[i]; return MON[+k.slice(5) - 1] + ' ' + k.slice(0, 4); }
+  function bLabel(i) { if (i === 0) return T('Earlier'); var k = buckets[i]; return MONV[+k.slice(5) - 1] + ' ' + N(k.slice(0, 4)); }
   function drawBars() {
     var svg = $('ir-bars'), n = buckets.length, c = new Array(n).fill(0);
     items.forEach(function (it) { if (pass(it, 'time')) { var b = bucketOf(it); if (b >= 0) c[b]++; } });
@@ -1105,12 +1204,12 @@
     svg.setAttribute('viewBox', '0 0 1000 ' + h);
     svg.innerHTML = out;
     var und = items.filter(function (it) { return !it.d && pass(it, 'time'); }).length;
-    $('ir-range').textContent = fullRange() ? 'All time' : (S.from === S.to ? bLabel(S.from) : bLabel(S.from) + ' to ' + bLabel(S.to));
+    $('ir-range').textContent = fullRange() ? T('All time') : (S.from === S.to ? bLabel(S.from) : T('{a} to {b}', { a: bLabel(S.from), b: bLabel(S.to) }));
     // Each label sits under its own bar: Earlier, the month of 7 October, then each new year.
-    var lab = '<span style="left:' + (50 / n).toFixed(2) + '%">Earlier</span><span style="left:' + (150 / n).toFixed(2) + '%">Oct 2023</span>';
-    for (var bi = 2; bi < n; bi++) if (buckets[bi].slice(5) === '01') lab += '<span style="left:' + ((bi + 0.5) * 100 / n).toFixed(2) + '%">' + buckets[bi].slice(0, 4) + '</span>';
+    var lab = '<span style="left:' + (50 / n).toFixed(2) + '%">' + T('Earlier') + '</span><span style="left:' + (150 / n).toFixed(2) + '%">' + bLabel(1) + '</span>';
+    for (var bi = 2; bi < n; bi++) if (buckets[bi].slice(5) === '01') lab += '<span style="left:' + ((bi + 0.5) * 100 / n).toFixed(2) + '%">' + N(buckets[bi].slice(0, 4)) + '</span>';
     $('ir-axis').innerHTML = lab;
-    $('ir-range').title = fullRange() ? (und ? und + ' items have no date and show only with All time' : '') : 'Items with no date are left out when a time is picked';
+    $('ir-range').title = fullRange() ? (und ? T('{n} items have no date and show only with All time', { n: N(und) }) : '') : T('Items with no date are left out when a time is picked');
     [].forEach.call($('ir-pre').querySelectorAll('button'), function (bt) { bt.setAttribute('aria-pressed', bt.getAttribute('data-pre') === preNow() ? 'true' : 'false'); });
   }
   function preNow() {
@@ -1125,8 +1224,8 @@
   var playing = 0;
   function play() {
     var bt = $('ir-play');
-    if (playing) { clearInterval(playing); playing = 0; bt.classList.remove('on'); bt.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'; bt.setAttribute('aria-label', 'Play the timeline'); return; }
-    bt.classList.add('on'); bt.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'; bt.setAttribute('aria-label', 'Pause');
+    if (playing) { clearInterval(playing); playing = 0; bt.classList.remove('on'); bt.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'; bt.setAttribute('aria-label', T('Play the timeline')); return; }
+    bt.classList.add('on'); bt.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'; bt.setAttribute('aria-label', T('Pause'));
     var end = buckets.length - 1, i = 1;
     setRange(1, 1);
     playing = setInterval(function () {
@@ -1158,15 +1257,15 @@
     });
     var po = PF.map(function (x) { return x[0]; }).filter(function (p) { return has[p] || S.pf.indexOf(p) >= 0; });
     po.sort(function (a, b) { return (pc[b] || 0) - (pc[a] || 0); });
-    $('ir-pf').innerHTML = '<button class="ir-chip ir-pfc ir-pf-all" type="button" data-pf="" aria-pressed="' + (S.pf.length ? 'false' : 'true') + '">Every platform</button>' + po.map(function (p) {
-      var sub = p === 'Telegram' && vw[p] != null ? ICO.view + fmtN(vw[p]) + ' views' : lk[p] != null ? ICO.like + fmtN(lk[p]) + ' likes' : HIDES[p] ? 'likes not public' : '';
-      return '<button class="ir-chip ir-pfc" type="button" data-pf="' + p + '" aria-pressed="' + (S.pf.indexOf(p) >= 0) + '" style="--pc:' + pfColor(p) + '"><b class="ir-pfd" aria-hidden="true"></b><span>' + esc(pfName(p)) + ' <i>' + (pc[p] || 0) + '</i>' + (sub ? '<small>' + sub + '</small>' : '') + '</span></button>';
+    $('ir-pf').innerHTML = '<button class="ir-chip ir-pfc ir-pf-all" type="button" data-pf="" aria-pressed="' + (S.pf.length ? 'false' : 'true') + '">' + T('Every platform') + '</button>' + po.map(function (p) {
+      var sub = p === 'Telegram' && vw[p] != null ? ICO.view + T('{n} views', { n: fmtN(vw[p]) }) : lk[p] != null ? ICO.like + T('{n} likes', { n: fmtN(lk[p]) }) : HIDES[p] ? T('likes not public') : '';
+      return '<button class="ir-chip ir-pfc" type="button" data-pf="' + p + '" aria-pressed="' + (S.pf.indexOf(p) >= 0) + '" style="--pc:' + pfColor(p) + '"><b class="ir-pfd" aria-hidden="true"></b><span>' + esc(pfName(p)) + ' <i>' + N(pc[p] || 0) + '</i>' + (sub ? '<small>' + sub + '</small>' : '') + '</span></button>';
     }).join('');
-    seg('ir-heat', 'heat', 'Heat', HEATS, S.lens === 'live');
-    seg('ir-within', 'within', 'Within', WITHIN, S.lens === 'live');
-    seg('ir-viral', 'vmin', 'Viral', VIRALS, items.some(function (it) { return it._v != null; }) || !!S.vmin);
-    seg('ir-cred', 'crmin', 'Credible', CREDS, items.some(function (it) { return crOf(it) != null; }) || !!S.crmin);
-    seg('ir-likes', 'lmin', 'Likes', LIKES, items.some(function (it) { return likesN(it) != null; }) || !!S.lmin);
+    seg('ir-heat', 'heat', T('Heat'), HEATS, S.lens === 'live');
+    seg('ir-within', 'within', T('Within'), WITHIN, S.lens === 'live');
+    seg('ir-viral', 'vmin', T('Viral'), VIRALS, items.some(function (it) { return it._v != null; }) || !!S.vmin);
+    seg('ir-cred', 'crmin', T('Credible'), CREDS, items.some(function (it) { return crOf(it) != null; }) || !!S.crmin);
+    seg('ir-likes', 'lmin', T('Likes'), LIKES, items.some(function (it) { return likesN(it) != null; }) || !!S.lmin);
     drawHot();
     drawFocus();
   }
@@ -1176,12 +1275,12 @@
     var keys = TOPICS.map(function (t) { return t[0]; }), c = { rel: 0 };
     keys.forEach(function (k) { c[k] = 0; });
     items.forEach(function (it) { if (!pass(it, 'tp')) return; var tk = tkOf(it), r = 0; tk.forEach(function (k) { c[k]++; if (REL_KEYS.indexOf(k) >= 0) r = 1; }); c.rel += r; });
-    var all = keys.slice(); all.splice(all.indexOf('islam'), 0, 'rel');
+    var all = keys.slice(); if (REL_KEYS.length) all.splice(all.indexOf('islam'), 0, 'rel');
     var base = all.slice();
     all.sort(function (a, b) { return ((c[b] > 0 || S.tp.indexOf(b) >= 0) - (c[a] > 0 || S.tp.indexOf(a) >= 0)) || c[b] - c[a] || base.indexOf(a) - base.indexOf(b); });
-    $('ir-topics').innerHTML = '<button class="ir-chip ir-tc" type="button" data-t="" aria-pressed="' + !S.tp.length + '">Every topic</button>' + all.map(function (k) {
+    $('ir-topics').innerHTML = '<button class="ir-chip ir-tc" type="button" data-t="" aria-pressed="' + !S.tp.length + '">' + T('Every topic') + '</button>' + all.map(function (k) {
       var on = S.tp.indexOf(k) >= 0, zero = !c[k] && !on;
-      return '<button class="ir-chip ir-tc' + (zero ? ' is-zero' : '') + (k === 'rel' ? ' ir-tc-rel' : '') + '" type="button" data-t="' + k + '" aria-pressed="' + on + '"' + (zero ? ' disabled title="Nothing in this view yet"' : '') + '>' + esc(topicName(k)) + ' <i>' + c[k] + '</i></button>';
+      return '<button class="ir-chip ir-tc' + (zero ? ' is-zero' : '') + (k === 'rel' ? ' ir-tc-rel' : '') + '" type="button" data-t="' + k + '" aria-pressed="' + on + '"' + (zero ? ' disabled title="' + T('Nothing in this view yet') + '"' : '') + '>' + esc(topicName(k)) + ' <i>' + N(c[k]) + '</i></button>';
     }).join('');
   }
   // The hot row: Everything, Hot topics, and once Hot topics is on, its six hottest stories. Live lens only.
@@ -1192,15 +1291,45 @@
     if (row.hidden) return;
     var onLive = S.lens === 'live', all = 0;
     LIVE.forEach(function (it) { if (HOTALL[it.id] && (S.lens !== 'live' || pass(it, 'hot'))) all++; });
-    var html = '<button class="ir-chip ir-hc" type="button" data-hot="" aria-pressed="' + !(onLive && S.hot) + '">Everything</button>' +
-      '<button class="ir-chip ir-hc ir-hc-all" type="button" data-hot="all" aria-pressed="' + (onLive && S.hot === 'all') + '">' + flame() + '<span>All hot</span> <i>' + all + '</i></button>';
+    var blind = 0;
+    LIVE.forEach(function (it) { if (isBlind(it) && (S.lens !== 'live' || pass(it, 'hot'))) blind++; });
+    var html = briefChip(top) + '<button class="ir-chip ir-hc" type="button" data-hot="" aria-pressed="' + !(onLive && S.hot) + '">' + T('Everything') + '</button>' +
+      '<button class="ir-chip ir-hc ir-hc-all" type="button" data-hot="all" aria-pressed="' + (onLive && S.hot === 'all') + '">' + flame() + '<span>' + T('All hot') + '</span> <i>' + N(all) + '</i></button>' +
+      (blind || S.hot === 'blind' ? '<button class="ir-chip ir-hc ir-hc-bs" type="button" data-hot="blind" aria-pressed="' + (onLive && S.hot === 'blind') + '" title="Stories one side of the media carried and the other side did not, of the outlets the room found">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg><span>Blindspots</span> <i>' + blind + '</i></button>' : '');
     if (top.length) {
       html += '<span class="ir-hc-sep" aria-hidden="true"></span>' + top.map(function (h) {
         var n = h.its.filter(function (it) { return pass(it, 'hot'); }).length;
-        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (onLive && S.hot === h.id) + '" title="' + esc(h.title) + '"><b class="num">' + h.hot + '</b><span>' + esc(h.name) + '</span>' + (onLive ? ' <i>' + n + '</i>' : '') + '</button>';
+        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (onLive && S.hot === h.id) + '" title="' + esc(h.title + (h.s && h.s.ls ? '. ' + spreadWords(h.s.ls) : '')) + '"><b class="num">' + N(h.hot) + '</b><span' + DA + '>' + esc(h.name) + '</span>' + (onLive ? ' <i>' + N(n) + '</i>' : '') +
+          (h.s && h.s.ls ? spreadBar(h.s.ls, 'ir-sp-chip') : '') + '</button>';
       }).join('');
     }
     el.innerHTML = html;
+  }
+  /* BRIEF ME (18 Oct 2026). One tap opens the show screen on the lead item of each of the hottest stories, with a title and
+     an intro already written from their names: the room's whole morning in one rundown, for a host who has not prepared
+     and for a reader who wants the briefing. It is a plain link to the show screen intel-prep.js already draws for
+     ?show= (it needs no creator tools), so it opens in a new tab with a middle click and can be sent to someone. */
+  function briefUrl(top) {
+    var its = top.map(function (h) { return h.its.filter(function (it) { return it.id === 'L' + h.lead; })[0] || h.its[0]; }).filter(Boolean);
+    if (its.length < 2) return '';
+    // read aloud, so whole words and never an ellipsis: the story's own short name, else its title cut at a word
+    var names = top.slice(0, its.length).map(function (h) {
+      if (h.w && h.w.name) return h.w.name;
+      var ws = h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, '').split(/\s+/), o = '';
+      for (var i = 0; i < ws.length && (o + ' ' + ws[i]).length <= 52; i++) o += (o ? ' ' : '') + ws[i];
+      return o.replace(/[,;:]$/, '');
+    });
+    // the intro card already lists every headline, so the spoken intro stays short and names only where it starts
+    var intro = 'Welcome in. Here are the ' + its.length + ' stories everyone is talking about right now, one by one, with the sources on screen. We start with ' +
+      names[0].replace(/\s+(to|of|the|a|an|in|after|is|at|for|and|on|with|by|from|as|says)$/i, '') + '.';
+    return '?show=' + its.map(function (it) { return 'on~' + (it._code || String(it.id)); }).join('.') + '&kind=live&t=' +
+      encodeURIComponent('The briefing: ' + its.length + ' stories everyone is talking about') + '&i=' + encodeURIComponent(intro.slice(0, 420));
+  }
+  function briefChip(top) {
+    if (CFG.prep === false) return '';          // no show screen on this page (Iran Uncensored's Persian room)
+    var u = briefUrl(top); if (!u) return '';
+    return '<a class="ir-chip ir-hc ir-brief" id="ir-brief" href="' + esc(u) + '" title="' + esc(T('Open the show screen on the {n} hottest stories, one after another', { n: N(top.length) })) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>' + T('Brief me') + '</span></a>';
   }
   function drawFocus() {
     var el = $('ir-fx'); if (!el) return;
@@ -1208,31 +1337,31 @@
     items.forEach(function (it) { if (pass(it, 'fx')) fxOf(it).forEach(function (k) { c[k]++; }); });
     var order = FOCUS.map(function (f) { return f[0]; });
     order.sort(function (a, b) { return ((c[b] > 0 || S.fx.indexOf(b) >= 0) - (c[a] > 0 || S.fx.indexOf(a) >= 0)) || FXI[a] - FXI[b]; });
-    el.innerHTML = '<button class="ir-chip ir-fc" type="button" data-fx="" aria-pressed="' + !S.fx.length + '">Everywhere</button>' + order.map(function (k) {
+    el.innerHTML = '<button class="ir-chip ir-fc" type="button" data-fx="" aria-pressed="' + !S.fx.length + '">' + T('Everywhere') + '</button>' + order.map(function (k) {
       var on = S.fx.indexOf(k) >= 0, zero = !c[k] && !on;
-      return '<button class="ir-chip ir-fc' + (zero ? ' is-zero' : '') + '" type="button" data-fx="' + k + '" aria-pressed="' + on + '"' + (zero ? ' disabled title="Nothing in this view yet"' : '') + '>' + esc(FOCUS[FXI[k]][1]) + ' <i>' + c[k] + '</i></button>';
+      return '<button class="ir-chip ir-fc' + (zero ? ' is-zero' : '') + '" type="button" data-fx="' + k + '" aria-pressed="' + on + '"' + (zero ? ' disabled title="' + T('Nothing in this view yet') + '"' : '') + '>' + esc(FOCUS[FXI[k]][1]) + ' <i>' + N(c[k]) + '</i></button>';
     }).join('');
   }
   // In plain words, what the filters leave: the creator tools head their show with it.
   function filterLine() {
     var b = [];
     if (S.lens === 'live') {
-      var h = S.hot && S.hot !== 'all' ? hotById(S.hot) : null;
-      b.push(h ? 'Hot topic: ' + h.name : S.hot === 'all' ? 'Hot topics' : 'Last 24 hours');
-      if (S.within) b.push('last ' + S.within + ' h');
-    } else if (S.lens === 'bank') b.push(fullRange() ? 'The bank, all time' : 'The bank, ' + bLabel(S.from) + (S.to !== S.from ? ' to ' + bLabel(S.to) : ''));
-    else b.push('From readers');
-    if (S.fx.length) b.push(S.fx.map(function (k) { return FOCUS[FXI[k]][1]; }).join(' or '));
-    if (S.tp.length) b.push(S.tp.map(topicName).join(' or '));
-    if (S.place) b.push(S.place.indexOf('c:') === 0 ? S.place.slice(2) : S.place.split(',').map(placeName).join(', '));
-    if (S.pf.length) b.push(S.pf.map(pfName).join(' or '));
+      var h = S.hot && S.hot !== 'all' && S.hot !== 'blind' ? hotById(S.hot) : null;
+      b.push(h ? T('Hot topic: {name}', { name: h.name }) : S.hot === 'all' ? T('Hot topics') : S.hot === 'blind' ? T('Blindspots') : T('Last 24 hours'));
+      if (S.within) b.push(T('last {n} h', { n: N(S.within) }));
+    } else if (S.lens === 'bank') b.push(fullRange() ? T('The bank, all time') : T('The bank, {when}', { when: bLabel(S.from) + (S.to !== S.from ? T(' to ') + bLabel(S.to) : '') }));
+    else b.push(T('From readers'));
+    if (S.fx.length) b.push(S.fx.map(function (k) { return FOCUS[FXI[k]][1]; }).join(T(' or ')));
+    if (S.tp.length) b.push(S.tp.map(topicName).join(T(' or ')));
+    if (S.place) b.push(S.place.indexOf('c:') === 0 ? cName(S.place.slice(2)) : S.place.split(',').map(placeName).join(T(', ')));
+    if (S.pf.length) b.push(S.pf.map(pfName).join(T(' or ')));
     if (S.kind) b.push(KINDS.filter(function (k) { return k[0] === S.kind; })[0][1]);
-    if (S.lmin) b.push(fmtN(S.lmin) + '+ likes');
-    if (S.heat && S.lens === 'live') b.push('heat ' + S.heat + '+');
-    if (S.vmin) b.push('viral ' + S.vmin + '+');
-    if (S.crmin) b.push('credibility ' + S.crmin + '+');
-    if (S.top) b.push('top picks');
-    if (S.edu) b.push('explainers');
+    if (S.lmin) b.push(T('{n}+ likes', { n: fmtN(S.lmin) }));
+    if (S.heat && S.lens === 'live') b.push(T('heat {n}+', { n: N(S.heat) }));
+    if (S.vmin) b.push(T('viral {n}+', { n: N(S.vmin) }));
+    if (S.crmin) b.push(T('credibility {n}+', { n: N(S.crmin) }));
+    if (S.top) b.push(T('top picks'));
+    if (S.edu) b.push(T('explainers'));
     if (S.q) b.push('"' + S.q + '"');
     return b.join(' · ');
   }
@@ -1257,13 +1386,13 @@
     BOARD_IT = bestN >= 0 ? best : null;
     var n = shown.length, tile = function (k, v, sub) { return '<div class="ir-b-t"><span class="ir-b-k">' + k + '</span><b class="num">' + v + '</b>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; };
     var mix = Object.keys(pc).sort(function (a, b) { return pc[b] - pc[a]; });
-    var html = tile('In view', n.toLocaleString('en-US'), S.lens === 'live' ? (n === 1 ? 'story' : 'stories') : S.lens === 'readers' ? 'sent in' : (n === 1 ? 'item' : 'items')) +
-      tile('Places', Object.keys(places).length, 'on the map') +
-      tile('Likes', nl ? fmtN(lk) : '\u2013', nl ? 'on ' + nl + ' with a count' : 'none counted here') +
-      tile('Views', nv ? fmtN(vw) : '\u2013', nv ? 'on ' + nv + ' with a count' : 'none counted here');
-    if (BOARD_IT) html += '<button type="button" class="ir-b-t ir-b-top" data-board><span class="ir-b-k">' + (live ? 'Hottest' : 'Most viral') + ' \u00b7 ' + bestN + '</span><span class="ir-b-tt">' + esc(BOARD_IT.t) + '</span></button>';
-    html += '<div class="ir-b-mix" role="img" aria-label="' + esc('Where it was posted: ' + mix.map(function (p) { return pfName(p) + ' ' + pc[p]; }).join(', ')) + '">' +
-      mix.map(function (p) { return '<span style="flex:' + pc[p] + ';background:' + pfColor(p) + '" title="' + esc(pfName(p) + ': ' + pc[p]) + '"></span>'; }).join('') + '</div>';
+    var html = tile(T('In view'), LN(n), S.lens === 'live' ? (n === 1 ? T('story') : T('stories')) : S.lens === 'readers' ? T('sent in') : (n === 1 ? T('item') : T('items'))) +
+      tile(T('Places'), N(Object.keys(places).length), T('on the map')) +
+      tile(T('Likes'), nl ? fmtN(lk) : '\u2013', nl ? T('on {n} with a count', { n: N(nl) }) : T('none counted here')) +
+      tile(T('Views'), nv ? fmtN(vw) : '\u2013', nv ? T('on {n} with a count', { n: N(nv) }) : T('none counted here'));
+    if (BOARD_IT) html += '<button type="button" class="ir-b-t ir-b-top" data-board><span class="ir-b-k">' + (live ? T('Hottest') : T('Most viral')) + ' \u00b7 ' + N(bestN) + '</span><span class="ir-b-tt"' + DA + '>' + esc(BOARD_IT.t) + '</span></button>';
+    html += '<div class="ir-b-mix" role="img" aria-label="' + esc(T('Where it was posted: ') + mix.map(function (p) { return pfName(p) + ' ' + N(pc[p]); }).join(T(', '))) + '">' +
+      mix.map(function (p) { return '<span style="flex:' + pc[p] + ';background:' + pfColor(p) + '" title="' + esc(pfName(p) + ': ' + N(pc[p])) + '"></span>'; }).join('') + '</div>';
     el.innerHTML = html; el.hidden = !n && S.lens === 'readers';
   }
   /* The wire: the hottest of the last 24 hours, running across the top. A headline opens it. */
@@ -1271,7 +1400,7 @@
     var el = $('ir-wire'); if (!el) return;
     if (!liveShown() || LIVE.length < 3) { el.hidden = true; return; }
     var top = LIVE.slice().sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); }).slice(0, 14);
-    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + it.hot + '</b></span>' + mark(it, 'w-m') + '<span class="w-t">' + esc(it.t) + '</span><span class="w-s">' + esc(it.h || it.src) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
+    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + N(it.hot) + '</b></span>' + mark(it, 'w-m') + '<span class="w-t"' + DA + '>' + esc(it.t) + '</span><span class="w-s">' + bd(esc(it.h || it.src)) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
     $('ir-wire-t').innerHTML = '<span class="w-set">' + top.map(function (it) { return one(it); }).join('') + '</span><span class="w-set" aria-hidden="true">' + top.map(function (it) { return one(it, 1); }).join('') + '</span>';
     $('ir-wire-t').style.animationDuration = Math.max(60, top.length * 9) + 's';
     el.hidden = false;
@@ -1293,14 +1422,14 @@
     var html = '';
     cs.forEach(function (ct) {
       var ks = Object.keys(byC[ct[0]]);
-      if (ks.length === 1 && P[ks[0]][0] === ct[0]) { html += '<option value="' + ks[0] + '">' + esc(ct[0]) + (withAll ? ' (' + ct[1] + ')' : '') + '</option>'; return; }
-      html += '<optgroup label="' + esc(ct[0]) + '">' + (withAll ? '<option value="c:' + esc(ct[0]) + '">All of ' + esc(ct[0]) + ' (' + ct[1] + ')</option>' : '') +
-        ks.sort(function (a, b) { return n[b] - n[a]; }).map(function (k) { return '<option value="' + k + '">' + esc(P[k][0]) + (withAll ? ' (' + n[k] + ')' : '') + '</option>'; }).join('') + '</optgroup>';
+      if (ks.length === 1 && (P[ks[0]][0] === ct[0] || P[ks[0]][0] === cName(ct[0]))) { html += '<option value="' + ks[0] + '">' + esc(cName(ct[0])) + (withAll ? ' (' + N(ct[1]) + ')' : '') + '</option>'; return; }
+      html += '<optgroup label="' + esc(cName(ct[0])) + '">' + (withAll ? '<option value="c:' + esc(ct[0]) + '">' + esc(T('All of {c}', { c: cName(ct[0]) })) + ' (' + N(ct[1]) + ')</option>' : '') +
+        ks.sort(function (a, b) { return n[b] - n[a]; }).map(function (k) { return '<option value="' + k + '">' + esc(P[k][0]) + (withAll ? ' (' + N(n[k]) + ')' : '') + '</option>'; }).join('') + '</optgroup>';
     });
     return html;
   }
   function fillPlaces() {
-    $('ir-place').innerHTML = '<option value="">Every place</option>' + placeOptions(items, true) + '<option value="global">No single place</option>';
+    $('ir-place').innerHTML = '<option value="">' + T('Every place') + '</option>' + placeOptions(items, true) + '<option value="global">' + T('No single place') + '</option>';
     drawState();
   }
   function drawState() {
@@ -1310,7 +1439,7 @@
   }
   function say(t, clear) {
     var el = $('ir-said');
-    el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>Clear</button>' : '') : '';
+    el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>' + T('Clear') + '</button>' : '') : '';
   }
   function clearAll() {
     S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
@@ -1332,10 +1461,10 @@
       (S.within && S.lens === 'live' ? 1 : 0) + (S.crmin ? 1 : 0) + (S.lmin ? 1 : 0) + (S.top ? 1 : 0) + (S.edu ? 1 : 0) + (S.lens === 'bank' && !fullRange() ? 1 : 0);
   }
   function drawCmd() {
-    var set = function (id, n) { var el = $(id); if (!el) return; el.textContent = n ? String(n) : ''; el.parentNode.classList.toggle('on', !!n); };
+    var set = function (id, n) { var el = $(id); if (!el) return; el.textContent = n ? N(n) : ''; el.parentNode.classList.toggle('on', !!n); };
     set('ir-cb-tp', S.tp.length); set('ir-cb-fx', S.fx.length + (S.place || S.nowhere ? 1 : 0)); set('ir-cb-n', nActive());
     var n = shown.length, dn = $('ir-dr-n');
-    if (dn) dn.textContent = n.toLocaleString('en-US') + ' ' + (S.lens === 'live' ? (n === 1 ? 'story' : 'stories') : n === 1 ? 'item' : 'items');
+    if (dn) dn.textContent = LN(n) + ' ' + (S.lens === 'live' ? (n === 1 ? T('story') : T('stories')) : n === 1 ? T('item') : T('items'));
   }
   function openDrawer(sec) {
     var d = $('ir-drawer'); if (!d) return;
@@ -1349,25 +1478,25 @@
   function drawPills() {
     var el = $('ir-pills'); if (!el) return;
     var p = [], kn = function (k) { return (KINDS.filter(function (x) { return x[0] === k; })[0] || ['', k])[1]; };
-    if (S.link) { var L = linkByKey(S.link); p.push(['link:', 'Connection: ' + (L ? L.a + ' and ' + L.b : S.link.replace('|', ' and '))]); }
-    if (S.with) { var wi = itemById(S.with); p.push(['with:', 'Connected to: ' + (wi ? cut(wi.t, 40) : 'one story')]); }
-    if (S.hot && S.lens === 'live') { var h = S.hot === 'all' ? null : hotById(S.hot); p.push(['hot:', h ? 'Story: ' + h.name : 'Hot stories']); }
+    if (S.link) { var L = linkByKey(S.link); p.push(['link:', T('Connection: {what}', { what: L ? T('{a} and {b}', { a: cName(L.a), b: cName(L.b) }) : S.link.split('|').map(cName).join(T(' and ')) })]); }
+    if (S.with) { var wi = itemById(S.with); p.push(['with:', T('Connected to: {what}', { what: wi ? cut(wi.t, 40) : T('one story') })]); }
+    if (S.hot && S.lens === 'live') { var h = S.hot === 'all' || S.hot === 'blind' ? null : hotById(S.hot); p.push(['hot:', h ? T('Story: {name}', { name: h.name }) : S.hot === 'blind' ? T('Blindspots') : T('Hot stories')]); }
     S.tp.forEach(function (k) { p.push(['tp:' + k, topicName(k)]); });
     S.fx.forEach(function (k) { p.push(['fx:' + k, FOCUS[FXI[k]][1]]); });
-    if (S.nowhere) p.push(['place:', 'No single place']); else if (S.place) p.push(['place:', S.place.indexOf('c:') === 0 ? S.place.slice(2) : S.place.split(',').map(placeName).join(', ')]);
-    S.pf.forEach(function (x) { p.push(['pf:' + x, 'On ' + pfName(x)]); });
+    if (S.nowhere) p.push(['place:', T('No single place')]); else if (S.place) p.push(['place:', S.place.indexOf('c:') === 0 ? cName(S.place.slice(2)) : S.place.split(',').map(placeName).join(T(', '))]);
+    S.pf.forEach(function (x) { p.push(['pf:' + x, T('On {pf}', { pf: pfName(x) })]); });
     if (S.kind) p.push(['kind:', kn(S.kind)]);
-    if (S.within && S.lens === 'live') p.push(['within:', 'Last ' + S.within + ' h']);
-    if (S.heat && S.lens === 'live') p.push(['heat:', 'Heat ' + S.heat + '+']);
-    if (S.lmin) p.push(['lmin:', fmtN(S.lmin) + '+ likes']);
-    if (S.vmin) p.push(['vmin:', 'Viral ' + S.vmin + '+']);
-    if (S.crmin) p.push(['crmin:', 'Credibility ' + S.crmin + '+']);
-    if (S.top) p.push(['top:', 'Top picks']);
-    if (S.edu) p.push(['edu:', 'Explainers']);
+    if (S.within && S.lens === 'live') p.push(['within:', T('Last {n} h', { n: N(S.within) })]);
+    if (S.heat && S.lens === 'live') p.push(['heat:', T('Heat {n}+', { n: N(S.heat) })]);
+    if (S.lmin) p.push(['lmin:', T('{n}+ likes', { n: fmtN(S.lmin) })]);
+    if (S.vmin) p.push(['vmin:', T('Viral {n}+', { n: N(S.vmin) })]);
+    if (S.crmin) p.push(['crmin:', T('Credibility {n}+', { n: N(S.crmin) })]);
+    if (S.top) p.push(['top:', T('Top picks')]);
+    if (S.edu) p.push(['edu:', T('Explainers')]);
     if (S.lens === 'bank' && !fullRange()) p.push(['time:', $('ir-range').textContent]);
     if (S.q) p.push(['q:', '"' + S.q + '"']);
-    el.innerHTML = p.map(function (x) { return '<button type="button" class="ir-pill" data-unpill="' + esc(x[0]) + '" aria-label="' + esc('Remove ' + x[1]) + '"><span>' + esc(x[1]) + '</span><b aria-hidden="true">&times;</b></button>'; }).join('') +
-      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>Clear all</button>' : '');
+    el.innerHTML = p.map(function (x) { return '<button type="button" class="ir-pill" data-unpill="' + esc(x[0]) + '" aria-label="' + esc(T('Remove {what}', { what: x[1] })) + '"><span>' + esc(x[1]) + '</span><b aria-hidden="true">&times;</b></button>'; }).join('') +
+      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>' + T('Clear all') + '</button>' : '');
     el.hidden = !p.length;
   }
   function unpill(v) {
@@ -1415,6 +1544,8 @@
     ['opec', 'OPEC', /\bopec\b/i], ['hormuz', 'The Strait of Hormuz', /\bhormuz\b/i], ['redsea', 'The Red Sea', /\bred sea\b|\bbab el-?mandeb\b/i], ['antifa', 'Antifa', /\bantifa\b/i],
     ['nokings', 'No Kings', /\bno ?kings\b/i], ['muslims', 'Muslims', /\bmuslims?\b|\bislamist\w*\b/i]
   ];
+  // Iran Uncensored's actors are the regime's people and forces and those who face them (en and fa words): [key, name, source, flags]
+  if (Array.isArray(CFG.actors)) ACTORS = CFG.actors.map(function (a) { return [a[0], a[1], rxOf(a, 2)]; });
   var ACN = {}; ACTORS.forEach(function (a) { ACN[a[0]] = a[1]; });
   // The countries an item can NAME (for "mentions"), in the names the places use; each needs a place on the map to draw to
   var NAMES = [['Iran', /\biran\w*\b|\btehran\b/i], ['Israel', /\bisrael\w*\b|\btel aviv\b/i], ['United States', /\bU\.S\.|\b(USA|US|America|American|Americans|Washington|White House|Pentagon)\b/],
@@ -1424,11 +1555,12 @@
     ['Turkey', /\bturkey\b|\bturkish\b|\bankara\b/i], ['Iraq', /\biraq\w*\b|\bbaghdad\b/i], ['Egypt', /\begypt\w*\b|\bcairo\b/i], ['Canada', /\bcanad\w*\b|\bottawa\b/i],
     ['Italy', /\bital(y|ian)\b|\brome\b/i], ['India', /\bindia\b|\bindian government\b/i], ['Pakistan', /\bpakistan\w*\b/i], ['Afghanistan', /\bafghan\w*\b|\bkabul\b/i], ['Venezuela', /\bvenezuel\w*\b/i], ['Cuba', /\bcuba\w*\b|\bhavana\b/i], ['Taiwan', /\btaiwan\w*\b/i], ['Japan', /\bjapan\w*\b|\btokyo\b/i], ['Mexico', /\bmexic\w*\b/i], ['Poland', /\bpoland\b|\bpolish\b/i],
     ['United Arab Emirates', /\buae\b|\bemirat\w*\b|\bdubai\b|\babu dhabi\b/i]];
+  if (Array.isArray(CFG.names)) NAMES = CFG.names.map(function (a) { return [a[0], rxOf(a, 1)]; });          // [country, source, flags]
   var ANCH = null;
   function anchors() {          // each country's point: its own place where it has one, else its first place on the map
     if (ANCH) return ANCH;
     ANCH = {};
-    Object.keys(P).forEach(function (k) { var v = P[k]; if (!v || v[2] == null || !v[1]) return; if (!ANCH[v[1]] || v[0] === v[1]) ANCH[v[1]] = [v[3], v[2], k]; });
+    Object.keys(P).forEach(function (k) { var v = P[k]; if (!v || v[2] == null || !v[1]) return; if (!ANCH[v[1]] || v[0] === v[1] || v[0] === cName(v[1])) ANCH[v[1]] = [v[3], v[2], k]; });
     return ANCH;
   }
   function countryOf(it) { return P[it.p] ? P[it.p][1] : ''; }
@@ -1466,7 +1598,7 @@
     cs.forEach(function (c) {
       var m = {};
       by[c].forEach(function (it) { namesOf(it).forEach(function (n) { (m[n] = m[n] || []).push(it); }); });
-      Object.keys(m).forEach(function (n) { add(c, n, 'mention', n, c + ' items name ' + n, m[n], by[n] ? by[n].slice(0, 0) : [], m[n].length); });
+      Object.keys(m).forEach(function (n) { add(c, n, 'mention', n, T('{a} items name {b}', { a: cName(c), b: cName(n) }), m[n], by[n] ? by[n].slice(0, 0) : [], m[n].length); });
     });
     var list = Object.keys(out).map(function (k) {
       var L = out[k];
@@ -1495,8 +1627,8 @@
   function linkWhy(L, short) {
     var s = L.reasons.filter(function (r) { return r.t === 'story'; }), a = L.reasons.filter(function (r) { return r.t === 'actor'; }), m = L.reasons.filter(function (r) { return r.t === 'mention'; });
     var out = [];
-    if (s.length) out.push((s.length === 1 ? 'Same story: ' + cut(s[0].name, short ? 40 : 70) : s.length + ' stories told from both'));
-    if (a.length) out.push('Both name ' + a.slice(0, short ? 2 : 4).map(function (r) { return r.name; }).join(', ') + (a.length > (short ? 2 : 4) ? ' and more' : ''));
+    if (s.length) out.push((s.length === 1 ? T('Same story: {name}', { name: cut(s[0].name, short ? 40 : 70) }) : T('{n} stories told from both', { n: N(s.length) })));
+    if (a.length) out.push(T('Both name {list}', { list: a.slice(0, short ? 2 : 4).map(function (r) { return r.name; }).join(T(', ')) + (a.length > (short ? 2 : 4) ? T(' and more') : '') }));
     if (m.length && !s.length) out.push(m.map(function (r) { return r.name; }).slice(0, 2).join('; '));
     return out.join(' · ');
   }
@@ -1511,14 +1643,14 @@
     el.hidden = !onL; $('ir-items').hidden = onL; $('ir-more').hidden = onL || shown.length <= limit;
     root.classList.toggle('ir-on-links', onL);
     if (!onL) return;
-    var types = [['', 'All'], ['story', 'Same story'], ['actor', 'Same people'], ['mention', 'Mentions']];
+    var types = [['', T('All')], ['story', T('Same story')], ['actor', T('Same people')], ['mention', T('Mentions')]];
     var shownL = LTYPE ? all.filter(function (L) { return L.reasons.some(function (r) { return r.t === LTYPE; }); }) : all;
-    el.innerHTML = '<p class="ir-lk-h">How what you see connects across the map. Tap one to see only what it joins, and why.</p>' +
-      '<div class="ir-lk-t" role="group" aria-label="Kind of connection">' + types.map(function (t) { return '<button type="button" class="ir-chip" data-ltype="' + t[0] + '" aria-pressed="' + (LTYPE === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+    el.innerHTML = '<p class="ir-lk-h">' + T('How what you see connects across the map. Tap one to see only what it joins, and why.') + '</p>' +
+      '<div class="ir-lk-t" role="group" aria-label="' + T('Kind of connection') + '">' + types.map(function (t) { return '<button type="button" class="ir-chip" data-ltype="' + t[0] + '" aria-pressed="' + (LTYPE === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       (shownL.length ? '<ol class="ir-lk-l">' + shownL.slice(0, 40).map(function (L) {
-        return '<li><button type="button" class="ir-lk-r lk-' + L.type + (S.link === L.k ? ' on' : '') + '" data-link="' + esc(L.k) + '"><span class="ir-lk-ab"><b>' + esc(L.a) + '</b><i aria-hidden="true"></i><b>' + esc(L.b) + '</b></span>' +
-          '<span class="ir-lk-w">' + esc(linkWhy(L, true)) + '</span><span class="ir-lk-n num">' + L.n + ' items</span></button></li>';
-      }).join('') + '</ol>' : '<p class="ir-empty">No two places are connected in what is shown. Widen the filters, or pick Everything.</p>');
+        return '<li><button type="button" class="ir-lk-r lk-' + L.type + (S.link === L.k ? ' on' : '') + '" data-link="' + esc(L.k) + '"><span class="ir-lk-ab"><b>' + esc(cName(L.a)) + '</b><i aria-hidden="true"></i><b>' + esc(cName(L.b)) + '</b></span>' +
+          '<span class="ir-lk-w">' + esc(linkWhy(L, true)) + '</span><span class="ir-lk-n num">' + T('{n} items', { n: N(L.n) }) + '</span></button></li>';
+      }).join('') + '</ol>' : '<p class="ir-empty">' + T('No two places are connected in what is shown. Widen the filters, or pick Everything.') + '</p>');
   }
 
   /* the arcs on the map: drawn after the marks on every frame (they move with the globe), under them in the SVG */
@@ -1550,7 +1682,7 @@
       if (!segs.length) return;
       var d = segs.map(function (s) { return 'M' + s.map(function (q) { return q[0].toFixed(1) + ' ' + q[1].toFixed(1); }).join('L'); }).join('');
       var sw = (1.2 + 2.6 * Math.sqrt(L.w / maxW)).toFixed(2), on = S.link === L.k;
-      html += '<g class="ir-lk lk-' + L.type + (on ? ' on' : '') + '" data-l="' + li + '" role="button" tabindex="0" aria-label="' + esc(L.a + ' and ' + L.b + ': ' + linkWhy(L, true)) + '">' +
+      html += '<g class="ir-lk lk-' + L.type + (on ? ' on' : '') + '" data-l="' + li + '" role="button" tabindex="0" aria-label="' + esc(T('{a} and {b}', { a: cName(L.a), b: cName(L.b) }) + ': ' + linkWhy(L, true)) + '">' +
         '<path class="lk-g" d="' + d + '" style="stroke-width:' + (+sw * 3.2).toFixed(1) + '"/><path class="lk-b" d="' + d + '" style="stroke-width:' + sw + '"/><path class="lk-f" d="' + d + '"/><path class="lk-h" d="' + d + '"/></g>';
       LDRAW.push({ L: L, pts: pts, mid: pts[Math.floor(pts.length / 2)] });
     });
@@ -1573,7 +1705,7 @@
     if (S.link) { S.hot = ''; LT = 'items'; }
     say(''); render();
     var L = S.link ? linkByKey(S.link) : null;
-    if (L) { var A = anchors(); fitTo([[A[L.a][0], A[L.a][1]], [A[L.b][0], A[L.b][1]]], 1, 8); say(L.a + ' and ' + L.b + ': ' + linkWhy(L) + '. ' + shown.length + ' items.', true); }
+    if (L) { var A = anchors(); fitTo([[A[L.a][0], A[L.a][1]], [A[L.b][0], A[L.b][1]]], 1, 8); say(T('{a} and {b}', { a: cName(L.a), b: cName(L.b) }) + ': ' + linkWhy(L) + '. ' + T('{n} items.', { n: N(shown.length) }), true); }
     else frameShown();
   }
 
@@ -1624,7 +1756,7 @@
     S.fx = (u.get('focus') || '').split('.').filter(function (k, i, a) { return FXI[k] != null && a.indexOf(k) === i; });
     S.link = (u.get('link') || '').slice(0, 80); S.with = (u.get('with') || '').slice(0, 40);
     var hv = u.get('hot') || '';
-    S.hot = S.lens === 'live' && (hv === 'all' || hotById(hv)) ? hv : '';
+    S.hot = S.lens === 'live' && (hv === 'all' || hv === 'blind' || hotById(hv)) ? hv : '';
     if (SORTS[S.lens].some(function (s) { return s[0] === u.get('sort'); })) S.sort = u.get('sort');
     S.from = 0; S.to = buckets.length - 1;
     var f = buckets.indexOf(u.get('from')), t = buckets.indexOf(u.get('to'));
@@ -1638,8 +1770,8 @@
   function views() { var v = store(VKEY); return Array.isArray(v) ? v.filter(function (x) { return x && typeof x.n === 'string' && typeof x.q === 'string'; }).slice(0, 12) : []; }
   function drawViews(asking) {
     var el = $('ir-views'), v = views(), html = '';
-    if (v.length) html += '<span class="ir-v-l">Your views</span>' + v.map(function (x, i) { return '<span class="ir-v"><button type="button" data-view="' + i + '">' + esc(x.n) + '</button><button type="button" class="ir-v-x" data-unview="' + i + '" aria-label="Forget the view ' + esc(x.n) + '">&times;</button></span>'; }).join('');
-    if (asking) html += '<form class="ir-v-f" id="ir-v-f"><label class="vh" for="ir-v-n">Name this view</label><input id="ir-v-n" maxlength="32" placeholder="Name it, e.g. Gaza videos this year" required><button type="submit">Save</button><button type="button" data-v-cancel>Cancel</button></form>';
+    if (v.length) html += '<span class="ir-v-l">' + T('Your views') + '</span>' + v.map(function (x, i) { return '<span class="ir-v"><button type="button" data-view="' + i + '">' + esc(x.n) + '</button><button type="button" class="ir-v-x" data-unview="' + i + '" aria-label="' + esc(T('Forget the view {name}', { name: x.n })) + '">&times;</button></span>'; }).join('');
+    if (asking) html += '<form class="ir-v-f" id="ir-v-f"><label class="vh" for="ir-v-n">' + T('Name this view') + '</label><input id="ir-v-n" maxlength="32" placeholder="' + T('Name it, e.g. Gaza videos this year') + '" required><button type="submit">' + T('Save') + '</button><button type="button" data-v-cancel>' + T('Cancel') + '</button></form>';
     el.innerHTML = html; el.hidden = !html;
     if (asking) setTimeout(function () { var i = $('ir-v-n'); if (i) i.focus(); }, 30);
   }
@@ -1648,7 +1780,7 @@
     v.unshift({ n: name.slice(0, 32), q: query() || '?lens=' + S.lens });
     store(VKEY, v.slice(0, 12));
     drawViews();
-    say('Saved on this device as "' + name + '". Tap it any time to come back to exactly this.');
+    say(T('Saved on this device as "{name}". Tap it any time to come back to exactly this.', { name: name }));
   }
 
   /* ------------------------------------------------------------ ask: plain words in, filters out, one sentence back */
@@ -1676,32 +1808,39 @@
     [/\b(campus\w*|universit(y|ies)|college|students?|schools?)\b/, 'education'], [/\b(health|hospitals?|famine|starv\w*|vaccin\w*|disease)\b/, 'health']];
   var PF_WORDS = [[/\b(?:on|from|in) x\b|\btwitter\b|\btweets?\b|\bx posts?\b|\bx only\b/, 'X'], [/\byoutube\b/, 'YouTube'], [/\btelegram\b/, 'Telegram'],
     [/\binstagram\b|\binsta\b/, 'Instagram'], [/\bfacebook\b/, 'Facebook'], [/\bthreads\b/, 'Threads'], [/\btiktok\b/, 'TikTok']];
+  // Iran Uncensored hands its own places and subjects for the ask box (en and fa words), and a map that turns the Persian a
+  // reader types ("ویدیوهای امروز") into the words below ("videos today"), so one reader serves both languages.
+  if (Array.isArray(CFG.askPlaces)) PLACE_WORDS = CFG.askPlaces.map(function (a) { return [rxOf(a, 0), a[2]]; });
+  if (Array.isArray(CFG.askTopics)) TOPIC_ASK = CFG.askTopics.map(function (a) { return [rxOf(a, 0), a[2]]; });
+  var ASK_MAP = Array.isArray(CFG.askMap) ? CFG.askMap.map(function (a) { return [rxOf([a[0], 'g'], 0), ' ' + a[1] + ' ']; }) : [];
+  var STOP_FA = CFG.askStop ? rxOf([CFG.askStop, 'g'], 0) : null;
   var STOP = /\b(happened|happen|happening|going|at|say|said|says|told|tell|show|me|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|is|are|was|were|i|want|need|please|some|can|you|to|and|or|by|it|this|these|those|evidence|proof|proves|prove|items?|things?|stuff|posts?|anything|everything|related|showing|where|who|how|did|do|does|uses?|using|used|has|have|had|they|their|them)\b/g;
   function ask(text) {
     var raw = String(text || '').trim().slice(0, 200);
     if (!raw) { clearAll(); return; }
     stopTour();
     var t = ' ' + raw.toLowerCase().replace(/[“”"’]/g, "'") + ' ', said = [];
+    if (ASK_MAP.length) { t = t.replace(/\u200c/g, '').replace(/[\u06F0-\u06F9]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); }); ASK_MAP.forEach(function (a) { t = t.replace(a[0], a[1]); }); }
     var ns = { q: '', tp: [], place: '', kind: '', pf: [], sort: SORTS[S.lens][0][0], from: 0, to: buckets.length - 1 };
     var eat = function (rx) { t = t.replace(rx, ' '); };
     // "today", "breaking", "right now": the last 24 hours, when there is a feed
-    if (/\b(today|breaking|right now|last 24|past 24|24 hours|this morning|tonight|live)\b/.test(t) && liveShown()) { if (S.lens !== 'live') useLens('live', true); ns.sort = 'hot'; eat(/\b(today|breaking|right now|last 24 hours|past 24 hours|24 hours|this morning|tonight|live|news)\b/g); said.push('in the last 24 hours'); }
+    if (/\b(today|breaking|right now|last 24|past 24|24 hours|this morning|tonight|live)\b/.test(t) && liveShown()) { if (S.lens !== 'live') useLens('live', true); ns.sort = 'hot'; eat(/\b(today|breaking|right now|last 24 hours|past 24 hours|24 hours|this morning|tonight|live|news)\b/g); said.push(T('in the last 24 hours')); }
     // time (the bank's timeline)
     var n = buckets.length - 1, m;
     if (S.lens === 'bank') {
-      if (/since (the )?(october 7|oct\.? 7|7 oct(ober)?|the massacre|the war)/.test(t)) { ns.from = 1; eat(/since (the )?(october 7(th)?|oct\.? 7|7 oct(ober)?|the massacre|the war)/); said.push('since 7 October'); }
-      else if (/(past|last) (30 days|month)|this month|recent(ly)?|latest|newest/.test(t)) { ns.from = n; eat(/(past|last) (30 days|month)|this month|recent(ly)?|latest|newest/); said.push('from the past month'); }
-      else if (/(past|last) (12 months|year)|this year/.test(t)) { ns.from = Math.max(1, n - 11); eat(/(past|last) (12 months|year)|this year/); said.push('from the past year'); }
+      if (/since (the )?(october 7|oct\.? 7|7 oct(ober)?|the massacre|the war)/.test(t)) { ns.from = 1; eat(/since (the )?(october 7(th)?|oct\.? 7|7 oct(ober)?|the massacre|the war)/); said.push(T('since 7 October')); }
+      else if (/(past|last) (30 days|month)|this month|recent(ly)?|latest|newest/.test(t)) { ns.from = n; eat(/(past|last) (30 days|month)|this month|recent(ly)?|latest|newest/); said.push(T('from the past month')); }
+      else if (/(past|last) (12 months|year)|this year/.test(t)) { ns.from = Math.max(1, n - 11); eat(/(past|last) (12 months|year)|this year/); said.push(T('from the past year')); }
       else if ((m = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (20\d\d)\b/.exec(t))) {
         var k = m[2] + '-' + ('0' + (MON.map(function (x) { return x.toLowerCase(); }).indexOf(m[1]) + 1)).slice(-2), bi = buckets.indexOf(k);
-        if (bi > 0) { ns.from = ns.to = bi; said.push('from ' + bLabel(bi)); } eat(m[0]);
+        if (bi > 0) { ns.from = ns.to = bi; said.push(T('from {when}', { when: bLabel(bi) })); } eat(m[0]);
       } else if ((m = /\b(?:since|after) (20\d\d)\b/.exec(t))) {
-        var a = buckets.indexOf(m[1] + '-01'); ns.from = a > 0 ? a : 1; eat(m[0]); said.push('since ' + m[1]);
+        var a = buckets.indexOf(m[1] + '-01'); ns.from = a > 0 ? a : 1; eat(m[0]); said.push(T('since {when}', { when: N(m[1]) }));
       } else if ((m = /\b(?:in |during )?(20\d\d)\b/.exec(t))) {
         var y = m[1], f = -1, l = -1;
         buckets.forEach(function (b, i) { if (b.slice(0, 4) === y) { if (f < 0) f = i; l = i; } });
         if (+y < 2023) { f = l = 0; }
-        if (f >= 0) { ns.from = f; ns.to = l; said.push(+y < 2023 ? 'from before October 2023' : 'from ' + y); }
+        if (f >= 0) { ns.from = f; ns.to = l; said.push(+y < 2023 ? T('from before October 2023') : T('from {when}', { when: N(y) })); }
         eat(m[0]);
       }
     }
@@ -1729,9 +1868,10 @@
     if (/\breligio(n|ns|us)\b|\bfaiths?\b/.test(t)) ns.tp.push('rel');
     TOPIC_ASK.forEach(function (ta) { if (ns.tp.length < 2 && ns.tp.indexOf(ta[1]) < 0 && ta[0].test(t)) ns.tp.push(ta[1]); });
     if (ns.place === 'us-campus') ns.tp = ns.tp.filter(function (k) { return k !== 'education'; });
-    PLACE_WORDS.forEach(function (pw) { if (pw[1] === ns.place) eat(new RegExp(pw[0].source, 'g')); });
-    TOPIC_ASK.forEach(function (ta) { if (ns.tp.indexOf(ta[1]) >= 0) eat(new RegExp(ta[0].source, 'g')); });
+    PLACE_WORDS.forEach(function (pw) { if (pw[1] === ns.place) eat(new RegExp(pw[0].source, pw[0].ignoreCase ? 'gi' : 'g')); });
+    TOPIC_ASK.forEach(function (ta) { if (ns.tp.indexOf(ta[1]) >= 0) eat(new RegExp(ta[0].source, ta[0].ignoreCase ? 'gi' : 'g')); });
     if (ns.tp.indexOf('rel') >= 0) eat(/\breligio(n|ns|us)\b|\bfaiths?\b/g);
+    if (STOP_FA) t = t.replace(STOP_FA, ' ');
     var rest = t.replace(STOP, ' ').replace(/[^a-z0-9֐-ۿ' -]/g, ' ').replace(/\s+/g, ' ').trim();
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
@@ -1746,31 +1886,31 @@
       var ws = S.q.split(' '), best = '', bn = 0, all = S.q;
       ws.forEach(function (w) { S.q = w; var c = count(); if (c > bn) { bn = c; best = w; } });
       S.q = best;
-      let_go.push('"' + (best ? all.replace(best, '').trim() : all) + '"');
+      let_go.push(T('"{q}"', { q: best ? all.replace(best, '').trim() : all }));
     }
     if (S.q && S.tp.length) { var withT = count(), keep = S.tp; S.tp = []; if (count() <= withT * 2) S.tp = keep; }
-    if (!count() && S.pf.length) { let_go.push(S.pf.map(pfName).join(' and ') + ' only'); S.pf = []; }
-    if (!count() && S.kind) { let_go.push({ video: 'videos only', article: 'articles only', doc: 'documents only', post: 'posts only' }[S.kind]); S.kind = ''; }
+    if (!count() && S.pf.length) { let_go.push(T('{pf} only', { pf: S.pf.map(pfName).join(T(' and ')) })); S.pf = []; }
+    if (!count() && S.kind) { let_go.push({ video: T('videos only'), article: T('articles only'), doc: T('documents only'), post: T('posts only') }[S.kind]); S.kind = ''; }
     if (!count() && S.tp.length > 1) S.tp = S.tp.slice(0, 1);
-    if (!count() && S.lens === 'bank' && !fullRange()) { let_go.push('the time'); said = []; S.from = 0; S.to = buckets.length - 1; $('ir-from').value = 0; $('ir-to').value = S.to; }
-    if (!count() && S.tp.length) { let_go.push('the topic'); S.tp = []; }
+    if (!count() && S.lens === 'bank' && !fullRange()) { let_go.push(T('the time')); said = []; S.from = 0; S.to = buckets.length - 1; $('ir-from').value = 0; $('ir-to').value = S.to; }
+    if (!count() && S.tp.length) { let_go.push(T('the topic')); S.tp = []; }
     render();
-    var noun = S.lens === 'live' ? (shown.length === 1 ? 'story' : 'stories') : (shown.length === 1 ? 'item' : 'items');
-    var kindW = { video: 'videos', article: 'articles', doc: 'documents', post: 'posts' }[S.kind] || noun;
-    var parts = [shown.length + ' ' + kindW];
-    if (S.tp.length) parts.push('on ' + S.tp.map(function (k) { var w = topicName(k); return /^(AI|Islam|Christianity|Judaism|Health|History)\b/.test(w) ? w : w.charAt(0).toLowerCase() + w.slice(1); }).join(' or '));
-    if (S.q) parts.push('that mention "' + S.q + '"');
-    if (S.pf.length) parts.push('on ' + S.pf.map(pfName).join(' or '));
-    if (S.place) parts.push('in ' + (S.place.indexOf('c:') === 0 ? S.place.slice(2) : placeName(S.place)));
+    var noun = S.lens === 'live' ? (shown.length === 1 ? T('story') : T('stories')) : (shown.length === 1 ? T('item') : T('items'));
+    var kindW = { video: T('videos'), article: T('articles'), doc: T('documents'), post: T('posts') }[S.kind] || noun;
+    var parts = [N(shown.length) + ' ' + kindW];
+    if (S.tp.length) parts.push(T('on {topics}', { topics: S.tp.map(function (k) { var w = topicName(k); return /^(AI|Islam|Christianity|Judaism|Health|History)\b/.test(w) || CFG.topics ? w : w.charAt(0).toLowerCase() + w.slice(1); }).join(T(' or ')) }));
+    if (S.q) parts.push(T('that mention "{q}"', { q: S.q }));
+    if (S.pf.length) parts.push(T('on {pf}', { pf: S.pf.map(pfName).join(T(' or ')) }));
+    if (S.place) parts.push(T('in {place}', { place: S.place.indexOf('c:') === 0 ? cName(S.place.slice(2)) : placeName(S.place) }));
     parts = parts.concat(said);
     var line = parts.join(' ') + '.';
-    if (S.sort === 'top') line += ' Top picks first.';
-    if (S.sort === 'hot') line += ' Hottest first.';
-    if (S.sort === 'viral') line += ' Most viral first.';
-    if (S.sort === 'likes') line += ' Most liked first.';
-    if (S.sort === 'views') line += ' Most viewed first.';
-    if (let_go.length) line = 'Nothing matched all of it, so I let go of ' + let_go.join(' and ') + '. ' + line;
-    if (!shown.length || (let_go.length && shown.length === items.length)) line = 'Nothing here matches that yet. Try a place, a topic or a year, like: videos from Gaza in 2024. Or add what is missing.';
+    if (S.sort === 'top') line += T(' Top picks first.');
+    if (S.sort === 'hot') line += T(' Hottest first.');
+    if (S.sort === 'viral') line += T(' Most viral first.');
+    if (S.sort === 'likes') line += T(' Most liked first.');
+    if (S.sort === 'views') line += T(' Most viewed first.');
+    if (let_go.length) line = T('Nothing matched all of it, so I let go of {what}. ', { what: let_go.join(T(' and ')) }) + line;
+    if (!shown.length || (let_go.length && shown.length === items.length)) line = T('Nothing here matches that yet. Try a place, a topic or a year, like: videos from Gaza in 2024. Or add what is missing.');
     say(line, true);
     if (S.place && shown.length) focusPlace(S.place);
     $('ir-items').scrollTop = 0;
@@ -1779,7 +1919,14 @@
   function frameShown() {
     var keys = [];
     shown.forEach(function (it) { keys = keys.concat(keysOf(it)); });
-    fitTo(placePts(keys), 1, 4);
+    var pts = placePts(keys);
+    // Iran Uncensored: the view stays on Iran and its neighbours whenever what is shown has a place there (a story in
+    // Washington or London gets its arrow on the rim); only a view with nothing near Iran flies away from it.
+    if (HOME && G) {
+      var c = CFG.homeC || HOME[0], near = pts.filter(function (p) { return G.geoDistance(p, c) < 0.45; });
+      if (near.length || !pts.length) { fitTo(near.concat(HOME), 1, 40); return; }
+    }
+    fitTo(pts, 1, 4);
   }
   function focusPlace(v) {
     var ks = v.indexOf('c:') === 0 ? Object.keys(P).filter(function (k) { return P[k][1] === v.slice(2) && P[k][2] != null; }) : v.split(',');
@@ -1797,38 +1944,43 @@
     var it = shown[i]; if (!it) return;
     spotAt = i;
     var y = ytId(it.u), dlg = $('ir-spot');
-    var srcName = it.src === 'Document' ? 'the document' : it.src === 'News' ? (it.h || 'the news site') : it.src;
-    var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc((it.k === 'image' ? 'Picture' : KIND_N[kindOf(it)]) + ' on ' + pfName(pfOf(it))) + '</span>' +
-      (it.hot != null ? '<span class="hotc">' + flame() + 'Hot ' + it.hot + '</span>' : '') + (crOf(it) != null ? '<span title="How credible the source is, from the room\'s own table">Source credibility ' + crOf(it) + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + 'Viral ' + it._v + '</span>' : '') + (it.q ? '<span class="q">&#9733; Top pick</span>' : '') + (it.g ? '<span class="gr">Graphic footage</span>' : '') +
-      (it.edu ? '<span class="ed">Explainer</span>' : '') + (it.own ? '<span class="own">Creator\'s own</span>' : '') + (it.pend ? '<span class="pend">Being checked</span>' : '') +
+    var srcName = it.src === 'Document' ? T('the document') : it.src === 'News' ? (it.h || T('the news site')) : T(it.src);
+    var rg = isRegime(it), lit = pics() || it._pics;          // regime media: never a link; a Persian page: pictures only once tapped
+    var chips = '<span class="pfc" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'ir-mk') + esc(T('{kind} on {pf}', { kind: it.k === 'image' ? T('Picture') : KIND_N[kindOf(it)], pf: pfName(pfOf(it)) })) + '</span>' +
+      (it.hot != null ? '<span class="hotc">' + flame() + T('Hot {n}', { n: N(it.hot) }) + '</span>' : '') + (crOf(it) != null ? '<span title="' + T('How credible the source is, from the room\'s own table') + '">' + T('Source credibility {n}', { n: N(crOf(it)) }) + '</span>' : '') + (it._v != null ? '<span class="virc">' + ICO.viral + T('Viral {n}', { n: N(it._v) }) + '</span>' : '') + (it.q ? '<span class="q">&#9733; ' + T('Top pick') + '</span>' : '') + (it.g ? '<span class="gr">' + T('Graphic footage') + '</span>' : '') +
+      (it.edu ? '<span class="ed">' + T('Explainer') + '</span>' : '') + (it.own ? '<span class="own">' + T('Creator\'s own') + '</span>' : '') + (it.pend ? '<span class="pend">' + T('Being checked') + '</span>' : '') + (rg ? '<span class="rgc">' + T('Regime media') + '</span>' : '') +
       tkOf(it).map(function (k) { return '<span class="tpc">' + esc(TOPN[k][1]) + '</span>'; }).join('') +
-      (S.lens === 'bank' ? (it.tp || []).map(function (t) { return '<span class="bt" title="Tagged in the bank">' + esc(topics[t]) + '</span>'; }).join('') : '');
-    var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? ' (the date it shows)' : '') : it.pend ? 'Sent ' + ago(it.ms) : 'No date on it';
-    var where = [it.p === 'global' && it.pw ? it.pw : placeName(it.p)].concat((it.a || []).map(placeName)).join(', ');
-    var by = it.by ? ' · sent by ' + esc(it.by) : '';
+      (S.lens === 'bank' ? (it.tp || []).map(function (t) { return '<span class="bt" title="' + T('Tagged in the bank') + '">' + esc(T(topics[t])) + '</span>'; }).join('') : '');
+    var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? T(' (the date it shows)') : '') : it.pend ? T('Sent {t}', { t: ago(it.ms) }) : T('No date on it');
+    var where = [it.p === 'global' && it.pw ? it.pw : placeName(it.p)].concat((it.a || []).map(placeName)).join(T(', '));
+    var by = it.by ? ' · ' + T('sent by {who}', { who: esc(it.by) }) : '';
+    var stage = y ? (lit ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)">' : '<div class="ir-s-v is-dark">') + '<button type="button" data-play="' + y + '" aria-label="' + T('Play it here') + '"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>'
+      : mediaOf(it).length ? (lit ? mediaHtml(it) : '<button type="button" class="ir-s-b ir-pics1" data-pics1>' + T('Show the pictures and video ({n})', { n: N(mediaOf(it).length) }) + '</button>') : heroHtml(it);
     dlg.innerHTML = '<div class="ir-s-in">' +
-      '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + (i + 1) + ' of ' + shown.length + '</span><button class="ir-s-x" type="button" data-x aria-label="Close">&times;</button></div>' +
+      '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + T('{i} of {n}', { i: N(i + 1), n: N(shown.length) }) + '</span><button class="ir-s-x" type="button" data-x aria-label="' + T('Close') + '">&times;</button></div>' +
       // an X post's WHOLE text, never its 160-character title (18 Oct 2026: "if i can't read the full thing, it is useless")
-      '<h2 id="ir-spot-t"' + (xWords(it) ? ' class="vh"' : fullText(it).length > 140 ? ' class="is-long"' : '') + '>' + esc(fullText(it)) + '</h2>' +
-      '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + esc(it.h && it.src !== 'News' ? it.h + ' on ' + it.src : it.h || it.src) + by + '</p>' +
+      '<h2 id="ir-spot-t"' + DA + (xWords(it) && lit ? ' class="vh"' : fullText(it).length > 140 ? ' class="is-long"' : '') + '>' + esc(fullText(it)) + '</h2>' +
+      '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + bd(esc(it.h && it.src !== 'News' ? T('{who} on {pf}', { who: it.h, pf: T(it.src) }) : it.h || it.src)) + by + '</p>' +
       // the thing itself straight under its headline (17 Oct 2026): the video or the pictures, then what is said about it
-      (y ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)"><button type="button" data-play="' + y + '" aria-label="Play it here"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>' : mediaOf(it).length ? mediaHtml(it) : heroHtml(it)) +
+      stage +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
-      spotReach(it) + (rpKey(it) ? '<section class="ir-s-rp" id="ir-s-rp" aria-label="Most-liked replies"></section>' : '') +
-      (it.hotWhy ? '<p class="ir-s-o">Why it is hot: ' + esc(it.hotWhy) + (it.also && it.also.length ? '. Also carried by ' + esc(it.also.join(', ')) : '') + '.</p>' : '') +
+      spotReach(it) + (rpKey(it) && RP_ON ? '<section class="ir-s-rp" id="ir-s-rp" aria-label="' + T('Most-liked replies') + '"></section>' : '') +
+      (it.hotWhy ? '<p class="ir-s-o">' + T('Why it is hot: ') + esc(it.hotWhy) + (it.also && it.also.length && !it.ls ? T('. Also carried by ') + bd(esc(it.also.join(T(', ')))) : '') + '.</p>' : '') +
+      spotSpread(it) +
       (it.n ? '<p class="ir-s-n">' + esc(it.n) + '</p>' : '') + spotLinks(it) +
-      (it.o ? '<p class="ir-s-o">In the bank: ' + esc(it.o) + '</p>' : '') +
-      (it.pend ? '<p class="ir-s-o">A reader sent this in. It is not checked yet, so it is not on the map: open it with that in mind.</p>' : '') +
-      '<div class="ir-s-a"><a class="ir-s-open" href="' + esc(it.u) + '" target="_blank" rel="noopener">Open on ' + esc(srcName) + '</a>' +
-      (it.p !== 'global' ? '<button class="ir-s-b" type="button" data-map>Show on the map</button>' : '') +
-      '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="Previous"' + (i ? '' : ' disabled') + '>&larr;</button><button type="button" data-step="1" aria-label="Next"' + (i < shown.length - 1 ? '' : ' disabled') + '>&rarr;</button></div></div>' +
-      '<p class="ir-s-f">Weak, wrong, or missing context? <a href="#feedback" data-kind="wrong" data-about="' + esc(('Intel Room: ' + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="page:intel" data-close-spot>Say why in the discussion</a>. That is how the room gets better.</p>' +
+      (it.o ? '<p class="ir-s-o">' + T('In the bank: ') + esc(it.o) + '</p>' : '') +
+      (it.pend ? '<p class="ir-s-o">' + T('A reader sent this in. It is not checked yet, so it is not on the map: open it with that in mind.') + '</p>' : '') +
+      (rg ? '<p class="ir-s-o ir-s-rgn"><b>' + T('Regime media') + '</b> ' + T("Not linked: opening it would show the regime's servers who you are. You can copy its words.") + '</p>' : '') +
+      '<div class="ir-s-a">' + (rg ? '<button class="ir-s-open" type="button" data-copyt>' + T('Copy the headline') + '</button>' : '<a class="ir-s-open" href="' + esc(it.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + T('Open on {src}', { src: esc(srcName) }) + '</a>') +
+      (it.p !== 'global' ? '<button class="ir-s-b" type="button" data-map>' + T('Show on the map') + '</button>' : '') +
+      '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="' + T('Previous') + '"' + (i ? '' : ' disabled') + '>' + (CFG.rtl ? '&rarr;' : '&larr;') + '</button><button type="button" data-step="1" aria-label="' + T('Next') + '"' + (i < shown.length - 1 ? '' : ' disabled') + '>' + (CFG.rtl ? '&larr;' : '&rarr;') + '</button></div></div>' +
+      '<p class="ir-s-f">' + T('Weak, wrong, or missing context? <a {attrs}>Say why in the discussion</a>. That is how the room gets better.', { attrs: 'href="#feedback" data-kind="wrong" data-about="' + esc((T('Intel Room: ') + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="' + (CFG.talkOn || 'page:intel') + '" data-close-spot' }) + '</p>' +
       '</div>';
     wireMedia(dlg.querySelector('.ir-xm'), it);
     fitVideo(dlg.querySelector('.ir-s-v'), y, it.u);
-    if (rpKey(it)) repliesOf(it, function (e, st) {
+    if (rpKey(it) && RP_ON) repliesOf(it, function (e, st) {
       var box = $('ir-s-rp'); if (!box || spotAt !== i) return;
-      box.innerHTML = repliesHead(it, e) + (e && e.r.length ? repliesHtml(it, e.r.slice(0, 3), false) + (e.r.length > 3 ? '<button type="button" class="ir-s-b ir-rp-all" data-rp-all>Show all ' + e.r.length + '</button>' : '') : repliesNone(it, st));
+      box.innerHTML = repliesHead(it, e) + (e && e.r.length ? repliesHtml(it, e.r.slice(0, 3), false) + (e.r.length > 3 ? '<button type="button" class="ir-s-b ir-rp-all" data-rp-all>' + T('Show all {n}', { n: N(e.r.length) }) + '</button>' : '') : repliesNone(it, st));
     });
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
@@ -1838,29 +1990,30 @@
     var base = items.filter(function (x) { return pass(x, 'link'); }), r = linksOf(it, base);
     if (!r.n) return '';
     var why = [], h = STORY_OF[it.id], ac = actorsOf(it).map(function (a) { return ACN[a]; }), nm = namesOf(it);
-    if (h) why.push('the same story');
-    if (ac.length) why.push(ac.slice(0, 3).join(', '));
-    if (nm.length) why.push(nm.slice(0, 3).join(', '));
-    return '<div class="ir-s-lk">' + ICO.link + '<span><b>Connected to ' + r.n + (r.n === 1 ? ' item' : ' items') + ' in other places</b><small>Through ' + esc(why.join('; ')) + '</small></span>' +
-      '<button type="button" class="ir-s-b" data-with="' + esc(String(it.id)) + '">Show on the map</button></div>';
+    if (h) why.push(T('the same story'));
+    if (ac.length) why.push(ac.slice(0, 3).join(T(', ')));
+    if (nm.length) why.push(nm.slice(0, 3).map(cName).join(T(', ')));
+    return '<div class="ir-s-lk">' + ICO.link + '<span><b>' + T(r.n === 1 ? 'Connected to 1 item in other places' : 'Connected to {n} items in other places', { n: N(r.n) }) + '</b><small>' + T('Through {why}', { why: esc(why.join(T('; '))) }) + '</small></span>' +
+      '<button type="button" class="ir-s-b" data-with="' + esc(String(it.id)) + '">' + T('Show on the map') + '</button></div>';
   }
   function spotReach(it) {
     var r = reachOf(it), p = pfOf(it), nm = pfName(p), bits = [];
-    if (r && r.x) return '<p class="ir-s-r">' + esc(nm) + ' no longer shows this one\'s counts: it was deleted, made private or put behind a login.</p>';
-    if (!r) return HIDES[p] ? '<p class="ir-s-r ir-s-rx">' + esc(nm) + ' does not show its like counts without a login, so none is shown here.</p>' : '';
-    if (r.lk != null) bits.push('<span>' + ICO.like + '<b class="num">' + r.lk.toLocaleString('en-US') + '</b> likes</span>');
-    if (r.vw != null) bits.push('<span>' + ICO.view + '<b class="num">' + (r['~'] ? 'about ' : '') + r.vw.toLocaleString('en-US') + '</b> views</span>');
-    if (r.rp != null) bits.push('<span>' + ICO.reply + '<b class="num">' + r.rp.toLocaleString('en-US') + '</b> replies</span>');
-    if (r.rs != null) bits.push('<span>' + ICO.repost + '<b class="num">' + r.rs.toLocaleString('en-US') + '</b> reposts</span>');
+    if (r && r.x) return '<p class="ir-s-r">' + esc(T('{pf} no longer shows this one\'s counts: it was deleted, made private or put behind a login.', { pf: nm })) + '</p>';
+    if (!r) return HIDES[p] ? '<p class="ir-s-r ir-s-rx">' + esc(T('{pf} does not show its like counts without a login, so none is shown here.', { pf: nm })) + '</p>' : '';
+    if (r.lk != null) bits.push('<span>' + ICO.like + '<b class="num">' + LN(r.lk) + '</b> ' + T('likes') + '</span>');
+    if (r.vw != null) bits.push('<span>' + ICO.view + '<b class="num">' + (r['~'] ? T('about ') : '') + LN(r.vw) + '</b> ' + T('views') + '</span>');
+    if (r.rp != null) bits.push('<span>' + ICO.reply + '<b class="num">' + LN(r.rp) + '</b> ' + T('replies') + '</span>');
+    if (r.rs != null) bits.push('<span>' + ICO.repost + '<b class="num">' + LN(r.rs) + '</b> ' + T('reposts') + '</span>');
     if (!bits.length) return '';
-    var when = r.at ? (Date.parse(r.at) ? ' Counted ' + ago(Date.parse(r.at)) + '.' : '') : '';
-    return '<p class="ir-s-r">' + bits.join('') + '<small>On ' + esc(nm) + ', as ' + esc(nm) + ' shows them.' + when + (it._v != null ? ' ' + esc(viralWhy(it)) + '.' : '') + '</small></p>';
+    var when = r.at ? (Date.parse(r.at) ? T(' Counted {t}.', { t: ago(Date.parse(r.at)) }) : '') : '';
+    return '<p class="ir-s-r">' + bits.join('') + '<small>' + esc(T('On {pf}, as {pf} shows them.', { pf: nm })) + when + (it._v != null ? ' ' + esc(viralWhy(it)) + '.' : '') + '</small></p>';
   }
   /* ------------------------------------------------------------ the most-liked replies (18 October 2026)
      Armin: "for every posts you have to have the options to check the comments with the highest likes. so we can read and
      talk about people's comments on each post." build/intel_replies.py reads them (X through the X hunt's own account and
      cap, YouTube free) into assets/intel-replies.json, which is fetched the first time a reply panel opens, never on load.
      Keys: "x:<status id>", "yt:<video id>". The show screen (intel-prep.js) draws the same rows through R.repliesHtml. */
+  var RP_ON = CFG.replies !== false;          // Iran Uncensored reads no replies: the panel is not drawn at all
   var RP = null, rpWait = null, YT_AV = /^https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[A-Za-z0-9_\-=\/.~]+$/;
   function rpKey(it) {
     var m = /^https:\/\/(?:www\.)?(?:x|twitter)\.com\/[A-Za-z0-9_]{1,15}\/status\/(\d{5,25})/.exec(it && it.u || '');
@@ -1881,6 +2034,7 @@
   }
   function rpWhere(it) { return rpKey(it).slice(0, 2) === 'yt' ? 'YouTube' : 'X'; }
   function rpFace(k, r) {
+    if (!pics()) return '';
     var a = String(r.av || '');
     if (k === 'x' && /^https:\/\/pbs\.twimg\.com\/profile_images\/\d+\/[A-Za-z0-9_-]+_normal\.(?:jpg|jpeg|png|webp)$/.test(a)) return a.replace(/_normal\.(\w+)$/, '_200x200.$1');
     if (k === 'yt' && YT_AV.test(a)) return a.replace(/=s\d+-/, '=s176-');
@@ -1888,12 +2042,12 @@
   }
   function repliesHead(it, e) {
     var n = e && e.r ? e.r.length : 0;
-    return '<p class="ir-rp-hd">' + ICO.reply + '<b>' + (n ? 'Top ' + n + ' ' : '') + (rpWhere(it) === 'X' ? 'replies' : 'comments') + '</b><span>most liked first, on ' + rpWhere(it) + (e && e.at && Date.parse(e.at) ? ', read ' + ago(Date.parse(e.at)) : '') + '</span></p>';
+    return '<p class="ir-rp-hd">' + ICO.reply + '<b>' + (n ? T('Top {n} ', { n: N(n) }) : '') + (rpWhere(it) === 'X' ? T('replies') : T('comments')) + '</b><span>' + T('most liked first, on {pf}', { pf: pfName(rpWhere(it)) }) + (e && e.at && Date.parse(e.at) ? T(', read {t}', { t: ago(Date.parse(e.at)) }) : '') + '</span></p>';
   }
   function repliesNone(it, st) {
-    var on = rpWhere(it), what = on === 'X' ? 'replies' : 'comments';
-    return '<p class="ir-rp-no">' + (st === 'ok' ? 'Nobody had replied when it was read.' : st === 'off' ? 'The ' + what + ' could not be loaded here.' : 'The top ' + what + ' are not read for this one yet.') +
-      ' <a href="' + esc(it.u) + '" target="_blank" rel="noopener">Read the ' + what + ' on ' + on + '</a></p>';
+    var on = rpWhere(it), x = on === 'X';
+    return '<p class="ir-rp-no">' + (st === 'ok' ? T('Nobody had replied when it was read.') : st === 'off' ? T(x ? 'The replies could not be loaded here.' : 'The comments could not be loaded here.') : T(x ? 'The top replies are not read for this one yet.' : 'The top comments are not read for this one yet.')) +
+      ' <a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + T(x ? 'Read the replies on {pf}' : 'Read the comments on {pf}', { pf: pfName(on) }) + '</a></p>';
   }
   // the rows: a button each on the show screen (so one can be put on the screen alone), a link to the reply in the room
   function repliesHtml(it, list, asButtons) {
@@ -1902,12 +2056,20 @@
       var face = rpFace(k, r), nm = String(r.nm || ''), h = r.h && r.h !== nm ? r.h : '';
       var inner = (face ? '<span class="ir-rp-av" style="background-image:url(' + esc(face) + ')"></span>' : '<span class="ir-rp-av is-mono">' + esc(nm.replace(/^@/, '').slice(0, 1).toUpperCase() || '?') + '</span>') +
         '<span class="ir-rp-b"><span class="ir-rp-who"><b>' + esc(nm) + '</b>' + (h ? '<small>' + esc(h) + '</small>' : '') + (Date.parse(r.d) ? '<small>' + esc(ago(Date.parse(r.d))) + '</small>' : '') +
-        '<span class="ir-rp-lk" title="Likes">' + ICO.like + '<b class="num">' + fmtN(r.lk || 0) + '</b></span></span><span class="ir-rp-t">' + esc(r.t) + '</span></span>';
-      return '<li>' + (asButtons ? '<button type="button" class="ir-rp" data-rp="' + n + '" aria-label="Put this reply on the screen">' + inner + '</button>'
+        '<span class="ir-rp-lk" title="' + T('Likes') + '">' + ICO.like + '<b class="num">' + fmtN(r.lk || 0) + '</b></span></span><span class="ir-rp-t">' + esc(r.t) + '</span></span>';
+      return '<li>' + (asButtons ? '<button type="button" class="ir-rp" data-rp="' + n + '" aria-label="' + T('Put this reply on the screen') + '">' + inner + '</button>'
         : '<a class="ir-rp" href="' + esc(r.u) + '" target="_blank" rel="noopener">' + inner + '</a>') + '</li>';
     }).join('') + '</ol>';
   }
   function fullText(it) { return it && it.src === 'X' && it.tx && it.tx.length > String(it.t || '').length ? it.tx : String(it && it.t || ''); }
+  // Pictures on or off for this device (Iran Uncensored's Persian page; Views and tools). Saved, and said, both ways.
+  function setPics(on) {
+    picsOn = !!on || !CFG.light;
+    try { localStorage.setItem('ir-pics', picsOn ? 'on' : 'off'); } catch (e) { }
+    var b = $('ir-pics'); if (b) { b.setAttribute('aria-pressed', picsOn ? 'true' : 'false'); var sp = b.querySelector('span'); if (sp) sp.textContent = picsOn ? T('Pictures: on') : T('Pictures: only when I tap'); }
+    LOC = {}; render(); drawWire();
+    say(picsOn ? T('Pictures and videos now load on this device. Switch them off here any time.') : T('Nothing from another site loads until you tap it.'));
+  }
   function closeSpot() { var d = $('ir-spot'); spotAt = -1; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
 
   /* ------------------------------------------------------------ an X post's pictures and video (17 October 2026) */
@@ -1937,14 +2099,14 @@
     vids.forEach(function (r) {
       var d = fmtDur(r.s || it.dur), gif = r.t === 'g';
       h += '<div class="ir-xv" style="--ar:' + arOf(r) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (h ? '' : ' fetchpriority="high"') + '>' +
-        '<button type="button" class="ir-xv-play" data-xplay="' + md.indexOf(r) + '" aria-label="' + esc((gif ? 'Play the clip' : 'Play the video') + ' from ' + who + ' here' + (d ? ', ' + d + ' long' : '')) + '">' + PLAY_SVG + '<span class="num">' + esc(gif ? 'GIF' : d || 'Play') + '</span></button></div>';
+        '<button type="button" class="ir-xv-play" data-xplay="' + md.indexOf(r) + '" aria-label="' + esc(T(gif ? 'Play the clip from {who} here' : 'Play the video from {who} here', { who: who }) + (d ? T(', {d} long', { d: N(d) }) : '')) + '">' + PLAY_SVG + '<span class="num">' + esc(gif ? 'GIF' : d ? N(d) : T('Play')) + '</span></button></div>';
     });
     if (ph.length) {
       h += '<div class="ir-xp ir-xp-n' + ph.length + '"' + (ph.length === 1 ? ' style="--ar:' + arOf(ph[0]) + '"' : '') + '>' + ph.map(function (r, j) {
-        return '<button type="button" data-lb="' + j + '" aria-label="' + esc('See picture ' + (j + 1) + ' of ' + ph.length + ' from ' + who + ' full size') + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (j < 2 ? ' fetchpriority="high"' : ' loading="lazy"') + '><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
+        return '<button type="button" data-lb="' + j + '" aria-label="' + esc(T('See picture {i} of {n} from {who} full size', { i: N(j + 1), n: N(ph.length), who: who })) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (j < 2 ? ' fetchpriority="high"' : ' loading="lazy"') + '><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
       }).join('') + '</div>';
     }
-    return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>' + (it.g ? 'Graphic footage. Show it' : 'X marks this as possibly sensitive. Show it') + '</button>' : '') + '</div>';
+    return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>' + (it.g ? T('Graphic footage. Show it') : T('X marks this as possibly sensitive. Show it')) + '</button>' : '') + '</div>';
   }
   // the clicks inside one .ir-xm; fallback(holder) replaces the native player when the video will not play
   function wireMedia(box, it, fallback) {
@@ -1973,7 +2135,7 @@
     var done = false, fail = function () { if (done) return; done = true; (fallback || xEmbed)(holder, it); };
     if (!r.v) { fail(); return; }
     var gif = r.t === 'g', f = document.createElement('iframe');
-    f.className = 'ir-xv-f'; f.title = (gif ? 'Clip' : 'Video') + ' from ' + (it.h || 'X');
+    f.className = 'ir-xv-f'; f.title = T(gif ? 'Clip from {who}' : 'Video from {who}', { who: it.h || 'X' });
     f.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture'); f.setAttribute('allowfullscreen', ''); f.setAttribute('referrerpolicy', 'no-referrer');
     f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}video{display:block;width:100%;height:100%;object-fit:contain;background:#000}</style></head><body>' +
       '<video src="' + esc(r.v) + '" poster="' + esc(pic(r, 'large')) + '" playsinline autoplay preload="auto"' + (gif ? ' muted loop' : ' controls') + '></video></body></html>';
@@ -2009,12 +2171,12 @@
     var id = tweetId(it.u), md = mediaOf(it), r = md.filter(function (x) { return x.t !== 'p'; })[0] || md[0];
     holder.classList.add('is-embed'); holder.classList.remove('is-on');
     holder.innerHTML = (r ? '<img src="' + esc(pic(r, 'large')) + '" alt="" decoding="async">' : '') +
-      '<a class="ir-xv-out" href="' + esc(it.u) + '" target="_blank" rel="noopener">' + PLAY_SVG + '<span>Watch it on X</span></a>' +
-      '<p class="ir-xm-msg" aria-live="polite">' + (id ? 'Loading X\'s own player' : 'This one plays on X') + '</p>';
+      '<a class="ir-xv-out" href="' + esc(it.u) + '" target="_blank" rel="noopener">' + PLAY_SVG + '<span>' + T('Watch it on X') + '</span></a>' +
+      '<p class="ir-xm-msg" aria-live="polite">' + (id ? T('Loading X\'s own player') : T('This one plays on X')) + '</p>';
     if (!id) return;
     var msg = holder.querySelector('.ir-xm-msg'), b = document.createElement('div');
     b.className = 'ir-xv-emb'; holder.appendChild(b);
-    var gone = function () { if (holder.isConnected && msg) msg.textContent = 'X\'s player did not load here. Tap above to watch it on X.'; };
+    var gone = function () { if (holder.isConnected && msg) msg.textContent = T('X\'s player did not load here. Tap above to watch it on X.'); };
     twJs().then(function (T) { return T.widgets.createTweet(id, b, { theme: 'dark', dnt: true, align: 'center', conversation: 'none' }); })
       .then(function (w) {
         if (!w) throw new Error('none');
@@ -2063,12 +2225,12 @@
     var n = LB._list.length; if (i < 0 || i >= n || i === LB._at) return;
     LB._at = i; LB.classList.remove('is-zoom');
     var r = LB._list[i], it = LB._it;
-    LB.setAttribute('aria-label', 'Picture ' + (i + 1) + ' of ' + n + ' from ' + (it.h || 'X'));
+    LB.setAttribute('aria-label', T('Picture {i} of {n} from {who}', { i: N(i + 1), n: N(n), who: it.h || 'X' }));
     LB.innerHTML = '<div class="ir-lb-in"><img class="ir-lb-img" src="' + esc(pic(r, 'large')) + '" alt="' + esc(it.t) + '"></div>' +
-      (n > 1 ? '<button type="button" class="ir-lb-nav prev" data-lb-step="-1" aria-label="Previous picture"' + (i ? '' : ' disabled') + '>&lsaquo;</button><button type="button" class="ir-lb-nav next" data-lb-step="1" aria-label="Next picture"' + (i < n - 1 ? '' : ' disabled') + '>&rsaquo;</button>' : '') +
-      '<div class="ir-lb-bar">' + (n > 1 ? '<span class="ir-lb-n num">' + (i + 1) + ' of ' + n + '</span>' : '') +
-      '<a href="' + esc(pic(r, 'orig')) + '" target="_blank" rel="noopener">Full size</a><a href="' + esc(it.u) + '" target="_blank" rel="noopener">Open on X</a>' +
-      '<button type="button" class="ir-lb-x" data-lb-x aria-label="Close">&times;</button></div>';
+      (n > 1 ? '<button type="button" class="ir-lb-nav prev" data-lb-step="-1" aria-label="' + T('Previous picture') + '"' + (i ? '' : ' disabled') + '>&lsaquo;</button><button type="button" class="ir-lb-nav next" data-lb-step="1" aria-label="' + T('Next picture') + '"' + (i < n - 1 ? '' : ' disabled') + '>&rsaquo;</button>' : '') +
+      '<div class="ir-lb-bar">' + (n > 1 ? '<span class="ir-lb-n num">' + T('{i} of {n}', { i: N(i + 1), n: N(n) }) + '</span>' : '') +
+      '<a href="' + esc(pic(r, 'orig')) + '" target="_blank" rel="noopener">' + T('Full size') + '</a><a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + T('Open on X') + '</a>' +
+      '<button type="button" class="ir-lb-x" data-lb-x aria-label="' + T('Close') + '">&times;</button></div>';
   }
   function lbClose() { if (!LB) return; if (LB.open) { if (LB.close) LB.close(); else { LB.removeAttribute('open'); LB.innerHTML = ''; } } }
   function pulseAt(k) {
@@ -2084,9 +2246,9 @@
     if (!it) { lt.hidden = true; lt.innerHTML = ''; return; }
     var lv = it.sn ? { k: 'mono' } : vis(it), th = lv.u || '';
     lt.innerHTML = (th ? '<span class="ir-lt-th' + (lv.k === 'av' ? ' is-av' : '') + '" style="background-image:url(' + (lv.k === 'loc' ? th : esc(th)) + ')"></span>' : '') +
-      '<span class="ir-lt-b"><span class="ir-lt-k">' + esc(LENS[S.lens]) + (it.hot != null ? ' · <b>' + flame() + 'Hot ' + it.hot + '</b>' : it.q ? ' · <b>&#9733; Top pick</b>' : '') + '</span>' +
-      '<span class="ir-lt-t">' + esc(it.t) + '</span><span class="ir-lt-m">' + mark(it, 'ir-mk') + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + ' · ' + esc(it.h || it.src) + '</span>' + reachLine(it) + '</span>' +
-      '<span class="ir-lt-n num">' + (tourAt + 1) + '/' + Math.min(shown.length, 30) + '</span>';
+      '<span class="ir-lt-b"><span class="ir-lt-k">' + esc(LENS[S.lens]) + (it.hot != null ? ' · <b>' + flame() + T('Hot {n}', { n: N(it.hot) }) + '</b>' : it.q ? ' · <b>&#9733; ' + T('Top pick') + '</b>' : '') + '</span>' +
+      '<span class="ir-lt-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-lt-m">' + mark(it, 'ir-mk') + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + ' · ' + bd(esc(it.h || it.src)) + '</span>' + reachLine(it) + '</span>' +
+      '<span class="ir-lt-n num">' + N(tourAt + 1) + '/' + N(Math.min(shown.length, 30)) + '</span>';
     lt.hidden = false;
   }
   function tourStep(dir) {
@@ -2103,26 +2265,28 @@
     if (!shown.length) return;
     closeSpot(); tourAt = -1; tourStep(1);
     clearInterval(tourT); tourT = setInterval(function () { tourStep(1); }, TOUR_MS);
-    $('ir-tour').setAttribute('aria-pressed', 'true'); $('ir-tour').querySelector('span').textContent = 'Stop tour';
+    $('ir-tour').setAttribute('aria-pressed', 'true'); $('ir-tour').querySelector('span').textContent = T('Stop tour');
   }
   function stopTour() {
     if (!tourT && $('ir-lt').hidden) return;
     clearInterval(tourT); tourT = 0; lowerThird(null);
-    $('ir-tour').setAttribute('aria-pressed', 'false'); $('ir-tour').querySelector('span').textContent = 'Tour';
+    $('ir-tour').setAttribute('aria-pressed', 'false'); $('ir-tour').querySelector('span').textContent = T('Tour');
   }
 
   /* ------------------------------------------------------------ full screen, for a stream */
   var clockT = 0;
   function clock() {
     // US Eastern, always: the shows are on Eastern time, and the computer's own clock would say where it is.
-    try { $('ir-clock').textContent = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(new Date()) + ' ET'; } catch (e) { $('ir-clock').textContent = ''; }
+    // Iran Uncensored: Tehran time (CFG.clock), the hour its audience lives by, and never the computer's own either.
+    var ck = CFG.clock || { tz: 'America/New_York', locale: 'en-US', label: ' ET' };
+    try { $('ir-clock').textContent = new Intl.DateTimeFormat(ck.locale || 'en-US', { timeZone: ck.tz, hour: 'numeric', minute: '2-digit' }).format(new Date()) + ck.label; } catch (e) { $('ir-clock').textContent = ''; }
   }
   function stream(on) {
     var h = document.documentElement;
     if (on === undefined) on = !h.classList.contains('ir-show');
     h.classList.toggle('ir-show', on);
     if (!on) { h.classList.remove('ir-ctl-on'); $('ir-ctl').setAttribute('aria-pressed', 'false'); }
-    $('ir-stream').querySelector('span').textContent = on ? 'Leave full screen' : 'Full screen';
+    $('ir-stream').querySelector('span').textContent = on ? T('Leave full screen') : T('Full screen');
     $('ir-stream').setAttribute('aria-pressed', on ? 'true' : 'false');
     if (on) { clock(); clockT = setInterval(clock, 15000); poke(); spin(); } else { clearInterval(clockT); }
     if (on && h.requestFullscreen && !document.fullscreenElement) h.requestFullscreen().catch(function () {});
@@ -2133,7 +2297,22 @@
   function refit() { pinSig = ''; requestDraw(); }          // the view is a place and a zoom, so a new size only redraws it
 
   /* ------------------------------------------------------------ copy notes: the list as text, for show prep */
+  /* COPY THE ROUNDUP (Iran Uncensored: CFG.roundup). The pack in the shape Kaveh sends before a show: numbered, X and YouTube
+     first, one short line and the link each, 25 at most. Regime media is left out (it has no link to give) and the count of
+     what was left out is said. */
+  function clipT(t, n) { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…'; }
+  function roundup() {
+    var rg = shown.filter(isRegime).length, ok = shown.filter(function (it) { return !isRegime(it) && /^https:\/\//.test(String(it.u || '')); });
+    var first = ok.filter(function (it) { return it.src === 'X' || it.src === 'YouTube'; }), rest = ok.filter(function (it) { return it.src !== 'X' && it.src !== 'YouTube'; });
+    var pick = first.concat(rest).slice(0, 25);
+    if (!pick.length) { say(T('Nothing to copy. Clear a filter first.')); return; }
+    var txt = pick.map(function (it, i) { return N(i + 1) + '. ' + clipT(it.t, 100) + '\n' + it.u; }).join('\n\n');
+    var done = function () { say(T('Copied {n}, X and YouTube first. Paste it into a chat.', { n: N(pick.length) }) + (rg ? T(' {m} from regime media left out: they have no link to give.', { m: N(rg) }) : '')); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallbackCopy(txt, done); });
+    else fallbackCopy(txt, done);
+  }
   function copyNotes() {
+    if (CFG.roundup) { roundup(); return; }
     var head = 'Intel Room, ' + LENS[S.lens].toLowerCase() + ($('ir-said').textContent ? ': ' + $('ir-said').textContent.replace(/\s*Clear$/, '') : '') + '\n' + location.href + '\n\n';
     var txt = head + shown.slice(0, 40).map(function (it, i) {
       var r = reachOf(it), n = r && !r.x ? [r.lk != null ? r.lk.toLocaleString('en-US') + ' likes' : '', r.vw != null ? (r['~'] ? '~' : '') + r.vw.toLocaleString('en-US') + ' views' : ''].filter(Boolean).join(', ') : '';
@@ -2146,7 +2325,7 @@
   function fallbackCopy(txt, done) {
     var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { say('Copying is blocked in this browser. Select the list and copy it by hand.'); }
+    try { document.execCommand('copy'); done(); } catch (e) { say(T('Copying is blocked in this browser. Select the list and copy it by hand.')); }
     document.body.removeChild(ta);
   }
 
@@ -2176,18 +2355,18 @@
       form.addEventListener('submit', function (ev) {
         ev.preventDefault();
         var u = R.user(), text = ta.value.trim();
-        if (!u) { say('You were signed out. Sign in again.', true); return; }
-        if (text.length < 3) { say('Write a few words first.', true); ta.focus(); return; }
-        if (!u.displayName) { say('Choose the name shown with your notes first: tap your account at the top.', true); return; }
-        if (!u.emailVerified) { say('Confirm your email first: open the link I sent when you made the account.', true); return; }
+        if (!u) { say(T('You were signed out. Sign in again.'), true); return; }
+        if (text.length < 3) { say(T('Write a few words first.'), true); ta.focus(); return; }
+        if (!u.displayName) { say(T('Choose the name shown with your notes first: tap your account at the top.'), true); return; }
+        if (!u.emailVerified) { say(T('Confirm your email first: open the link I sent when you made the account.'), true); return; }
         var url = location.protocol === 'https:' ? ('https://' + location.host + location.pathname).slice(0, 400) : '';
-        go.disabled = true; say('Sending.');
+        go.disabled = true; say(T('Sending.'));
         R.fb().then(function (x) {
-          return R.within(20000, x.F.setDoc(x.F.doc(x.F.collection(x.db, 'teamroom')), { uid: u.uid, name: u.displayName, kind: 'idea', text: ('Intel Room: ' + text).slice(0, 1500), url: url, parent: '', createdAt: x.F.serverTimestamp() }));
+          return R.within(20000, x.F.setDoc(x.F.doc(x.F.collection(x.db, 'teamroom')), { uid: u.uid, name: u.displayName, kind: 'idea', text: (T('Intel Room: ') + text).slice(0, 1500), url: url, parent: '', createdAt: x.F.serverTimestamp() }));
         }).then(function () {
-          ta.value = ''; say('Sent to the team room. I answer you there, usually the same day.');
+          ta.value = ''; say(T('Sent to the team room. I answer you there, usually the same day.'));
         }, function (e) {
-          say(e && e.code === 'permission-denied' ? 'The idea was refused. Load the page again; if it keeps happening, your account may be off the team list.' : 'The idea could not be sent. Check your connection and try again.', true);
+          say(e && e.code === 'permission-denied' ? T('The idea was refused. Load the page again; if it keeps happening, your account may be off the team list.') : T('The idea could not be sent. Check your connection and try again.'), true);
         }).then(function () { go.disabled = false; });
       });
     });
@@ -2196,7 +2375,7 @@
   function parseFind(id, d) {
     var lines = String(d.text || '').split('\n'), what = [], f = {};
     lines.forEach(function (l) { var m = FIELD.exec(l.trim()); if (m) f[m[1].toLowerCase()] = m[2].trim(); else if (l.trim()) what.push(l.trim()); });
-    var t = what.join(' ').slice(0, 160) || 'A link a reader sent';
+    var t = what.join(' ').slice(0, 160) || T('A link a reader sent');
     var it = { id: 'R' + id, rid: id, t: t, u: d.url, src: srcOf(d.url), p: 'global', tp: [], k: ytId(d.url) || d.kind === 'video' ? 'video' : srcOf(d.url) === 'X' || srcOf(d.url) === 'Telegram' ? 'post' : 'article',
       by: d.name || '', own: d.about === FIND_KEYS[1], pend: 1, ms: d.createdAt || 0 };
     if (f.when && /^\d{4}-\d{2}-\d{2}$/.test(f.when)) it.d = f.when;
@@ -2248,7 +2427,31 @@
     if (f.who === 'mine') lines.push('Mine: yes, I made it');
     return lines.join('\n').slice(0, MAXT);
   }
+  /* THE IRAN SITE'S FORM (CFG.addSimple): the link and one line, nothing else, with the safety line, as its Newsroom asked. A
+     private chat or group and a regime server are refused before anything is sent (PRIVATE below, isRegime). The fields the
+     full form has are there, hidden and empty, so everything that reads the form reads it the same way. */
+  var PRIVATE = [/^https:\/\/(t|telegram)\.me\/(\+|joinchat\/|c\/)/i, /^https:\/\/(chat|api)\.whatsapp\.com\//i, /^https:\/\/wa\.me\//i,
+    /^https:\/\/(signal\.group|signal\.me)\//i, /^https:\/\/(www\.)?(m\.me|messenger\.com)\//i, /^https:\/\/(www\.)?instagram\.com\/direct\//i,
+    /^https:\/\/(www\.|m\.)?facebook\.com\/(messages|groups)\//i, /^https:\/\/(discord\.gg|(www\.)?discord(app)?\.com\/invite)\//i,
+    /^https:\/\/(www\.)?(x|twitter)\.com\/(messages|i\/chat)\b/i, /^https:\/\/([a-z0-9-]+\.)?(eitaa\.com|rubika\.ir|ble\.ir|splus\.ir|igap\.net|soroush-app\.ir)\b/i];
+  function addSimpleHtml() {
+    return '<form class="ir-a ir-a-simple" id="ir-a" novalidate>' +
+      '<div class="ir-a-top"><p class="ir-a-k"><span class="ir-a-badge">' + T('Scout') + '</span><span id="ir-a-xp">' + T('+{n} XP when it is accepted', { n: N(XP.find) }) + '</span></p><button class="ir-s-x" type="button" data-a-x aria-label="' + T('Close') + '">&times;</button></div>' +
+      '<h2 id="ir-add-h">' + T('Bring a public post') + '</h2>' +
+      '<p class="ir-a-lede">' + T('Seen something public that the news missed? Send the link and one line. I check it before it goes anywhere.') + '</p>' +
+      '<div class="ir-a-f"><label for="ir-a-url">' + T('The link') + '</label>' +
+      '<div class="ir-a-row"><input id="ir-a-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" dir="ltr" maxlength="400" placeholder="https://x.com/..."><button type="button" class="ir-a-paste" id="ir-a-paste" hidden>' + T('Paste') + '</button></div>' +
+      '<div class="ir-a-prev" id="ir-a-prev" hidden></div></div>' +
+      '<div class="ir-a-f"><label for="ir-a-what">' + T('One line: what it shows') + '</label>' +
+      '<textarea id="ir-a-what" rows="2" maxlength="300" placeholder="' + T('For example: workers on strike outside the refinery, filmed today') + '"></textarea></div>' +
+      '<p class="ir-a-fine ir-a-safe">' + T("Only the link and one line. Don't write where you are, who you are, or anyone's name. Links to private chats and groups are refused. If you're inside Iran, don't send anything: your safety comes first.") + '</p>' +
+      '<input type="hidden" id="ir-a-date"><select id="ir-a-place" hidden><option value=""></option></select><input id="ir-a-where" hidden><input type="checkbox" id="ir-a-edu" hidden><input type="checkbox" id="ir-a-gr" hidden><details id="ir-a-more" hidden></details>' +
+      '<p class="ir-a-msg" id="ir-a-msg" aria-live="polite"></p>' +
+      '<div class="ir-a-act"><button type="submit" class="ir-a-send" id="ir-a-send">' + T('Send') + '</button><button type="button" class="ir-s-b" data-a-x>' + T('Cancel') + '</button></div>' +
+      '</form><div class="ir-a-done" id="ir-a-done" hidden></div>';
+  }
   function addHtml() {
+    if (CFG.addSimple) return addSimpleHtml();
     var places = placeOptions(BANK, false);
     var today = new Date().toISOString().slice(0, 10);
     return '<form class="ir-a" id="ir-a" novalidate>' +
@@ -2305,15 +2508,16 @@
     var u = fixUrl($('ir-a-url').value), el = $('ir-a-prev');
     if (!/^https:\/\/[^\s\/<>"']+\.[^\s<>"']+$/.test(u)) { el.hidden = true; el.innerHTML = ''; return null; }
     var y = ytId(u), s = srcOf(u), h = hostOf(u), handle = (/(?:x|twitter)\.com\/([A-Za-z0-9_]+)\/status/i.exec(u) || /t\.me\/(?:s\/)?([A-Za-z0-9_]+)\/\d/.exec(u) || [])[1];
-    var what = y ? 'A YouTube video' : s === 'X' ? 'A post on X' + (handle ? ' by @' + handle : '') : s === 'Telegram' ? 'A Telegram post' + (handle ? ' from @' + handle : '') :
-      s === 'Document' ? 'A document on ' + h : ['Facebook', 'Instagram', 'TikTok', 'Rumble'].indexOf(s) >= 0 ? 'A post on ' + s : 'A page on ' + h;
+    var what = y ? T('A YouTube video') : s === 'X' ? (handle ? T('A post on X by @{h}', { h: handle }) : T('A post on X')) : s === 'Telegram' ? (handle ? T('A Telegram post from @{h}', { h: handle }) : T('A Telegram post')) :
+      s === 'Document' ? T('A document on {site}', { site: h }) : ['Facebook', 'Instagram', 'TikTok', 'Rumble'].indexOf(s) >= 0 ? T('A post on {pf}', { pf: T(s) }) : T('A page on {site}', { site: h });
     var dup = knownUrls()[norm(u)] || RD.filter(function (it) { return norm(it.u) === norm(u); })[0];
-    el.innerHTML = (y ? '<span class="ir-th yt" style="background-image:url(https://i.ytimg.com/vi/' + y + '/mqdefault.jpg)"></span>' : '<span class="ir-th">' + esc(s.length > 9 ? 'WEB' : s) + '</span>') +
-      '<span><b>' + esc(what) + '</b>' + (dup ? '<em class="dup">' + (dup.pend ? 'Someone already sent this one in. It is being checked.' : 'Already in the room: ' + esc(dup.t)) + '</em>' : '<small>Looks good. Now say what it shows.</small>') + '</span>';
+    el.innerHTML = (y && pics() ? '<span class="ir-th yt" style="background-image:url(https://i.ytimg.com/vi/' + y + '/mqdefault.jpg)"></span>' : '<span class="ir-th">' + esc(y ? 'YT' : s.length > 9 ? 'WEB' : s) + '</span>') +
+      '<span><b>' + esc(what) + '</b>' + (dup ? '<em class="dup">' + (dup.pend ? T('Someone already sent this one in. It is being checked.') : T('Already in the room: {t}', { t: esc(dup.t) })) + '</em>' : '<small>' + T('Looks good. Now say what it shows.') + '</small>') + '</span>';
     el.hidden = false;
     return { u: u, dup: dup };
   }
   function whoChanged() {
+    if (CFG.addSimple) return;
     var mine = ((document.querySelector('input[name="ir-who"]:checked') || {}).value === 'mine');
     $('ir-a-xp').textContent = '+' + (mine ? XP.mine : XP.find) + ' XP when it is accepted';
     $('ir-a-what').placeholder = mine ? 'Example: My 10 minute breakdown of the casualty numbers from Gaza, with every source on screen' : 'Example: Hamas gunmen firing from inside a school in Khan Younis, filmed by a resident';
@@ -2336,44 +2540,46 @@
   function sendAdd() {
     if (sending) return;
     var f = af(), pv = preview(), u = pv && pv.u;
-    if (!u) { amsg('Paste the full link first, the one that starts with https://', true); $('ir-a-url').focus(); return; }
-    if (pv.dup) { amsg(pv.dup.pend ? 'Someone already sent this link. It will be on the map once it is checked.' : 'This one is already in the room. Find something it does not have yet.', true); return; }
-    if (f.what.trim().length < 10) { amsg('Say in one line what it shows, so it can be checked and found.', true); $('ir-a-what').focus(); return; }
-    if ($('ir-a-place').value === 'other' && !f.place) { amsg('Write where it is, or pick "Not sure".', true); $('ir-a-where').focus(); return; }
+    if (!u) { amsg(T('Paste the full link first, the one that starts with https://'), true); $('ir-a-url').focus(); return; }
+    if (CFG.addSimple && PRIVATE.some(function (r) { return r.test(u); })) { amsg(T("That's a link to a private chat or group. Only public posts can go here."), true); $('ir-a-url').focus(); return; }
+    if (regimeHost(hostOf(u))) { amsg(T("That link is on the regime's servers. Opening it would show them who you are, so it can't go here."), true); $('ir-a-url').focus(); return; }
+    if (pv.dup) { amsg(pv.dup.pend ? T('Someone already sent this link. It will be on the map once it is checked.') : T('This one is already in the room. Find something it does not have yet.'), true); return; }
+    if (f.what.trim().length < (CFG.addSimple ? 8 : 10)) { amsg(T('Say in one line what it shows, so it can be checked and found.'), true); $('ir-a-what').focus(); return; }
+    if ($('ir-a-place').value === 'other' && !f.place) { amsg(T('Write where it is, or pick "Not sure".'), true); $('ir-a-where').focus(); return; }
     keepDraft();
     var mid = f.who === 'mine' ? MISSION.mine : MISSION.find;
-    sending = true; $('ir-a-send').disabled = true; amsg('Sending...');
+    sending = true; $('ir-a-send').disabled = true; amsg(T('Sending...'));
     lp(function (L) {
-      if (!L || L.off) { sending = false; $('ir-a-send').disabled = false; amsg('Sending is not open on this copy of the site. What you wrote is kept on this device.', true); return; }
+      if (!L || L.off) { sending = false; $('ir-a-send').disabled = false; amsg(T('Sending is not open on this copy of the site. What you wrote is kept on this device.'), true); return; }
       sstore('ir-add-wait', 1);
       // Not signed in: the sign-in panel opens, and a modal form would sit on top of it. Close the form first; it comes
       // back, filled in, the moment they are in (the subscriber in wire()).
       if (!(L.quests.who && L.quests.who())) closeAdd();
-      L.quests.report({ about: 'quest:' + mid, subject: ('Intel Room: ' + f.what.trim()).slice(0, 80), text: compose(f), url: u, made: f.who === 'mine' }, $('ir-a-send')).then(function (r) {
+      L.quests.report({ about: 'quest:' + mid, subject: (T('Intel Room: ') + f.what.trim()).slice(0, 80), text: compose(f), url: u, made: f.who === 'mine' }, $('ir-a-send')).then(function (r) {
         sending = false; $('ir-a-send').disabled = false;
         if (r && r.ok) { sstore('ir-add-wait', null); sstore(DKEY, null); sent(f, u, r.post || {}, mid, L); return; }
         var c = r && r.code;
-        if (c === 'lp/signin' || c === 'lp/name') { closeAdd(); amsg('Sign in, and this comes back with what you wrote. Then press Send it in.'); return; }
+        if (c === 'lp/signin' || c === 'lp/name') { closeAdd(); amsg(T('Sign in, and this comes back with what you wrote. Then press Send it in.')); return; }
         sstore('ir-add-wait', null);
-        if (c === 'lp/closed') amsg('Sending finds is not open yet. What you wrote is kept on this device; try again later.', true);
-        else amsg(esc((r && r.text) || 'That did not go through. Check your connection and press Send it in again. What you wrote is kept.'), true);
+        if (c === 'lp/closed') amsg(T('Sending finds is not open yet. What you wrote is kept on this device; try again later.'), true);
+        else amsg(esc((r && r.text) || T('That did not go through. Check your connection and press Send it in again. What you wrote is kept.')), true);
       });
     });
   }
   function sent(f, u, post, mid, L) {
     var me = L.who && L.who() || {};
-    var it = parseFind(post.id || String(Date.now()), { text: compose(f), url: u, name: me.name || 'You', about: 'quest:' + mid, createdAt: Date.now(), kind: ytId(u) ? 'video' : 'link' });
+    var it = parseFind(post.id || String(Date.now()), { text: compose(f), url: u, name: me.name || T('You'), about: 'quest:' + mid, createdAt: Date.now(), kind: ytId(u) ? 'video' : 'link' });
     it.fresh = 1; RD.unshift(it); known = null;
     drawLens();
     var held = post.status === 'held', xp = mid === MISSION.mine ? XP.mine : XP.find;
     $('ir-a').hidden = true;
     var d = $('ir-a-done');
-    d.innerHTML = '<div class="ir-a-top"><p class="ir-a-k"><span class="ir-a-badge">Sent</span></p><button class="ir-s-x" type="button" data-a-x aria-label="Close">&times;</button></div>' +
-      '<h2>Thank you. It is in.</h2>' +
-      '<p>I check every find, usually within a day: that it opens, and that it shows what you said. Once it is on the map, your name is on it and the <b class="num">' + xp + ' XP</b> is yours. If something is missing, the answer comes under your find and in Replies to you.</p>' +
-      (held ? '<p class="ir-a-msg bad">One step left: confirm your email with the link that was sent to you. Until then your find is waiting and only you can see it.</p>' : '') +
-      (mid === MISSION.mine ? '<p>You said you made it, so your account is marked as a creator\'s. Once it is on the map, everyone who uses the room can find it, and creators show the room on their live streams, so their audiences see your work too. Keep sending it: each one that is accepted earns the XP again.</p>' : '') +
-      '<div class="ir-a-act"><button type="button" class="ir-a-send" data-a-again>Send another</button><button type="button" class="ir-s-b" data-a-see>See it with the other finds</button><a class="ir-a-talk" href="../missions/#' + esc(mid) + '">Your missions</a></div>';
+    d.innerHTML = '<div class="ir-a-top"><p class="ir-a-k"><span class="ir-a-badge">' + T('Sent') + '</span></p><button class="ir-s-x" type="button" data-a-x aria-label="' + T('Close') + '">&times;</button></div>' +
+      '<h2>' + T('Thank you. It is in.') + '</h2>' +
+      '<p>' + T('I check every find, usually within a day: that it opens, and that it shows what you said. Once it is on the map, your name is on it and the <b class="num">{xp} XP</b> is yours. If something is missing, the answer comes under your find and in Replies to you.', { xp: N(xp) }) + '</p>' +
+      (held ? '<p class="ir-a-msg bad">' + T('One step left: confirm your email with the link that was sent to you. Until then your find is waiting and only you can see it.') + '</p>' : '') +
+      (mid === MISSION.mine ? '<p>' + T('You said you made it, so your account is marked as a creator\'s. Once it is on the map, everyone who uses the room can find it, and creators show the room on their live streams, so their audiences see your work too. Keep sending it: each one that is accepted earns the XP again.') + '</p>' : '') +
+      '<div class="ir-a-act"><button type="button" class="ir-a-send" data-a-again>' + T('Send another') + '</button><button type="button" class="ir-s-b" data-a-see>' + T('See it with the other finds') + '</button><a class="ir-a-talk" href="../missions/#' + esc(mid) + '">' + T('Your missions') + '</a></div>';
     d.hidden = false;
   }
 
@@ -2387,10 +2593,10 @@
       mic.addEventListener('click', function () {
         if (rec) { rec.stop(); return; }
         try { rec = new SR(); } catch (e) { mic.hidden = true; return; }
-        rec.lang = document.documentElement.lang || 'en'; rec.interimResults = true; rec.maxAlternatives = 1;
-        mic.classList.add('on'); say('Listening. Say what you are looking for.');
+        rec.lang = FA ? 'fa-IR' : document.documentElement.lang || 'en'; rec.interimResults = true; rec.maxAlternatives = 1;
+        mic.classList.add('on'); say(T('Listening. Say what you are looking for.'));
         rec.onresult = function (ev) { var s = ''; for (var i = 0; i < ev.results.length; i++) s += ev.results[i][0].transcript; $('ir-q').value = s; if (ev.results[ev.results.length - 1].isFinal) ask(s); };
-        rec.onerror = function (ev) { say(ev.error === 'not-allowed' ? 'The microphone is blocked for this site. Type it instead.' : 'I did not catch that. Try again, or type it.'); };
+        rec.onerror = function (ev) { say(ev.error === 'not-allowed' ? T('The microphone is blocked for this site. Type it instead.') : T('I did not catch that. Try again, or type it.')); };
         rec.onend = function () { mic.classList.remove('on'); rec = null; };
         rec.start();
       });
@@ -2422,7 +2628,7 @@
       if ((b = t.closest('button[data-hot]'))) {
         var hv = b.getAttribute('data-hot');
         if (hv && S.lens !== 'live') useLens('live', true);
-        S.hot = !hv ? '' : hv === 'all' ? (S.hot === 'all' ? '' : 'all') : (S.hot === hv ? '' : hv);
+        S.hot = !hv ? '' : S.hot === hv ? '' : hv;
         if (S.hot) { S.link = ''; S.with = ''; }
         say(''); render(); if (!S.place) frameShown(); return;
       }
@@ -2445,7 +2651,7 @@
       if ((b = t.closest('#ir-exit'))) { stream(false); return; }
       if ((b = t.closest('#ir-ctl'))) { openDrawer('all'); return; }
       if ((b = t.closest('#ir-save'))) { drawViews(true); return; }
-      if ((b = t.closest('[data-view]'))) { var vw = views()[+b.getAttribute('data-view')]; if (vw) { readUrl(vw.q); render(); if (S.place) focusPlace(S.place); say('Showing your view "' + vw.n + '".'); } return; }
+      if ((b = t.closest('[data-view]'))) { var vw = views()[+b.getAttribute('data-view')]; if (vw) { readUrl(vw.q); render(); if (S.place) focusPlace(S.place); say(T('Showing your view "{name}".', { name: vw.n })); } return; }
       if ((b = t.closest('[data-unview]'))) { var vs = views(); vs.splice(+b.getAttribute('data-unview'), 1); store(VKEY, vs); drawViews(); return; }
       if ((b = t.closest('[data-v-cancel]'))) { drawViews(); return; }
       if ((b = t.closest('#ir-copy'))) { copyNotes(); return; }
@@ -2457,7 +2663,7 @@
         if (z === 'full') { stream(); return; }
         stopTour();
         poke();
-        if (z === 'links') { LKON = !LKON; store('ir-links', LKON ? 'on' : 'off'); b.setAttribute('aria-pressed', LKON ? 'true' : 'false'); b.setAttribute('aria-label', LKON ? 'Hide the connection lines' : 'Show the connection lines'); requestDraw(); say(LKON ? 'Connection lines on: ' + LINKS.length + ' connections in what is shown.' : 'Connection lines off.'); return; }
+        if (z === 'links') { LKON = !LKON; store('ir-links', LKON ? 'on' : 'off'); b.setAttribute('aria-pressed', LKON ? 'true' : 'false'); b.setAttribute('aria-label', LKON ? T('Hide the connection lines') : T('Show the connection lines')); requestDraw(); say(LKON ? T('Connection lines on: {n} connections in what is shown.', { n: N(LINKS.length) }) : T('Connection lines off.')); return; }
         if (z === 'home') home();
         else if (z === 'proj') setMode(V.mode === 'globe' ? 'flat' : 'globe');
         else zoomAt(z === 'in' ? 1.8 : 1 / 1.8, box.clientWidth / 2, box.clientHeight / 2);
@@ -2470,7 +2676,8 @@
         return;
       }
       if ((b = t.closest('#ir-play'))) { play(); return; }
-      if ((b = t.closest('#ir-more'))) { limit += PAGE_N; $('ir-items').insertAdjacentHTML('beforeend', shown.slice(limit - PAGE_N, limit).map(function (it, j) { return card(it, limit - PAGE_N + j); }).join('')); $('ir-more').hidden = shown.length <= limit; $('ir-more').textContent = 'Show ' + Math.min(PAGE_N, shown.length - limit) + ' more (' + (shown.length - limit) + ' left)'; return; }
+      if ((b = t.closest('#ir-pics'))) { setPics(!picsOn); return; }
+      if ((b = t.closest('#ir-more'))) { limit += PAGE_N; $('ir-items').insertAdjacentHTML('beforeend', shown.slice(limit - PAGE_N, limit).map(function (it, j) { return card(it, limit - PAGE_N + j); }).join('')); $('ir-more').hidden = shown.length <= limit; $('ir-more').textContent = moreText(); return; }
       if ((b = t.closest('.ir-card button'))) { stopTour(); openSpot(+b.getAttribute('data-i')); return; }
     });
     root.addEventListener('submit', function (ev) {
@@ -2495,8 +2702,10 @@
       if (b.hasAttribute('data-x')) closeSpot();
       else if (b.hasAttribute('data-step')) openSpot(spotAt + (+b.getAttribute('data-step')));
       else if (b.hasAttribute('data-rp-all')) { var rit = shown[spotAt]; repliesOf(rit, function (e) { if (e && e.r.length) { var bx = $('ir-s-rp'); if (bx) bx.innerHTML = repliesHead(rit, e) + repliesHtml(rit, e.r, false); } }); }
+      else if (b.hasAttribute('data-pics1')) { var pit = shown[spotAt]; if (pit) { pit._pics = 1; openSpot(spotAt); } }
+      else if (b.hasAttribute('data-copyt')) { var cit = shown[spotAt]; if (cit) { var ct = fullText(cit); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ct).then(function () { b.textContent = T('Headline copied.'); }, function () { fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); }); else fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); } }
       else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
-      else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say('What connects to "' + cut(wi2 ? wi2.t : '', 60) + '": ' + shown.length + ' items.', true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say(T('What connects to "{what}": {n} items.', { what: cut(wi2 ? wi2.t : '', 60), n: N(shown.length) }), true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       else if (b.hasAttribute('data-map')) { var k = shown[spotAt].p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     });
     dlg.addEventListener('cancel', function () { spotAt = -1; setTimeout(function () { dlg.innerHTML = ''; }, 0); });
@@ -2512,11 +2721,11 @@
       if (ev.target.closest('[data-a-see]')) { closeAdd(); useLens('readers'); root.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
       if ((b = ev.target.closest('[data-at]'))) {
         var on = b.getAttribute('aria-pressed') === 'true', n = ad.querySelectorAll('.ir-a-tops [aria-pressed="true"]').length;
-        if (!on && n >= 3) { amsg('Three topics at most. Untick one first.', true); return; }
+        if (!on && n >= 3) { amsg(T('Three topics at most. Untick one first.'), true); return; }
         b.setAttribute('aria-pressed', on ? 'false' : 'true'); amsg(''); keepDraft(); return;
       }
       if (ev.target.closest('#ir-a-paste')) {
-        navigator.clipboard.readText().then(function (s) { $('ir-a-url').value = String(s || '').trim().slice(0, 400); preview(); keepDraft(); $('ir-a-what').focus(); }, function () { $('ir-a-paste').hidden = true; amsg('Paste it into the box with a long press, or Ctrl and V.'); });
+        navigator.clipboard.readText().then(function (s) { $('ir-a-url').value = String(s || '').trim().slice(0, 400); preview(); keepDraft(); $('ir-a-what').focus(); }, function () { $('ir-a-paste').hidden = true; amsg(T('Paste it into the box with a long press, or Ctrl and V.')); });
       }
     });
     ad.addEventListener('input', function (ev) {
@@ -2570,16 +2779,41 @@
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(refit, 120); });
     window.addEventListener('hashchange', function () { if (location.hash === '#add') openAdd(); });
     // Signing in on the way to sending: the form comes back as it was left.
-    lp(function (L) { if (L && L.quests && L.quests.sub) L.quests.sub(function () { if (sstore('ir-add-wait') && L.quests.who && L.quests.who()) { sstore('ir-add-wait', null); setTimeout(function () { openAdd(); amsg('You are signed in. Press Send it in.'); }, 400); } }); });
+    lp(function (L) { if (L && L.quests && L.quests.sub) L.quests.sub(function () { if (sstore('ir-add-wait') && L.quests.who && L.quests.who()) { sstore('ir-add-wait', null); setTimeout(function () { openAdd(); amsg(T(CFG.addSimple ? 'You are signed in. Press Send.' : 'You are signed in. Press Send it in.')); }, 400); } }); });
   }
 
   /* ------------------------------------------------------------ start */
+  /* ONE FEED SHAPE MORE (Iran Uncensored, CFG.live === 'news'): its Newsroom file, "schema": 1, written hourly by
+     ../../site/build/intel_live.py --site iu and pushed alone to the live site. Its items name provinces (pv) and topic
+     indices into the file's own topic keys; a headline that names no province is placed by CFG.livePlaces (the Gulf,
+     Israel, Washington...) or, failing those, at Iran as a whole. Its topics are the pipeline's own tags (the same patterns
+     the room reads). Heat is put in words here, from its counts: how many outlets carry it, or how fast a video is watched. */
+  var NEWS_TK = [], LIVE_PL = Array.isArray(CFG.livePlaces) ? CFG.livePlaces.map(function (a) { return [rxOf(a, 0), a[2]]; }) : [];
+  function hw(h) { h = +h || 0; if (h < 1) return T('{n} minutes', { n: N(Math.max(1, Math.round(h * 60))) }); h = Math.round(h); return h === 1 ? T('1 hour') : T('{n} hours', { n: N(h) }); }
+  function normNews(it) {
+    var keys = (Array.isArray(it.pv) ? it.pv : []).filter(function (k) { return typeof k === 'string' && P[k]; });
+    if (!keys.length) {
+      var w = String(it.t || '').replace(/\u200c/g, '');
+      LIVE_PL.forEach(function (pw) { if (keys.length < 4 && keys.indexOf(pw[1]) < 0 && P[pw[1]] && pw[0].test(w)) keys.push(pw[1]); });
+    }
+    if (!keys.length) keys = [CFG.liveHome || 'global'];
+    it.p = keys[0]; it.a = keys.slice(1);
+    it._tk = (Array.isArray(it.tp) ? it.tp : []).map(function (i) { return NEWS_TK[i]; }).filter(function (k, i, a) { return k && TOPN[k] && a.indexOf(k) === i; });
+    it.tp = [];
+    if (FA && it.hf) it.h = String(it.hf);
+    if (it.src === 'YouTube' && it.vw >= 0) it.hotWhy = T('{n} views in {h}', { n: LN(+it.vw), h: hw(it.hs) });
+    else if (it.no > 1) it.hotWhy = T('{n} outlets in {h}', { n: N(it.no), h: hw(it.hs) });
+    if (it.src === 'X' && it.nm && it.h && String(it.h).charAt(0) !== '@') it.h = '@' + it.h;
+    delete it.pv; delete it.th; delete it.m; delete it.av;          // nothing from another site rides in on the feed
+    return it;
+  }
   function normLive(it) {
+    if (CFG.live === 'news') normNews(it);
     // The feed may name a whole country (c:Iran): it is drawn at that country's own place when there is one, else at its
     // first place on the map, and filtered as that country.
     if (typeof it.p === 'string' && it.p.indexOf('c:') === 0) {
       var c = it.p.slice(2), ks = Object.keys(P).filter(function (k) { return P[k][1] === c && P[k][2] != null; });
-      var own = ks.filter(function (k) { return P[k][0] === c; })[0];
+      var own = ks.filter(function (k) { return P[k][0] === c || P[k][0] === cName(c); })[0];
       it.p = own || ks[0] || 'global';
       if (it.p === 'global') it.pw = c;
     }
@@ -2600,6 +2834,8 @@
                soft(liveUrl, { cache: 'no-cache' }), soft(reachUrl, { cache: 'no-cache' }),
                soft(root.getAttribute('data-packs'), { cache: 'no-cache' }), soft(root.getAttribute('data-words'), { cache: 'no-cache' })]).then(function (res) {
     D = res[0]; BANK = D.items; P = D.places; topics = D.topics;
+    if (CFG.live === 'news' && res[2] && (res[2].schema !== CFG.schema || !Array.isArray(res[2].topics))) res[2] = null;          // an unknown shape is refused; the headlines the page came with stay
+    if (CFG.live === 'news' && res[2]) NEWS_TK = res[2].topics.map(String);
     if (res[2] && Array.isArray(res[2].items)) { LIVE_AT = Date.parse(res[2].at) || 0; LIVE = res[2].items.filter(function (it) { return it && it.u && it.t; }).map(normLive); }
     PACKS = res[4] && Array.isArray(res[4].stories) ? res[4] : null;
     WORDS = res[5] && res[5].stories && typeof res[5].stories === 'object' ? res[5] : null;
@@ -2612,14 +2848,15 @@
       SORTS[l] = SORTS[l].filter(function (o) { var f = o[0] === 'viral' ? function (it) { return it._v; } : o[0] === 'likes' ? likesOf : o[0] === 'views' ? viewsOf : null; return !f || set.some(function (it) { return f(it) != null; }); });
     });
     // The glow behind each circle: gold for the bank and the readers, a warmer white gold for the last 24 hours.
-    map.insertAdjacentHTML('afterbegin', '<defs><radialGradient id="irg"><stop offset="0" stop-color="#F4C430" stop-opacity=".5"/><stop offset="1" stop-color="#F4C430" stop-opacity="0"/></radialGradient>' +
+    map.insertAdjacentHTML('afterbegin', '<defs><radialGradient id="irg"><stop offset="0" stop-color="' + GOLDH + '" stop-opacity=".5"/><stop offset="1" stop-color="' + GOLDH + '" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="irl"><stop offset="0" stop-color="#FFE7A8" stop-opacity=".65"/><stop offset="1" stop-color="#FFB547" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="irs"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>');
     gLinks = document.createElementNS(SVGNS, 'g'); gLinks.setAttribute('class', 'links');
     map.appendChild(gLinks);
     gPins = document.createElementNS(SVGNS, 'g'); gPins.setAttribute('class', 'pins');
     map.appendChild(gPins);
-    var lkb = $('ir-lk'); if (lkb) { lkb.setAttribute('aria-pressed', LKON ? 'true' : 'false'); lkb.setAttribute('aria-label', LKON ? 'Hide the connection lines' : 'Show the connection lines'); }
+    var pcb = $('ir-pics'); if (pcb && picsOn) { pcb.setAttribute('aria-pressed', 'true'); var pcs = pcb.querySelector('span'); if (pcs) pcs.textContent = T('Pictures: on'); }          // a reader who switched pictures on sees it
+    var lkb = $('ir-lk'); if (lkb) { lkb.setAttribute('aria-pressed', LKON ? 'true' : 'false'); lkb.setAttribute('aria-label', LKON ? T('Hide the connection lines') : T('Show the connection lines')); }
     var seenNow = function () { store('ir-seen', Date.now()); };
     window.addEventListener('pagehide', seenNow);
     document.addEventListener('visibilitychange', function () { if (document.hidden) seenNow(); });
@@ -2630,10 +2867,10 @@
       LAND = topoFeatures(res[1], BYNAME);
       if (store('ir-proj') === 'flat') V.mode = 'flat';
       root.setAttribute('data-map', V.mode);
-      var pb = $('ir-proj'); if (pb) { pb.setAttribute('data-mode', V.mode); pb.setAttribute('aria-label', V.mode === 'globe' ? 'Lay the map flat' : 'Show the globe'); }
+      var pb = $('ir-proj'); if (pb) { pb.setAttribute('data-mode', V.mode); pb.setAttribute('aria-label', V.mode === 'globe' ? T('Lay the map flat') : T('Show the globe')); }
       sizeCanvas();
-      V.lon = -50; V.lat = 18;          // the first view turns in from the west
-    } else $('ir-maphint').textContent = 'The map could not load. Everything is in the list.';
+      V.lon = CFG.view0 ? CFG.view0[0] : -50; V.lat = CFG.view0 ? CFG.view0[1] : 18;          // the first view turns in from the west
+    } else $('ir-maphint').textContent = T('The map could not load. Everything is in the list.');
     $('ir-kind').innerHTML = KINDS.map(function (k) { return '<button type="button" data-k="' + k[0] + '" aria-pressed="false">' + k[1] + '</button>'; }).join('');
     makeBuckets();
     defLens = liveFresh() ? 'live' : 'bank';
@@ -2646,6 +2883,7 @@
     drawWire();
     // a phone's box is near square: open on the Middle East and Europe, where most of the bank is
     if (S.place) focusPlace(S.place);
+    else if (HOME) home();
     else if (box.clientWidth >= 700) frameShown();
     else flyTo(V.mode === 'globe' ? 1.25 : 3, 36, 31);
     // What intel-prep.js (the creator tools and the show screen) is handed: the items (the last hours, the bank, one by its
@@ -2669,13 +2907,13 @@
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml,
       // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
       rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago };
-    if (!document.getElementById('ir-prep-js')) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=7bdcb29a17'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=01025cab05'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
     if (location.hash === '#add') openAdd();
     setTimeout(function () { var h = $('ir-maphint'); if (h) h.hidden = true; }, 6000);
   }).catch(function () {
-    $('ir-maphint').textContent = 'The map could not load. The newest items are listed here.';
+    $('ir-maphint').textContent = T('The map could not load. The newest items are listed here.');
   });
 })();

@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=7bdcb29a17; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=01025cab05; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -191,42 +191,44 @@ function initFront() {
   const box = D.querySelector('[data-fq]');
   const go = box && box.querySelector('[data-fq-keep]');
   if (!go) return;
-  /* 15 October 2026, Armin: "When I select these buttons, nothing really changes ... I think at the top we should just have
-     one call to action, which is 'Join the Fight'". The answers left the front page for the questions after sign-up (the
-     first step of askQuestions). ONE button, on screen from the first paint:
-       signed out                     opens the sign-up panel (its href, the sign-in page, is the way with scripts off);
-       signed in, answered            leads where that answer leads ("go", "path"); an answer that is not one of the front
-                                      answers (an older question's) leads where the first one does, the discussion;
-       signed in, not answered yet    opens the questions after sign-up at how-will-you-fight. A reader who said they are
-                                      inside Iran is never asked: the button leads to the discussion. */
+  /* ONE button, on screen from the first paint (15 October 2026, Armin: "at the top we should just have one call to action,
+     which is 'Join the Fight'").
+       signed out    opens the sign-up panel (its href, the sign-in page, is the way with scripts off);
+       signed in     19 October 2026 (Armin: "I don't think we need to get them to answer questions. We need to simplify
+                     people making an account ... for people who have already made an account ... it should show somehow
+                     that they already enlisted"): the mark above the button says they enlisted, by name, and the button
+                     is the next act (data-fq-next: the Intel Room). No questions are asked, from here or after sign-up. */
   const keepText = go.textContent, keepHref = go.getAttribute('href');
-  const FIELD = box.getAttribute('data-fq-field') || frontField();
-  let lead = null, fetching = false;      // lead: where the button goes for this reader; null: it opens a panel
+  const nextHref = box.getAttribute('data-fq-next'), nextGo = box.getAttribute('data-fq-next-go');
+  const mark = box.querySelector('[data-fq-in]'), markT = mark && mark.querySelector('span');
   function paintGo() {
-    const u = me();
-    lead = null;
-    if (u && !DATA && !fetching) { fetching = true; data().then(paintGo); }
-    if (u && DATA) {
-      const ans = frontAnswers(), had = mineFor === u.uid && PRIV ? PRIV[FIELD] : '';
-      const a = (had && ans.find(x => x.id === had)) || (had || insideIran() ? ans.find(x => x.go && x.path) : null);
-      if (a && a.go && a.path) lead = { text: w(a.go), href: frontDest(a) };
+    const u = me(), on = !!(u && nextHref && nextGo);
+    go.textContent = on ? nextGo : keepText;
+    go.setAttribute('href', on ? nextHref : keepHref);
+    if (mark && markT) {
+      const name = u && typeof u.name === 'string' ? u.name.trim() : '';
+      markT.textContent = !u ? '' : name ? mark.getAttribute('data-fq-in').replace('{name}', name) : (mark.getAttribute('data-fq-in-bare') || '');
+      mark.hidden = !u || !markT.textContent;
     }
-    go.textContent = lead ? lead.text : keepText;
-    go.setAttribute('href', lead ? lead.href : keepHref);
+    paintEnlisted();
   }
-  go.addEventListener('click', async ev => {
+  go.addEventListener('click', ev => {
     if (!K) return;      // no accounts on this build: the link to the sign-in page
-    if (!me()) { ev.preventDefault(); K.open('auth', { opener: go }); if (!K.off) fb().catch(() => { }); return; }
-    if (lead) return;      // a link: it goes where the reader chose
-    ev.preventDefault();
-    try { await data(); await loadMine(); } catch (x) { }
-    paintGo();
-    if (lead) { window.location.assign(go.href); return; }
-    askQuestions(true).catch(() => { });
+    if (!me()) { ev.preventDefault(); K.open('auth', { opener: go }); if (!K.off) fb().catch(() => { }); }
+    /* signed in: a plain link to the next act */
   });
   paintGo();
   D.addEventListener('lp:members', paintGo);
   if (K) K.sub(paintGo);
+}
+/* The Enlist act's card (front page): "One step" for a reader with no account, "Enlisted" once they have one. */
+function paintEnlisted() {
+  const u = me();
+  D.querySelectorAll('[data-enlist]').forEach(x => {
+    if (!x.hasAttribute('data-enlist-was')) x.setAttribute('data-enlist-was', x.textContent);
+    x.textContent = u ? '\u2713 ' + x.getAttribute('data-enlist') : x.getAttribute('data-enlist-was');
+    const li = x.closest('.act-li'); if (li) li.classList.toggle('is-enlisted', !!u);
+  });
 }
 /* One answer onto the reader's private document, in the field its question names. The Iran site keeps the role and nothing
    else (its rules refuse any other field), so a front answer there is kept only when the field is role. */
@@ -488,6 +490,7 @@ function cover(g, big) {
     box.innerHTML = '<svg viewBox="0 0 120 80" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">' + (GLYPH[g.kind] || GLYPH.table) + '</svg>';
   }
   const tile = dayTile(g); if (tile) box.append(tile);
+  const s = soon(g); if (s) box.append(el('span', 'mb-soon' + (s === tt('Happening now') ? ' now' : ''), s));      // 19 October 2026: Tonight, Tomorrow, In 3 days
   if (big) box.classList.add('mb-cover-big');
   return box;
 }
@@ -720,31 +723,50 @@ async function initBoard(box) {
   if (me()) await loadMine();
   body.textContent = ''; body.setAttribute('aria-busy', 'false');
   const areas = [...new Set(all.map(areaOf))];
-  const name = a => (a.startsWith('US:') ? (DATA.states && DATA.states[a.slice(3)]) || a : countryName(a));
+  const name = areaName;
   const f = el('div', 'mb-filter'), sel = el('select', null, null, { id: 'mb-where' });
   f.append(el('label', null, tt('Near'), { for: 'mb-where' }), sel);
   sel.append(el('option', null, tt('Everywhere'), { value: '' }));
   areas.map(a => [a, name(a)]).sort((a, b) => a[1].localeCompare(b[1], LANG)).forEach(([a, n]) => sel.append(el('option', null, n, { value: a })));
   const list = el('ul', 'mb-list'), empty = el('p', 'mb-empty');
-  const draw = () => {
-    const v = sel.value, shown = all.filter(g => !v || areaOf(g) === v);
-    list.textContent = ''; shown.forEach(g => list.append(card(g)));
-    empty.textContent = shown.length ? '' : (all.length ? tt('Nothing near you yet. Host the first one.') : tt('Nothing on the board yet. Host the first one.'));
-    empty.hidden = !!shown.length;
-  };
+  /* a place with nothing on: the reader's next step is to host the first one there, with the place already filled in */
+  const emptyGo = el('a', 'btn btn-key mb-btn-s mb-empty-go', '', { href: newHref('') }); emptyGo.hidden = true;
   const mine = myArea();
+  let only = '';      // a place tapped on the map that is not in the list (the reader's own place, with nothing on)
+  const draw = () => {
+    const v = only || sel.value, shown = all.filter(g => !v || areaOf(g) === v);
+    list.textContent = ''; shown.forEach(g => list.append(card(g)));
+    empty.textContent = shown.length ? '' : (v && AREA_OK(v) ? tt('Nothing in {place} yet.', { place: name(v) }) + ' ' + tt('Host the first one.') : all.length ? tt('Nothing near you yet. Host the first one.') : tt('Nothing on the board yet. Host the first one.'));
+    empty.hidden = !!shown.length;
+    emptyGo.hidden = !!shown.length || !AREA_OK(v); emptyGo.textContent = tt('Host the first one there'); emptyGo.href = newHref(v);      // with no place picked, the button at the top of the page is that step
+    box.querySelectorAll('.mb-places [data-area]').forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute('data-area') === v)));
+  };
   sel.value = areas.includes(mine) ? mine : '';
-  sel.addEventListener('change', () => { kept.set(KEY.filter, sel.value || null); draw(); });
-  if (all.length) body.append(f);
+  sel.addEventListener('change', () => { only = ''; kept.set(KEY.filter, sel.value || null); draw(); });
+  const pick = a => {
+    if (areas.includes(a)) { only = ''; sel.value = sel.value === a ? '' : a; kept.set(KEY.filter, sel.value || null); }
+    else { only = only === a ? '' : a; }
+    draw();
+    try { list.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) { }
+  };
   const safe = safety();
-  body.append(list, empty, safe);
+  /* the night everyone meets, then the map, then the list (19 October 2026) */
+  const dv = driveBox(all); if (dv) body.append(dv);
+  const mapAt = el('div', 'mb-map-at'); body.append(mapAt);
+  if (all.length) body.append(f);
+  body.append(list, empty, emptyGo);
+  const kb = kitsBox(mine); if (kb) body.append(kb);
+  body.append(safe);
   draw();
   /* The host's own gatherings still waiting for "did it happen?", at the top, three taps each (16 October 2026). */
   hostAsks(body).catch(() => { });
   /* Past gatherings (16 October 2026, Armin: "it goes to the previous events section"): the ones that happened, by the host's
      answer, a photo on the wall or a guest's rating, newest first, each with its first photo as its cover. Proof the board
      is real, and where the people who came post their photos for 30 days. */
+  const paintMap = past_ => { const m = mapBox(all, past_, pick, mine); mapAt.textContent = ''; if (m) mapAt.append(m); draw(); };
+  paintMap([]);      // at once from the board; the places that have met are added when they arrive
   const past = await pastNights().catch(() => []);
+  if (past.length) paintMap(past);
   if (past.length) {
     const ul = el('ul', 'mb-list mb-past');
     past.forEach(g => ul.append(card(g)));
@@ -787,6 +809,148 @@ function safety() {
     el('p', null, IU ? tt('I never send invitations or files. If someone says they are from here and sends you one, do not open it.') : tt('A gathering belongs to its host. I list it; I don\'t run it, pay for it or decide anything for it.')));
   if (DATA && DATA.safetyPage && !IU) s.append(el('a', null, tt('The safety page'), { href: page(DATA.safetyPage) }));
   return s;
+}
+
+/* ------------------------------------------------------------------ the board grows itself (19 October 2026)
+   Armin: "Significantly improve Gatherings on the websites. Think outside the box." What was wrong: the board was a list,
+   and a list with one card in one town tells everyone else there is nothing for them. Four parts, all drawn from what the
+   board already reads (no new database, no new rule):
+   KITS     members.json "kits", checked by members.py kits_check(): a gathering ready to post (the kind, the title, the
+            hook, why come, the seats, the day). gatherings/new/?kit=<id> fills the form; the host adds the place. A kit
+            whose day has gone is not offered. One kit may carry "drive": the night everyone is asked to meet on.
+   DRIVE    that night's countdown at the top of the board, and how many gatherings are posted for it so far.
+   MAP      every state as a tile (Liberty Politics), lit while a gathering is coming up there, half lit where one has met;
+            the countries abroad as places to tap. A tap on a place shows its gatherings; a place with none hands the
+            reader "Host the first one there" with the place filled in (?area=).
+   SOON     Tonight, Tomorrow, In 3 days, Happening now: on the cover of every card, in the gathering's own time zone. */
+const padN = n => String(n).padStart(2, '0');
+const localStamp = d => d.getFullYear() + '-' + padN(d.getMonth() + 1) + '-' + padN(d.getDate()) + 'T' + padN(d.getHours()) + ':' + padN(d.getMinutes());
+/* The day a kit suggests, as the form's own datetime-local text in the reader's time, or '' when that day has gone. "at" is
+   a night everyone shares (read as the reader's own clock: 7 PM wherever they are); "next" is the next such weekday at least
+   a day and a half ahead, so there is time to invite people. "until" ends the kit after that day. */
+function kitAt(k) {
+  let d = null;
+  if (typeof k.at === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(k.at)) d = new Date(k.at);
+  else if (k.next && Number.isInteger(k.next.day) && /^\d\d:\d\d$/.test(k.next.time || '')) {
+    const [h, m] = k.next.time.split(':').map(Number);
+    d = new Date(); d.setHours(h, m, 0, 0);
+    d.setDate(d.getDate() + ((k.next.day - d.getDay() + 7) % 7));
+    while (d.getTime() < Date.now() + 36 * 3600000) d.setDate(d.getDate() + 7);
+  }
+  if (!d || isNaN(d.getTime()) || d.getTime() < Date.now() + 3600000) return '';
+  if (typeof k.until === 'string' && /^\d{4}-\d\d-\d\d$/.test(k.until) && d.getTime() > new Date(k.until + 'T23:59').getTime()) return '';
+  if (DATA && DATA.limits && d.getTime() > Date.now() + (DATA.limits.daysAhead - 1) * 86400000) return '';
+  return localStamp(d);
+}
+const KITS = () => ((DATA && Array.isArray(DATA.kits)) ? DATA.kits : []).filter(k => k && idOk(k.id) && DATA.formats.some(f => f.id === k.kind) && kitAt(k));
+const AREA_OK = a => typeof a === 'string' && (/^US:[a-z]{2}$/.test(a) || /^[A-Z]{2}$/.test(a)) && a !== 'IR';
+const kitHref = (k, area) => page(DATA.paths.new + '?kit=' + encodeURIComponent(k.id) + (AREA_OK(area) ? '&area=' + encodeURIComponent(area) : ''));
+const newHref = area => page(DATA.paths.new + (AREA_OK(area) ? '?area=' + encodeURIComponent(area) : ''));
+const areaName = a => (a.startsWith('US:') ? (DATA.states && DATA.states[a.slice(3)]) || a : countryName(a));
+function kitWhen(k) {
+  const d = new Date(kitAt(k)), loc = LANG === 'fa' ? 'fa-IR-u-ca-gregory' : 'en-US';
+  return new Intl.DateTimeFormat(loc, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d);
+}
+/* The calendar day of a moment in a time zone, as 2026-11-03: how "that night" and "tomorrow" are told apart in any zone. */
+function ymdIn(t, tz) {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t)); }
+  catch (x) { return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t)); }
+}
+function soon(g) {
+  const t = ms(g.startAt), now = Date.now();
+  if (!t || g.status === 'cancelled') return '';
+  if (t <= now) return t > now - 4 * 3600000 ? tt('Happening now') : '';
+  const days = Math.round((Date.parse(ymdIn(t, g.tz)) - Date.parse(ymdIn(now, g.tz))) / 86400000);
+  if (days === 0) {
+    let h = 12; try { h = +new Intl.DateTimeFormat('en-US', { timeZone: g.tz || undefined, hour: 'numeric', hourCycle: 'h23' }).format(new Date(t)); } catch (x) { }
+    return h >= 17 ? tt('Tonight') : tt('Today');
+  }
+  if (days === 1) return tt('Tomorrow');
+  return days > 1 && days <= 6 ? tt('In {n} days', { n: days }) : '';
+}
+/* THE NIGHT EVERYONE MEETS: the kit with "drive", while its day is ahead. */
+function driveBox(all) {
+  /* shown to the end of that day in the reader's own time, even after the kit's hour has passed */
+  const k = ((DATA && Array.isArray(DATA.kits)) ? DATA.kits : []).find(x => x && x.drive && typeof x.at === 'string' && /^\d{4}-\d\d-\d\dT/.test(x.at) && DATA.formats.some(f => f.id === x.kind));
+  if (!k) return null;
+  const day = k.at.slice(0, 10);
+  const left = Math.round((Date.parse(day) - Date.parse(ymdIn(Date.now()))) / 86400000);
+  if (left < 0) return null;
+  const that = all.filter(g => g.status !== 'cancelled' && ymdIn(ms(g.startAt), g.tz) === day).length;
+  const box = el('section', 'mb-drive', null, { 'aria-labelledby': 'mb-drive-h' });
+  const big = el('p', 'mb-drive-n');
+  if (left <= 0) big.append(el('b', null, tt('Tonight')));
+  else big.append(el('b', null, dig(left)), el('span', null, left === 1 ? tt('day to go') : tt('days to go')));
+  const txt = el('div', 'mb-drive-t');
+  txt.append(el('span', 'mb-kind', w(k.drive.name)),
+    el('h2', 'mb-h2', w(k.drive.title) || w(k.name), { id: 'mb-drive-h' }),
+    el('p', null, w(k.drive.line)),
+    el('p', 'mb-drive-c', that ? (that === 1 ? tt('1 gathering on the board for that night so far.') : tt('{n} gatherings on the board for that night so far.', { n: that })) : tt('Nothing on the board for that night yet. Yours can be the first.')));
+  if (kitAt(k)) txt.append(el('a', 'btn btn-key', tt('Host one for that night'), { href: kitHref(k, myArea()) }));
+  box.append(big, txt);
+  box.setAttribute('data-day', day);
+  return box;
+}
+/* THE MAP. The tiles are the usual eleven by eight grid of the states (Alaska top left, Florida bottom right); a tile is a
+   picture, never a button (29 pixels on a phone, under the 40 a finger needs). What a finger taps is the row of places under
+   it: every place with a gathering coming up, and the reader's own place when it has none. */
+const TILES = 'ak0,0 me10,0 wi5,1 vt9,1 nh10,1 wa0,2 id1,2 mt2,2 nd3,2 mn4,2 il5,2 mi6,2 ny8,2 ma9,2 or0,3 nv1,3 wy2,3 sd3,3 ia4,3 in5,3 oh6,3 pa7,3 nj8,3 ct9,3 ri10,3 '
+  + 'ca0,4 ut1,4 co2,4 ne3,4 mo4,4 ky5,4 wv6,4 va7,4 md8,4 de9,4 az1,5 nm2,5 ks3,5 ar4,5 tn5,5 nc6,5 sc7,5 dc8,5 ok3,6 la4,6 ms5,6 al6,6 ga7,6 hi0,7 tx3,7 fl8,7';
+function mapBox(all, past, pick, mine) {
+  const up = new Map(), met = new Map();
+  all.forEach(g => { if (g.status !== 'cancelled' && !over(g)) up.set(areaOf(g), (up.get(areaOf(g)) || 0) + 1); });
+  (past || []).forEach(g => met.set(areaOf(g), (met.get(areaOf(g)) || 0) + 1));
+  const states = !IU && DATA.states ? DATA.states : null;
+  const abroad = [...new Set([...up.keys(), ...met.keys()])].filter(a => !a.startsWith('US:'));
+  if (!states && !abroad.length) return null;      // the Iran site with nothing on the board says nothing here
+  const box = el('section', 'mb-map', null, { 'aria-labelledby': 'mb-map-h' });
+  box.append(el('h2', 'mb-h2', IU ? tt('Where people are meeting') : tt('Where we meet'), { id: 'mb-map-h' }));
+  if (states) {
+    const keys = Object.keys(states).filter(s => s !== 'dc'), lit = keys.filter(s => up.has('US:' + s) || met.has('US:' + s));
+    const stat = tt('{n} of {all} states', { n: lit.length, all: keys.length });
+    box.append(el('p', 'mb-map-n', stat), el('p', 'mb-hint', lit.length ? tt('A state lights up when a gathering is posted there. Light up yours.') : tt('No state is lit yet. Host the first gathering and yours is.')));
+    const grid = el('div', 'mb-tiles', null, { role: 'img', 'aria-label': stat + (lit.length ? ': ' + lit.map(s => states[s]).join(', ') : '') });
+    TILES.split(' ').forEach(t => {
+      const m = /^([a-z]{2})(\d+),(\d+)$/.exec(t); if (!m || !states[m[1]]) return;
+      const a = 'US:' + m[1], on = up.has(a), was = !on && met.has(a);
+      const s = el('span', 'mb-tile' + (on ? ' on' : was ? ' was' : ''), m[1].toUpperCase(), { title: states[m[1]] });
+      s.style.gridColumn = String(+m[2] + 1); s.style.gridRow = String(+m[3] + 1);
+      grid.append(s);
+    });
+    const key = el('p', 'mb-map-key', null, { 'aria-hidden': 'true' });
+    key.append(el('span', 'mb-tile on', ''), el('span', null, tt('Coming up')), el('span', 'mb-tile was', ''), el('span', null, tt('Has met')));
+    box.append(grid, key);
+  } else box.append(el('p', 'mb-map-n', abroad.length === 1 ? tt('1 country') : tt('{n} countries', { n: abroad.length })));
+  /* the places to tap: coming up first, the most gatherings first */
+  const places = [...up.keys()].sort((a, b) => up.get(b) - up.get(a) || areaName(a).localeCompare(areaName(b), LANG));
+  const row = el('div', 'mb-chips mb-places', null, { role: 'group', 'aria-label': tt('Tap a place to see what is on there.') });
+  places.forEach(a => {
+    const b = btn('mb-chip', null, () => pick(a)); b.setAttribute('data-area', a);
+    b.append(el('b', null, areaName(a) + ' · ' + dig(up.get(a)))); row.append(b);
+  });
+  if (places.length) box.append(row);
+  /* the reader's own place, when nothing is coming up there: the one tap that lights it */
+  if (AREA_OK(mine) && !up.has(mine) && (states || !mine.startsWith('US:'))) box.append(el('a', 'btn btn-line mb-btn-s mb-light', tt('Host the first one in {place}', { place: areaName(mine) }), { href: newHref(mine) }));
+  return box;
+}
+/* HOST ONE IN TWO MINUTES: the kits as cards that look like the gathering they will become. */
+function kitsBox(area) {
+  const ks = KITS();
+  if (!ks.length) return null;
+  const box = el('section', 'mb-kits', null, { 'aria-labelledby': 'mb-kits-h' });
+  box.append(el('h2', 'mb-h2', tt('Host one in two minutes'), { id: 'mb-kits-h' }),
+    el('p', 'mb-hint', tt('Pick one. The words, the kind and the day are filled in for you. You add the place.')));
+  const ul = el('ul', 'mb-list mb-kit-list');
+  ks.forEach(k => {
+    const li = el('li', 'mb-card mb-kit'), t = new Date(kitAt(k)).getTime();
+    li.append(cover({ kind: k.kind, id: k.id, art: k.art, startAt: { toMillis: () => t } }), el('span', 'mb-kind', fmtName(k.kind)), el('h3', null, w(k.name)));
+    if (k.pitch) li.append(el('p', 'mb-hook', w(k.pitch)));
+    li.append(el('p', 'mb-when', kitWhen(k)));
+    const acts = el('div', 'mb-acts'); acts.append(el('a', 'btn btn-key mb-btn-s', tt('Use this one'), { href: kitHref(k, area) }));
+    li.append(acts); ul.append(li);
+  });
+  box.append(ul);
+  return box;
 }
 
 /* ------------------------------------------------------------------ gatherings/new/: the host's form */
@@ -988,7 +1152,13 @@ async function initNew(box) {
       } catch (x) { }
     }
     if (G0 && DATA.formats.some(f => f.id === G0.kind)) kind = G0.kind;
-    const more = detailFields(G0 ? Object.assign({}, G0, { id: '', art: artOf(G0) }) : null, line, () => kind);
+    /* A KIT (19 October 2026): ?kit=<id> fills the kind, the title, the hook, why come, the seats and the day; ?area= the
+       state or country (from the map or the board). Both are only a start: every box stays the host's to change. */
+    const QS = new URLSearchParams(location.search);
+    const KIT = G0 ? null : KITS().find(k => k.id === QS.get('kit')) || null;
+    const AREA = G0 ? '' : (QS.get('area') || '');
+    if (KIT) kind = KIT.kind;
+    const more = detailFields(G0 ? Object.assign({}, G0, { id: '', art: artOf(G0) }) : KIT ? { about: w(KIT.about), art: KIT.art } : null, line, () => kind);
     if (G0) {
       title.value = G0.title || ''; city.value = G0.city || ''; lineIn.value = G0.line || ''; link.value = G0.link || '';
       if (G0.size) size.value = String(G0.size);
@@ -997,6 +1167,25 @@ async function initNew(box) {
       else if (G0.country && [...place.top.options].some(o => o.value === G0.country)) place.top.value = G0.country;
       fit();
       form.prepend(el('p', 'mb-lede', tt('Posting "{title}" again. Everything is kept. Pick the new day.', { title: G0.title || '' })));
+    }
+    if (KIT) {
+      title.value = w(KIT.title).slice(0, L.title); lineIn.value = w(KIT.line).slice(0, L.line);
+      if (KIT.size) size.value = String(KIT.size);
+      at.value = kitAt(KIT);
+      fit();
+      form.prepend(el('p', 'mb-lede', tt('Started from "{name}". Change anything you like, then add the place.', { name: w(KIT.name) })));
+    }
+    if (AREA_OK(AREA)) {
+      if (AREA.startsWith('US:') && [...place.top.options].some(o => o.value === AREA)) place.top.value = AREA;
+      else if (place.second && [...place.second.options].some(o => o.value === AREA)) { place.top.value = 'abroad'; place.second.value = AREA; place.second.hidden = false; }
+      else if ([...place.top.options].some(o => o.value === AREA)) place.top.value = AREA;
+    }
+    /* no kit and nothing to post again: the kits are offered at the top, one tap each */
+    if (!G0 && !KIT && KITS().length) {
+      const kr = el('div', 'mb-f mb-kit-row'), r = el('div', 'mb-acts');
+      KITS().forEach(k => r.append(el('a', 'btn btn-line mb-btn-s', w(k.name), { href: kitHref(k, AREA) })));
+      kr.append(el('span', 'mb-l', tt('Start from a ready one')), r);
+      form.prepend(kr);
     }
     const t1 = tick(IU ? tt('This event is already public, and it is outside Iran.') : tt('If anyone coming is someone I haven\'t met, the first meeting is in a public place.'));
     const t2 = tick(tt('Everyone coming is 18 or over.'));
@@ -1821,7 +2010,8 @@ async function initMember(box) {
         { ok: !!(P && (P.avatar || P.pic)), text: tt('Pick your picture'), go: () => openEdit('pic') },
         { ok: !!(P && P.bio && P.bio.trim()), text: tt('Write one line about you'), go: () => openEdit('bio') },
       ];
-      if (!insideIran()) steps.push({ ok: questionsDone(PRIV), text: tt('Answer the two questions'), go: () => askQuestions(true) });
+      /* 19 October 2026: the two questions are no longer asked anywhere (Armin: "I don't think we need to get them to answer
+         questions"), so they are not a step of the profile either. */
       const left = steps.filter(s => !s.ok).length;
       if (left) {
         const todo = el('section', 'mb-todo'), ol = el('ol', 'mb-steps');
@@ -2028,7 +2218,10 @@ function start() {
   if (K) K.sub(() => {
     const now = !!me(), came = now && !was; was = now;
     if (!now) { PRIV = PROF = null; mineFor = ''; paintState(); return; }
-    if (came || needs) loadMine().then(async () => { await carryFront(); if (came) askWhenFree(); }).catch(() => { });
+    /* 19 October 2026: no questions after sign-up (askQuestions is no longer opened on its own); a tap kept on this device
+       before 15 October still carries onto the account */
+    if (came || needs) loadMine().then(carryFront).catch(() => { });
+    paintEnlisted();
   });
 }
 start();
