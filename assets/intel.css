@@ -616,6 +616,11 @@ html.ir-show .ir-main{grid-template-columns:minmax(0,1fr) clamp(380px,27vw,520px
 .ir-crsw:hover b{color:var(--field)}
 .ir-crmsg{margin:6px 0 0;color:var(--dim);font-size:var(--t2)}
 .ir-crmsg:empty{display:none}
+/* show money: his Super Chat per hour, admins only, creator tools on (intel-prep.js SHOW MONEY) */
+.ir-money,.ir-money-line{display:none}
+html.ir-cr-on .ir-money{display:inline;margin-left:4px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--field)}
+html.ir-cr-on .ir-money-line{display:block;margin:8px 0;color:var(--dim);font-size:var(--t2);line-height:1.45}
+html.ir-show .ir-money-line{display:none!important}
 .ir-crmsg button{min-height:40px;padding:0 4px;background:none;border:0;color:var(--field);font:700 var(--t2) var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 
 /* THE HOT ROW AND THE FOCUS ROW (17 Oct 2026): what is trending, and a country or theme, for everyone. */

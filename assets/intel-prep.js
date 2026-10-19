@@ -609,7 +609,7 @@
     panel.hidden = !on;
     document.documentElement.classList.toggle('ir-cr-on', on);
     msg.textContent = '';
-    if (on) draw();
+    if (on) { draw(); moneyLoad(); }
   }
   $('ir-crsw').checked = st.on;
   $('ir-crsw').addEventListener('change', function () {
@@ -822,10 +822,47 @@
       copyText(txt, function () { flash(b, 'Copied'); }, function () { flash(b, 'Copying is blocked here'); });
     }
   });
+  /* SHOW MONEY (job 6hp9CRVm7P59vwGf, 19 October 2026). Beside each topic chip, what a live hour on that subject has
+     earned in Super Chat on the English channel, and one line above the show maker with the places and the Ali show
+     (projects/money/superchat-topics.py reads it off YouTube Studio and writes it). It is his income, so it is one
+     database document that only an admin can read (firestore.rules, showmoney/); for anyone else the read is refused
+     and nothing is drawn. Shown only while the creator tools are on. Display only: he still picks. */
+  var MONEY = null;
+  function moneyLoad() {
+    if (MONEY) { moneyPaint(); return; }
+    lp(function (L) {
+      if (!L || L.off || !signedIn(L) || !L.members.fb) return;
+      L.members.fb().then(function (S) { return S.F.getDoc(S.F.doc(S.db, 'showmoney', 'topics')); })
+        .then(function (snap) { if (!snap || !snap.exists()) return; MONEY = JSON.parse(snap.data().json); moneyPaint(); })
+        .catch(function () { /* not an admin: the rules refuse it and the chips stay as they are */ });
+    });
+  }
+  function moneyPaint() {
+    if (!MONEY) return;
+    var by = {}, usd = function (n) { return '$' + Math.round(n); };
+    (MONEY.topics || []).forEach(function (g) { if (g.shown) by[g.key] = g; });
+    var box = $('ir-topics');
+    if (box) [].forEach.call(box.querySelectorAll('[data-t]'), function (b) {
+      var g = by[b.getAttribute('data-t')], m = b.querySelector('.ir-money');
+      if (!g) { if (m) m.parentNode.removeChild(m); return; }
+      if (!m) { m = document.createElement('b'); m.className = 'ir-money'; b.appendChild(m); }
+      m.textContent = usd(g.perHour) + '/h';
+      b.title = 'Super Chat per live hour on this topic: ' + usd(g.perHour) + ' (' + g.streams + ' shows, ' + MONEY.window + '). Median show: ' + usd(MONEY.medianPerHour) + '.';
+    });
+    var line = $('ir-money-line');
+    if (!line) { line = document.createElement('p'); line.id = 'ir-money-line'; line.className = 'ir-money-line'; panel.parentNode.insertBefore(line, panel); }
+    var rows = (MONEY.places || []).concat(MONEY.ali ? [MONEY.ali] : []).filter(function (g) { return g.shown; })
+      .sort(function (a, b) { return b.perHour - a.perHour; });
+    line.textContent = 'Super Chat per live hour, ' + (MONEY.windowLabel || MONEY.window) + ' (' + MONEY.streams + ' shows, median ' + usd(MONEY.medianPerHour) + '): ' +
+      rows.map(function (g) { return g.name + ' ' + usd(g.perHour); }).join(' · ') + '. Topic chips show theirs.';
+  }
   if (R.onRender) R.onRender(draw);
+  if (R.onRender) R.onRender(moneyPaint);
+  lp(function (L) { if (L && L.members.sub) L.members.sub(function () { if (st.on) moneyLoad(); }); });
   if (st.on) setOn(true);
   // for build/phone-test.html, which checks every story of the hour against the gate: nothing here changes the page
-  window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st };
+  window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st,
+    money: function (d) { MONEY = d; moneyPaint(); } };          // phone-test hands it a made-up table; the real one only comes from the database
 
   /* ---------------------------------------------------------------- the show screen (?show=) */
   var q = new URLSearchParams(location.search);
