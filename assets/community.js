@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=c98da8f981 and assets/community-fa.js?v=c98da8f981, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=4d8420e805 and assets/community-fa.js?v=4d8420e805, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -3127,10 +3127,10 @@ function modTools(box) {
   if (SITE.noStats) { goH.hidden = true; goBox.hidden = true; }      // a site with no short links has no counts to show
   /* The same list as GO_TAGS in render.py and tagsOf in firestore.rules (render.py go_tags_check stops the build when they
      differ). Since 19 October 2026 the panel page counts its own arrivals by tag, the band on each page included. */
-  const GO = ['yt', 'pin', 'qr', 'x', 'site', 'mail', 'fb', 'yc', 'nl', 'front', 'race', 'state', 'member', 'vote', 'guide', 'intel', 'talk', 'mission', 'gather', 'about', 'room', 'profile', 'grade', 'crew', 'other'],
+  const GO = ['yt', 'pin', 'qr', 'x', 'site', 'mail', 'fb', 'yc', 'nl', 'front', 'race', 'state', 'member', 'vote', 'guide', 'intel', 'talk', 'mission', 'gather', 'about', 'room', 'profile', 'grade', 'crew', 'nav', 'other'],
     GOW = { yt: 'video description', pin: 'pinned comment', qr: 'QR code', x: 'X', site: 'this site', mail: 'newsletter (old tag)', fb: 'Facebook', yc: 'YouTube community post', nl: 'newsletter',
       front: 'band on the front page', race: 'band on a race', state: 'band on a state', member: 'band on a politician', vote: 'band on a vote', guide: 'band on How to vote', intel: 'band in the Intel Room',
-      talk: 'band on a discussion', mission: 'band on Missions', gather: 'band on Gatherings', about: 'band on About', room: 'band in the War Room', profile: 'band on a profile', grade: 'band on Your grade', crew: 'band on The team',
+      talk: 'band on a discussion', mission: 'band on Missions', gather: 'band on Gatherings', about: 'band on About', room: 'band in the War Room', profile: 'band on a profile', grade: 'band on Your grade', crew: 'band on The team', nav: 'Join the panel, in the menu',
       other: 'another tag', none: 'no tag' };
   function drawGo(days, err) {
     goBox.textContent = '';

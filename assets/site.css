@@ -1831,6 +1831,21 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 @media(min-width:760px){.tband-l{font-size:var(--t4)}}
 .tband-a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--field);color:var(--field);font-weight:800;text-decoration:none}
 .tband-a:hover,.tband-a:focus-visible{background:var(--field);color:var(--on-field);text-decoration:none}
+/* 20 October 2026: the band moved up the page (render.py place_band). Inside a page's own column (after the question near
+   the top of a record, or between the Intel Room's map and its list) it is a box of that column, with no .wrap of its own. */
+.tband-in{margin:var(--s4) 0;border:1px solid var(--line);border-radius:var(--r2)}
+.tband-in .tband-w{padding:var(--s3) var(--s4)}
+.ir-main>.tband-in{margin:0}
+@media(min-width:1000px){.ir-main:has(>.tband){grid-template-rows:minmax(0,1fr) auto}.ir-main>.tband{grid-column:1/-1;grid-row:2}}
+
+/* THE PILL IN THE HEADER (20 October 2026, render.py nav_go): "Join the panel", on screen without scrolling on every page.
+   On a phone it is the first thing in the strip under the bar, outside the part that scrolls; from 1220px the first link in
+   the bar. Still: no animation. */
+.subnav a.navgo,.top nav a.navgo{flex:none;align-self:center;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 13px;margin-inline-end:6px;border:1px solid var(--field);border-radius:999px;background:rgba(244,196,48,.12);color:var(--ink);font-weight:700;font-size:var(--t2);white-space:nowrap;text-decoration:none;box-shadow:none}
+.subnav a.navgo:hover,.top nav a.navgo:hover{background:var(--field);color:var(--on-field)}
+.subnav a.navgo[aria-current="page"],.top nav a.navgo[aria-current="page"]{background:var(--field);color:var(--on-field);box-shadow:none;border-radius:999px}
+.top nav a.navgo{display:none}
+@media(min-width:1220px){.top nav a.navgo{display:inline-flex;margin-inline-end:4px}}
 /* The share panel (build/share.js): what opens when a reader taps Share. ONE FILE FOR BOTH SITES. Each site's
    render.py adds it to the end of its own site.css, so it is written with the names both stylesheets share
    (--panel --sunk --raise --bg --ink --dim --line --field --on-field --ga --on-grade --r --r2 --body --s1..--s5)
