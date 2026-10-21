@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=4d8420e805) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=ad4f51fccb) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -708,7 +708,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=4d8420e805): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=ad4f51fccb): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1293,7 +1293,7 @@
     LIVE.forEach(function (it) { if (HOTALL[it.id] && (S.lens !== 'live' || pass(it, 'hot'))) all++; });
     var blind = 0;
     LIVE.forEach(function (it) { if (isBlind(it) && (S.lens !== 'live' || pass(it, 'hot'))) blind++; });
-    var html = briefChip(top) + '<button class="ir-chip ir-hc" type="button" data-hot="" aria-pressed="' + !(onLive && S.hot) + '">' + T('Everything') + '</button>' +
+    var html = '<button class="ir-chip ir-hc" type="button" data-hot="" aria-pressed="' + !(onLive && S.hot) + '">' + T('Everything') + '</button>' +
       '<button class="ir-chip ir-hc ir-hc-all" type="button" data-hot="all" aria-pressed="' + (onLive && S.hot === 'all') + '">' + flame() + '<span>' + T('All hot') + '</span> <i>' + N(all) + '</i></button>' +
       (blind || S.hot === 'blind' ? '<button class="ir-chip ir-hc ir-hc-bs" type="button" data-hot="blind" aria-pressed="' + (onLive && S.hot === 'blind') + '" title="Stories one side of the media carried and the other side did not, of the outlets the room found">' +
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg><span>Blindspots</span> <i>' + blind + '</i></button>' : '');
@@ -1306,10 +1306,12 @@
     }
     el.innerHTML = html;
   }
-  /* BRIEF ME (18 Oct 2026). One tap opens the show screen on the lead item of each of the hottest stories, with a title and
-     an intro already written from their names: the room's whole morning in one rundown, for a host who has not prepared
-     and for a reader who wants the briefing. It is a plain link to the show screen intel-prep.js already draws for
-     ?show= (it needs no creator tools), so it opens in a new tab with a middle click and can be sent to someone. */
+  /* BRIEF ME (18 Oct 2026). The show screen on the lead item of each of the hottest stories, with a title and an intro
+     already written from their names: the room's whole morning in one rundown. It is a plain link to the show screen
+     intel-prep.js draws for ?show=.
+     ONE DOOR (21 Oct 2026, Armin: "there are just so many buttons in so many places doing the same thing"). It was a chip
+     at the head of the Trending row, a second way into a show beside "Make a show". Now it is not a chip: the show maker
+     offers it as its quick option (IRoom.brief(), intel-prep.js "the quick briefing"), so every show starts at one button. */
   function briefUrl(top) {
     var its = top.map(function (h) { return h.its.filter(function (it) { return it.id === 'L' + h.lead; })[0] || h.its[0]; }).filter(Boolean);
     if (its.length < 2) return '';
@@ -1325,11 +1327,6 @@
       { n: N(its.length), first: names[0].replace(/\s+(to|of|the|a|an|in|after|is|at|for|and|on|with|by|from|as|says)$/i, '') });
     return '?show=' + its.map(function (it) { return 'on~' + (it._code || String(it.id)); }).join('.') + '&kind=live&t=' +
       encodeURIComponent(T('The briefing: {n} stories everyone is talking about', { n: N(its.length) })) + '&i=' + encodeURIComponent(intro.slice(0, 420));
-  }
-  function briefChip(top) {
-    if (CFG.prep === false) return '';          // no show screen on this page (Iran Uncensored's Persian room)
-    var u = briefUrl(top); if (!u) return '';
-    return '<a class="ir-chip ir-hc ir-brief" id="ir-brief" href="' + esc(u) + '" title="' + esc(T('Open the show screen on the {n} hottest stories, one after another', { n: N(top.length) })) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>' + T('Brief me') + '</span></a>';
   }
   function drawFocus() {
     var el = $('ir-fx'); if (!el) return;
@@ -2900,6 +2897,7 @@
       // for the show maker: the stories (hot topics) and their written words, which story an item is in, the filters in
       // words, and a call after every redraw
       packs: function () { return PACKS; }, words: function () { return WORDS; }, hots: function () { return HOTS.slice(); },
+      brief: function () { var t = hotTop(); return t.length ? { url: briefUrl(t), n: t.length } : null; },          // the quick briefing, offered inside the show maker
       storyOf: function (it) { return STORY_OF[it.id] || null; }, filterLine: filterLine, likes: likesN, fx: fxOf,
       focusName: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : ''; }, focusOn: function () { return S.fx.slice(); },
       placeOf: function (it) { return P[it.p] ? P[it.p][1] : ''; }, onRender: function (f) { RHOOK.push(f); },
@@ -2909,7 +2907,7 @@
       rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
       regime: isRegime };
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=4d8420e805'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=ad4f51fccb'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

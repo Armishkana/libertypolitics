@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=4d8420e805 and assets/community-fa.js?v=4d8420e805, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=ad4f51fccb and assets/community-fa.js?v=ad4f51fccb, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give

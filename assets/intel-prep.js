@@ -84,7 +84,8 @@
   var TONES = [['plain', 'Descriptive'], ['mid', 'Balanced'], ['bold', 'Engaging']], AIMS = [['clicks', 'Clicks'], ['watch', 'Watch time']], KINDS2 = [['live', 'Live show'], ['video', 'Video']];
   var st = store(KEY);
   if (!st || typeof st !== 'object') st = {};
-  st = { on: st.on === true, kind: st.kind === 'video' ? 'video' : 'live', tone: ['plain', 'mid', 'bold'].indexOf(st.tone) >= 0 ? st.tone : 'mid', aim: st.aim === 'watch' ? 'watch' : 'clicks' };
+  // on is never read back: the maker starts closed on every visit, for him exactly as for a stranger (21 Oct 2026, ONE DOOR below)
+  st = { on: false, kind: st.kind === 'video' ? 'video' : 'live', tone: ['plain', 'mid', 'bold'].indexOf(st.tone) >= 0 ? st.tone : 'mid', aim: st.aim === 'watch' ? 'watch' : 'clicks' };
   function save() { store(KEY, st); }
   // set: the show, in its order. best: the order the room worked out (and why each item sits where it does). mine: true once
   // the creator has changed it. acts: each change, in order, for the log. rest: how far the "not in the show" list is open.
@@ -606,11 +607,13 @@
      available for everybody"). The switch sat at the foot of the Filters drawer, so nobody but him ever found it. Now
      "Make a show" is a button on the room's one bar, beside Add, for anyone, signed in or not: making a show needs no
      account; saving it and getting a link to send does (free), because a saved show is a public page with a name on it.
-     The drawer's switch stays as the same control, for whoever looks there. */
-  var sw = document.createElement('label');
-  sw.className = 'ir-crsw';
-  sw.innerHTML = '<input type="checkbox" role="switch" id="ir-crsw"><span><b>' + esc(T('Show maker')) + '</b><small>' + esc(T('Turn what you see into a show to present or send')) + '</small></span>';
-  tools.appendChild(sw);
+     ONE DOOR, AND THE SAME PAGE FOR EVERYONE (21 October 2026, Armin: "there are just so many buttons in so many places
+     doing the same thing", and he saw the maker as his alone). The 19 Oct button was ADDED beside the old design instead
+     of replacing it: the Filters drawer kept its "Show maker" switch, and his device remembered the switch, so his page
+     drew a "Make a show from these 100 / Make the show" strip above the map that no stranger ever saw. Three doors to one
+     tool, and two different pages. Now: this button is the only door; it opens the whole maker at once; the maker's head
+     closes it; nothing about it is remembered between visits; Brief me lives inside it as the quick briefing.
+     build/phone-test.html "ONE DOOR" counts the doors and compares his page with a stranger's. */
   var mkb = document.createElement('button');
   mkb.type = 'button'; mkb.className = 'ir-cb ir-cb-show'; mkb.id = 'ir-mk-b'; mkb.setAttribute('aria-pressed', 'false'); mkb.setAttribute('aria-controls', 'ir-sm');
   mkb.innerHTML = ICON.play + '<span>' + esc(T('Make a show')) + '</span>';
@@ -635,20 +638,17 @@
     }).catch(function () { /* the account has no profile yet, or the write was refused: the tools still work on this device */ });
   }
   function setOn(on) {
-    st.on = on; save();
-    $('ir-crsw').checked = on;
+    st.on = on; ui.open = on; save();
     mkb.setAttribute('aria-pressed', on ? 'true' : 'false');
     panel.hidden = !on;
     document.documentElement.classList.toggle('ir-cr-on', on);
     msg.textContent = '';
-    if (on) { draw(); moneyLoad(); lp(function (L) { if (signedIn(L)) markCreator(L); }); }
+    if (on) { draw(); lp(function (L) { if (signedIn(L)) markCreator(L); }); }
   }
-  $('ir-crsw').checked = st.on;
-  $('ir-crsw').addEventListener('change', function () { setOn(this.checked); });
-  // The bar's button opens the maker straight away (the bar and the maker under it), and closes it again.
+  // The bar's button opens the whole maker at once, and closes it again.
   mkb.addEventListener('click', function () {
-    if (st.on && ui.open) { setOn(false); return; }
-    ui.open = true; setOn(true);
+    if (st.on) { setOn(false); return; }
+    setOn(true);
     if (panel.getBoundingClientRect().top > innerHeight - 160 || panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
   });
 
@@ -752,10 +752,12 @@
     var A = ui.pack && ui.pack.A;
     var bar = '<div class="ir-sm-bar"><span class="ir-sm-ic" aria-hidden="true">' + ICON.play + '</span><p class="ir-sm-l"><b>' + esc(n ? T('Make a show from these {n}', { n: N(n) }) : T('Your filters leave nothing')) + '</b><span>' +
       (n ? esc(mix(A)) + (n > MAXN ? ' · ' + esc(T('the strongest {n} go in, in the best order', { n: N(ui.set.length) })) : '') : esc(T('Loosen a filter and the show fills again'))) + '</span></p>' +
-      (n ? '<button type="button" class="ir-sm-go" data-mk="toggle" aria-expanded="' + ui.open + '">' + esc(ui.open ? T('Close') : T('Make the show')) + '</button>' : '') + '</div>';
-    if (!n || !ui.open) { keepFocus(function () { panel.innerHTML = bar; }); panel.classList.toggle('open', false); return; }
+      '<button type="button" class="ir-sm-go" data-mk="toggle" aria-expanded="true">' + esc(T('Close')) + '</button></div>';          // the head of the open maker: its only button closes it (the bar's "Make a show" is the one way in)
+    if (!n) { keepFocus(function () { panel.innerHTML = bar; }); panel.classList.toggle('open', false); return; }
+    var bf = R.brief ? R.brief() : null;          // the quick briefing (Brief me until 21 Oct): the hottest stories, ready to play, no choices
     var acts = '<div class="ir-sm-acts"><a class="ir-sm-show" href="' + esc(showUrl()) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Open the show screen')) + '</span></a>' +
-      '<button type="button" class="ir-sm-copy" data-mk="copy">' + ICON.copy + '<span>' + esc(T('Copy the package')) + '</span></button></div>';
+      '<button type="button" class="ir-sm-copy" data-mk="copy">' + ICON.copy + '<span>' + esc(T('Copy the package')) + '</span></button>' +
+      (bf && bf.url ? '<a class="ir-sm-brief" id="ir-brief" href="' + esc(bf.url) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Or play the quick briefing: the {n} hottest stories', { n: N(bf.n) })) + '</span></a>' : '') + '</div>';
     var from = '<p class="ir-sm-from"><span>' + esc(T('Built from')) + '</span> ' + esc(R.filterLine ? R.filterLine() : '') + '</p>';
     var body;
     if (PLAIN) {
@@ -997,7 +999,7 @@
     if (ev.target.closest('.ir-sm-show')) { sendEdit('screen'); return; }          // the link opens the screen; the record goes with it
     var b = ev.target.closest('button'); if (!b || !panel.contains(b)) return;
     var mk = b.getAttribute('data-mk');
-    if (mk === 'toggle') { ui.open = !ui.open; draw(); if (ui.open) { var bd = panel.querySelector('.ir-sm-body'); if (bd && bd.getBoundingClientRect().top > innerHeight - 120) panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); } return; }
+    if (mk === 'toggle') { setOn(false); mkb.focus({ preventScroll: true }); return; }          // Close: the maker goes, focus back on its one door
     if (mk === 'more') { ui.page[ui.tab]++; draw(); return; }
     if (mk === 'rest') { ui.rest += 12; draw(); return; }
     if (mk === 'best') { ui.set = ui.best.list.slice(); ui.mine = false; ui.acts.push('reset'); keepOrder(); rewords(); draw(); var rb = panel.querySelector('[data-tab="run"]'); if (rb) rb.focus(); return; }
@@ -1050,7 +1052,8 @@
      earned in Super Chat on the English channel, and one line above the show maker with the places and the Ali show
      (projects/money/superchat-topics.py reads it off YouTube Studio and writes it). It is his income, so it is one
      database document that only an admin can read (firestore.rules, showmoney/); for anyone else the read is refused
-     and nothing is drawn. Shown only while the creator tools are on. Display only: he still picks. */
+     and nothing is drawn. Display only: he still picks. Since 21 Oct it is drawn whenever an admin is signed in (html
+     class ir-money-on), no longer tied to the maker being open: the maker no longer stays open between visits. */
   var MONEY = null;
   function moneyLoad() {
     if (MONEY) { moneyPaint(); return; }
@@ -1063,6 +1066,7 @@
   }
   function moneyPaint() {
     if (!MONEY) return;
+    document.documentElement.classList.add('ir-money-on');
     var by = {}, usd = function (n) { return '$' + Math.round(n); };
     (MONEY.topics || []).forEach(function (g) { if (g.shown) by[g.key] = g; });
     var box = $('ir-topics');
@@ -1082,8 +1086,12 @@
   }
   if (R.onRender) R.onRender(draw);
   if (R.onRender) R.onRender(moneyPaint);
-  lp(function (L) { if (L && L.members.sub) L.members.sub(function () { if (st.on) moneyLoad(); }); });
-  if (st.on) setOn(true);
+  lp(function (L) {
+    if (L && L.members.sub) L.members.sub(function () {
+      if (signedIn(L)) moneyLoad(); else { MONEY = null; document.documentElement.classList.remove('ir-money-on'); }          // signed out: his income leaves the page
+    });
+  });
+  moneyLoad();
   // for build/phone-test.html, which checks every story of the hour against the gate: nothing here changes the page
   window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st,
     money: function (d) { MONEY = d; moneyPaint(); } };          // phone-test hands it a made-up table; the real one only comes from the database
@@ -1093,7 +1101,7 @@
   PACKS = R.packs ? R.packs() : null;          // intel.js has already read data/show-packs.json
   if (q.get('s')) loadSaved(q.get('s'));
   else if (q.get('show')) showScreen(fromQuery());
-  else { if (location.hash === '#make') { ui.open = true; setOn(true); if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); setTimeout(function () { panel.scrollIntoView({ block: 'start' }); }, 300); } draw(); }          // #make: a show screen's "Make your own" (a hash, because the room rewrites its query)
+  else { if (location.hash === '#make') { setOn(true); if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); setTimeout(function () { panel.scrollIntoView({ block: 'start' }); }, 300); } draw(); }          // #make: a show screen's "Make your own" (a hash, because the room rewrites its query)
 
   // The show the address spells out (?show=, made by the maker on this device): its items must still be in the room
   function fromQuery() {

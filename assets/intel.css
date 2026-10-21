@@ -618,8 +618,8 @@ html.ir-show .ir-main{grid-template-columns:minmax(0,1fr) clamp(380px,27vw,520px
 .ir-crmsg:empty{display:none}
 /* show money: his Super Chat per hour, admins only, creator tools on (intel-prep.js SHOW MONEY) */
 .ir-money,.ir-money-line{display:none}
-html.ir-cr-on .ir-money{display:inline;margin-left:4px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--field)}
-html.ir-cr-on .ir-money-line{display:block;margin:8px 0;color:var(--dim);font-size:var(--t2);line-height:1.45}
+html.ir-money-on .ir-money{display:inline;margin-left:4px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--field)}
+html.ir-money-on .ir-money-line{display:block;margin:8px 0;color:var(--dim);font-size:var(--t2);line-height:1.45}
 html.ir-show .ir-money-line{display:none!important}
 .ir-crmsg button{min-height:40px;padding:0 4px;background:none;border:0;color:var(--field);font:700 var(--t2) var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 
@@ -712,6 +712,9 @@ html.ir-show .ir-money-line{display:none!important}
 .ir-sm-show:hover{background:var(--field-hi)}
 .ir-sm-copy{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid #4a4843;background:none;color:var(--ink);font:650 var(--t2) var(--body);cursor:pointer}
 .ir-sm-copy:hover,.ir-sm-copy.done{border-color:var(--field);color:var(--field)}
+/* the quick briefing (21 Oct 2026): Brief me, moved inside the one show maker; a quiet link, never a third big button */
+.ir-sm-brief{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 6px;color:var(--field);font:700 var(--t2) var(--body);text-decoration:none}
+.ir-sm-brief:hover span{text-decoration:underline;text-underline-offset:3px}
 .ir-sm-pk{margin:0;color:var(--dim);font-size:var(--t1);line-height:1.45}
 .ir-sm-pk b{color:var(--field)}
 @media(max-width:620px){
