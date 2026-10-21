@@ -448,9 +448,15 @@
     if (P.descs.length < 2) {
       var live0 = st.kind === 'live', V0 = A.kinds.video || 0, N0 = A.n, src0 = A.O.slice(0, 3), more0 = A.O.length - src0.length;
       var from0 = src0.length ? ' from ' + listOf(src0.concat(more0 > 0 ? [more0 + ' more'] : [])) : '';
-      var what0 = N0 + (N0 === 1 ? ' source' : ' sources') + from0 + (V0 ? (V0 === N0 ? (N0 === 1 ? ', on video' : ', all on video') : ', ' + V0 + ' of them on video') : '');
+      var onV0 = V0 ? (V0 === N0 ? (N0 === 1 ? ', on video' : ', all on video') : ', ' + V0 + ' of them on video') : '';
+      var what0 = N0 + (N0 === 1 ? ' source' : ' sources') + from0 + onV0;
+      // 21 Oct 2026: an outlet named after a place ("from Iran International") can itself be refused by fits(), so the
+      // last two name no outlet at all and always fit
+      var bare0 = N0 + (N0 === 1 ? ' source' : ' sources') + onV0;
       [{ t: 'What happened, who said what, and what it means: ' + what0 + '. ' + (live0 ? 'On this live show we go through every one of them, in order, each one linked below.' : 'This video goes through every one of them, in order, each one linked below.'), tone: 'plain', id: 'd-safe1' },
-       { t: 'Here is what the ' + (V0 ? 'clips' : 'sources') + ' actually show, and what the coverage leaves out: ' + what0 + '. Every source is linked below, so check it yourself.', tone: 'mid', id: 'd-safe2' }]
+       { t: 'Here is what the ' + (V0 ? 'clips' : 'sources') + ' actually show, and what the coverage leaves out: ' + what0 + '. Every source is linked below, so check it yourself.', tone: 'mid', id: 'd-safe2' },
+       { t: 'What happened, who said what, and what it means: ' + bare0 + '. ' + (live0 ? 'On this live show we go through every one of them, in order, each one linked below.' : 'This video goes through every one of them, in order, each one linked below.'), tone: 'plain', id: 'd-safe3' },
+       { t: 'Here is what the ' + (V0 ? 'clips' : 'sources') + ' actually show, and what the coverage leaves out: ' + bare0 + '. Every source is linked below, so check it yourself.', tone: 'mid', id: 'd-safe4' }]
         .forEach(function (x) { x.t = noDash(x.t).replace(/\s+/g, ' '); if (P.descs.length < 2 && lint(x.t, 'descs') && fits(A, x.t) && !P.descs.some(function (y) { return y.t.toLowerCase() === x.t.toLowerCase(); })) P.descs.push(x); });
     }
     P.dropped = dropped;
