@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=cc0b0806ae) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9c0df4720c) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -712,7 +712,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=cc0b0806ae): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9c0df4720c): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1497,8 +1497,25 @@
     if (S.lens === 'bank' && !fullRange()) p.push(['time:', $('ir-range').textContent]);
     if (S.q) p.push(['q:', '"' + S.q + '"']);
     el.innerHTML = p.map(function (x) { return '<button type="button" class="ir-pill" data-unpill="' + esc(x[0]) + '" aria-label="' + esc(T('Remove {what}', { what: x[1] })) + '"><span>' + esc(x[1]) + '</span><b aria-hidden="true">&times;</b></button>'; }).join('') +
-      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>' + T('Clear all') + '</button>' : '');
+      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>' + T('Clear all') + '</button>' : '') + storyAbout();
     el.hidden = !p.length;
+  }
+  /* WHAT A STORY IS (22 Oct 2026; Armin, on a Trending chip: "I clicked on this hot topic filter that I don't know what
+     it's about"). A chip carries a name cut to fit; once it is picked, one line under the pill says the story whole: its
+     lead headline, and how many posts and outlets it holds, so he knows what he is looking at before reading the list. */
+  function storyAbout() {
+    if (!S.hot || S.lens !== 'live' || S.hot === 'all' || S.hot === 'blind') return '';
+    if (FA && !(TT && TT['The story:'])) return '';          // the Persian room says nothing in English it has no words for
+    var h = hotById(S.hot); if (!h) return '';
+    var lead = h.its.filter(function (it) { return it.id === 'L' + h.lead; })[0] || h.its[0];
+    var s = h.s || {}, bits = [];
+    var xn = s.xn != null ? s.xn : h.its.filter(function (it) { return it.src === 'X'; }).length;
+    if (xn) bits.push(T(xn === 1 ? '1 post on X' : '{n} posts on X', { n: N(xn) }));
+    if (s.out) bits.push(T(s.out === 1 ? '1 outlet' : '{n} outlets', { n: N(s.out) }));
+    if (s.x10k) bits.push(T('{n} over 10,000 likes', { n: N(s.x10k) }));
+    var said = String(fullText(lead) || lead.t || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
+      .replace(/^\W*(?:(?:major |big )?breaking(?: news)?|just in|now|wow|boom)\s*[:!\-|]+\s*/i, '').replace(/\s+/g, ' ').trim();
+    return '<p class="ir-pill-about"><b>' + esc(T('The story:')) + '</b> ' + esc(cut(said, 200)) +(bits.length ? ' <span>' + esc(bits.join(' · ')) + '</span>' : '') + '</p>';
   }
   function unpill(v) {
     var i = v.indexOf(':'), k = v.slice(0, i), x = v.slice(i + 1), cut1 = function (a) { var j = a.indexOf(x); if (j >= 0) a.splice(j, 1); };
@@ -2908,10 +2925,10 @@
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml,
       // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
-      rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
+      rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
       regime: isRegime };
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=cc0b0806ae'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9c0df4720c'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

@@ -1219,12 +1219,31 @@
           var x = r.it, rg = isReg(x);
           return '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
             '<p class="ir-rd-t">' + paras(full(x)) + '</p>' + counts(x) +
-            (rg ? '<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow">' + esc(srcLine(x)) + '</a></p>') + '</div></li>';
+            (!rg && R.repliesOn !== false && R.rpKey && R.rpKey(x) ?'<div class="ir-rd-rp" data-rdrp="' + i + '"></div>' : '') +
+            (rg ?'<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow">' + esc(srcLine(x)) + '</a></p>') + '</div></li>';
         }).join('') + '</ol>') +
         '<footer class="ir-rd-f"><p>' + esc(T('Every item links to where it was first published. Check it yourself.')) + '</p>' +
         '<p class="ir-rd-acts"><button type="button" data-rd="present">' + ICON.play + '<span>' + esc(T('Present it')) + '</span></button><button type="button" data-rd="print">' + ICON.notes + '<span>' + esc(T('Print or save as PDF')) + '</span></button>' +
         '<a class="ir-sh-mk" href="' + esc(location.pathname + '#make') + '">' + ICON.plus + '<span>' + esc(T('Make a show of your own')) + '</span></a></p>' +
         '<p class="ir-rd-mark">' + esc(T('Made in the Intel Room: the news and the evidence of the last 24 hours on one map, free for anyone.')) + ' <a href="' + esc(location.pathname) + '">' + esc(SITE_MARK) + '</a></p></footer></article>';
+    }
+    /* THE TOP REPLIES ON THE PAGE (22 Oct 2026; Armin: the show "doesn't have an option for me to see the top comments,
+       the comments with the most likes"). The page view (a phone's default) had none; the stage had them behind a button.
+       Now every post and video on the page carries its most-liked replies: the top 3 open, the rest one tap away, or an
+       honest "not read yet" with the link to read them where they are. Filled after the page is drawn, from the same
+       file and rows the stage uses (R.replies, R.repliesHtml). */
+    var RD_TOP = 3;
+    function readReplies() {
+      [].forEach.call($('ir-sh-stage').querySelectorAll('[data-rdrp]'), function (box) {
+        var r = rows[+box.getAttribute('data-rdrp')]; if (!r || !R.replies) return;
+        R.replies(r.it, function (e, st) {
+          if (!box.isConnected || mode !== 'read') return;
+          var list = e && e.r && e.r.length ? e.r : null;
+          if (!list) { box.innerHTML = R.repliesNone(r.it, st); return; }
+          box.innerHTML = R.repliesHead(r.it, e) + R.repliesHtml(r.it, list.slice(0, RD_TOP), false) +
+            (list.length > RD_TOP ? '<details class="ir-rd-more"><summary>' + esc(T('Show all {n}', { n: N(list.length) })) + '</summary>' + R.repliesHtml(r.it, list.slice(RD_TOP), false) + '</details>' : '');
+        });
+      });
     }
     function setMode(m) {
       mode = m;
@@ -1232,7 +1251,7 @@
       var mb = $('ir-sh-mode'); mb.setAttribute('aria-pressed', m === 'read' ? 'true' : 'false');
       mb.innerHTML = (m === 'read' ? ICON.play + '<span>' + esc(T('Present it')) + '</span>' : ICON.read + '<span>' + esc(T('Read it as a page')) + '</span>');
       if (history.replaceState) { var u = new URLSearchParams(location.search); u.set('v', m); history.replaceState(null, '', location.pathname + '?' + u.toString()); }
-      if (m === 'read') { closeReply(); $('ir-sh-stage').innerHTML = readHtml(); $('ir-sh-stage').scrollTop = 0; $('ir-sh-count').textContent = rows.length === 1 ? T('1 item') : T('{n} items', { n: N(rows.length) }); }
+      if (m === 'read') { closeReply(); $('ir-sh-stage').innerHTML = readHtml(); readReplies(); $('ir-sh-stage').scrollTop = 0;$('ir-sh-count').textContent = rows.length === 1 ? T('1 item') : T('{n} items', { n: N(rows.length) }); }
       else { $('ir-sh-stage').innerHTML = ''; if (empty) $('ir-sh-stage').innerHTML = '<div class="ir-sh-card"><h1>' + esc(T('This show has nothing in it')) + '</h1></div>'; go(at); }
     }
     /* THE ITEM ON THE SCREEN (rebuilt 18 Oct 2026). Armin, on an X post drawn 550px wide in a 1900px screen with its words
