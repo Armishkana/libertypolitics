@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=75ea3b11b7) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=cc0b0806ae) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -702,13 +702,17 @@
     $('ir-more').textContent = moreText();
     var n = shown.length, w = S.lens === 'live' ? (n === 1 ? T('story') : T('stories')) : S.lens === 'readers' ? (n === 1 ? T('find') : T('finds')) : (n === 1 ? T('item') : T('items'));
     var nn = S.lens === 'live' && SEEN_AT ? shown.filter(isNew).length : 0;
+    // 22 Oct 2026 (his: "it doesn't have enough tweets"): how many of what is listed are X posts, the thing he puts on air,
+    // so a story's chip shows at once whether it holds 3 posts or 30.
+    var nxp = S.lens === 'live' ? shown.filter(function (it) { return it.src === 'X'; }).length : 0;
     $('ir-count').innerHTML = '<b class="num">' + N(n) + '</b> ' + w + (n === items.length ? (S.lens === 'bank' ? T(' in the bank') : S.lens === 'live' ? T(' in 24 hours') : T(' waiting')) : T(' match')) +
+      (nxp ? ' <span class="ir-xn">· ' + T('{n} on X', { n: N(nxp) }) + '</span>' : '') +
       (nn ? ' <span class="ir-newn" title="' + T('Since your last visit to the room on this device') + '">' + T('{n} new', { n: N(nn) }) + '</span>' : '');
     $('ir-copy').hidden = !n; $('ir-tour').hidden = !n;
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=75ea3b11b7): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=cc0b0806ae): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2907,7 +2911,7 @@
       rpKey: rpKey, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
       regime: isRegime };
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=75ea3b11b7'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=cc0b0806ae'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

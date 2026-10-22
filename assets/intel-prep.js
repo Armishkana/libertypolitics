@@ -1249,7 +1249,7 @@
     var rpOn = false, rbAt = -1, rpCur = null;          // the replies panel (stays on across items), the reply on the screen alone, the item's replies
     var CARD_RX2 = /^https:\/\/pbs\.twimg\.com\/card_img\/\d+\/[A-Za-z0-9_-]+\?format=(?:jpg|png|webp)$/;
     function full(x) { return R.fullText ? R.fullText(x) : x.t; }
-    function paras(t) { return String(t || '').split(/\n\s*\n+/).map(function (p) { return '<span class="ir-sh-pp">' + esc(p.trim()) + '</span>'; }).join(''); }
+    function paras(t) { return String(t || '').split(/\n\s*\n+/).map(function (p) { return '<span class="ir-sh-pp">' + esc(p.trim()) + '</span>'; }).join(' '); }   // the space: a copy or a screen reader read "partnership.We" (22 Oct 2026)
     // the rare post whose end even the room could not get (X's 280 and the mirror both failed): say so, never pretend
     function more(x) { var w = full(x); return w.length >= 270 && /…$/.test(w) ? '<a class="ir-sh-more" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(T('The post goes on: read the rest on X')) + '</a>' : ''; }
     function initial(x) { return String(x.nm || x.h || '?').replace(/^@/, '').slice(0, 1).toUpperCase() || '?'; }
