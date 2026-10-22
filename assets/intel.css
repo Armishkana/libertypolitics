@@ -1327,3 +1327,43 @@ html.ir-show .ir-cmd>:not(.ir-lens){display:none!important}
 }
 @media(min-width:901px) and (max-width:1366px){.ir-sh-tools button span{display:none}.ir-sh-tools button{padding:0 10px}}
 .ir-sh.is-read .ir-sh-title{visibility:hidden}
+/* WHO POSTED IT (22 Oct 2026, Armin: "make it more clear who posted it"): every card and the spotlight open on the
+   author's face, name and handle (an X post) or the outlet beside its platform's mark. intel.js byline(). */
+.ir-by{display:flex;align-items:center;gap:7px;min-width:0;margin:0 0 5px;line-height:1.2}
+.ir-by-av{flex:none;width:24px;height:24px;border-radius:50%;background:#2a2721 center/cover no-repeat;box-shadow:0 0 0 1.5px rgba(255,255,255,.14)}
+.ir-by-av.is-mono{display:grid;place-items:center;background:color-mix(in srgb,var(--pc,#8a7e62) 45%,#161512);font:800 10px/1 var(--display);color:var(--ink);letter-spacing:.02em}
+.ir-by-av.is-mk{display:grid;place-items:center;width:16px;height:16px;background:none;box-shadow:none}
+.ir-by-mk{width:14px;height:14px}
+.ir-by b{flex:0 1 auto;min-width:0;font:700 var(--t1)/1.25 var(--body);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-by small{flex:0 100 auto;min-width:0;color:var(--dim);font-size:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-by-big{gap:10px;margin:0}
+.ir-by-big .ir-by-av{width:44px;height:44px;box-shadow:0 0 0 2px var(--pc,rgba(255,255,255,.18))}
+.ir-by-big .ir-by-av.is-mk{width:20px;height:20px;box-shadow:none}
+.ir-by-big .ir-by-mk{width:18px;height:18px}
+.ir-by-big b{font-size:1.05rem}
+.ir-by-big small{font-size:var(--t2)}
+.ir-s-who{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;margin:2px 0 10px}
+.ir-s-more{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--field-edge,var(--line));background:rgba(var(--ir-gold,244,196,48),.08);color:var(--ink);font:600 var(--t1) var(--body);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-s-more:hover{border-color:var(--field);color:var(--field)}
+/* a headline in the list is three lines at most; the spotlight carries the whole of it */
+.ir-card .ir-c-t{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+/* A STORY'S NAME, WHOLE (22 Oct 2026, Armin on the Trending chips: "it is hard to tell what these topics are ... you
+   don't see the full thing"). Each story's name is made whole (show_packs.py chip_name) and shown on up to two lines,
+   never cut with an ellipsis. On a computer the stories wrap with the other chips; on a phone they lead the one swipe
+   row, each most of the screen wide, the next one showing at the edge, with Everything, All hot and Blindspots after. */
+.ir-hs-row{display:contents}
+.ir-hots .ir-hs{max-width:19rem;white-space:normal;text-align:start;border-radius:18px;padding-top:7px;padding-bottom:9px;line-height:1.25}
+.ir-hs .ir-hs-n{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-width:none;overflow:hidden;text-overflow:clip;white-space:normal;vertical-align:middle}
+@media(max-width:700px){
+  /* one row, the map stays on the first screen (phone-test: the map starts in the top three quarters): the stories first,
+     the first one whole and the next one showing at the edge, then Everything, All hot and Blindspots after them */
+  .ir-hotrow .ir-row-l{padding-bottom:4px}
+  .ir-hots{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;overscroll-behavior-x:contain;padding-bottom:4px}
+  .ir-hc-sep{display:none}
+  .ir-hots .ir-hs{order:-1;flex:0 0 82%;max-width:none;min-height:46px;padding-top:5px;padding-bottom:7px;scroll-snap-align:start}
+  .ir-hots .ir-hs .ir-hs-n{font-size:var(--t1);line-height:1.2}
+}
+@media(max-width:700px){.ir-hots>.ir-hc{padding:0 9px;gap:4px;font-size:var(--t1)}.ir-hots>.ir-hc i{font-size:var(--t1)}.ir-hots>.ir-hc svg{width:13px;height:13px}}          /* Everything, All hot and Blindspots on one line at 360px */
+.ir-lt .ir-by{margin:0}.ir-lt .ir-by-av{width:30px;height:30px}.ir-lt .ir-by b,.ir-lt .ir-by small{font-size:var(--t2)}          /* the Tour's caption is read on air */
+.ir-tip .ir-by{margin:0 0 4px}
+.ir-card .ir-by{width:0;min-width:100%}          /* the list is a grid sized by its content: a byline's one line never sets a card's width; a long name ends in ... */

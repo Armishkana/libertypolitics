@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9c0df4720c) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=10075e4e9a) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -171,7 +171,7 @@
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
   var PACKS = null, WORDS = null, HOTS = [], HOTALL = {}, STORY_OF = {}, RHOOK = [];
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '' };
+  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '' };
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -480,7 +480,8 @@
     }
     list.forEach(function (h) {
       var w = WORDS && WORDS.stories && WORDS.stories[h.lead];
-      h.name = w && w.name ? w.name : cut(h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, ''), 44);
+      // the written name, else the one build/show_packs.py chip_name() makes whole every hour, else the headline cut at a word
+      h.name = w && w.name ? w.name : h.s && h.s.name ? String(h.s.name) : cut(unshout(h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, '')), 56);
       h.w = w || null;
       h.score = h.hot * (0.6 + 0.4 * Math.min(1, h.its.length / 3));
       h.ids = {}; h.its.forEach(function (it) { h.ids[it.id] = 1; STORY_OF[it.id] = h; });
@@ -495,6 +496,7 @@
   function hotById(id) { return HOTS.filter(function (h) { return h.id === id; })[0] || null; }
   function pass(it, skip) {
     if (skip !== 'link' && LSET && !LSET[it.id]) return false;
+    if (S.who && whoKey(it) !== S.who) return false;          // one account's posts (WHO POSTED IT)
     if (skip !== 'hot' && S.hot && S.lens === 'live') {
       if (S.hot === 'all') { if (!HOTALL[it.id]) return false; }
       else if (S.hot === 'blind') { if (!isBlind(it)) return false; }
@@ -610,6 +612,38 @@
     var w = String(it.nm || it.h || it.src || '').replace(/^@/, '').replace(/\.(com|org|net|gov|co|il|uk|tv|media|online)\b.*$/i, '').split(/[\s._-]+/).filter(function (x) { return /^[A-Za-z0-9]/.test(x) && !/^(the|of|and|news|www)$/i.test(x); });
     return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase();
   }
+  /* WHO POSTED IT (22 Oct 2026, Armin on a Trump post in the list: "I should be able to see the profile picture of the
+     person who posted these posts as well and make it more clear who posted it ... more people would be able to tell if
+     they want this"). Every card and the spotlight open on who said it, as X itself does: an X post the author's face,
+     name and handle; anything else the outlet or channel beside its platform's mark. A page that loads pictures only on a
+     tap (the Persian room) shows the author's initials until pictures are on. One line, so a long name never wraps. */
+  function whoName(it) { return String(it.src === 'X' ? (it.nm || it.h || '') : (it.h || it.nm || T(it.src || ''))).replace(/\s+/g, ' ').trim(); }
+  function whoKey(it) { return String(it.h || it.nm || '').toLowerCase(); }
+  function whoFace(it, big) {
+    if (it.src === 'X') {
+      var av = pics() || it._pics ? avOf(it, big ? '200x200' : 'bigger') : '';
+      return av ? '<span class="ir-by-av" style="background-image:url(' + esc(av) + ')" aria-hidden="true"></span>'
+        : '<span class="ir-by-av is-mono" style="--pc:' + pfColor(pfOf(it)) + '" aria-hidden="true">' + esc(initials(it)) + '</span>';
+    }
+    return '<span class="ir-by-av is-mk" aria-hidden="true">' + mark(it, 'ir-by-mk') + '</span>';
+  }
+  function byline(it, big) {
+    var nm = whoName(it); if (!nm) return '';
+    var h = it.src === 'X' && it.h && it.h.toLowerCase() !== nm.toLowerCase() ? it.h : '';
+    return '<span class="ir-by' + (big ? ' ir-by-big' : '') + '">' + whoFace(it, big) + '<b' + DA + '>' + bd(esc(nm)) + '</b>' + (h ? '<small>' + esc(h) + '</small>' : '') + '</span>';
+  }
+  // Shouting taken out of a line the room writes itself (the story line under a pill): a run of three or more words in
+  // capitals, or one word of four or more, is written as a word; a known short acronym stays (US, FBI, IDF, NATO).
+  var ACRO = /^(US|USA|UK|EU|UN|FBI|DOJ|CIA|NSA|IDF|GOP|DNC|RNC|NATO|AP|BBC|CNN|ICE|IRGC|NYC|DC|AI|MSNBC|OPEC|NASA|HAMAS|ISIS|DHS|DOD|DOGE|CEO|GDP|IMF|WHO|NHS|MP|PM|SEC|CBS|NBC|ABC|TV|LGBT|LGBTQ|USAID|UNRWA|ICC|ICJ|MAGA|WNBA|NFL|NBA|EV|OK)$/;
+  var SMALLW = /^(a|an|and|as|at|but|by|for|from|in|into|of|on|or|over|the|to|vs|with)$/i;
+  function unshout(t) {
+    var word = function (w) { return ACRO.test(w.replace(/['’]/g, '')) ? w : w.charAt(0) + w.slice(1).toLowerCase(); };
+    t = String(t || '').replace(/\b[A-Z][A-Z'’]*(?:[\s,:;.!?&–—-]+[A-Z][A-Z'’]*){2,}\b/g, function (run) {
+      var n = 0;
+      return run.replace(/\b[A-Z][A-Z'’]*\b/g, function (w) { n++; return n > 1 && SMALLW.test(w) ? w.toLowerCase() : word(w); });
+    });
+    return t.replace(/\b[A-Z][A-Z'’]{3,}\b/g, word);
+  }
   // The place, drawn from the room's own map: a globe turned to it, the land as on the big map, the country lit in the
   // room's gold, a pin on the spot. One picture a place and size, made once and kept (a JPEG of a few KB).
   var LOC = {};
@@ -683,10 +717,11 @@
   }
   function card(it, i) {
     var where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
-    var meta = '<span>' + esc(it.pend && !it.d ? T('Sent {t}', { t: ago(it.ms) }) : fmtDate(it.d)) + '</span> · ' + esc(where) + ' · ' + bd(esc(it.h || it.src)) + badges(it);
+    // who posted it leads the card (byline); the meta line keeps when and where
+    var by = byline(it), meta = '<span>' + esc(it.pend && !it.d ? T('Sent {t}', { t: ago(it.ms) }) : fmtDate(it.d)) + '</span> · ' + esc(where) + (by ? '' : ' · ' + bd(esc(it.h || it.src))) + badges(it);
     var tags = hotTag(it) + viralTag(it) + reachLine(it) + spreadTag(it);
     return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
-      '<span><span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
+      '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
   }
   function moreText() { return T('Show {n} more ({m} left)', { n: N(Math.min(PAGE_N, shown.length - limit)), m: N(shown.length - limit) }); }
   function drawList() {
@@ -712,7 +747,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9c0df4720c): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=10075e4e9a): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1151,7 +1186,7 @@
       if (it.hot != null) nums.push(T('Hot {n}', { n: N(it.hot) }));
       if (it._v != null) nums.push(T('Viral {n}', { n: N(it._v) }));
       var tv = it.sn ? null : vis(it), tth = tv && (tv.k === 'pic' || tv.k === 'av') ? tv.u : '';
-      tip.innerHTML = (tth ? '<span class="tip-im" style="background-image:url(' + esc(tth) + ')">' + (kindOf(it) === 'video' ? PLAY_SVG : '') + '</span>' : '') + '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + dh(esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t)) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + T('. Tap to open.') + '</small>';
+      tip.innerHTML = (tth ? '<span class="tip-im" style="background-image:url(' + esc(tth) + ')">' + (kindOf(it) === 'video' ? PLAY_SVG : '') + '</span>' : '') + '<span class="tip-k" style="--pc:' + pfColor(pfOf(it)) + '">' + mark(it, 'tip-m') + esc(KIND_N[kindOf(it)] + ' · ' + pfName(pfOf(it)) + ' · ' + fmtDate(it.d)) + '</span>' + byline(it) + dh(esc(it.t.length > 90 ? it.t.slice(0, 88) + '…' : it.t)) + '<small>' + esc(nums.join(' · ') || placeName(m.k)) + T('. Tap to open.') + '</small>';
       tip.classList.add('wide');
       tip.style.left = m.x + 'px'; tip.style.top = (m.y - 10) + 'px'; tip.hidden = false;
       return;
@@ -1304,9 +1339,11 @@
     if (top.length) {
       html += '<span class="ir-hc-sep" aria-hidden="true"></span>' + top.map(function (h) {
         var n = h.its.filter(function (it) { return pass(it, 'hot'); }).length;
-        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (onLive && S.hot === h.id) + '" title="' + esc(h.title + (h.s && h.s.ls ? '. ' + spreadWords(h.s.ls) : '')) + '"><b class="num">' + N(h.hot) + '</b><span' + DA + '>' + esc(h.name) + '</span>' + (onLive ? ' <i>' + N(n) + '</i>' : '') +
+        return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (onLive && S.hot === h.id) + '" title="' + esc(h.title + (h.s && h.s.ls ? '. ' + spreadWords(h.s.ls) : '')) + '"><b class="num">' + N(h.hot) + '</b><span class="ir-hs-n"' + DA + '>' + esc(h.name) + '</span>' + (onLive ? ' <i>' + N(n) + '</i>' : '') +
           (h.s && h.s.ls ? spreadBar(h.s.ls, 'ir-sp-chip') : '') + '</button>';
       }).join('');
+      // the stories ride in their own row: one flow with the chips on a computer, a row of their own on a phone (intel.css)
+      html = html.replace(/(<span class="ir-hc-sep"[^>]*><\/span>)([\s\S]*)$/, '$1<span class="ir-hs-row">$2</span>');
     }
     el.innerHTML = html;
   }
@@ -1401,7 +1438,7 @@
     var el = $('ir-wire'); if (!el) return;
     if (!liveShown() || LIVE.length < 3) { el.hidden = true; return; }
     var top = LIVE.slice().sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); }).slice(0, 14);
-    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + N(it.hot) + '</b></span>' + mark(it, 'w-m') + '<span class="w-t"' + DA + '>' + esc(it.t) + '</span><span class="w-s">' + bd(esc(it.h || it.src)) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
+    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + N(it.hot) + '</b></span>' + mark(it, 'w-m') + '<span class="w-t"' + DA + '>' + esc(it.t) + '</span><span class="w-s">' + bd(esc(whoName(it) || it.h || it.src)) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
     $('ir-wire-t').innerHTML = '<span class="w-set">' + top.map(function (it) { return one(it); }).join('') + '</span><span class="w-set" aria-hidden="true">' + top.map(function (it) { return one(it, 1); }).join('') + '</span>';
     $('ir-wire-t').style.animationDuration = Math.max(60, top.length * 9) + 's';
     el.hidden = false;
@@ -1443,7 +1480,7 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>' + T('Clear') + '</button>' : '') : '';
   }
   function clearAll() {
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
     say('');
     render();
@@ -1481,6 +1518,7 @@
     var p = [], kn = function (k) { return (KINDS.filter(function (x) { return x[0] === k; })[0] || ['', k])[1]; };
     if (S.link) { var L = linkByKey(S.link); p.push(['link:', T('Connection: {what}', { what: L ? T('{a} and {b}', { a: cName(L.a), b: cName(L.b) }) : S.link.split('|').map(cName).join(T(' and ')) })]); }
     if (S.with) { var wi = itemById(S.with); p.push(['with:', T('Connected to: {what}', { what: wi ? cut(wi.t, 40) : T('one story') })]); }
+    if (S.who) { var wi0 = items.filter(function (x) { return whoKey(x) === S.who; })[0]; p.push(['who:', T('From {who}', { who: wi0 ? whoName(wi0) : S.who })]); }
     if (S.hot && S.lens === 'live') { var h = S.hot === 'all' || S.hot === 'blind' ? null : hotById(S.hot); p.push(['hot:', h ? T('Story: {name}', { name: h.name }) : S.hot === 'blind' ? T('Blindspots') : T('Hot stories')]); }
     S.tp.forEach(function (k) { p.push(['tp:' + k, topicName(k)]); });
     S.fx.forEach(function (k) { p.push(['fx:' + k, FOCUS[FXI[k]][1]]); });
@@ -1515,11 +1553,11 @@
     if (s.x10k) bits.push(T('{n} over 10,000 likes', { n: N(s.x10k) }));
     var said = String(fullText(lead) || lead.t || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
       .replace(/^\W*(?:(?:major |big )?breaking(?: news)?|just in|now|wow|boom)\s*[:!\-|]+\s*/i, '').replace(/\s+/g, ' ').trim();
-    return '<p class="ir-pill-about"><b>' + esc(T('The story:')) + '</b> ' + esc(cut(said, 200)) +(bits.length ? ' <span>' + esc(bits.join(' · ')) + '</span>' : '') + '</p>';
+    return '<p class="ir-pill-about"><b>' + esc(T('The story:')) + '</b> ' + esc(cut(unshout(said), 200)) +(bits.length ? ' <span>' + esc(bits.join(' · ')) + '</span>' : '') + '</p>';
   }
   function unpill(v) {
     var i = v.indexOf(':'), k = v.slice(0, i), x = v.slice(i + 1), cut1 = function (a) { var j = a.indexOf(x); if (j >= 0) a.splice(j, 1); };
-    if (k === 'link') S.link = ''; else if (k === 'with') S.with = ''; else if (k === 'hot') S.hot = '';
+    if (k === 'link') S.link = ''; else if (k === 'with') S.with = ''; else if (k === 'hot') S.hot = ''; else if (k === 'who') S.who = '';
     else if (k === 'tp') cut1(S.tp); else if (k === 'fx') cut1(S.fx); else if (k === 'pf') cut1(S.pf);
     else if (k === 'place') { S.place = ''; S.nowhere = false; }
     else if (k === 'kind') S.kind = ''; else if (k === 'within') S.within = 0; else if (k === 'heat') S.heat = 0; else if (k === 'lmin') S.lmin = 0;
@@ -1745,6 +1783,7 @@
     if (S.hot && S.lens === 'live') q.push('hot=' + encodeURIComponent(S.hot));
     if (S.link) q.push('link=' + encodeURIComponent(S.link));
     if (S.with) q.push('with=' + encodeURIComponent(S.with));
+    if (S.who) q.push('who=' + encodeURIComponent(S.who));
     if (S.top) q.push('top=1');
     if (S.edu) q.push('edu=1');
     if (S.lens === 'bank' && !fullRange()) q.push('from=' + buckets[S.from] + '&to=' + buckets[S.to]);
@@ -1773,6 +1812,7 @@
     S.lmin = pick(LIKES, u.get('likes'));
     S.fx = (u.get('focus') || '').split('.').filter(function (k, i, a) { return FXI[k] != null && a.indexOf(k) === i; });
     S.link = (u.get('link') || '').slice(0, 80); S.with = (u.get('with') || '').slice(0, 40);
+    S.who = (u.get('who') || '').toLowerCase().slice(0, 80);
     var hv = u.get('hot') || '';
     S.hot = S.lens === 'live' && (hv === 'all' || hv === 'blind' || hotById(hv)) ? hv : '';
     if (SORTS[S.lens].some(function (s) { return s[0] === u.get('sort'); })) S.sort = u.get('sort');
@@ -1972,13 +2012,19 @@
     var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? T(' (the date it shows)') : '') : it.pend ? T('Sent {t}', { t: ago(it.ms) }) : T('No date on it');
     var where = [it.p === 'global' && it.pw ? it.pw : placeName(it.p)].concat((it.a || []).map(placeName)).join(T(', '));
     var by = it.by ? ' · ' + T('sent by {who}', { who: esc(it.by) }) : '';
+    // who said it, over the headline: the face, name and handle, and every other post of theirs here in one tap. A post of
+    // words only already opens on the author inside the post itself (heroHtml), so its byline is not drawn twice.
+    var wk = whoKey(it), wn = wk ? items.filter(function (x) { return whoKey(x) === wk; }).length : 0;
+    var byl = xWords(it) && lit ? '' : byline(it, true), more = wn > 1 && S.who !== wk ? '<button type="button" class="ir-s-more" data-who="' + esc(wk) + '">' + esc(T('All {n} from {who}', { n: N(wn), who: whoName(it) })) + '</button>' : '';
+    var meta = '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + (whoName(it) ? '' : ' · ' + bd(esc(it.h || it.src))) + by + '</p>';
     var stage = y ? (lit ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)">' : '<div class="ir-s-v is-dark">') + '<button type="button" data-play="' + y + '" aria-label="' + T('Play it here') + '"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>'
       : mediaOf(it).length ? (lit ? mediaHtml(it) : '<button type="button" class="ir-s-b ir-pics1" data-pics1>' + T('Show the pictures and video ({n})', { n: N(mediaOf(it).length) }) + '</button>') : heroHtml(it);
     dlg.innerHTML = '<div class="ir-s-in">' +
       '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + T('{i} of {n}', { i: N(i + 1), n: N(shown.length) }) + '</span><button class="ir-s-x" type="button" data-x aria-label="' + T('Close') + '">&times;</button></div>' +
+      (byl ? '<div class="ir-s-who">' + byl + more + '</div>' : '') +
       // an X post's WHOLE text, never its 160-character title (18 Oct 2026: "if i can't read the full thing, it is useless")
       '<h2 id="ir-spot-t"' + DA + (xWords(it) && lit ? ' class="vh"' : fullText(it).length > 140 ? ' class="is-long"' : '') + '>' + esc(fullText(it)) + '</h2>' +
-      '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + ' · ' + bd(esc(it.h && it.src !== 'News' ? T('{who} on {pf}', { who: it.h, pf: T(it.src) }) : it.h || it.src)) + by + '</p>' +
+      (!byl && more ? '<div class="ir-s-who">' + meta + more + '</div>' : meta) +
       // the thing itself straight under its headline (17 Oct 2026): the video or the pictures, then what is said about it
       stage +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
@@ -2265,7 +2311,7 @@
     var lv = it.sn ? { k: 'mono' } : vis(it), th = lv.u || '';
     lt.innerHTML = (th ? '<span class="ir-lt-th' + (lv.k === 'av' ? ' is-av' : '') + '" style="background-image:url(' + (lv.k === 'loc' ? th : esc(th)) + ')"></span>' : '') +
       '<span class="ir-lt-b"><span class="ir-lt-k">' + esc(LENS[S.lens]) + (it.hot != null ? ' · <b>' + flame() + T('Hot {n}', { n: N(it.hot) }) + '</b>' : it.q ? ' · <b>&#9733; ' + T('Top pick') + '</b>' : '') + '</span>' +
-      '<span class="ir-lt-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-lt-m">' + mark(it, 'ir-mk') + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + ' · ' + bd(esc(it.h || it.src)) + '</span>' + reachLine(it) + '</span>' +
+      byline(it) + '<span class="ir-lt-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-lt-m">' + mark(it, 'ir-mk') + esc(fmtDate(it.d)) + ' · ' + esc(it.p === 'global' && it.pw ? it.pw : placeName(it.p)) + '</span>' + reachLine(it) + '</span>' +
       '<span class="ir-lt-n num">' + N(tourAt + 1) + '/' + N(Math.min(shown.length, 30)) + '</span>';
     lt.hidden = false;
   }
@@ -2334,7 +2380,7 @@
     var head = 'Intel Room, ' + LENS[S.lens].toLowerCase() + ($('ir-said').textContent ? ': ' + $('ir-said').textContent.replace(/\s*Clear$/, '') : '') + '\n' + location.href + '\n\n';
     var txt = head + shown.slice(0, 40).map(function (it, i) {
       var r = reachOf(it), n = r && !r.x ? [r.lk != null ? r.lk.toLocaleString('en-US') + ' likes' : '', r.vw != null ? (r['~'] ? '~' : '') + r.vw.toLocaleString('en-US') + ' views' : ''].filter(Boolean).join(', ') : '';
-      return (i + 1) + '. ' + it.t + '\n   ' + [fmtDate(it.d), it.p === 'global' && it.pw ? it.pw : placeName(it.p), it.h || it.src, pfName(pfOf(it)) + (n ? ': ' + n : ''), it.hot != null ? 'Hot ' + it.hot + ' (' + (it.hotWhy || '') + ')' : '', it._v != null ? 'Viral ' + it._v : ''].filter(Boolean).join(' · ') + '\n   ' + it.u + (it.n ? '\n   ' + it.n : '');
+      return (i + 1) + '. ' + it.t + '\n   ' + [fmtDate(it.d), it.p === 'global' && it.pw ? it.pw : placeName(it.p), it.src === 'X' && it.nm && it.h ? it.nm + ' (' + it.h + ')' : it.h || it.src, pfName(pfOf(it)) + (n ? ': ' + n : ''), it.hot != null ? 'Hot ' + it.hot + ' (' + (it.hotWhy || '') + ')' : '', it._v != null ? 'Viral ' + it._v : ''].filter(Boolean).join(' · ') + '\n   ' + it.u + (it.n ? '\n   ' + it.n : '');
     }).join('\n\n');
     var done = function () { say('Copied ' + Math.min(40, shown.length) + ' items with their links. Paste them into your show notes.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallbackCopy(txt, done); });
@@ -2724,6 +2770,7 @@
       else if (b.hasAttribute('data-copyt')) { var cit = shown[spotAt]; if (cit) { var ct = fullText(cit); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ct).then(function () { b.textContent = T('Headline copied.'); }, function () { fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); }); else fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); } }
       else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
       else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say(T('What connects to "{what}": {n} items.', { what: cut(wi2 ? wi2.t : '', 60), n: N(shown.length) }), true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      else if (b.hasAttribute('data-who')) { var wk = b.getAttribute('data-who'), wit = shown[spotAt]; closeSpot(); clearAll(); S.who = wk; render(); frameShown(); say(T('Every post here from {who}: {n}.', { who: wit ? whoName(wit) : wk, n: N(shown.length) }), true); $('ir-items').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       else if (b.hasAttribute('data-map')) { var k = shown[spotAt].p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     });
     dlg.addEventListener('cancel', function () { spotAt = -1; setTimeout(function () { dlg.innerHTML = ''; }, 0); });
@@ -2928,7 +2975,7 @@
       rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
       regime: isRegime };
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9c0df4720c'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=10075e4e9a'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
