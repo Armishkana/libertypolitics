@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=10075e4e9a) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=b173d99421) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -171,7 +171,14 @@
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
   var PACKS = null, WORDS = null, HOTS = [], HOTALL = {}, STORY_OF = {}, RHOOK = [];
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '' };
+  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '', ext: {} };
+  /* ADD-ONS (23 Oct 2026, the Forces layer, build/intel-forces.js, Liberty Politics only). An add-on loaded after the room
+     is ready can draw its own marks over the map (LAYERS: draw, hit by position, hit by element, its tip, what a tap does),
+     add a filter that lives in the address and has a pill like every other (EXT: key, test, label, valid), add a tab to the
+     list (LTX) and add a block to the spotlight (SPOTX). Nothing here has words of its own, so the Iran room, which loads no
+     add-on, is unchanged. An add-on that throws never breaks the room: every call into one is caught. */
+  var LAYERS = [], EXT = {}, LTX = {}, SPOTX = [], RAWQ = null;
+  function xcall(f, a, b, c) { try { return f(a, b, c); } catch (e) { return null; } }
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -513,6 +520,7 @@
     if (S.within && S.lens === 'live') { var ms = Date.parse(it.d || ''); if (!(ms > Date.now() - S.within * 3600000)) return false; }
     if (S.top && S.lens === 'bank' && !it.q) return false;
     if (S.edu && !it.edu) return false;
+    for (var xk in S.ext) if (EXT[xk] && skip !== 'ext:' + xk && !xcall(EXT[xk].test, it, S.ext[xk])) return false;
     if (skip !== 'place' && !inPlace(it)) return false;
     if (S.lens === 'bank' && skip !== 'time' && !fullRange()) { var b = bucketOf(it); if (b < S.from || b > S.to) return false; }
     if (S.q) {
@@ -747,7 +755,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=10075e4e9a): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=b173d99421): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -842,6 +850,7 @@
     var hud = $('ir-hud-c');
     if (hud) hud.textContent = N(Math.abs(V.lat).toFixed(1)) + '°' + (V.lat >= 0 ? T('N') : T('S')) + ' ' + N(Math.abs(V.lon).toFixed(1)) + '°' + (V.lon >= 0 ? T('E') : T('W')) + '  ×' + N(V.k < 10 ? V.k.toFixed(1) : Math.round(V.k));
     drawPinsNow();
+    for (var li = 0; li < LAYERS.length; li++) xcall(LAYERS[li].draw);          // an add-on's marks move with the map on every frame
   }
   function setView(lon, lat, k, now) {
     V.k = Math.max(1, Math.min(MAXK, k));
@@ -1049,6 +1058,7 @@
     if (lk) { var o = LDRAW[+lk.getAttribute('data-l')]; return o ? { link: o.L, x: o.mid[0], y: o.mid[1] } : null; }
     var ed = el && el.closest && el.closest('.ir-edge');
     if (ed) { var e = edges[+ed.getAttribute('data-e')]; return e ? { edge: e, x: e.x, y: e.y } : null; }
+    for (var li = 0; li < LAYERS.length; li++) { var lh = LAYERS[li].hitEl && xcall(LAYERS[li].hitEl, el); if (lh) { lh.layer = LAYERS[li]; return lh; } }
     var g = el && el.closest && el.closest('.ir-gl');
     if (g) { var id = g.getAttribute('data-g'); for (var i = 0; i < glyphs.length; i++) if (String(glyphs[i].it.id) === id) return glyphs[i]; }
     g = el && el.closest && el.closest('.ir-pin,.ir-cl');
@@ -1062,6 +1072,7 @@
     if (best) return best;
     glyphs.forEach(function (g) { var d = Math.hypot(g.x - x, g.y - y); if (d <= GR + 6 && d < bd) { bd = d; best = g; } });
     if (best) return best;
+    for (var li = 0; li < LAYERS.length; li++) { var lh = LAYERS[li].hit && xcall(LAYERS[li].hit, x, y); if (lh) { lh.layer = LAYERS[li]; return lh; } }          // an add-on's mark, before a place's circle
     pinData.forEach(function (m) { var d = Math.hypot(m.x - x, m.y - y), reach = m.exp ? (m.m > 1 ? 7 : GR + 6) : pinR(m.n) + 6; if (d <= reach && d < bd) { bd = d; best = m; } });
     return best || linkHit(x, y);
   }
@@ -1089,6 +1100,7 @@
   function openPin(m) {
     if (!m) return;
     stopTour();
+    if (m.layer) { xcall(m.layer.open, m); return; }
     if (m.edge) { flyTo(V.k, m.edge.lon, m.edge.lat); return; }
     if (m.link) { pickLink(m.link.k); return; }
     if (m.it) { openGlyph(m); return; }
@@ -1168,6 +1180,13 @@
   function hover(ev, r) {
     var tip = $('ir-tip'), m = pinAt(ev.target);
     if (!m) { tip.hidden = true; return; }
+    if (m.layer) {
+      var lt = m.layer.tip && xcall(m.layer.tip, m);
+      if (!lt) { tip.hidden = true; return; }
+      tip.classList.add('wide'); tip.innerHTML = lt;
+      tip.style.left = m.x + 'px'; tip.style.top = (m.y - 12) + 'px'; tip.hidden = false;
+      return;
+    }
     if (m.link) {
       tip.classList.add('wide');
       tip.innerHTML = '<span class="tip-k">' + T('Connection') + ' \u00b7 ' + T('{n} items', { n: N(m.link.n) }) + '</span>' + esc(T('{a} and {b}', { a: cName(m.link.a), b: cName(m.link.b) })) + '<small>' + esc(linkWhy(m.link, true)) + T('. Tap to see only these.') + '</small>';
@@ -1480,7 +1499,7 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>' + T('Clear') + '</button>' : '') : '';
   }
   function clearAll() {
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
     say('');
     render();
@@ -1519,6 +1538,7 @@
     if (S.link) { var L = linkByKey(S.link); p.push(['link:', T('Connection: {what}', { what: L ? T('{a} and {b}', { a: cName(L.a), b: cName(L.b) }) : S.link.split('|').map(cName).join(T(' and ')) })]); }
     if (S.with) { var wi = itemById(S.with); p.push(['with:', T('Connected to: {what}', { what: wi ? cut(wi.t, 40) : T('one story') })]); }
     if (S.who) { var wi0 = items.filter(function (x) { return whoKey(x) === S.who; })[0]; p.push(['who:', T('From {who}', { who: wi0 ? whoName(wi0) : S.who })]); }
+    Object.keys(S.ext).forEach(function (xk) { if (EXT[xk]) p.push(['ext:' + xk, xcall(EXT[xk].label, S.ext[xk]) || S.ext[xk]]); });
     if (S.hot && S.lens === 'live') { var h = S.hot === 'all' || S.hot === 'blind' ? null : hotById(S.hot); p.push(['hot:', h ? T('Story: {name}', { name: h.name }) : S.hot === 'blind' ? T('Blindspots') : T('Hot stories')]); }
     S.tp.forEach(function (k) { p.push(['tp:' + k, topicName(k)]); });
     S.fx.forEach(function (k) { p.push(['fx:' + k, FOCUS[FXI[k]][1]]); });
@@ -1557,7 +1577,8 @@
   }
   function unpill(v) {
     var i = v.indexOf(':'), k = v.slice(0, i), x = v.slice(i + 1), cut1 = function (a) { var j = a.indexOf(x); if (j >= 0) a.splice(j, 1); };
-    if (k === 'link') S.link = ''; else if (k === 'with') S.with = ''; else if (k === 'hot') S.hot = ''; else if (k === 'who') S.who = '';
+    if (k === 'ext') delete S.ext[x];
+    else if (k === 'link') S.link = ''; else if (k === 'with') S.with = ''; else if (k === 'hot') S.hot = ''; else if (k === 'who') S.who = '';
     else if (k === 'tp') cut1(S.tp); else if (k === 'fx') cut1(S.fx); else if (k === 'pf') cut1(S.pf);
     else if (k === 'place') { S.place = ''; S.nowhere = false; }
     else if (k === 'kind') S.kind = ''; else if (k === 'within') S.within = 0; else if (k === 'heat') S.heat = 0; else if (k === 'lmin') S.lmin = 0;
@@ -1695,9 +1716,12 @@
     $('ir-ltab-n').textContent = n ? String(n) : '';
     tab.hidden = S.lens === 'readers';
     [].forEach.call(tab.querySelectorAll('[data-ltab]'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-ltab') === LT ? 'true' : 'false'); });
-    var onL = LT === 'links' && S.lens !== 'readers';
-    el.hidden = !onL; $('ir-items').hidden = onL; $('ir-more').hidden = onL || shown.length <= limit;
-    root.classList.toggle('ir-on-links', onL);
+    if (LT !== 'items' && LT !== 'links' && !LTX[LT]) LT = 'items';
+    var onL = LT === 'links' && S.lens !== 'readers', onX = !!LTX[LT] && S.lens !== 'readers';          // onX: an add-on's tab (LTX)
+    el.hidden = !onL; $('ir-items').hidden = onL || onX; $('ir-more').hidden = onL || onX || shown.length <= limit;
+    root.classList.toggle('ir-on-links', onL); root.classList.toggle('ir-on-x', onX);
+    Object.keys(LTX).forEach(function (k) { var te = $(LTX[k].el); if (te) te.hidden = !(onX && LT === k); xcall(LTX[k].count); });
+    if (onX) xcall(LTX[LT].draw);
     if (!onL) return;
     var types = [['', T('All')], ['story', T('Same story')], ['actor', T('Same people')], ['mention', T('Mentions')]];
     var shownL = LTYPE ? all.filter(function (L) { return L.reasons.some(function (r) { return r.t === LTYPE; }); }) : all;
@@ -1784,6 +1808,7 @@
     if (S.link) q.push('link=' + encodeURIComponent(S.link));
     if (S.with) q.push('with=' + encodeURIComponent(S.with));
     if (S.who) q.push('who=' + encodeURIComponent(S.who));
+    Object.keys(S.ext).forEach(function (xk) { q.push(encodeURIComponent(xk) + '=' + encodeURIComponent(S.ext[xk])); });
     if (S.top) q.push('top=1');
     if (S.edu) q.push('edu=1');
     if (S.lens === 'bank' && !fullRange()) q.push('from=' + buckets[S.from] + '&to=' + buckets[S.to]);
@@ -1798,6 +1823,9 @@
   var defLens = 'bank', SHOWING = /[?&](show|s)=/.test(location.search);          // ?s=: a saved show (intel-prep.js loadSaved)
   function readUrl(search) {
     var u = new URLSearchParams(search);
+    RAWQ = u;          // an add-on's filter reads its own key from here once it is loaded (it loads after this first read)
+    S.ext = {};
+    Object.keys(EXT).forEach(function (xk) { var xv = u.get(xk); if (xv && xcall(EXT[xk].valid, xv)) S.ext[xk] = xv; });
     useLens(u.get('lens') || defLens, true);
     S.q = (u.get('q') || '').slice(0, 120);
     S.tp = (u.get('topic') || '').split('.').filter(function (k, i, a) { return (k === 'rel' || TOPN[k]) && a.indexOf(k) === i; });
@@ -2040,6 +2068,10 @@
       '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="' + T('Previous') + '"' + (i ? '' : ' disabled') + '>' + (CFG.rtl ? '&rarr;' : '&larr;') + '</button><button type="button" data-step="1" aria-label="' + T('Next') + '"' + (i < shown.length - 1 ? '' : ' disabled') + '>' + (CFG.rtl ? '&larr;' : '&rarr;') + '</button></div></div>' +
       '<p class="ir-s-f">' + T('Weak, wrong, or missing context? <a {attrs}>Say why in the discussion</a>. That is how the room gets better.', { attrs: 'href="#feedback" data-kind="wrong" data-about="' + esc((T('Intel Room: ') + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="' + (CFG.talkOn || 'page:intel') + '" data-close-spot' }) + '</p>' +
       '</div>';
+    var sxa = dlg.querySelector('.ir-s-sp'), sxw = sxa ? 'afterend' : 'beforebegin';          // an add-on's blocks (SPOTX): under "Who covered it", else above the buttons
+    if (!sxa) sxa = dlg.querySelector('.ir-s-a');
+    var sxh = SPOTX.map(function (f) { return xcall(f, it) || ''; }).join('');
+    if (sxh && sxa) sxa.insertAdjacentHTML(sxw, sxh);
     wireMedia(dlg.querySelector('.ir-xm'), it);
     fitVideo(dlg.querySelector('.ir-s-v'), y, it.u);
     if (rpKey(it) && RP_ON) repliesOf(it, function (e, st) {
@@ -2974,8 +3006,29 @@
       // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
       rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
-      regime: isRegime };
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=10075e4e9a'; document.body.appendChild(ps); }
+      regime: isRegime,
+      // ADD-ONS (23 Oct 2026, see LAYERS): the map, the items of the lens, opening one, a filter in the address, a list tab,
+      // a block in the spotlight. build/intel-forces.js is the first user.
+      map: { svg: map, pins: function () { return gPins; }, box: box, proj: function () { return PJ; }, seen: seen, fly: flyTo, fit: fitTo, redraw: requestDraw,
+        view: function () { return { k: V.k, lon: V.lon, lat: V.lat, mode: V.mode, w: CW, h: CH }; }, addLayer: function (L) { LAYERS.push(L); requestDraw(); } },
+      items: function () { return items.slice(); }, place: function (k) { return P[k] ? { name: P[k][0], country: P[k][1], lat: P[k][2], lon: P[k][3] } : null }, keys: keysOf,
+      open: function (it) { var i = shown.indexOf(it); if (i < 0) return false; openSpot(i); return true; },
+      addFilter: function (f) {
+        EXT[f.key] = f;
+        var v = RAWQ && RAWQ.get(f.key);
+        if (v && xcall(f.valid, v)) { S.ext[f.key] = v; render(); frameShown(); }
+      },
+      filter: function (key, v) { if (v == null || v === '') delete S.ext[key]; else S.ext[key] = String(v); stopTour(); render(); frameShown(); },
+      filterOn: function (key) { return S.ext[key] || ''; },
+      addTab: function (key, t) { LTX[key] = t; drawLinkList(); },
+      tab: function (key) { LT = LTX[key] || key === 'links' ? key : 'items'; drawList(); drawLinkList(); },
+      tabOn: function () { return LT; },
+      addSpot: function (f) { SPOTX.push(f); }, spread: spreadOf, rendered: function () { render(); } };
+    (root.getAttribute('data-addons') || '').split(' ').filter(Boolean).forEach(function (src, i) {          // the page's add-ons (intel.py), after the room is ready
+      if (document.getElementById('ir-addon-' + i)) return;
+      var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
+    });
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=b173d99421'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
