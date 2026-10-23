@@ -693,7 +693,8 @@
     var ph = photos(a); if (!ph.length) return '';
     if (R.pics && !R.pics() && !PH_ON[a.id]) return '<button type="button" class="ir-s-b irf-ph-on" data-irf-phon>' + esc(ph.length === 1 ? T('Show its picture') : T('Show its {n} pictures', { n: N(ph.length) })) + '</button>';
     var at = Math.min(PH_AT[a.id] || 0, ph.length - 1), big = ph[at], nm = L(a, 'n');
-    return '<figure class="irf-ph" id="irf-ph"><a class="irf-ph-big" href="' + esc(phPage(big[0])) + '" target="_blank" rel="noopener" title="' + esc(T('Open the picture full size on Wikimedia Commons')) + '">' +
+    // the small copy (the same one the row below loads) stands under the large one, so the box is never blank while it comes
+    return '<figure class="irf-ph" id="irf-ph"><a class="irf-ph-big" href="' + esc(phPage(big[0])) + '" target="_blank" rel="noopener" title="' + esc(T('Open the picture full size on Wikimedia Commons')) + '" style="background-image:url(&quot;' + esc(phUrl(big[0], 330)) + '&quot;)">' +
       '<img src="' + esc(phUrl(big[0], 500)) + '" srcset="' + esc(phUrl(big[0], 500)) + ' 500w, ' + esc(phUrl(big[0], 960)) + ' 960w" sizes="(min-width: 760px) 560px, 94vw" alt="' + esc(big[1] || nm) + '" decoding="async"></a>' +
       (ph.length > 1 ? '<div class="irf-ph-row">' + ph.map(function (p, i) {
         return '<button type="button" class="irf-ph-t" data-irf-ph="' + i + '" aria-pressed="' + (i === at ? 'true' : 'false') + '" aria-label="' + esc(T('Picture {i} of {n}', { i: N(i + 1), n: N(ph.length) })) + '"><img src="' + esc(phUrl(p[0], 330)) + '" alt="" loading="lazy" decoding="async"></button>';

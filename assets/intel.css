@@ -1646,7 +1646,7 @@ html.irt-on #calls{visibility:hidden}          /* the show reminder sits in the 
 /* A SITE'S OR A SHIP'S CARD, 24 Oct 2026 (build/intel-forces.js photoHtml, covHtml): its photos at the top, and everything
    said about it drawn as the room's own cards, with All / X / YouTube / Articles; the spotlight's Back to the card */
 .irf-ph{margin:0;display:grid;gap:8px}
-.irf-ph-big{display:block;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--sunk)}
+.irf-ph-big{display:block;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--sunk) center/cover no-repeat}
 .irf-ph-big img{display:block;width:100%;height:100%;object-fit:cover}
 .irf-ph-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .irf-ph-t{height:60px;padding:0;border:2px solid transparent;border-radius:9px;overflow:hidden;background:var(--sunk);cursor:pointer}
