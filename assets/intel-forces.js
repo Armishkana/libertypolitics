@@ -17,9 +17,14 @@
    3. A site's profile (tap it): who runs it, where, why it matters, Wikipedia's own two sentences and link, the room's
       news that NAMES it, news placed near it, the nearest sites of the other side with their distance, and what the
       betting markets say for its theatre. "Show its news" is a filter in the address (?mil=<site>), with a pill.
-   4. The Forces tab beside Stories and Connections: War pressure per theatre (DeltaSweep's Pulse: how many war stories
-      the room carries in 24 hours against the day before, MEASURED, never guessed), the sites in the news now, the
-      fleet, the markets, and every site by theatre.
+   4. The Forces tab beside Stories and Connections: the sites in the news now, the fleet, the markets, and every site
+      by conflict, all following the conflicts picked.
+   6. CONFLICTS (23 Oct 2026): the chip on the map is the one door. Tick the Iran war, the Houthis, Ukraine ... one or
+      several (?war=gulf,redsea); the stories, the sites, the odds and the map follow. War pressure per conflict
+      (DeltaSweep's Pulse, MEASURED from the feed) is shown in that picker.
+   7. Every asset's own newest news (data/intel-forces-news.json, its own search, every headline names it) heads its
+      profile; a ship says where, how exact, the date and how old. A site that would sit on a news circle moves to its
+      rim with a thin line back, so no count is ever hidden.
    5. In every story's spotlight: HOW EACH SIDE FRAMED IT (Ground News's headlines side by side, from
       data/intel-frames.json, written by intel_live.py frames()), who reported it first, the military sites the story
       names, and YOUR BALANCE: the lean of what this reader opened here in 7 days (kept on this device only).
@@ -91,25 +96,34 @@
   }
 
   var D = null, FR = null, TH = {}, BYID = {}, ASSETS = [], SHIPS = [], ON = store('ir-forces') !== 'off';
-  var NEWS = {}, NEAR = {}, OF_ITEM = {}, MKEY = '', FOCUS = '', NAMED_N = 0;
+  var NEWS = {}, NEAR = {}, OF_ITEM = {}, MKEY = '', FOCUS = '', NAMED_N = 0, AN = {}, AGE = null;
   var g = null, gL = null, EL = {}, DRAWN = [], LINES = [];
+  /* THE FLEET'S AGE (23 Oct 2026). The room once showed USS Theodore Roosevelt off California for three weeks after it had
+     reached Japan: the builder read a feed that had stopped, and nothing on the page said how old the position was. Now
+     every ship says its date and its age, a fleet older than STALE days is drawn faded with the age on it, and one older
+     than GONE days is not drawn at all (only listed, with the reason). The builder's own check fails at 9 days. */
+  var STALE = 9, GONE = 16;
 
   /* ------------------------------------------------------------ loading */
   function soft(u) { return u ? fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null); }
-  Promise.all([soft(root.getAttribute('data-forces')), soft(root.getAttribute('data-frames'))]).then(function (res) {
+  var fu = root.getAttribute('data-forces') || '', nu = root.getAttribute('data-forces-news') || (fu ? fu.replace(/intel-forces\.json(\?.*)?$/, 'intel-forces-news.json') : '');
+  Promise.all([soft(fu), soft(root.getAttribute('data-frames')), soft(nu)]).then(function (res) {
     if (res[1] && res[1].schema === 1 && res[1].by && typeof res[1].by === 'object') FR = res[1];
+    if (res[2] && res[2].schema === 1 && res[2].by && typeof res[2].by === 'object') AN = res[2].by;
     if (res[0] && res[0].schema === 1 && Array.isArray(res[0].assets)) start(res[0]);
     R.addSpot(spot);          // the framing block works even with no forces file
-    window.IRF = { ready: true, on: function () { return ON; }, drawn: function () { return DRAWN.slice(); }, named: function () { return NAMED_N; }, data: function () { return D; }, open: dossier, news: function (id) { return (NEWS[id] || []).slice(); } };
+    window.IRF = { ready: true, on: function () { return ON; }, drawn: function () { return DRAWN.slice(); }, named: function () { return NAMED_N; }, data: function () { return D; }, open: dossier,
+      news: function (id) { return (NEWS[id] || []).slice(); }, latest: function (id) { return (AN[id] || []).slice(); }, wars: wars, setWars: setWars, picker: warPicker, age: function () { return AGE; } };
     root.setAttribute('data-forces-ready', D ? '1' : '0');
   });
 
   function start(d) {
     D = d;
-    (d.pulse || []).forEach(function (p) { TH[p.th] = p.n; });
+    var thn = d.th || {};
     ['gulf', 'levant', 'redsea', 'europe', 'pacific', 'southasia', 'americas'].forEach(function (k, i) {
-      if (!TH[k]) TH[k] = ['Iran and the Gulf', 'Israel, Gaza and Lebanon', 'Red Sea and Yemen', 'Russia, Ukraine and NATO', 'China, Taiwan and the Pacific', 'India and Pakistan', 'The Americas'][i];
+      TH[k] = thn[k] || ['Iran war', 'Israel, Gaza and Lebanon', 'Houthis and the Red Sea', 'Russia and Ukraine', 'China, Taiwan and Korea', 'India and Pakistan', 'Venezuela and the Americas'][i];
     });
+    if (d.fleet && /^\d{4}-\d\d-\d\d$/.test(d.fleet.at || '')) AGE = Math.floor((Date.now() - Date.parse(d.fleet.at + 'T12:00:00Z')) / 864e5);
     d.assets.forEach(function (a) {
       if (!a || !a.id || !Array.isArray(a.ll) || !isFinite(a.ll[0]) || !isFinite(a.ll[1])) return;
       try { a._rx = a.rx ? new RegExp(cleanRx(a.rx), 'i') : null; } catch (e) { a._rx = null; }
@@ -117,16 +131,22 @@
     });
     var fl = d.fleet && Array.isArray(d.fleet.ships) ? d.fleet : null;
     if (fl) fl.ships.forEach(function (s) {
-      if (!s || !s.id || !Array.isArray(s.ll) || BYID[s.id]) return;
+      if (!s || !s.id || BYID[s.id]) return;
+      var placed = Array.isArray(s.ll) && isFinite(s.ll[0]) && isFinite(s.ll[1]);
+      if (!placed && s.pr !== 'none') return;
       try { s._rx = s.rx ? new RegExp(cleanRx(s.rx), 'i') : null; } catch (e) { s._rx = null; }
-      s._t = 'ship'; s.o = s.o || 'US'; s.tier = 1; s.th = s.th || thOfSea(s.ll);
+      s._t = 'ship'; s.o = s.o || 'US'; s.tier = 1; s.th = s.th || (placed ? thOfSea(s.ll) : '');
+      s._nomap = !placed || (AGE != null && AGE > GONE);          // listed, never drawn: no position, or a position too old to show
       BYID[s.id] = s; SHIPS.push(s);
     });
     if (!ASSETS.length && !SHIPS.length) return;
     build();
     match();
-    R.onRender(function () { match(); drawTabCount(); });
+    R.onRender(function () { match(); drawTabCount(); chipText(); });
     R.addFilter({ key: 'mil', valid: function (v) { return v === 'any' || (v.indexOf('th:') === 0 && !!TH[v.slice(3)]) || (v.indexOf('g:') === 0 && !!GBY[v.slice(2)]) || !!BYID[v]; }, test: passMil, label: milLabel });
+    R.addFilter({ key: 'war', valid: function (v) { return String(v).split(',').every(function (k) { return !!CF[k]; }); }, test: passWar, label: warLabel });
+    var oldTh = R.filterOn('mil');          // a link from before 23 Oct 2026 (?mil=th:gulf) opens the same conflict
+    if (oldTh.indexOf('th:') === 0 && CF[oldTh.slice(3)]) { R.filter('mil', ''); R.filter('war', oldTh.slice(3)); }
     R.addTab('forces', { el: 'irf-tab', draw: drawTab, count: drawTabCount });
     R.map.addLayer({ draw: draw, hit: hit, hitEl: hitEl, tip: tip, open: openMark });
     drawTabCount();
@@ -232,15 +252,87 @@
     return 'Military site: ' + (BYID[v] ? BYID[v].n : v);
   }
 
+  /* CONFLICTS (23 Oct 2026, Armin: "If I want to see news and military assets related to the current Iran conflict, I
+     should be able to do that ... the Ukraine conflict ... Iran plus the Houthi one ... intuitive, easy to use, and doesn't
+     make it confusing"). ONE control: the chip on the map. Tap it, tick one conflict or several, and everything follows at
+     once: the stories (list and map), the military sites (only that conflict's, its smaller ones too), the betting odds,
+     and the map frames it. It lives in the address (?war=gulf,redsea) with a pill like every other filter, so a link opens
+     the same view. A conflict is one of the builder's theatres, so the Pulse, the markets and the sites need no second
+     list. A story is in a conflict when its own words name it (rx), when it is placed in one of the conflict's countries
+     (c), or when it names one of that conflict's military sites. */
+  var CF = {
+    gulf: { rx: /\b(iran\w*|tehran|irgc|khamenei|hormuz|kharg|fordow|natanz|persian gulf|gulf of oman|islamic republic)\b/i, c: ['Iran'] },
+    redsea: { rx: /\b(houthis?|ansar ?allah|yemen\w*|red sea|bab[- ]?(el|al)[- ]?mandab|sanaa|hodeidah|aden)\b/i, c: ['Yemen'] },
+    levant: { rx: /\b(gaza\w*|hamas|hezbollah|leban\w*|beirut|west bank|idf|netanyahu|israel\w*)\b/i, c: ['Israel', 'Palestine', 'Lebanon'] },
+    europe: { rx: /\b(ukrain\w*|kyiv|kiev|zelensk\w*|donbas|donetsk|luhansk|zaporizhzhia|kharkiv|crimea\w*|kremlin|putin|russia\w*)\b/i, c: ['Ukraine'] },
+    pacific: { rx: /\b(taiwan\w*|south china sea|beijing|xi jinping|chinese military|pla navy|north korea\w*|pyongyang|kim jong[- ]un)\b/i, c: ['Taiwan', 'North Korea'] },
+    southasia: { rx: /\b(india|indian|indians|india's|pakistan\w*|kashmir\w*|modi|islamabad|new delhi)\b/i, c: ['India', 'Pakistan'] },          // never "india\w*": it took Indiana
+    americas: { rx: /\b(venezuel\w*|maduro|caracas|cartels?|boat strikes?)\b/i, c: ['Venezuela'] }
+  };
+  var CF_ORDER = ['gulf', 'redsea', 'levant', 'europe', 'pacific', 'southasia', 'americas'];
+  function wars() { var v = R.filterOn('war'); return v ? v.split(',').filter(function (k) { return CF[k]; }) : []; }
+  function inWar(it, k) {
+    var c = CF[k]; if (!c) return false;
+    if (c.rx.test(words(it))) return true;
+    var p = R.place(it.p); if (p && c.c.indexOf(p.country) >= 0) return true;
+    return (OF_ITEM[it.id] || []).some(function (id) { return BYID[id] && BYID[id].th === k; });
+  }
+  function passWar(it, v) { return String(v).split(',').some(function (k) { return inWar(it, k); }); }
+  function warLabel(v) { return String(v).split(',').map(function (k) { return TH[k] || k; }).join(' + '); }
+  function setWars(list, quiet) {
+    list = CF_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
+    if (!ON && list.length) setOn(true);
+    R.filter('war', list.join(','));
+    chipText();
+    if (!quiet && list.length) frameWars(list);
+    if ($('irf-tab') && R.tabOn() === 'forces') drawTab();
+  }
+  function frameWars(list) {          // the conflicts' main sites set the frame; the farthest outliers (Diego Garcia) do not
+    var pts = [];
+    list.forEach(function (th) {
+      var p = ASSETS.filter(function (a) { return a.th === th && a.tier !== 2; }).map(function (a) { return [a.ll[1], a.ll[0]]; });
+      if (p.length > 4) {
+        var cy = p.reduce(function (s, q) { return s + q[1]; }, 0) / p.length, cx = p.reduce(function (s, q) { return s + q[0]; }, 0) / p.length;
+        p = p.map(function (q) { return { p: q, d: km([cy, cx], [q[1], q[0]]) }; }).sort(function (x, y) { return x.d - y.d; })
+          .slice(0, Math.ceil(p.length * 0.85)).map(function (o) { return o.p; });
+      }
+      pts = pts.concat(p);
+    });
+    if (pts.length) setTimeout(function () { R.map.fit(pts, 1.4, 12); }, 0);          // after the room frames its own list
+  }
+  function pulseOf(k) { return (D.pulse || []).filter(function (p) { return p.th === k; })[0] || null; }
+  function lvClass(p) { return 'lv' + Math.min(4, Math.floor(((p && p.lvl) || 0) / 20)); }
+  // the picker: every conflict with how hot it is today, tap to add or take away; the map and the list move behind it
+  function warPicker() {
+    var on = wars(), its = R.items();
+    var rows = CF_ORDER.slice().sort(function (a, b) { return ((pulseOf(b) || {}).lvl || 0) - ((pulseOf(a) || {}).lvl || 0); }).map(function (k) {
+      var p = pulseOf(k), n = its.filter(function (it) { return inWar(it, k); }).length, ns = ASSETS.filter(function (a) { return a.th === k; }).length + SHIPS.filter(function (s) { return s.th === k && !s._nomap; }).length;
+      var tr = !p || p.prev == null ? '' : p.now > p.prev ? ' · <span class="up">rising</span>' : p.now < p.prev ? ' · <span class="dn">easing</span>' : ' · holding';
+      var sel = on.indexOf(k) >= 0;
+      return '<li><button type="button" class="irf-war' + (sel ? ' on' : '') + '" data-irf-war="' + k + '" aria-pressed="' + (sel ? 'true' : 'false') + '">' +
+        '<span class="irf-war-box" aria-hidden="true"></span>' + (p ? gauge(p) : '') +
+        '<span class="irf-war-t"><b>' + esc(TH[k]) + '</b><small>' + (p ? '<span class="irf-pc-w ' + lvClass(p) + '">' + esc(p.word) + '</span> · ' : '') + esc(n + (n === 1 ? ' story now' : ' stories now') + ' · ' + ns + ' military sites') + tr + '</small></span></button></li>';
+    }).join('');
+    showDlg('<div class="ir-s-top"><span>Conflicts</span><button class="ir-s-x" type="button" data-irf-x aria-label="Close">&times;</button></div>' +
+      '<h2 id="irf-dlg-t" class="irf-h">Which conflicts?</h2><p class="irf-note">Tick one or several. The stories, the military sites, the odds and the map all follow. Hottest first: how many war stories the room carries today against yesterday.</p>' +
+      '<ul class="irf-wars">' + rows + '</ul><div class="ir-s-a"><button class="ir-s-open" type="button" data-irf-x>' + (on.length ? 'Show ' + esc(warLabel(on.join(','))) : 'Done') + '</button>' +
+      (on.length ? '<button class="ir-s-b" type="button" data-irf-allwars>Show every conflict</button>' : '') + '</div>');
+  }
+
   /* ------------------------------------------------------------ the marks */
   function build() {
     gL = document.createElementNS(SVGNS, 'g'); gL.setAttribute('class', 'irf-lines');
     g = document.createElementNS(SVGNS, 'g'); g.setAttribute('class', 'irf');
-    R.map.svg.appendChild(gL); R.map.svg.appendChild(g);          // over the news marks: a site is small and must stay visible
+    /* UNDER the news marks (23 Oct 2026): a site's mark once sat on a news circle and hid its count. Now the news is always
+       on top, and draw() moves any site that would sit under a circle out to its rim, with a thin line back to where it
+       really is, so both stay readable. */
+    var pins = R.map.pins && R.map.pins();
+    if (pins && pins.parentNode === R.map.svg) { R.map.svg.insertBefore(gL, pins); R.map.svg.insertBefore(g, pins); }
+    else { R.map.svg.appendChild(gL); R.map.svg.appendChild(g); }
     var html = '';
     ASSETS.concat(SHIPS).forEach(function (a) {
       var ship = a._t === 'ship', k = ship ? (a.k === 'amphib' ? 'amphib' : 'carrier') : a.k;
-      html += '<g class="irf-m' + (ship ? ' ship' : '') + ' t' + (a.tier || 1) + '" data-irf="' + esc(a.id) + '" style="--c:' + colOf(a) + '" display="none">' +
+      html += '<g class="irf-m' + (ship ? ' ship' + (AGE != null && AGE > STALE ? ' old' : '') + (a.pr === 'area' ? ' rough' : '') : '') + ' t' + (a.tier || 1) + '" data-irf="' + esc(a.id) + '" style="--c:' + colOf(a) + '" display="none">' +
         (ship ? '<circle class="irf-area" r="17"/>' : '') + '<circle class="irf-ring" r="14"/>' +
         '<rect class="irf-b" x="-10" y="-10" width="20" height="20" rx="' + (ship ? 10 : 4.5) + '"/>' + sym(k, ' transform="scale(.92)"') +
         '<g class="irf-nb" transform="translate(10 -10)"><circle r="7.5"/><text class="irf-n"></text></g>' +
@@ -269,25 +361,28 @@
     var t = $('irf-on'); if (t) t.setAttribute('aria-pressed', ON ? 'true' : 'false');
   }
   // which sites to draw now: tier 1 always, tier 2 once zoomed in or when its theatre or itself is picked
-  function wants(a, v, mil) {
+  function wants(a, v, mil, ws) {
+    if (a._nomap) return false;
+    if (FOCUS === a.id || mil === a.id) return true;
+    if (ws.length && ws.indexOf(a.th) < 0) return false;          // a conflict picked: only its sites
     if (a.tier !== 2) return true;
-    if (v.k >= 2.6) return true;
-    if (mil && (mil === a.id || mil === 'th:' + a.th)) return true;
-    return FOCUS === a.id || (NEWS[a.id] || []).length > 0;          // a tier 2 site in today's news is shown too
+    if (v.k >= 2.6 || ws.length) return true;          // a conflict picked shows its smaller sites too
+    if (mil && mil === 'th:' + a.th) return true;
+    return (NEWS[a.id] || []).length > 0;          // a tier 2 site in today's news is shown too
   }
   function prio(a) { return (a.id === FOCUS ? 1e6 : 0) + (NEWS[a.id] || []).length * 100 + (a._t === 'ship' ? 60 : 0) + (a.tier === 2 ? 0 : 40) + (a.k === 'nuclear' ? 10 : 0); }
   function draw() {
     if (!g || !ON) { DRAWN = []; return; }
     var PJ = R.map.proj(); if (!PJ) return;
-    var v = R.map.view(), mil = R.filterOn('mil'), cand = [];
+    var v = R.map.view(), mil = R.filterOn('mil'), ws = wars(), cand = [];
     ASSETS.concat(SHIPS).forEach(function (a) {
       var e = EL[a.id]; if (!e) return;
-      var lon = a.ll[1], lat = a.ll[0];
-      if (!wants(a, v, mil) || !R.map.seen(lon, lat)) { if (e._on) { e.setAttribute('display', 'none'); e._on = 0; } return; }
-      var s = PJ([lon, lat]);
+      if (!wants(a, v, mil, ws) || !R.map.seen(a.ll[1], a.ll[0])) { if (e._on) { e.setAttribute('display', 'none'); e._on = 0; } return; }
+      var s = PJ([a.ll[1], a.ll[0]]);
       if (!s || !isFinite(s[0]) || s[0] < -30 || s[1] < -30 || s[0] > v.w + 30 || s[1] > v.h + 30) { if (e._on) { e.setAttribute('display', 'none'); e._on = 0; } return; }
-      cand.push({ a: a, x: s[0], y: s[1], p: prio(a), e: e });
+      cand.push({ a: a, x: s[0], y: s[1], x0: s[0], y0: s[1], p: prio(a), e: e });
     });
+    clearOfNews(cand);
     cand.sort(function (x, y) { return y.p - x.p; });
     var shownM = [], gap = v.w < 520 ? 17 : 19;
     cand.forEach(function (c) {
@@ -315,12 +410,43 @@
     drawLines(PJ, v);
   }
   function hide(e) { if (e._on) { e.setAttribute('display', 'none'); e._on = 0; } }
+  /* A site under a news circle goes out to the circle's rim, on the side it really lies (straight out from the circle's
+     middle), and keeps a thin line back to its true place. Twice, so a site pushed out of one circle into the next is
+     pushed out of that one too. Sites pushed to the same spot then merge into one mark with "+N", like any crowd. */
+  function clearOfNews(cand) {
+    var ms = R.map.marks ? (R.map.marks() || []) : [];
+    if (!ms.length) return;
+    var inside = function (x, y) { for (var i = 0; i < ms.length; i++) if (Math.hypot(x - ms[i].x, y - ms[i].y) < ms[i].r + 11) return true; return false; };
+    cand.forEach(function (c, ci) {
+      for (var pass = 0; pass < 6 && inside(c.x, c.y); pass++) ms.forEach(function (m) {
+        var dx = c.x - m.x, dy = c.y - m.y, d = Math.hypot(dx, dy), need = m.r + 12;
+        if (d >= need) return;
+        if (d < 0.5) { var ang = (ci * 2.39996) % (2 * Math.PI); dx = Math.cos(ang); dy = Math.sin(ang); d = 1; }
+        c.x = m.x + dx / d * need; c.y = m.y + dy / d * need; c.moved = true;
+      });
+      if (!inside(c.x, c.y)) return;
+      // circles that touch can box a site in (measured 23 Oct 2026: Al Udeid between Doha's and the Gulf's): step out
+      // from the middle of the circles it is in, along one line, until it is clear of every one
+      var hit = ms.filter(function (m) { return Math.hypot(c.x0 - m.x, c.y0 - m.y) < m.r + 40; });
+      var mx = 0, my = 0; hit.forEach(function (m) { mx += m.x; my += m.y; }); mx /= hit.length || 1; my /= hit.length || 1;
+      var ux = c.x0 - mx, uy = c.y0 - my, ul = Math.hypot(ux, uy);
+      if (ul < 0.5) { ux = Math.cos(ci * 2.39996); uy = Math.sin(ci * 2.39996); ul = 1; }
+      ux /= ul; uy /= ul;
+      for (var t = 0; t < 400; t += 4) { var x = c.x0 + ux * t, y = c.y0 + uy * t; if (!inside(x, y)) { c.x = x; c.y = y; c.moved = true; return; } }
+    });
+  }
   // from the site in focus to every place its news comes from: the news "connected to it"
   function drawLines(PJ, v) {
+    if (!gL) return;
+    // the leaders: from a mark moved off a news circle back to where the site really is (under the circle)
+    var ld = '';
+    DRAWN.forEach(function (c) { if (c.moved) ld += 'M' + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + 'L' + c.x0.toFixed(1) + ' ' + c.y0.toFixed(1); });
+    var lead = ld ? '<path class="irf-ld" d="' + ld + '"/>' : '';
     var a = FOCUS ? BYID[FOCUS] : (R.filterOn('mil') && BYID[R.filterOn('mil')]) || null;
-    if (!a || !gL) { if (gL && gL.firstChild) gL.innerHTML = ''; LINES = []; return; }
+    if (a && a._nomap) a = null;
+    if (!a) { if (gL._h !== lead) { gL.innerHTML = lead; gL._h = lead; } LINES = []; return; }
     var s0 = R.map.seen(a.ll[1], a.ll[0]) ? PJ([a.ll[1], a.ll[0]]) : null, seenP = {}, d = '';
-    if (!s0) { gL.innerHTML = ''; return; }
+    if (!s0) { if (gL._h !== lead) { gL.innerHTML = lead; gL._h = lead; } return; }
     (NEWS[a.id] || []).concat(NEAR[a.id] || []).forEach(function (it) {
       var p = R.place(it.p); if (!p || !isFinite(p.lat) || seenP[it.p]) return;
       seenP[it.p] = 1;
@@ -329,7 +455,7 @@
       var mx = (s0[0] + s1[0]) / 2, my = (s0[1] + s1[1]) / 2 - Math.min(80, Math.hypot(s1[0] - s0[0], s1[1] - s0[1]) * 0.25);
       d += 'M' + s0[0].toFixed(1) + ' ' + s0[1].toFixed(1) + 'Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + s1[0].toFixed(1) + ' ' + s1[1].toFixed(1);
     });
-    var html = d ? '<path class="irf-ln-g" d="' + d + '"/><path class="irf-ln" d="' + d + '" style="stroke:' + colOf(a) + '"/>' : '';
+    var html = lead + (d ? '<path class="irf-ln-g" d="' + d + '"/><path class="irf-ln" d="' + d + '" style="stroke:' + colOf(a) + '"/>' : '');
     if (gL._h !== html) { gL.innerHTML = html; gL._h = html; }
   }
   function hit(x, y) {
@@ -346,11 +472,34 @@
     return null;
   }
   function kindName(a) { return (KIND[a._t === 'ship' ? (a.k === 'amphib' ? 'amphib' : 'carrier') : a.k] || KIND.army)[0]; }
+  /* A SHIP'S POSITION IN WORDS, always with how exact it is and how old: "In port at Sasebo", "Left Yokosuka, at sea",
+     "Somewhere in the Arabian Sea", or no place at all. Never a bare point that reads as a live position. */
+  function shipWhere(s) {
+    if (s.pr === 'none' || !s.ll) return (s.area ? s.area + ', ' : '') + 'no position published';
+    if (s.pr === 'area') return 'Somewhere in the ' + String(s.area).replace(/^the /i, '');
+    return s.area || '';
+  }
+  function shipWhen(s) {
+    // a story has its hour, so its age is measured ("9 hours ago"); the tracker has only a day, so its age is counted in
+    // calendar days, never called "today" because of a clock's midnight
+    var at = s.by ? s.by.at : D.fleet.at, src = s.by ? 'USNI News, ' : 'USNI Fleet Tracker, ';
+    if (String(at).length > 10) { var ms = Date.parse(at); return src + day(at) + (isFinite(ms) ? ' (' + agoMs(ms) + ')' : ''); }
+    return src + day(at) + (AGE == null ? '' : ' (' + ageWords(AGE) + ')');
+  }
+  function latestOf(a) {          // the asset's own newest news: USNI's newer stories about a ship first, then the search
+    var seen = {}, out = [];
+    (a.nw || []).map(function (x) { return { t: x.t, u: x.u, s: 'USNI News', d: x.at }; }).concat(AN[a.id] || []).forEach(function (x) {
+      var k = String(x.t).toLowerCase().replace(/\W+/g, ' ').slice(0, 60);
+      if (!seen[k]) { seen[k] = 1; out.push(x); }
+    });
+    return out;
+  }
   function tip(m) {
-    var a = m.a, n = (NEWS[a.id] || []).length;
-    var sub = a._t === 'ship' ? (a.area || '') + ' · as of ' + day(D.fleet.at) + ' (USNI)' : kindName(a) + ' · ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' && OPN[a.o] !== a.host ? ' · in ' + a.host : '');
-    return '<span class="tip-k" style="--pc:' + colOf(a) + '"><i class="irf-dot"></i>' + esc(a._t === 'ship' ? 'At sea' : 'Military site') + '</span>' + esc(a.n) +
-      '<small>' + esc(sub) + '. ' + (n ? esc(n === 1 ? '1 story names it. ' : n + ' stories name it. ') : '') + (m.near.length ? esc('+' + m.near.length + ' more here. ') : '') + 'Tap for more.</small>';
+    var a = m.a, n = (NEWS[a.id] || []).length, la = latestOf(a)[0];
+    var sub = a._t === 'ship' ? shipWhere(a) + ' · ' + shipWhen(a) : kindName(a) + ' · ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' && OPN[a.o] !== a.host ? ' · in ' + a.host : '');
+    return '<span class="tip-k" style="--pc:' + colOf(a) + '"><i class="irf-dot"></i>' + esc(a._t === 'ship' ? (a.hull || 'At sea') : kindName(a)) + '</span>' + esc(a.n) +
+      '<small>' + esc(sub) + '.</small>' + (la ? '<small class="irf-tip-la">Latest: ' + esc(la.t) + ' · ' + esc(agoMs(Date.parse(la.d))) + '</small>' : '') +
+      '<small>' + (n ? esc(n === 1 ? '1 story here names it. ' : n + ' stories here name it. ') : '') + (m.near.length ? esc('+' + m.near.length + ' more on this spot. ') : '') + 'Tap for its news.</small>';
   }
   function openMark(m) {
     if (m.near && m.near.length) { picker([m.a].concat(m.near)); return; }
@@ -373,11 +522,19 @@
       if ((b = t.closest('[data-irf-show]'))) { var id = b.getAttribute('data-irf-show'); closeDlg(); R.filter('mil', id); R.tab('items'); listTop(); return; }
       if ((b = t.closest('[data-irf-fly]'))) { var a = BYID[b.getAttribute('data-irf-fly')]; if (a) { closeDlg(); FOCUS = a.id; R.map.fly(a._t === 'ship' ? 5 : 26, a.ll[1], a.ll[0]); R.map.redraw(); } return; }
       if ((b = t.closest('[data-irf-copy]'))) { copy(b.getAttribute('data-irf-copy'), b); return; }
+      if ((b = t.closest('[data-irf-war]'))) {
+        var k = b.getAttribute('data-irf-war'), on = wars(), i = on.indexOf(k), sc = keepScroll();
+        if (i >= 0) on.splice(i, 1); else on.push(k);
+        setWars(on); warPicker(); sc(); return;
+      }
+      if ((b = t.closest('[data-irf-allwars]'))) { setWars([]); warPicker(); return; }
     });
     dlg.addEventListener('close', function () { if (!R.filterOn('mil')) { FOCUS = ''; R.map.redraw(); } });
     return dlg;
   }
   function closeDlg() { if (dlg && dlg.open) { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } }
+  // a redraw of the picker after a tap keeps the reader where they were (showDlg goes back to the top)
+  function keepScroll() { var d = dlg, i = d && d.querySelector('.irf-in'), a = d ? d.scrollTop : 0, b = i ? i.scrollTop : 0; return function () { if (d) d.scrollTop = a; var j = d && d.querySelector('.irf-in'); if (j) j.scrollTop = b; }; }
   function showDlg(html) {
     var d = dialog();
     d.innerHTML = '<div class="ir-s-in irf-in">' + html + '</div>';
@@ -415,30 +572,50 @@
     return ASSETS.filter(function (b) { return b !== a && riv.indexOf(BLOC_OF[b.o]) >= 0; })
       .map(function (b) { return { b: b, d: km(a.ll, b.ll) }; }).sort(function (x, y) { return x.d - y.d; }).slice(0, 4);
   }
+  /* A SITE'S OR A SHIP'S PROFILE (rebuilt 23 Oct 2026, Armin: "when I click on USS Theodore Roosevelt, I should be able to
+     see the most recent news related to it, and you don't provide that ... when I click on any of this military stuff, I
+     get the information on it and the most recent news items in relation to it, especially specifically about that item").
+     In the order a host needs it on air: where it is now and how sure that is; the newest news ABOUT IT (its own search,
+     every headline names it); what the room's stories say; then what it is. */
+  function newsRow(x) {
+    var ms = Date.parse(x.d);
+    return '<li><a class="irf-it irf-nw" href="' + esc(x.u) + '" target="_blank" rel="noopener"><span class="irf-it-t">' + esc(x.t) + '</span><small>' +
+      esc((x.s || '') + (isFinite(ms) ? ' · ' + agoMs(ms) : '')) + '</small></a></li>';
+  }
   function dossier(id) {
     var a = BYID[id]; if (!a) return;
     FOCUS = a.id; R.map.redraw();
-    var ship = a._t === 'ship', bl = blocOf(a), news = NEWS[a.id] || [], near = NEAR[a.id] || [];
-    var facts = [['Run by', OPN[a.o] || a.o], ['Where', ship ? (a.area || '') : a.host === 'Sea' ? 'At sea' : a.host], ['What', kindName(a)], ['Theatre', TH[a.th] || '']].filter(function (f) { return f[1]; });
-    var ll = (Math.abs(a.ll[0]).toFixed(2) + '°' + (a.ll[0] >= 0 ? 'N' : 'S') + ' ' + Math.abs(a.ll[1]).toFixed(2) + '°' + (a.ll[1] >= 0 ? 'E' : 'W'));
-    var src = ship ? '<p class="irf-src">Where the US Naval Institute\'s Fleet Tracker put it on ' + esc(day(D.fleet.at)) + ' (' + (D.fleet.u ? '<a href="' + esc(D.fleet.u) + '" target="_blank" rel="noopener">read it</a>' : 'USNI News') + '). The Navy does not publish live positions, so this is the last public one, not where it is now.</p>'
-      : a.w ? '<p class="irf-src">From Wikipedia: <a href="https://en.wikipedia.org/wiki/' + esc(encodeURIComponent(a.w.replace(/ /g, '_'))) + '" target="_blank" rel="noopener">' + esc(a.w) + '</a> · ' + esc(ll) + '</p>' : '<p class="irf-src">' + esc(ll) + '</p>';
+    var ship = a._t === 'ship', bl = blocOf(a), news = NEWS[a.id] || [], near = NEAR[a.id] || [], latest = latestOf(a);
+    var facts = [['Run by', OPN[a.o] || a.o], ['What', kindName(a)], ship ? ['Home port', a.home || ''] : ['Where', a.host === 'Sea' ? 'At sea' : a.host], ['Conflict', TH[a.th] || '']].filter(function (f) { return f[1]; });
+    var ll = a.ll ? (Math.abs(a.ll[0]).toFixed(2) + '°' + (a.ll[0] >= 0 ? 'N' : 'S') + ' ' + Math.abs(a.ll[1]).toFixed(2) + '°' + (a.ll[1] >= 0 ? 'E' : 'W')) : '';
+    var wl = a.w ? '<a href="https://en.wikipedia.org/wiki/' + esc(encodeURIComponent(a.w.replace(/ /g, '_'))) + '" target="_blank" rel="noopener">Wikipedia: ' + esc(a.w) + '</a>' : '';
+    var where = '';
+    if (ship) {
+      var old = AGE != null && AGE > STALE && !a.by, rough = a.pr === 'area', none = a.pr === 'none' || !a.ll;
+      where = '<section class="irf-now' + (old ? ' old' : '') + '"><h3>Where it is</h3><p class="irf-now-w">' + esc(shipWhere(a)) + '</p>' +
+        '<p class="irf-now-s">' + esc(shipWhen(a)) + '. ' + (a.by ? '<a href="' + esc(a.by.u) + '" target="_blank" rel="noopener">' + esc(a.by.t) + '</a>' : D.fleet.u ? '<a href="' + esc(D.fleet.u) + '" target="_blank" rel="noopener">Read the tracker</a>' : '') + '</p>' +
+        (a.say ? '<p class="irf-now-q">' + (a.by ? esc('The tracker of ' + day(D.fleet.at) + ', before that: ') : '') + '"' + esc(a.say) + '"</p>' : '') +
+        '<p class="irf-note">' + (none ? 'The report names no place we can put on a map, so it has no mark. ' : rough ? 'The report names the sea, not a point: the mark is the middle of that sea. ' : '') +
+        (old ? 'This report is ' + AGE + ' days old; the ship has probably moved since. ' : '') + 'The Navy does not publish live positions, so this is the last public one.' + '</p></section>';
+    } else if (a.st) where = '<p class="irf-st"><b>Status</b> ' + esc(a.st) + '</p>';
     var riv = ship ? [] : rivalsOf(a);
     var mk = (D.markets || []).filter(function (m) { return m.th === a.th; }).slice(0, 2);
-    var html = '<div class="ir-s-top"><span>' + esc(ship ? 'At sea' : 'Military site') + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="Close">&times;</button></div>' +
+    var html = '<div class="ir-s-top"><span>' + esc(ship ? 'Warship' : 'Military site') + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="Close">&times;</button></div>' +
       '<div class="irf-hd">' + icon(a, true) + '<div><h2 id="irf-dlg-t" class="irf-h">' + esc(a.n) + (ship && a.hull ? ' <span class="irf-hull">' + esc(a.hull) + '</span>' : '') + '</h2>' +
-      '<p class="irf-side" style="--c:' + bl[2] + '"><i class="irf-dot"></i>' + esc(bl[1]) + '</p></div></div>' +
+      '<p class="irf-side" style="--c:' + bl[2] + '"><i class="irf-dot"></i>' + esc(bl[1]) + '</p></div></div>' + where +
+      '<section class="irf-sec"><h3>Latest news about it</h3>' +
+      (latest.length ? '<ul class="irf-its">' + latest.slice(0, 6).map(newsRow).join('') + '</ul><p class="irf-note">Every headline here names it. Searched across the news in the last 30 days; opens the article.</p>'
+        : '<p class="irf-note">No headline in the last 30 days names it. Searched again every few hours.</p>') + '</section>' +
+      (news.length ? '<section class="irf-sec"><h3>' + esc(news.length === 1 ? 'In the room now: 1 story names it' : 'In the room now: ' + news.length + ' stories name it') + '</h3><ul class="irf-its">' + news.slice(0, 6).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
+      groupSecs(a) +
+      (near.length ? '<section class="irf-sec"><h3>' + esc(near.length === 1 ? '1 story placed near it' : near.length + ' stories placed near it') + '</h3><p class="irf-note">Within ' + NEAR_KM + ' km. Near is not the same as about it.</p><ul class="irf-its">' + near.slice(0, 4).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
+      '<section class="irf-sec"><h3>What it is</h3>' + (a.why ? '<p class="irf-why">' + esc(a.why) + '</p>' : '') + (a.grp ? '<p class="irf-why">' + esc(a.grp) + '</p>' : '') +
       '<dl class="irf-facts">' + facts.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl>' +
-      (a.why ? '<p class="irf-why">' + esc(a.why) + '</p>' : '') + (ship && a.say ? '<p class="irf-why">' + esc(a.say) + '</p>' : '') +
-      (a.st ? '<p class="irf-st"><b>Status</b> ' + esc(a.st) + '</p>' : '') +
-      (a.x ? '<p class="irf-x">' + esc(a.x) + '</p>' : '') + src +
-      '<section class="irf-sec"><h3>' + (news.length ? esc(news.length === 1 ? '1 story names it' : news.length + ' stories name it') : 'No story in the room names it right now') + '</h3>' +
-      (news.length ? '<ul class="irf-its">' + news.slice(0, 8).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul>' : '<p class="irf-note">When the news or a post names it, it shows here and the site gets a gold ring on the map.</p>') + '</section>' +
-      (near.length ? '<section class="irf-sec"><h3>' + esc(near.length === 1 ? '1 story placed near it' : near.length + ' stories placed near it') + '</h3><p class="irf-note">Within ' + NEAR_KM + ' km. Near is not the same as about it.</p><ul class="irf-its">' + near.slice(0, 5).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') + groupSecs(a) +
+      (a.x ? '<p class="irf-x">' + esc(a.x) + '</p>' : '') + '<p class="irf-src">' + [wl, ship ? '' : esc(ll)].filter(Boolean).join(' · ') + '</p></section>' +
       (riv.length ? '<section class="irf-sec"><h3>The other side\'s nearest sites</h3><ul class="irf-rows">' + riv.map(function (r) { return row(r.b, Math.round(r.d).toLocaleString('en-US') + ' km · ' + kindName(r.b) + ' · ' + (OPN[r.b.o] || r.b.o)); }).join('') + '</ul><p class="irf-note">Straight-line distance.</p></section>' : '') +
       (mk.length ? '<section class="irf-sec"><h3>What the betting markets say</h3>' + mk.map(market).join('') + '</section>' : '') +
-      '<div class="ir-s-a">' + (news.length || near.length ? '<button class="ir-s-open" type="button" data-irf-show="' + esc(a.id) + '">Show its news</button>' : '') +
-      '<button class="ir-s-b" type="button" data-irf-fly="' + esc(a.id) + '">Go to it on the map</button><button class="ir-s-b" type="button" data-irf-copy="' + esc(a.id) + '">Copy for the show</button></div>';
+      '<div class="ir-s-a">' + (news.length || near.length ? '<button class="ir-s-open" type="button" data-irf-show="' + esc(a.id) + '">Show its stories in the room</button>' : '') +
+      (a.ll && !a._nomap ? '<button class="ir-s-b" type="button" data-irf-fly="' + esc(a.id) + '">Go to it on the map</button>' : '') + '<button class="ir-s-b" type="button" data-irf-copy="' + esc(a.id) + '">Copy for the show</button></div>';
     showDlg(html);
   }
   // the stories about a group this site belongs to (US bases in the region, Iran's nuclear sites ...): connected, not counted on its mark
@@ -455,8 +632,12 @@
   }
   function copy(id, btn) {
     var a = BYID[id]; if (!a) return;
-    var lines = [a.n + (a._t === 'ship' ? ' (' + (a.hull || '') + '), ' + (a.area || '') + ', USNI ' + day(D.fleet.at) : ', ' + kindName(a) + ', ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' ? ', in ' + a.host : ''))];
+    var lines = [a.n + (a._t === 'ship' ? ' (' + (a.hull || '') + '): ' + shipWhere(a) + '. ' + shipWhen(a) : ', ' + kindName(a) + ', ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' ? ', in ' + a.host : ''))];
     if (a.why) lines.push(a.why);
+    if (a.st) lines.push('Status: ' + a.st);
+    var la = latestOf(a).slice(0, 5);
+    if (la.length) { lines.push('Latest news:'); la.forEach(function (x) { lines.push('- ' + x.t + ' (' + (x.s || '') + ', ' + day(x.d) + ') ' + x.u); }); }
+    if ((NEWS[a.id] || []).length) lines.push('In the room now:');
     (NEWS[a.id] || []).slice(0, 10).forEach(function (it) { lines.push('- ' + it.t + ' (' + (it.src === 'X' ? (it.nm || it.h) : it.h || it.src) + ') ' + it.u); });
     lines.push('libertypolitics.com/intel/?mil=' + a.id);
     var txt = lines.join('\n'), done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy for the show'; }, 1600); };
@@ -474,7 +655,6 @@
       el.addEventListener('click', function (ev) {
         var t = ev.target, b;
         if ((b = t.closest('[data-irf-site]'))) { dossier(b.getAttribute('data-irf-site')); return; }
-        if ((b = t.closest('[data-irf-th]'))) { theatre(b.getAttribute('data-irf-th')); return; }
         if ((b = t.closest('#irf-on'))) { setOn(!ON); return; }
         if ((b = t.closest('[data-irf-g]'))) { var gv = 'g:' + b.getAttribute('data-irf-g'); if (!ON) setOn(true); R.filter('mil', R.filterOn('mil') === gv ? '' : gv); R.tab('items'); listTop(); return; }
         if ((b = t.closest('[data-irf-any]'))) { R.filter('mil', R.filterOn('mil') === 'any' ? '' : 'any'); R.tab('items'); listTop(); return; }
@@ -491,34 +671,21 @@
   }
   function drawTabCount() { tabEl(); var n = $('irf-tab-n'); if (n) n.textContent = NAMED_N ? String(NAMED_N) : ''; }
   function listTop() { var l = root.querySelector('.ir-list'); if (l && l.getBoundingClientRect().top < 0) l.scrollIntoView({ block: 'start' }); }
-  function theatre(th) {
-    var pts = ASSETS.filter(function (a) { return a.th === th && a.tier !== 2; }).map(function (a) { return [a.ll[1], a.ll[0]]; });
-    if (pts.length > 4) {          // frame the theatre's heart: the farthest outliers (Diego Garcia for the Gulf) do not set the zoom
-      var cy = pts.reduce(function (s, p) { return s + p[1]; }, 0) / pts.length, cx = pts.reduce(function (s, p) { return s + p[0]; }, 0) / pts.length;
-      pts = pts.map(function (p) { return { p: p, d: km([cy, cx], [p[1], p[0]]) }; }).sort(function (x, y) { return x.d - y.d; })
-        .slice(0, Math.ceil(pts.length * 0.85)).map(function (o) { return o.p; });
-    }
-    if (!ON) setOn(true);
-    R.filter('mil', R.filterOn('mil') === 'th:' + th ? '' : 'th:' + th);
-    if (pts.length) R.map.fit(pts, 1.4, 12);
-  }
   function gauge(p) {
     var lv = Math.max(0, Math.min(100, +p.lvl || 0)), ang = Math.PI * (1 - lv / 100), x = 30 + 24 * Math.cos(ang), y = 32 - 24 * Math.sin(ang);
     return '<svg class="irf-ga" viewBox="0 0 60 36" aria-hidden="true"><path class="irf-ga-b" d="M6 32A24 24 0 0 1 54 32"/><path class="irf-ga-v lv' + Math.min(4, Math.floor(lv / 20)) + '" d="M6 32A24 24 0 0 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '"/><line x1="30" y1="32" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/><circle cx="30" cy="32" r="2.6"/></svg>';
   }
+  function inWs(a, ws) { return !ws.length || ws.indexOf(a.th) >= 0; }
+  function ageWords(n) { return n == null ? '' : n <= 0 ? 'today' : n === 1 ? '1 day ago' : n + ' days ago'; }
+  /* The Forces tab. War pressure moved INTO the conflict picker on 23 Oct 2026, so the gauges and the choosing are one
+     place (one door); the tab says which conflicts it is showing and lists what follows from that. */
   function drawTab() {
     var el = tabEl(); if (!D) { el.innerHTML = '<p class="ir-empty">The military sites could not load. Everything else in the room works.</p>'; return; }
-    var mil = R.filterOn('mil');
-    var pulse = (D.pulse || []).filter(function (p) { return TH[p.th]; });
-    var named = ASSETS.concat(SHIPS).filter(function (a) { return (NEWS[a.id] || []).length; }).sort(function (x, y) { return NEWS[y.id].length - NEWS[x.id].length; });
-    var html = '<div class="irf-tab-h"><p>Military sites of the countries in today\'s wars and standoffs, and the news that names them.</p>' +
+    var mil = R.filterOn('mil'), ws = wars();
+    var named = ASSETS.concat(SHIPS).filter(function (a) { return (NEWS[a.id] || []).length && inWs(a, ws); }).sort(function (x, y) { return NEWS[y.id].length - NEWS[x.id].length; });
+    var html = '<div class="irf-tab-h"><p>' + (ws.length ? 'Showing <b>' + esc(warLabel(ws.join(','))) + '</b>. Pick others with the Conflicts button on the map.' : 'Every conflict. To follow one or several, use the Conflicts button on the map.') + '</p>' +
       '<button type="button" class="irf-tog" id="irf-on" aria-pressed="' + (ON ? 'true' : 'false') + '"><span>On the map</span></button></div>';
-    if (pulse.length) html += '<section class="irf-sec"><h3>War pressure</h3><p class="irf-note">War stories the room carries in the last 24 hours, against the day before. Tap one to see its sites and news.</p><div class="irf-pulse">' +
-      pulse.map(function (p) {
-        var tr = p.prev == null ? '' : p.now > p.prev ? '<span class="up">▲ from ' + p.prev + '</span>' : p.now < p.prev ? '<span class="dn">▼ from ' + p.prev + '</span>' : '<span>same as yesterday</span>';
-        return '<button type="button" class="irf-pc' + (mil === 'th:' + p.th ? ' on' : '') + '" data-irf-th="' + esc(p.th) + '" title="' + esc(p.why || '') + '">' + gauge(p) + '<span class="irf-pc-t"><b>' + esc(p.n) + '</b><span class="irf-pc-w lv' + Math.min(4, Math.floor((+p.lvl || 0) / 20)) + '">' + esc(p.word || '') + '</span><small>' + esc(p.now + (p.now === 1 ? ' story' : ' stories')) + ' ' + tr + '</small></span></button>';
-      }).join('') + '</div></section>';
-    var gk = GROUPS.filter(function (g) { return (GNEWS[g[0]] || []).length; }).sort(function (x, y) { return GNEWS[y[0]].length - GNEWS[x[0]].length; });
+    var gk = GROUPS.filter(function (g) { return (GNEWS[g[0]] || []).length && ASSETS.concat(SHIPS).some(function (a) { return g[4](a) && inWs(a, ws); }); }).sort(function (x, y) { return GNEWS[y[0]].length - GNEWS[x[0]].length; });
     html += '<section class="irf-sec"><h3>In the news now</h3>' +
       (named.length || gk.length ? '<ul class="irf-rows">' + gk.map(function (g) {
         var L = GNEWS[g[0]], a0 = ASSETS.concat(SHIPS).filter(g[4])[0];
@@ -526,31 +693,48 @@
       }).join('') + named.slice(0, 12).map(function (a) { return row(a, NEWS[a.id][0].t); }).join('') + '</ul>' +
         '<button type="button" class="ir-s-b irf-any" data-irf-any aria-pressed="' + (mil === 'any' ? 'true' : 'false') + '">' + (mil === 'any' ? 'Show every story again' : 'Show only military news') + '</button>'
         : '<p class="irf-note">No story in this view names a military site.</p>') + '</section>';
-    if (SHIPS.length) html += '<section class="irf-sec"><h3>US carriers and big-deck ships</h3><p class="irf-note">Last public positions, from the US Naval Institute\'s Fleet Tracker of ' + esc(day(D.fleet.at)) + '. The Navy does not publish live positions.</p><ul class="irf-rows">' +
-      SHIPS.map(function (s) { return row(s, (s.hull ? s.hull + ' · ' : '') + (s.area || '')); }).join('') + '</ul></section>';
-    if ((D.markets || []).length) html += '<section class="irf-sec"><h3>What the betting markets say</h3><p class="irf-note">Prices on Polymarket: what bettors expect, not a fact.</p>' + D.markets.slice(0, 8).map(market).join('') + '</section>';
-    html += '<section class="irf-sec"><h3>Every site, by theatre</h3>' + Object.keys(TH).map(function (th) {
+    var sh = SHIPS.filter(function (s) { return !ws.length || ws.indexOf(s.th) >= 0; });
+    if (sh.length) {
+      var old = AGE != null && AGE > STALE;
+      html += '<section class="irf-sec"><h3>US carriers and big-deck ships</h3><p class="irf-note' + (old ? ' irf-warn' : '') + '">Last public positions: the US Naval Institute\'s Fleet Tracker of ' + esc(day(D.fleet.at)) + ' (' + esc(ageWords(AGE)) + ')' +
+        (D.fleet.checked ? ', checked ' + esc(agoMs(Date.parse(D.fleet.checked))) : '') + ', and its newer stories where they say where a ship is. ' +
+        (old ? 'This report is old: ships have probably moved. ' : '') + 'The Navy does not publish live positions.</p><ul class="irf-rows">' +
+        sh.map(function (s) { return row(s, (s.hull ? s.hull + ' · ' : '') + shipWhere(s) + (s.by ? ' · USNI ' + day(s.by.at) : '')); }).join('') + '</ul></section>';
+    }
+    var mk = (D.markets || []).filter(function (m) { return !ws.length || ws.indexOf(m.th) >= 0; });
+    if (mk.length) html += '<section class="irf-sec"><h3>What the betting markets say</h3><p class="irf-note">Prices on Polymarket: what bettors expect, not a fact.</p>' + mk.slice(0, 8).map(market).join('') + '</section>';
+    var ths = ws.length ? ws : Object.keys(TH);
+    html += '<section class="irf-sec"><h3>Every site, by conflict</h3>' + ths.map(function (th) {
       var list = ASSETS.filter(function (a) { return a.th === th; }).sort(function (x, y) { return prio(y) - prio(x) || x.n.localeCompare(y.n); });
       if (!list.length) return '';
-      return '<details class="irf-th"><summary><span>' + esc(TH[th]) + '</span><i class="num">' + list.length + '</i></summary><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul></details>';
+      return '<details class="irf-th"' + (ws.length === 1 ? ' open' : '') + '><summary><span>' + esc(TH[th]) + '</span><i class="num">' + list.length + '</i></summary><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul></details>';
     }).join('') + '</section>';
     html += '<section class="irf-sec irf-key"><h3>Colour: who runs it</h3><ul>' + BLOCS.filter(function (b) { return ASSETS.some(function (a) { return BLOC_OF[a.o] === b[0]; }); }).map(function (b) { return '<li style="--c:' + b[2] + '"><i class="irf-dot"></i>' + esc(b[1]) + '</li>'; }).join('') +
-      '</ul><p class="irf-note">A gold ring means a story in the room names it. Sites come from the register in our repository, each checked against Wikipedia. Wrong or missing? Say so in the discussion.</p></section>';
+      '</ul><p class="irf-note">A gold ring means a story in the room names it. A dashed ring round a ship means the report gives the sea, not a point. Sites come from the register in our repository, each checked against Wikipedia and against the news of 2025 and 2026. Wrong or missing? Say so in the discussion.</p></section>';
     el.innerHTML = html;
   }
 
-  /* ------------------------------------------------------------ the chip on the map: the hottest theatre's pressure */
+  /* ------------------------------------------------------------ the chip on the map: the ONE door to the conflicts */
+  function hottest() { return (D.pulse || []).filter(function (x) { return TH[x.th]; }).slice().sort(function (a, b) { return (b.lvl || 0) - (a.lvl || 0); })[0] || null; }
   function chip() {
-    var p = (D.pulse || []).filter(function (x) { return TH[x.th]; })[0], box = R.map.box;
-    if (!p || !box || $('irf-chip')) return;
+    var box = R.map.box;
+    if (!box || $('irf-chip')) return;
     var b = document.createElement('button');
-    b.type = 'button'; b.id = 'irf-chip'; b.className = 'irf-chip lv' + Math.min(4, Math.floor((+p.lvl || 0) / 20));
-    b.innerHTML = '<i aria-hidden="true"></i><span>' + esc(p.n) + ': <b>' + esc(p.word || '') + '</b></span>';
-    b.title = p.why || '';
-    b.addEventListener('click', function () { R.tab('forces'); listTop2(); });
+    b.type = 'button'; b.id = 'irf-chip'; b.className = 'irf-chip'; b.setAttribute('aria-haspopup', 'dialog');
+    b.addEventListener('click', warPicker);
     box.appendChild(b);
+    chipText();
   }
-  function listTop2() { var l = root.querySelector('.ir-list'); if (l && window.innerWidth < 900) l.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  function chipText() {
+    var b = $('irf-chip'); if (!b || !D) return;
+    var ws = wars(), p = ws.length ? ws.map(pulseOf).filter(Boolean).sort(function (x, y) { return (y.lvl || 0) - (x.lvl || 0); })[0] : hottest();
+    b.className = 'irf-chip ' + lvClass(p) + (ws.length ? ' on' : '');
+    var h = ws.length ? '<b>' + esc(warLabel(ws.join(','))) + '</b>' : 'All conflicts' + (p ? '<small>' + esc(TH[p.th] + ': ' + p.word) + '</small>' : '');
+    var html = '<i aria-hidden="true"></i><span>' + h + '</span><svg class="irf-chip-v" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>';
+    if (b._h !== html) { b.innerHTML = html; b._h = html; }
+    b.setAttribute('aria-label', ws.length ? 'Conflicts: showing ' + warLabel(ws.join(',')) + '. Change' : 'Conflicts: showing all. Pick one or several');
+    b.title = p && p.why ? p.why : '';
+  }
 
   /* ------------------------------------------------------------ in the spotlight: how each side framed it, the sites, your balance */
   var SIDE_N = { L: 'Left', C: 'Centre', R: 'Right' };
