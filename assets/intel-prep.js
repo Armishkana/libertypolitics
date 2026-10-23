@@ -641,6 +641,50 @@
 
   function lp(cb, tries) { if (window.LP && window.LP.members) { cb(window.LP); return; } if ((tries || 0) > 40) { cb(null); return; } setTimeout(function () { lp(cb, (tries || 0) + 1); }, 150); }
   function signedIn(L) { return !!(L && L.members.who && L.members.who()); }
+  /* READ ON OPEN (24 October 2026; Armin, on a story he had open: "This will make it not usable for a show"). A post the
+     hourly read has not reached is read the moment a signed-in creator opens it: replyasks/<x_id | yt_id> gets
+     {st: 'ask'} (firebase/firestore.rules "replyasks"), build/intel_replies.py --asks on his PC answers it within about a
+     minute, and this waits for the answer and hands it to intel.js (R.rpAsk). cb(entry, 'asking' | 'done' | 'fail' |
+     'unread'): 'unread' when this account may not ask (the rules refused), so the panel shows only the link. */
+  var RPA = {};
+  function askReplies(k, cb) {
+    var a = RPA[k];
+    if (a) { if (a.st === 'asking') a.cbs.push(cb); cb(a.e, a.st); return; }
+    a = RPA[k] = { st: 'asking', e: null, cbs: [cb] };
+    cb(null, 'asking');
+    function end(e, st) { a.st = st; a.e = e; var c = a.cbs; a.cbs = []; c.forEach(function (f) { try { f(e, st); } catch (x) { } }); }
+    lp(function (L) {
+      if (!L || L.off || !L.members.fb || !signedIn(L)) { end(null, 'unread'); return; }
+      L.members.fb().then(function (S) {
+        var ref = S.F.doc(S.db, 'replyasks', k.replace(':', '_')), t0 = Date.now();
+        function look() { return S.F.getDoc(ref).then(function (d) { return d.exists() ? d.data() : null; }); }
+        function entry(d) {
+          var r = []; try { r = JSON.parse(d.j || '[]'); } catch (x) { }
+          return { at: d.at && d.at.toDate ? d.at.toDate().toISOString() : new Date().toISOString(), r: Array.isArray(r) ? r : [] };
+        }
+        function old(d) { return !d.at || !d.at.toMillis || Date.now() - d.at.toMillis() > 30 * 60000; }
+        function poll() {
+          look().then(function (d) {
+            if (d && d.st === 'done') end(entry(d), 'done');
+            else if (d && d.st === 'fail') end(null, 'fail');
+            else if (Date.now() - t0 > 5 * 60000) end(null, 'fail');          // his PC is off: say so, never wait forever
+            else setTimeout(poll, 5000);
+          }).catch(function () { end(null, 'fail'); });
+        }
+        return look().then(function (d) {
+          if (d && d.st === 'done' && (!old(d) || entry(d).r.length)) { end(entry(d), 'done'); return; }
+          if (d && d.st === 'ask') { poll(); return; }
+          if (d && d.st === 'fail' && !old(d)) { end(null, 'fail'); return; }
+          return S.F.setDoc(ref, { st: 'ask', at: S.F.serverTimestamp() }).then(function () { setTimeout(poll, 4000); },
+            function (ex) { end(null, ex && ex.code === 'permission-denied' ? 'unread' : 'fail'); });
+        });
+      }).catch(function () { end(null, 'fail'); });
+    });
+  }
+  // handed to the room once a creator's sign-in is known, and again whenever it changes
+  function offerAsk() { lp(function (L) { if (R.rpAsk && signedIn(L)) R.rpAsk(askReplies); }); }
+  offerAsk();
+  document.addEventListener('lp:members', function (ev) { if (ev && ev.detail && ev.detail.account) offerAsk(); });
   // The mark that says this reader makes shows: creator=true on their own account, the same field "I made it" sets.
   function markCreator(L) {
     if (!L || L.off || !L.members.fb) return;
@@ -1172,6 +1216,9 @@
   function showScreen(spec) {
     var rows = spec.rows, video = spec.video, title = spec.title, intro = spec.intro, cover = spec.cover, desc = spec.desc, saved = spec.saved || null;
     var at = Math.max(0, Math.min(rows.length, +q.get('n') || 0));          // 0 is the intro card
+    // READ ON OPEN, for the whole show at once: every post in it is asked for now, so its replies are there before he
+    // reaches it (a reader's screen asks nothing: R.replies only asks once a creator's sign-in has been handed over)
+    if (R.replies) setTimeout(function () { rows.forEach(function (r) { if (r && r.it && R.rpKey && R.rpKey(r.it)) R.replies(r.it, function () { }); }); }, 1500);
     // PRESENT or READ. Read is the show as a page: its words, then every item with its source, for a phone, a class, a
     // briefing or print. A saved show opens to read on a phone, and always on Iran Uncensored's Persian page (CFG.light):
     // present loads players from YouTube and X, and a reader inside Iran loads nothing from elsewhere without a tap.

@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=f532a918da) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=877235e60b) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -485,7 +485,10 @@
         var its = (s.items || []).map(function (id) { return byId['L' + id]; }).filter(Boolean);
         var ds = DEEP_FRESH && DEEP.stories[String(s.id)], seen = {}, all = [];
         its.concat(ds ? (ds.rel || []).concat(ds.deep || []).map(function (id) { return byId['L' + id]; }) : []).forEach(function (it) { if (it && !seen[it.id]) { seen[it.id] = 1; all.push(it); } });
-        if (its.length) list.push({ id: String(s.id), lead: String(s.lead), hot: +s.hot || 0, its: its, all: all, q: ds ? String(ds.q || '') : '', title: s.title || its[0].t, s: s });
+        // who covered it, over everything the story holds (build/intel_deep.py, 24 Oct 2026): used when it rates more outlets
+        var rated = function (ls) { return ls ? ls[0] + ls[1] + ls[2] : 0; };
+        var sx = ds && ds.ls && rated(ds.ls) > rated(s.ls) ? Object.assign({}, s, { ls: ds.ls, lsn: ds.lsn || {}, bs: ds.bs || '' }) : s;
+        if (its.length) list.push({ id: String(s.id), lead: String(s.lead), hot: +s.hot || 0, its: its, all: all, q: ds ? String(ds.q || '') : '', title: s.title || its[0].t, s: sx });
       });
     } else {
       var by = {};
@@ -808,7 +811,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=f532a918da): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=877235e60b): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2173,7 +2176,24 @@
     var y = it && it.u ? ytId(it.u) : '';
     return y ? 'yt:' + y : '';
   }
-  // cb(entry or null, 'ok' | 'unread' | 'off'): unread = the post is in no read yet; off = the file could not be fetched
+  /* cb(entry or null, 'ok' | 'asking' | 'fail' | 'unread' | 'off'), called again when the state changes. READ ON OPEN
+     (24 October 2026; Armin found "The top replies are not read for this one yet" on a story he was showing: the hourly
+     read reaches about a quarter of the room). When the file has no read of the post and intel-prep.js has handed over
+     its asker (a creator is signed in), the post is read now: 'asking' until the answer comes back, then 'ok' or 'fail'
+     (build/intel_replies.py --asks, every minute on his PC). unread = nobody asked (a reader); off = no file. */
+  var RP_ASK = null, RP_PEND = [];
+  function rpAskFor(k, cb) {
+    RP_ASK(k, function (e, st) {
+      if (st === 'done' && e && Array.isArray(e.r)) { if (RP) RP[k] = e; cb(e, 'ok'); }
+      else cb(null, st === 'asking' ? 'asking' : st === 'unread' ? 'unread' : 'fail');
+    });
+  }
+  function rpAsk(fn) {
+    RP_ASK = typeof fn === 'function' ? fn : null;
+    if (!RP_ASK) return;
+    var p = RP_PEND; RP_PEND = [];
+    p.forEach(function (x) { rpAskFor(x[0], x[1]); });
+  }
   function repliesOf(it, cb) {
     var k = rpKey(it);
     if (!k) { cb(null, 'none'); return; }
@@ -2181,7 +2201,10 @@
       .catch(function () { return null; }).then(function (d) { RP = d && d.posts && typeof d.posts === 'object' ? d.posts : null; return RP; });
     rpWait.then(function () {
       var e = RP && RP[k];
-      if (e && Array.isArray(e.r)) cb(e, 'ok'); else cb(null, RP ? 'unread' : 'off');
+      if (e && Array.isArray(e.r)) { cb(e, 'ok'); return; }
+      if (RP_ASK) { rpAskFor(k, cb); return; }
+      cb(null, RP ? 'unread' : 'off');
+      RP_PEND.push([k, cb]); if (RP_PEND.length > 80) RP_PEND.shift();      // asked the moment a creator's sign-in is known
     });
   }
   function rpWhere(it) { return rpKey(it).slice(0, 2) === 'yt' ? 'YouTube' : 'X'; }
@@ -2198,8 +2221,12 @@
   }
   function repliesNone(it, st) {
     var on = rpWhere(it), x = on === 'X';
-    return '<p class="ir-rp-no">' + (st === 'ok' ? T('Nobody had replied when it was read.') : st === 'off' ? T(x ? 'The replies could not be loaded here.' : 'The comments could not be loaded here.') : T(x ? 'The top replies are not read for this one yet.' : 'The top comments are not read for this one yet.')) +
-      ' <a href="' + esc(it.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + T(x ? 'Read the replies on {pf}' : 'Read the comments on {pf}', { pf: pfName(on) }) + '</a></p>';
+    // Never "not read yet" (READ ON OPEN): a creator sees the read under way, a reader only the way to the replies
+    var say = st === 'ok' ? T('Nobody had replied when it was read.') : st === 'off' ? T(x ? 'The replies could not be loaded here.' : 'The comments could not be loaded here.')
+      : st === 'asking' ? T(x ? 'Reading the top replies now. They appear here in about a minute.' : 'Reading the top comments now. They appear here in about a minute.')
+      : st === 'fail' ? T(x ? 'The top replies could not be read right now.' : 'The top comments could not be read right now.') : '';
+    return '<p class="ir-rp-no"' + (st === 'asking' ? ' data-rp-asking' : '') + '>' + (say ? say + ' ' : '') +
+      '<a href="' + esc(it.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + T(x ? 'Read the replies on {pf}' : 'Read the comments on {pf}', { pf: pfName(on) }) + '</a></p>';
   }
   // the rows: a button each on the show screen (so one can be put on the screen alone), a link to the reply in the room
   function repliesHtml(it, list, asButtons) {
@@ -3074,7 +3101,7 @@
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml,
       // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
-      rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
+      rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, rpAsk: rpAsk, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
       regime: isRegime,
       // ADD-ONS (23 Oct 2026, see LAYERS): the map, the items of the lens, opening one, a filter in the address, a list tab,
@@ -3104,7 +3131,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=f532a918da'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=877235e60b'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
