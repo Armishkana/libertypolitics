@@ -135,6 +135,7 @@
 
   var D = null, FR = null, TH = {}, BYID = {}, ASSETS = [], SHIPS = [], ON = store('ir-forces') !== 'off';
   var NEWS = {}, NEAR = {}, OF_ITEM = {}, MKEY = '', FOCUS = '', NAMED_N = 0, AN = {}, AGE = null;
+  var AIM = {}, AX = {}, AYT = {};          // each asset's photos, own X posts and own YouTube videos (intel-forces-news.json im, x, yt)
   var g = null, gL = null, EL = {}, DRAWN = [], LINES = [];
   /* THE FLEET'S AGE (23 Oct 2026). The room once showed USS Theodore Roosevelt off California for three weeks after it had
      reached Japan: the builder read a feed that had stopped, and nothing on the page said how old the position was. Now
@@ -147,11 +148,16 @@
   var fu = root.getAttribute('data-forces') || '', nu = root.getAttribute('data-forces-news') || (fu ? fu.replace(/intel-forces\.json(\?.*)?$/, 'intel-forces-news.json') : '');
   Promise.all([soft(fu), soft(root.getAttribute('data-frames')), soft(nu)]).then(function (res) {
     if (res[1] && res[1].schema === 1 && res[1].by && typeof res[1].by === 'object') FR = res[1];
-    if (res[2] && res[2].schema === 1 && res[2].by && typeof res[2].by === 'object') AN = res[2].by;
+    if (res[2] && res[2].schema === 1 && res[2].by && typeof res[2].by === 'object') {
+      AN = res[2].by;
+      var ob = function (o) { return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; };
+      AIM = ob(res[2].im); AX = ob(res[2].x); AYT = ob(res[2].yt);
+    }
     if (res[0] && res[0].schema === 1 && Array.isArray(res[0].assets)) start(res[0]);
     R.addSpot(spot);          // the framing block works even with no forces file
     window.IRF = { ready: true, on: function () { return ON; }, drawn: function () { return DRAWN.slice(); }, named: function () { return NAMED_N; }, data: function () { return D; }, open: dossier,
-      news: function (id) { return (NEWS[id] || []).slice(); }, latest: function (id) { return (AN[id] || []).slice(); }, wars: wars, setWars: setWars, picker: warPicker, age: function () { return AGE; } };
+      news: function (id) { return (NEWS[id] || []).slice(); }, latest: function (id) { return (AN[id] || []).slice(); },
+      cover: function (id) { return BYID[id] ? coverOf(BYID[id]).slice() : []; }, photos: function (id) { return BYID[id] ? photos(BYID[id]) : []; }, wars: wars, setWars: setWars, picker: warPicker, age: function () { return AGE; } };
     root.setAttribute('data-forces-ready', D ? '1' : '0');
   });
 
@@ -604,8 +610,102 @@
     });
     return out;
   }
+  /* EVERYTHING SAID ABOUT ONE ASSET, drawn as the room draws its stories (24 Oct 2026, Armin on USS Theodore Roosevelt:
+     "pages like this needs to have news items related to it (x posts, YouTube, articles etc) shown here, the same way that
+     you show it on the intel room"). One list from five places, every item naming the asset: the room's own items (the
+     last day and the bank, by the asset's rx), its own X search (7 days), its own YouTube search (this month) and its own
+     article search (30 days) from build/intel_forces.py, and USNI's newer stories about a ship. One address or one headline
+     is one row; newest first. A tap opens the room's own spotlight on it (window.IRoom.openList), stepping through what the
+     reader is looking at, with "Back to <the asset>". */
+  var COV = {}, COVF = {}, COVN = {}, COV_STEP = 6, CUR = '', SCROLL = {};
+  function urlKey(u) {
+    u = String(u || ''); var m;
+    if ((m = /(?:x|twitter)\.com\/[^\/]+\/status\/(\d+)/.exec(u))) return 'x:' + m[1];
+    if ((m = /(?:youtu\.be\/|[?&]v=|\/shorts\/|\/live\/|\/embed\/)([A-Za-z0-9_-]{11})/.exec(u))) return 'yt:' + m[1];
+    return u.replace(/#.*$/, '').replace(/\/+$/, '').toLowerCase();
+  }
+  function titleKey(t) { return String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, 60); }          // every script's letters (a Japanese title is a title)
+  function covKind(it) { return it.src === 'X' ? 'x' : it.src === 'YouTube' || /youtu\.?be/.test(it.u || '') ? 'yt' : it.src === 'News' ? 'news' : 'other'; }
+  function names(a, it) { var w = words(it); return !!((a._rx && a._rx.test(w)) || (a._rxf && a._rxf.test(nozw(w)))); }
+  function coverOf(a) {
+    var lv = R.live ? R.live() : [], bk = R.bank ? R.bank() : [];
+    var key = MKEY + ':' + lv.length + ':' + bk.length;
+    if (COV[a.id] && COV[a.id].key === key) return COV[a.id].list;
+    var out = [], seenU = {}, seenT = {};
+    function add(it) {
+      if (!it || !it.u || !it.t) return;
+      var ku = urlKey(it.u), kt = titleKey(it.t);
+      if (seenU[ku] || (kt.length > 16 && seenT[kt])) return;
+      seenU[ku] = 1; seenT[kt] = 1; out.push(it);
+    }
+    (NEWS[a.id] || []).forEach(add);
+    lv.concat(bk).forEach(function (it) { if (names(a, it)) add(it); });
+    (AX[a.id] || []).forEach(add);
+    (AYT[a.id] || []).forEach(add);
+    (a.nw || []).forEach(function (x, i) { add({ id: 'usni-' + a.id + '-' + i, t: x.t, u: x.u, src: 'News', h: T('USNI News'), dm: 'news.usni.org', d: x.at, k: 'article' }); });
+    (AN[a.id] || []).forEach(function (x, i) { add({ id: 'an-' + a.id + '-' + i, t: x.t, u: x.u, src: 'News', h: x.s || '', dm: x.dm || '', d: x.d, k: 'article' }); });
+    // each kind newest first, then taken in turns (an X post, a video, an article ...), the kind with the newest item first:
+    // newest first alone filled the first screen with one kind and hid the others (measured on USS Theodore Roosevelt, 24 Oct)
+    var ms = function (it) { var v = Date.parse(it.d || ''); return isFinite(v) ? v : 0; };
+    out.sort(function (x, y) { return ms(y) - ms(x); });
+    var by = {}, order = [];
+    out.forEach(function (it) { var k = covKind(it); if (!by[k]) { by[k] = []; order.push(k); } by[k].push(it); });
+    var mixed = [];
+    for (var r = 0; mixed.length < out.length; r++) order.forEach(function (k) { if (by[k][r]) mixed.push(by[k][r]); });
+    COV[a.id] = { key: key, list: mixed };
+    return mixed;
+  }
+  function covShown(a) { var f = COVF[a.id] || 'all', all = coverOf(a); return f === 'all' ? all : all.filter(function (it) { return covKind(it) === f; }); }
+  function moreOn(a) {
+    var q = encodeURIComponent(String(a.n || '').replace(/[^\p{L}\p{N}\s'’.-]/gu, ' ').replace(/\s+/g, ' ').trim());
+    if (!q) return '';
+    var ln = function (u, w) { return '<a href="' + u + '" target="_blank" rel="noopener">' + esc(w) + '</a>'; };
+    return '<p class="irf-more">' + [ln('https://x.com/search?q=%22' + q + '%22&f=live', T('More on X')), ln('https://www.youtube.com/results?search_query=%22' + q + '%22', T('More on YouTube')),
+      ln('https://news.google.com/search?q=%22' + q + '%22', T('More in the news'))].join('') + '</p>';
+  }
+  function covHtml(a) {
+    var all = coverOf(a), f = COVF[a.id] || 'all', n = COVN[a.id] || COV_STEP, list = covShown(a), cnt = { all: all.length, x: 0, yt: 0, news: 0, other: 0 };
+    all.forEach(function (it) { cnt[covKind(it)]++; });
+    var h = '<section class="irf-sec irf-cov" id="irf-cov"><h3>' + esc(T('What is being said about it')) + '</h3>';
+    if (!all.length) return h + '<p class="irf-note">' + esc(T('Nothing in the last 30 days names it yet. Searched again every few hours.')) + '</p>' + moreOn(a) + '</section>';
+    var chips = [['all', T('All')], ['x', 'X'], ['yt', T('YouTube')], ['news', T('Articles')]].filter(function (c) { return c[0] === 'all' || cnt[c[0]]; });
+    if (chips.length > 2) h += '<div class="irf-cfs" role="group" aria-label="' + esc(T('Show only')) + '">' + chips.map(function (c) {
+      return '<button type="button" class="irf-cf" data-irf-cf="' + c[0] + '" aria-pressed="' + (f === c[0] ? 'true' : 'false') + '">' + esc(c[1]) + ' <i class="num">' + N(cnt[c[0]]) + '</i></button>';
+    }).join('') + '</div>';
+    h += '<ol class="irf-covl">' + list.slice(0, n).map(function (it, i) { return R.cardHtml(it, 'data-irf-cov="' + i + '"'); }).join('') + '</ol>';
+    if (list.length > n) h += '<button type="button" class="ir-s-b irf-covm" data-irf-covm>' + esc(T('Show {n} more', { n: N(Math.min(10, list.length - n)) })) + '</button>';
+    return h + '<p class="irf-note">' + esc(T('Every one names it: X posts from the last 7 days, videos and articles from the last 30 days, and what the room carries. Tap one to see it here.')) + '</p>' + moreOn(a) + '</section>';
+  }
+  function redrawCov() {
+    var a = BYID[CUR], el = dlg && dlg.querySelector('#irf-cov'); if (!a || !el) return;
+    var sc = keepScroll(); el.outerHTML = covHtml(a); sc();
+  }
+  /* PICTURES OF IT (24 Oct 2026, Armin: "there should be a picture of the thing at the top, or a couple of pictures ... If
+     I say USS Tripoli ... I should see a couple of pictures of USS Tripoli"). Up to three photos from its own Wikipedia
+     article (build/intel_forces.py 4b: Wikimedia Commons files only, the lead photo first, never a logo or a crest), one
+     large with the others beside it to tap, the caption and the credit under it; the large one opens the file on Commons.
+     A page that loads nothing from another site before a tap (CFG.light) shows a button instead. */
+  var PH_OK = /^[0-9a-f]\/[0-9a-f]{2}\/[A-Za-z0-9%._~!*'()+,;=@-]+\.(?:jpe?g|png)$/i, PH_AT = {}, PH_ON = {};
+  function photos(a) { return (Array.isArray(AIM[a.id]) ? AIM[a.id] : []).filter(function (p) { return Array.isArray(p) && PH_OK.test(String(p[0])); }).slice(0, 3); }
+  function phUrl(p, w) { return 'https://upload.wikimedia.org/wikipedia/commons/thumb/' + p + '/' + w + 'px-' + p.split('/')[2]; }
+  function phPage(p) { return 'https://commons.wikimedia.org/wiki/File:' + p.split('/')[2]; }
+  function photoHtml(a) {
+    var ph = photos(a); if (!ph.length) return '';
+    if (R.pics && !R.pics() && !PH_ON[a.id]) return '<button type="button" class="ir-s-b irf-ph-on" data-irf-phon>' + esc(ph.length === 1 ? T('Show its picture') : T('Show its {n} pictures', { n: N(ph.length) })) + '</button>';
+    var at = Math.min(PH_AT[a.id] || 0, ph.length - 1), big = ph[at], nm = L(a, 'n');
+    return '<figure class="irf-ph" id="irf-ph"><a class="irf-ph-big" href="' + esc(phPage(big[0])) + '" target="_blank" rel="noopener" title="' + esc(T('Open the picture full size on Wikimedia Commons')) + '">' +
+      '<img src="' + esc(phUrl(big[0], 500)) + '" srcset="' + esc(phUrl(big[0], 500)) + ' 500w, ' + esc(phUrl(big[0], 960)) + ' 960w" sizes="(min-width: 760px) 560px, 94vw" alt="' + esc(big[1] || nm) + '" decoding="async"></a>' +
+      (ph.length > 1 ? '<div class="irf-ph-row">' + ph.map(function (p, i) {
+        return '<button type="button" class="irf-ph-t" data-irf-ph="' + i + '" aria-pressed="' + (i === at ? 'true' : 'false') + '" aria-label="' + esc(T('Picture {i} of {n}', { i: N(i + 1), n: N(ph.length) })) + '"><img src="' + esc(phUrl(p[0], 330)) + '" alt="" loading="lazy" decoding="async"></button>';
+      }).join('') + '</div>' : '') +
+      '<figcaption' + DA + '>' + (big[1] && !FA ? esc(big[1]) + ' ' : '') + '<a href="' + esc(phPage(big[0])) + '" target="_blank" rel="noopener">' + esc(T('Photo: Wikimedia Commons')) + '</a></figcaption></figure>';
+  }
+  function redrawPh() {
+    var a = BYID[CUR], el = dlg && (dlg.querySelector('#irf-ph') || dlg.querySelector('.irf-ph-on')); if (!a || !el) return;
+    var sc = keepScroll(); el.outerHTML = photoHtml(a); sc();
+  }
   function tip(m) {
-    var a = m.a, n = (NEWS[a.id] || []).length, la = latestOf(a)[0];
+    var a = m.a, n = (NEWS[a.id] || []).length, la = coverOf(a)[0];
     var sub = a._t === 'ship' ? shipWhere(a) + ' · ' + shipWhen(a) : kindName(a) + ' · ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' && OPN[a.o] !== L(a, 'host') ? ' · ' + T('in {place}', { place: L(a, 'host') }) : '');
     return '<span class="tip-k" style="--pc:' + colOf(a) + '"><i class="irf-dot"></i>' + esc(a._t === 'ship' ? (a.hull || T('At sea')) : kindName(a)) + '</span>' + esc(L(a, 'n')) +
       '<small>' + esc(sub) + '.</small>' + (la ? '<small class="irf-tip-la">' + esc(T('Latest:')) + ' ' + bd(esc(la.t)) + ' · ' + esc(agoMs(Date.parse(la.d))) + '</small>' : '') +
@@ -628,6 +728,12 @@
       if (t === dlg) { closeDlg(); return; }
       if ((b = t.closest('[data-irf-x]'))) { closeDlg(); return; }
       if ((b = t.closest('[data-irf-site]'))) { dossier(b.getAttribute('data-irf-site')); return; }
+      if ((b = t.closest('[data-irf-cov]'))) { openCov(+b.getAttribute('data-irf-cov')); return; }
+      if ((b = t.closest('[data-irf-oi]'))) { openFrom(listOf(b.getAttribute('data-irf-ol') || ''), +b.getAttribute('data-irf-oi')); return; }
+      if ((b = t.closest('[data-irf-cf]'))) { COVF[CUR] = b.getAttribute('data-irf-cf'); COVN[CUR] = COV_STEP; redrawCov(); return; }
+      if ((b = t.closest('[data-irf-covm]'))) { COVN[CUR] = (COVN[CUR] || COV_STEP) + 10; redrawCov(); return; }
+      if ((b = t.closest('[data-irf-ph]'))) { PH_AT[CUR] = +b.getAttribute('data-irf-ph') || 0; redrawPh(); return; }
+      if ((b = t.closest('[data-irf-phon]'))) { PH_ON[CUR] = 1; redrawPh(); return; }
       if ((b = t.closest('[data-irf-item]'))) { openItem(b.getAttribute('data-irf-for'), b.getAttribute('data-irf-item')); return; }
       if ((b = t.closest('[data-irf-show]'))) { var id = b.getAttribute('data-irf-show'); closeDlg(); R.filter('mil', id); R.tab('items'); listTop(); return; }
       if ((b = t.closest('[data-irf-fly]'))) { var a = BYID[b.getAttribute('data-irf-fly')]; if (a) { closeDlg(); FOCUS = a.id; R.map.fly(a._t === 'ship' ? 5 : 26, a.ll[1], a.ll[0]); R.map.redraw(); } return; }
@@ -640,7 +746,22 @@
       if ((b = t.closest('[data-irf-allwars]'))) { setWars([]); warPicker(); return; }
     });
     dlg.addEventListener('close', function () { if (!R.filterOn('mil')) { FOCUS = ''; R.map.redraw(); } });
+    // a photo that will not load leaves no broken box: a small one goes, a large one takes the whole strip with it
+    dlg.addEventListener('error', function (ev) {
+      var im = ev.target; if (!im || im.tagName !== 'IMG') return;
+      var tb = im.closest('.irf-ph-t'), f = im.closest('.irf-ph');
+      if (tb) tb.hidden = true; else if (f) f.hidden = true;
+    }, true);
     return dlg;
+  }
+  // one of the asset's items, opened in the room's spotlight; the spotlight steps through the list as filtered here
+  function openCov(i) { var a = BYID[CUR]; if (a) openFrom(covShown(a), i); }
+  function openFrom(list, i) {
+    var a = BYID[CUR]; if (!a || !R.openList || !list || !list[i]) return;
+    var inr = dlg.querySelector('.irf-in'), id = a.id;
+    SCROLL[id] = [dlg.scrollTop, inr ? inr.scrollTop : 0];
+    closeDlg();
+    R.openList(list, i, { label: L(a, 'n'), back: function () { dossier(id, true); } });
   }
   function closeDlg() { if (dlg && dlg.open) { if (dlg.close) dlg.close(); else dlg.removeAttribute('open'); } }
   // a redraw of the picker after a tap keeps the reader where they were (showDlg goes back to the top)
@@ -671,6 +792,10 @@
     return '<li><button type="button" class="irf-it" data-irf-item="' + esc(String(it.id)) + '" data-irf-for="' + esc(forId) + '"><span class="irf-it-t"' + DA + '>' + esc(it.t) + '</span><small>' + bd(esc(src)) +
       esc((it.d ? ' · ' + agoMs(Date.parse(it.d)) : '') + (it.hot != null ? ' · ' + T('Hot {n}', { n: N(it.hot) }) : '')) + '</small></button></li>';
   }
+  // a room story in the card, drawn as the room draws it (R.cardHtml), opening in its spotlight with Back to the card;
+  // a page without the room's card (an older intel.js) keeps the plain row
+  function roomCard(it, from, i, forId) { return R.cardHtml ? R.cardHtml(it, 'data-irf-ol="' + esc(from) + '" data-irf-oi="' + i + '"') : itemRow(it, forId); }
+  function listOf(from) { return from === 'near' ? (NEAR[CUR] || []) : from.indexOf('g:') === 0 ? (GNEWS[from.slice(2)] || []) : []; }
   function openItem(forId, itemId) {
     closeDlg();
     R.filter('mil', forId); R.tab('items');
@@ -702,10 +827,12 @@
   /* THE BETTING MARKETS are shown on the English pages only. Their questions are Polymarket's own English titles, a new set
      every hour, so the Persian page could only show them in English or in a machine's Persian; it shows neither. */
   var MK_ON = !FA;
-  function dossier(id) {
+  function dossier(id, back) {
     var a = BYID[id]; if (!a) return;
+    if (CUR !== a.id) { COVF[a.id] = COVF[a.id] || 'all'; if (!back) { COVN[a.id] = COV_STEP; PH_AT[a.id] = 0; } }
+    CUR = a.id;
     FOCUS = a.id; R.map.redraw();
-    var ship = a._t === 'ship', bl = blocOf(a), news = NEWS[a.id] || [], near = NEAR[a.id] || [], latest = latestOf(a);
+    var ship = a._t === 'ship', bl = blocOf(a), news = NEWS[a.id] || [], near = NEAR[a.id] || [];
     var home = FA ? a.home_fa || '' : a.home || '';
     var facts = [[T('Run by'), OPN[a.o] || a.o], [T('What'), kindName(a)], ship ? [T('Home port'), home] : [T('Where'), a.host === 'Sea' ? T('At sea') : L(a, 'host')], [T('Conflict'), TH[a.th] || '']].filter(function (f) { return f[1]; });
     var ll = a.ll ? (coordN(a.ll[0]) + ' ' + coordE(a.ll[1])) : '';
@@ -725,13 +852,11 @@
     var mk = MK_ON ? (D.markets || []).filter(function (m) { return m.th === a.th; }).slice(0, 2) : [];
     var html = '<div class="ir-s-top"><span>' + esc(ship ? T('Warship') : T('Military site')) + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
       '<div class="irf-hd">' + icon(a, true) + '<div><h2 id="irf-dlg-t" class="irf-h">' + esc(L(a, 'n')) + (ship && a.hull ? ' <span class="irf-hull">' + esc(a.hull) + '</span>' : '') + '</h2>' +
-      '<p class="irf-side" style="--c:' + bl[2] + '"><i class="irf-dot"></i>' + esc(bl[1]) + '</p></div></div>' + where +
-      '<section class="irf-sec"><h3>' + esc(T('Latest news about it')) + '</h3>' +
-      (latest.length ? '<ul class="irf-its">' + latest.slice(0, 6).map(newsRow).join('') + '</ul><p class="irf-note">' + esc(T('Every headline here names it. Searched across the news in the last 30 days; opens the article.')) + '</p>'
-        : '<p class="irf-note">' + esc(T('No headline in the last 30 days names it. Searched again every few hours.')) + '</p>') + '</section>' +
-      (news.length ? '<section class="irf-sec"><h3>' + esc(news.length === 1 ? T('In the room now: 1 story names it') : T('In the room now: {n} stories name it', { n: N(news.length) })) + '</h3><ul class="irf-its">' + news.slice(0, 6).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
+      '<p class="irf-side" style="--c:' + bl[2] + '"><i class="irf-dot"></i>' + esc(bl[1]) + '</p></div></div>' + photoHtml(a) + where +
+      (R.cardHtml ? covHtml(a) : '<section class="irf-sec"><h3>' + esc(T('Latest news about it')) + '</h3>' +
+        (latestOf(a).length ? '<ul class="irf-its">' + latestOf(a).slice(0, 6).map(newsRow).join('') + '</ul>' : '<p class="irf-note">' + esc(T('No headline in the last 30 days names it. Searched again every few hours.')) + '</p>') + '</section>') +
       groupSecs(a) +
-      (near.length ? '<section class="irf-sec"><h3>' + esc(near.length === 1 ? T('1 story placed near it') : T('{n} stories placed near it', { n: N(near.length) })) + '</h3><p class="irf-note">' + esc(T('Within {n} km. Near is not the same as about it.', { n: N(NEAR_KM) })) + '</p><ul class="irf-its">' + near.slice(0, 4).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
+      (near.length ? '<section class="irf-sec"><h3>' + esc(near.length === 1 ? T('1 story placed near it') : T('{n} stories placed near it', { n: N(near.length) })) + '</h3><p class="irf-note">' + esc(T('Within {n} km. Near is not the same as about it.', { n: N(NEAR_KM) })) + '</p><ul class="irf-its">' + near.slice(0, 4).map(function (it, i) { return roomCard(it, 'near', i, a.id); }).join('') + '</ul></section>' : '') +
       '<section class="irf-sec"><h3>' + esc(T('What it is')) + '</h3>' + (a.why ? '<p class="irf-why">' + esc(L(a, 'why')) + '</p>' : '') + (grp ? '<p class="irf-why">' + esc(grp) + '</p>' : '') +
       '<dl class="irf-facts">' + facts.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl>' +
       (xx ? '<p class="irf-x">' + esc(xx) + '</p>' : '') + '<p class="irf-src">' + [wl, ship ? '' : esc(ll)].filter(Boolean).join(' · ') + '</p></section>' +
@@ -740,13 +865,15 @@
       '<div class="ir-s-a">' + (news.length || near.length ? '<button class="ir-s-open" type="button" data-irf-show="' + esc(a.id) + '">' + esc(T('Show its stories in the room')) + '</button>' : '') +
       (a.ll && !a._nomap ? '<button class="ir-s-b" type="button" data-irf-fly="' + esc(a.id) + '">' + esc(T('Go to it on the map')) + '</button>' : '') + '<button class="ir-s-b" type="button" data-irf-copy="' + esc(a.id) + '">' + esc(T('Copy for the show')) + '</button></div>';
     showDlg(html);
+    // back from the spotlight: the card opens where the reader left it
+    if (back && SCROLL[a.id]) { var d0 = dlg, s0 = SCROLL[a.id]; d0.scrollTop = s0[0]; var i0 = d0.querySelector('.irf-in'); if (i0) i0.scrollTop = s0[1]; }
   }
   // the stories about a group this site belongs to (US bases in the region, Iran's nuclear sites ...): connected, not counted on its mark
   function groupSecs(a) {
     return groupsOf(a).filter(function (k) { return (GNEWS[k] || []).length; }).map(function (k) {
       var LL = GNEWS[k], g = GBY[k];
       return '<section class="irf-sec"><h3>' + esc(LL.length === 1 ? T('1 story about {what}', { what: g[1] }) : T('{n} stories about {what}', { n: N(LL.length), what: g[1] })) + '</h3><p class="irf-note">' + esc(T('They name the group, not this site by name.')) + '</p><ul class="irf-its">' +
-        LL.slice(0, 5).map(function (it) { return itemRow(it, 'g:' + k); }).join('') + '</ul><button type="button" class="ir-s-b" data-irf-show="g:' + esc(k) + '">' + esc(T('Show all {n} about {what}', { n: N(LL.length), what: g[1] })) + '</button></section>';
+        LL.slice(0, 5).map(function (it, i) { return roomCard(it, 'g:' + k, i, 'g:' + k); }).join('') + '</ul><button type="button" class="ir-s-b" data-irf-show="g:' + esc(k) + '">' + esc(T('Show all {n} about {what}', { n: N(LL.length), what: g[1] })) + '</button></section>';
     }).join('');
   }
   function market(m) {
@@ -759,10 +886,13 @@
     var lines = [L(a, 'n') + (a._t === 'ship' ? ' (' + (a.hull || '') + '): ' + shipWhere(a) + '. ' + shipWhen(a) : ', ' + kindName(a) + ', ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' ? ', ' + T('in {place}', { place: L(a, 'host') }) : ''))];
     if (a.why) lines.push(L(a, 'why'));
     if (a.st) lines.push(T('Status:') + ' ' + L(a, 'st'));
-    var la = latestOf(a).slice(0, 5);
-    if (la.length) { lines.push(T('Latest news:')); la.forEach(function (x) { lines.push('- ' + x.t + ' (' + (x.s || '') + ', ' + day(x.d) + ')' + (regime(x.u) ? '' : ' ' + x.u)); }); }
-    if ((NEWS[a.id] || []).length) lines.push(T('In the room now:'));
-    (NEWS[a.id] || []).slice(0, 10).forEach(function (it) { lines.push('- ' + it.t + ' (' + (it.src === 'X' ? (it.nm || it.h) : it.h || it.src) + ')' + (R.regime && R.regime(it) ? '' : ' ' + it.u)); });
+    // everything the card lists, newest first: X posts, videos and articles (24 Oct 2026), each with who and when
+    var la = coverOf(a).slice(0, 10);
+    if (la.length) { lines.push(T('Latest news:')); la.forEach(function (x) {
+      var who = x.src === 'X' ? (x.nm || x.h || 'X') + ', X' : x.src === 'YouTube' ? (x.h || '') + ', ' + T('YouTube') : (x.h || x.src || '');
+      var qx = x.src === 'X' && x.qt && x.qt.t ? ' [' + T('Quoting {who}', { who: x.qt.nm || x.qt.h }) + ': ' + String(x.qt.t).replace(/\s+/g, ' ').slice(0, 160) + ']' : '';          // a quote never copied as if it stood alone (24 Oct 2026)
+      lines.push('- ' + x.t + qx + ' (' + who + (x.d ? ', ' + day(x.d) : '') + ')' + (regime(x.u) || (R.regime && R.regime(x)) ? '' : ' ' + x.u));
+    }); }
     lines.push(SITE_MARK + '/?mil=' + a.id);
     var txt = lines.join('\n'), done = function () { btn.textContent = T('Copied'); setTimeout(function () { btn.textContent = T('Copy for the show'); }, 1600); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallback(txt); done(); });

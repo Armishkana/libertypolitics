@@ -1338,9 +1338,10 @@
     // an X post of words, drawn as the post: the author, the whole text as large as the stage allows, its link card
     function postCard(x) {
       var cd = x.cd && CARD_RX2.test(x.cd.i || '') && !(R.media && R.media(x).length) ? x.cd : null;
+      var rf = R.refHtml ? R.refHtml(x, 'is-show') : { before: '', after: '' };          // the post it quotes or answers, and its note (24 Oct 2026)
       return '<figure class="ir-sh-post">' +
         '<figcaption class="ir-sh-ph">' + face(x, 'ir-sh-pav') + '<span class="ir-sh-pwho"><b>' + esc(x.nm || x.h) + '</b><small>' + esc([x.h, R.when(x)].filter(Boolean).join(' · ')) + '</small></span>' + R.mark(x) + '</figcaption>' +
-        '<blockquote class="ir-sh-ptx" id="ir-sh-fit2">' + paras(full(x)) + '</blockquote>' + more(x) +
+        rf.before + '<blockquote class="ir-sh-ptx" id="ir-sh-fit2">' + paras(full(x)) + '</blockquote>' + more(x) + rf.after +
         (cd ? '<span class="ir-sh-pcd"><span class="ir-sh-pci" style="background-image:url(' + esc(cd.i + '&name=800x419') + ')"></span>' + (cd.t || cd.dm ? '<span class="ir-sh-pct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') + '</span>' : '') +
         '</figure>';
     }
@@ -1358,8 +1359,9 @@
       var isX = x.src === 'X' && /\/status\/\d+/.test(x.u || ''), hasM = isX && !!(R.media && R.media(x).length), words = full(x);
       var own = isX && !hasM && !(/…$/.test(words) && !x.tx);          // drawn as the post itself (X's player only when the room lacks the whole text)
       var where = R.where(x) !== 'No single place' ? R.where(x) : '';
+      var rfm = hasM && R.refHtml ? R.refHtml(x, 'is-show') : { before: '', after: '' };          // beside a video: what it quotes or answers
       el.innerHTML = '<div class="ir-sh-frame" id="ir-sh-frame"></div><div class="ir-sh-info" id="ir-sh-info">' + (roleName(r) ? '<p class="ir-sh-role">' + esc(roleName(r)) + '</p>' : '') +
-        (hasM ? '<p class="ir-sh-who">' + face(x, 'ir-sh-wav') + '<b>' + esc(x.nm || x.h) + '</b><small>' + esc(x.h) + '</small></p><p class="ir-sh-pt" id="ir-sh-fit">' + paras(words) + '</p>' + more(x)
+        (hasM ? '<p class="ir-sh-who">' + face(x, 'ir-sh-wav') + '<b>' + esc(x.nm || x.h) + '</b><small>' + esc(x.h) + '</small></p>' + rfm.before + '<p class="ir-sh-pt" id="ir-sh-fit">' + paras(words) + '</p>' + more(x) + rfm.after
           : '<h2 id="ir-sh-fit">' + paras(words) + '</h2>') +
         '<p class="ir-sh-meta">' + R.mark(x) + esc((isX ? [R.when(x), where] : [R.when(x), x.nm || x.h || x.src, where]).filter(Boolean).join(' · ')) + '</p>' +
         counts(x) + (x.hotWhy ? '<p class="ir-sh-why">' + ICON.flame + esc(x.hotWhy) + '</p>' : '') + (x.also && x.also.length ? '<p class="ir-sh-also">' + esc(T('Also carried by {list}', { list: x.also.join(T(', ')) })) + '</p>' : '') +

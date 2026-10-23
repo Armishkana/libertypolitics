@@ -1173,6 +1173,56 @@ html.ir-show .ir-cmd>:not(.ir-lens){display:none!important}
 .ir-post-ci{display:block;aspect-ratio:1.91;background:#000 center/cover no-repeat}
 .ir-post-ct{display:block;padding:10px 14px 12px;font:600 1rem/1.35 var(--body);color:var(--ink)}
 .ir-post-ct small{display:block;margin-bottom:2px;color:var(--dim);font-size:.85rem;font-weight:500}
+/* THE POST IT ANSWERS (24 Oct 2026, intel.js refHtml): the quoted post as a box inside the post, as X draws it; the post it
+   replies to above the words with a thread line; X's Community Note in blue, as X marks it. */
+.ir-ref{display:grid;gap:8px;min-width:0;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.025);box-shadow:inset 0 0 0 1px #3a3527;color:inherit;text-decoration:none}
+.ir-ref:hover,.ir-ref:focus-visible{box-shadow:inset 0 0 0 1px var(--field)}
+.ir-ref-k{display:flex;align-items:center;gap:6px;min-width:0;font:700 .76rem/1.2 var(--body);letter-spacing:.05em;text-transform:uppercase;color:var(--field)}
+.ir-ref-k svg{width:14px;height:14px;flex:none;fill:currentColor}
+.ir-ref-h{display:flex;align-items:center;gap:10px;min-width:0}
+.ir-ref-av{width:32px;height:32px;flex:none;border-radius:50%;background:#2a2721 center/cover no-repeat}
+.ir-ref-av.is-mono{display:grid;place-items:center;font:800 14px var(--display);color:var(--ink)}
+.ir-ref-who{display:grid;min-width:0;line-height:1.25}
+.ir-ref-who b{font:700 .95rem var(--body);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-ref-who small{color:var(--dim);font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-ref-t{font:500 1rem/1.45 var(--body);color:var(--ink);white-space:pre-line;overflow-wrap:anywhere}
+.ir-ref-t.is-dim{color:var(--dim);font-size:.9rem}
+.ir-ref-mo{color:var(--dim);font-size:.85rem;font-style:italic}
+.ir-ref-i{position:relative;display:block;aspect-ratio:16/9;max-height:220px;border-radius:8px;background:#000 center/cover no-repeat}
+.ir-ref-i.is-cd{aspect-ratio:1.91}
+.ir-ref-i.is-v::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-35%,-50%);border-style:solid;border-width:13px 0 13px 21px;border-color:transparent transparent transparent rgba(255,255,255,.92);filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
+.ir-ref-ct{font:600 .9rem/1.35 var(--body);color:var(--ink)}
+.ir-ref-ct small{display:block;color:var(--dim);font-weight:500;font-size:.8rem}
+.ir-ref-ry{background:none;box-shadow:none;border-radius:0;padding:2px 0 2px 12px;border-inline-start:3px solid #4a4433;padding-inline-start:12px}
+.ir-ref-ry:hover,.ir-ref-ry:focus-visible{box-shadow:none;border-inline-start-color:var(--field)}
+.ir-note{display:grid;gap:6px;min-width:0;padding:12px 14px;border-radius:12px;background:rgba(90,150,240,.09);box-shadow:inset 0 0 0 1px rgba(120,170,245,.38)}
+.ir-note b{display:flex;align-items:center;gap:6px;font:750 .9rem var(--body);color:#a9c8ff}
+.ir-note svg{width:16px;height:16px;flex:none;fill:currentColor}
+.ir-note-t{font:500 .95rem/1.45 var(--body);color:var(--ink);white-space:pre-line;overflow-wrap:anywhere}
+.ir-note a{justify-self:start;display:inline-flex;align-items:center;min-height:40px;color:#a9c8ff;font-size:.88rem}
+.ir-c-q{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:6px;padding-inline-start:8px;border-inline-start:2px solid #4a4433;font-size:.86em;line-height:1.35;color:var(--dim)}
+.ir-c-q svg{width:12px;height:12px;fill:var(--field);vertical-align:-1px;margin-inline-end:4px}
+.ir-c-q b{color:var(--ink);font-weight:650}
+.ir-c-nt{display:flex;align-items:center;gap:4px;width:max-content;max-width:100%;margin-top:6px;font-size:.8em;font-weight:700;color:#a9c8ff}
+.ir-c-nt svg{width:12px;height:12px;flex:none;fill:currentColor}
+.ir-ref.is-show,.ir-note.is-show{flex:none;min-height:0}
+.ir-ref.is-show{padding:clamp(12px,1.6vh,22px) clamp(14px,1.4vw,26px);gap:clamp(8px,1vh,14px)}
+.ir-ref-ry.is-show{padding:2px 0;padding-inline-start:clamp(12px,1vw,18px)}
+.ir-ref.is-show .ir-ref-k{font-size:clamp(.85rem,1.8vh,1.35rem)}
+.ir-ref.is-show .ir-ref-k svg{width:clamp(14px,1.8vh,22px);height:clamp(14px,1.8vh,22px)}
+.ir-ref.is-show .ir-ref-av{width:clamp(36px,5.6vh,72px);height:clamp(36px,5.6vh,72px)}
+.ir-ref.is-show .ir-ref-who b{font-size:clamp(1.05rem,2.6vh,2rem)}
+.ir-ref.is-show .ir-ref-who small{font-size:clamp(.85rem,1.9vh,1.4rem)}
+.ir-ref.is-show .ir-ref-t{font-size:clamp(1.1rem,3.3vh,2.5rem);line-height:1.3;max-height:34vh;overflow-y:auto;scrollbar-width:thin}
+.ir-ref.is-show .ir-ref-i{max-height:22vh}
+.ir-note.is-show b{font-size:clamp(.95rem,2.2vh,1.6rem)}
+.ir-ref.is-show .ir-ref-mo{font-size:clamp(.85rem,1.8vh,1.3rem)}
+/* beside a video the post's own words are the small column: what it quotes stays below them in size, never above */
+.ir-sh-info .ir-ref.is-show .ir-ref-t{font-size:clamp(.95rem,2vh,1.5rem);max-height:22vh}
+.ir-sh-info .ir-ref.is-show .ir-ref-who b{font-size:clamp(.95rem,1.9vh,1.4rem)}
+.ir-sh-info .ir-ref.is-show .ir-ref-av{width:clamp(30px,4vh,48px);height:clamp(30px,4vh,48px)}
+.ir-sh-info .ir-note.is-show .ir-note-t{font-size:clamp(.9rem,1.9vh,1.4rem)}
+.ir-note.is-show .ir-note-t{font-size:clamp(1rem,2.6vh,1.9rem);max-height:22vh;overflow-y:auto}
 .ir-hero{position:relative;margin:0 auto;width:min(100%,calc(min(62vh,600px)*1.7778));aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000}
 .ir-hero-i{position:absolute;inset:0;background:center/cover no-repeat}
 .ir-hero figcaption{position:absolute;right:8px;bottom:8px;padding:3px 8px;border-radius:6px;background:rgba(0,0,0,.66);color:#e4e1d6;font-size:12px}
@@ -1593,3 +1643,32 @@ html.irt-on #calls{visibility:hidden}          /* the show reminder sits in the 
 /* a first visit: the Tour button is lit; on a phone the nudge line stays away, so the map stays on the first screen (phone-test) */
 .ir-cb.ir-cb-tour.is-new{border-color:var(--field);color:var(--field);background:rgba(var(--ir-gold,244,196,48),.12)}
 @media(max-width:700px){.irt-nudge{display:none}}
+/* A SITE'S OR A SHIP'S CARD, 24 Oct 2026 (build/intel-forces.js photoHtml, covHtml): its photos at the top, and everything
+   said about it drawn as the room's own cards, with All / X / YouTube / Articles; the spotlight's Back to the card */
+.irf-ph{margin:0;display:grid;gap:8px}
+.irf-ph-big{display:block;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--sunk)}
+.irf-ph-big img{display:block;width:100%;height:100%;object-fit:cover}
+.irf-ph-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.irf-ph-t{height:60px;padding:0;border:2px solid transparent;border-radius:9px;overflow:hidden;background:var(--sunk);cursor:pointer}
+.irf-ph-t img{display:block;width:100%;height:100%;object-fit:cover;opacity:.7}
+.irf-ph-t[aria-pressed="true"]{border-color:var(--field)}
+.irf-ph-t[aria-pressed="true"] img,.irf-ph-t:hover img{opacity:1}
+.irf-ph figcaption{color:var(--dim);font-size:var(--t1);line-height:1.45}
+.irf-ph figcaption a{display:inline-flex;align-items:center;min-height:40px;color:var(--ink)}          /* a 40px tap target on a phone */
+.irf-ph-on{justify-self:start}
+.irf-cfs{display:flex;flex-wrap:wrap;gap:6px}
+.irf-cf{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--ink);font:600 var(--t1) var(--body);cursor:pointer}
+.irf-cf i{font-style:normal;color:var(--dim);margin-left:2px}
+.irf-cf[aria-pressed="true"]{border-color:var(--field);color:var(--field);background:rgba(var(--ir-gold,244,196,48),.1)}
+.irf-cf[aria-pressed="true"] i{color:var(--field)}
+.irf-covl{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.irf-dlg .ir-card button{border:1px solid var(--line);background:var(--sunk)}
+.irf-dlg .ir-card button:hover{background:var(--raise);border-color:#56544e}
+.irf-covm{justify-self:start}
+.irf-more{display:flex;flex-wrap:wrap;gap:0 18px;margin:0;font-size:var(--t1)}
+.irf-more a{display:inline-flex;align-items:center;min-height:40px;color:var(--ink)}
+.ir-s-top{min-width:0}          /* a long Back label never widens the spotlight past the phone (it shrinks, with an ellipsis) */
+.ir-s-bk{flex:0 1 auto;min-width:0;min-height:40px;max-width:calc(100% - 120px);padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--ink);font:600 var(--t1) var(--body);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ir-s-bk:hover{border-color:var(--field)}
+.irf-dlg .ir-by-av.is-mono{font-size:12px}          /* the phone check: no text under 12px in the card */
+.ir-s-in{grid-template-columns:minmax(0,1fr)}          /* 24 Oct 2026: one column the width of the screen, so a long name and handle on X shrink with an ellipsis instead of pushing the spotlight (and its Close) past a phone's edge */

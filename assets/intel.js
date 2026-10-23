@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=877235e60b) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=0d029af7c3) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -188,6 +188,11 @@
   var LAYERS = [], EXT = {}, LTX = {}, SPOTX = [], RAWQ = null, BADGEX = [];
   function xcall(f, a, b, c) { try { return f(a, b, c); } catch (e) { return null; } }
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
+  // A LIST AN ADD-ON OPENS IN THE SPOTLIGHT (24 Oct 2026: a warship's or a site's own X posts, videos and articles, from
+  // build/intel-forces.js). While it is set the spotlight steps through it instead of the room's list, and a Back button
+  // returns to whoever opened it. Cleared whenever the spotlight closes.
+  var SPOTL = null;
+  function spotList() { return SPOTL ? SPOTL.list : shown; }
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
@@ -622,6 +627,9 @@
     if (md.length && !it.sn) return { k: 'pic', u: pic(md[0], big ? 'medium' : '240x240') };
     if (it.th0) return { k: 'pic', u: it.th0 + (big ? '&w=960&h=540&c=7&rs=1' : '&w=240&h=150&c=7') };
     if (cd) return { k: 'pic', u: cd.i + '&name=' + (big ? '800x419' : '280x150') };
+    var qr = refOf(it, 'qt'), qm = refMedia(qr);
+    if (qm.length) return { k: 'pic', u: pic(qm[0], big ? 'medium' : '240x240') };
+    if (qr && qr.cd && CARD_RX.test(qr.cd.i || '')) return { k: 'pic', u: qr.cd.i + '&name=' + (big ? '800x419' : '280x150') };
     if (it.th && !it.sn && /^https:\/\//.test(it.th)) return { k: 'pic', u: it.th };
     var av = avOf(it, big ? '400x400' : '200x200');
     if (av) return { k: 'av', u: av };
@@ -664,9 +672,9 @@
   function faceUrl(it, big) {
     if (!(pics() || it._pics)) return '';
     if (it.src === 'X') return avOf(it, big ? '200x200' : 'bigger');
-    var yt = FACE_YT[it.h] || '';
+    var yt = FACE_YT[it.h] || it.yav || '';          // it.yav: a channel picture a forces search kept (build/intel_forces.py 4b)
     if (/^https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[A-Za-z0-9_\/=+-]+$/.test(yt)) return yt.replace(/=s\d+-/, big ? '=s176-' : '=s88-');
-    var dom = FACE_DOM[it.h] || (it.src === 'YouTube' ? '' : hostOf(it.u));
+    var dom = FACE_DOM[it.h] || it.dm || (it.src === 'YouTube' ? '' : hostOf(it.u));
     if (dom && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(dom) && !NO_LOGO.test(dom)) return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=' + (big ? 128 : 64);
     return '';
   }
@@ -732,17 +740,74 @@
     } catch (e) { out = ''; }
     return (LOC[key] = out);
   }
+  /* THE POST IT ANSWERS (24 Oct 2026). Armin, on Hend Amry's quote of BBC News drawn as if it stood alone: "This obviously
+     doesn't make any sense in the intel room because it doesn't show that this is a quote post ... You should have been
+     showing what is being quoted." An X post now carries the post it quotes (qt), the post it replies to (ry) and X's
+     Community Note (nt), build/intel_x.py POST_FIELDS. EVERY surface that draws a post draws them through these helpers and
+     nothing else: refHtml for a post drawn large (the spotlight, the show screen), refLine for a card in a list, postText for
+     a copy. A new surface that draws a post calls them too, or it shows a quote as if it stood alone. */
+  var XS_RX = /^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}\/status\/\d+$/, NT_RX = /^https:\/\/x\.com\/i\/birdwatch\/n\/\d+$/;
+  var ICO_REF = {
+    qt: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h5.5v5.2H6.4c0 1.7.9 2.7 2.6 3v2.3C5.6 15.1 3.5 13 3.5 9.4zm7.5 0h5.5v5.2h-2.6c0 1.7.9 2.7 2.6 3v2.3c-3.4-.4-5.5-2.5-5.5-6.1z"/></svg>',
+    ry: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.2 4.5 3 9.4l5.2 4.9v-3.1c4 0 6.6 1.1 8.8 4.3-.7-4.7-3.4-7.8-8.8-8.3z"/></svg>',
+    nt: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.2a3.9 3.9 0 1 1 0 7.8 3.9 3.9 0 0 1 0-7.8zM3 17.2c.5-3.1 3.4-5.1 7-5.1s6.5 2 7 5.1z"/></svg>'
+  };
+  function refOf(it, k) { var r = it && it.src === 'X' && it[k]; return r && typeof r === 'object' && XS_RX.test(r.u || '') && /^@\w{1,15}$/.test(r.h || '') ? r : null; }
+  function noteOf(it) { var n = it && it.src === 'X' && it.nt; return n && typeof n === 'object' && NT_RX.test(n.u || '') && n.t ? n : null; }
+  function refMedia(r) { return (r && r.m || []).filter(function (x) { return x && /^https:\/\/pbs\.twimg\.com\/[A-Za-z0-9_\/-]+\.(?:jpg|jpeg|png|webp)$/.test(x.i || ''); }); }
+  function refWho(r) { return r.nm ? r.nm : r.h; }
+  // one quoted or replied-to post, drawn as X draws a quote: a box with its author, when, its words, its picture or card
+  function refBox(it, r, kind, size) {
+    var lit = pics() || it._pics, av = lit && AV_RX.test(r.av || '') ? r.av.replace(/_normal\.(\w+)$/, '_200x200.$1') : '';
+    var md = refMedia(r), cd = !md.length && r.cd && CARD_RX.test(r.cd.i || '') ? r.cd : null;
+    var head = T(kind === 'ry' ? 'Replying to {who}' : 'Quoting {who}', { who: refWho(r) }), rg = isRegime(it);          // a regime post is never a link (THE REGIME RULE), nor what it quotes
+    return '<' + (rg ? 'div' : 'a') + ' class="ir-ref ir-ref-' + kind + (size ? ' ' + size : '') + '"' + (rg ? '' : ' href="' + esc(r.u) + '" target="_blank" rel="noopener"') + '>' +
+      '<span class="ir-ref-k">' + ICO_REF[kind] + bd(esc(head)) + '</span>' +
+      '<span class="ir-ref-h">' + (av ? '<span class="ir-ref-av" style="background-image:url(' + esc(av) + ')"></span>' : '<span class="ir-ref-av is-mono">' + esc(String(refWho(r)).replace(/^@/, '').slice(0, 1).toUpperCase()) + '</span>') +
+      '<span class="ir-ref-who"><b' + DA + '>' + bd(esc(refWho(r))) + '</b><small>' + esc([r.h, r.d ? fmtDate(r.d) : ''].filter(Boolean).join(' · ')) + '</small></span></span>' +
+      (r.t ? '<span class="ir-ref-t"' + DA + '>' + esc(r.t) + '</span>' : '<span class="ir-ref-t is-dim">' + esc(T(kind === 'ry' ? 'Open it on X to read the post it answers.' : 'Open it on X to see the post it quotes.')) + '</span>') +
+      (r.mo ? '<span class="ir-ref-mo">' + esc(T(kindOf(it) === 'video' ? 'The video is from this quoted post.' : 'The pictures are from this quoted post.')) + '</span>' : '') +
+      (lit && md.length ? '<span class="ir-ref-i' + (md[0].t !== 'p' ? ' is-v' : '') + '" style="background-image:url(' + esc(pic(md[0], 'small')) + ')"></span>' : '') +
+      (lit && cd ? '<span class="ir-ref-i is-cd" style="background-image:url(' + esc(cd.i + '&name=600x314') + ')"></span>' : '') +
+      (cd && (cd.t || cd.dm) ? '<span class="ir-ref-ct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') +
+      (rg ? '</div>' : '</a>');
+  }
+  function noteHtml(n, size) {
+    return '<aside class="ir-note' + (size ? ' ' + size : '') + '"><b>' + ICO_REF.nt + esc(T('Readers added context')) + '</b><span class="ir-note-t"' + DA + '>' + esc(n.t) + '</span>' +
+      '<a href="' + esc(n.u) + '" target="_blank" rel="noopener">' + esc(T('The note on X')) + '</a></aside>';
+  }
+  // {before: the post it replies to, drawn above the post's words; after: the post it quotes and the note, under them}
+  function refHtml(it, size) {
+    var ry = refOf(it, 'ry'), qt = refOf(it, 'qt'), nt = noteOf(it);
+    return { before: ry ? refBox(it, ry, 'ry', size) : '', after: (qt ? refBox(it, qt, 'qt', size) : '') + (nt ? noteHtml(nt, size) : '') };
+  }
+  // a card in a list: one line under its words, so a quote never reads as a post that stands alone
+  function refLine(it) {
+    var qt = refOf(it, 'qt'), ry = refOf(it, 'ry'), r = qt || ry, s = '';
+    if (r) s += '<span class="ir-c-q">' + ICO_REF[qt ? 'qt' : 'ry'] + '<b>' + bd(esc(T(qt ? 'Quoting {who}' : 'Replying to {who}', { who: refWho(r) }))) + '</b>' + (r.t ? ' <span' + DA + '>' + esc(cut(r.t, 140)) + '</span>' : '') + '</span>';
+    if (noteOf(it)) s += '<span class="ir-c-nt">' + ICO_REF.nt + esc(T('Readers added context')) + '</span>';
+    return s;
+  }
+  // a copy of a post carries what it answers and its note, so a pasted quote still makes sense
+  function postText(it) {
+    var t = fullText(it), qt = refOf(it, 'qt'), ry = refOf(it, 'ry'), nt = noteOf(it);
+    var who = function (r) { return r.nm ? r.nm + ' (' + r.h + ')' : r.h; };
+    if (ry && ry.t) t = T('Replying to {who}', { who: who(ry) }) + ': ' + ry.t + '\n\n' + t;
+    if (qt) t += '\n\n' + T('Quoting {who}', { who: who(qt) }) + ': ' + (qt.t || qt.u);
+    if (nt) t += '\n\n' + T('Readers added context') + ': ' + nt.t;
+    return t;
+  }
   // the spotlight's picture when the item has no video or pictures of its own
   function heroHtml(it) {
     if (xWords(it)) {
-      var lit = pics() || it._pics, av = lit ? avOf(it, '400x400') : '', cd = lit ? cardOf(it) : null, words = it.tx && it.tx.length > it.t.length ? it.tx : it.t;
+      var lit = pics() || it._pics, av = lit ? avOf(it, '400x400') : '', cd = lit ? cardOf(it) : null, words = it.tx && it.tx.length > it.t.length ? it.tx : it.t, rf = refHtml(it);
       return '<figure class="ir-post" style="--pc:' + pfColor(pfOf(it)) + '">' +
         '<figcaption class="ir-post-h">' + (av ? '<span class="ir-post-av" style="background-image:url(' + esc(av) + ')"></span>' : '<span class="ir-post-av is-mono">' + esc(initials(it)) + '</span>') +
         '<span class="ir-post-who"><b>' + esc(it.nm || it.h) + '</b><small>' + esc(it.h) + '</small></span>' + mark(it, 'ir-post-mk') + '</figcaption>' +
-        '<blockquote class="ir-post-t"' + DA + '>' + esc(words) + '</blockquote>' +
+        rf.before + '<blockquote class="ir-post-t"' + DA + '>' + esc(words) + '</blockquote>' +
         (cd ? '<a class="ir-post-card" href="' + esc(it.u) + '" target="_blank" rel="noopener"><span class="ir-post-ci" style="background-image:url(' + esc(cd.i + '&name=800x419') + ')"></span>' +
           (cd.t || cd.dm ? '<span class="ir-post-ct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + (cd.t ? esc(cd.t) : '') + '</span>' : '') + '</a>' : '') +
-        '</figure>';
+        rf.after + '</figure>';
     }
     var v = vis(it, true), where = it.p === 'global' && it.pw ? it.pw : placeName(it.p);
     var lc = v.k === 'pic' ? locator(it.p, true) : '';
@@ -771,7 +836,18 @@
     var by = byline(it), meta = '<span>' + esc(it.pend && !it.d ? T('Sent {t}', { t: ago(it.ms) }) : fmtDate(it.d)) + '</span> · ' + esc(where) + (by ? '' : ' · ' + bd(esc(it.h || it.src))) + badges(it);
     var tags = hotTag(it) + viralTag(it) + reachLine(it) + spreadTag(it);
     return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
-      '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
+      '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span>' + refLine(it) + '<span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
+  }
+  /* AN ITEM DRAWN AS THE ROOM DRAWS IT, for an add-on's own list (24 Oct 2026, Armin on a warship's card: "news items
+     related to it (x posts, YouTube, articles etc) shown here, the same way that you show it on the intel room"). The same
+     picture, face, headline, age and counts as card(); attrs are the button's own data attributes, so the add-on decides
+     what a tap does (build/intel-forces.js opens it in this spotlight through openList). "da": the date is approximate
+     (YouTube says "3 weeks ago"), so it says "about". */
+  function cardFor(it, attrs) {
+    var when = it.d ? (it.da ? T('about {t}', { t: fmtDate(it.d) }) : fmtDate(it.d)) : T('No date on it');
+    var by = byline(it), meta = '<span>' + esc(when) + '</span>' + (by ? '' : ' · ' + bd(esc(it.h || it.src))) + badges(it), tags = reachLine(it);
+    return '<li class="ir-card"><button type="button" ' + (attrs || '') + '>' + thumb(it) + '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span>' + refLine(it) + '<span class="ir-c-m">' + meta + '</span>' +
+      (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
   }
   /* NEVER A DEAD END (23 Oct 2026). A story, a search or a subject that leaves fewer than SHOW_MIN things ends in the way
      to more: the same search on X, YouTube and Google News, each in a new tab, and every filter cleared in one tap. */
@@ -811,7 +887,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=877235e60b): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=0d029af7c3): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2086,7 +2162,7 @@
 
   /* ------------------------------------------------------------ the spotlight */
   function openSpot(i) {
-    var it = shown[i]; if (!it) return;
+    var SL = spotList(), it = SL[i]; if (!it) return;
     spotAt = i;
     var y = ytId(it.u), dlg = $('ir-spot');
     var srcName = it.src === 'Document' ? T('the document') : it.src === 'News' ? (it.h || T('the news site')) : T(it.src);
@@ -2096,24 +2172,27 @@
       (it.edu ? '<span class="ed">' + T('Explainer') + '</span>' : '') + (it.own ? '<span class="own">' + T('Creator\'s own') + '</span>' : '') + (it.pend ? '<span class="pend">' + T('Being checked') + '</span>' : '') + (rg ? '<span class="rgc">' + T('Regime media') + '</span>' : '') +
       tkOf(it).map(function (k) { return '<span class="tpc">' + esc(TOPN[k][1]) + '</span>'; }).join('') +
       (S.lens === 'bank' ? (it.tp || []).map(function (t) { return '<span class="bt" title="' + T('Tagged in the bank') + '">' + esc(T(topics[t])) + '</span>'; }).join('') : '');
-    var when = it.d ? fmtDate(it.d) + (it.ds === 'said' ? T(' (the date it shows)') : '') : it.pend ? T('Sent {t}', { t: ago(it.ms) }) : T('No date on it');
-    var where = [it.p === 'global' && it.pw ? it.pw : placeName(it.p)].concat((it.a || []).map(placeName)).join(T(', '));
+    var when = it.d ? (it.da ? T('about {t}', { t: fmtDate(it.d) }) : fmtDate(it.d)) + (it.ds === 'said' ? T(' (the date it shows)') : '') : it.pend ? T('Sent {t}', { t: ago(it.ms) }) : T('No date on it');
+    // an item with no place at all (one an add-on brought, a ship's X post) says none, rather than "No single place"
+    var where = it.p ? [it.p === 'global' && it.pw ? it.pw : placeName(it.p)].concat((it.a || []).map(placeName)).join(T(', ')) : '';
     var by = it.by ? ' · ' + T('sent by {who}', { who: esc(it.by) }) : '';
     // who said it, over the headline: the face, name and handle, and every other post of theirs here in one tap. A post of
     // words only already opens on the author inside the post itself (heroHtml), so its byline is not drawn twice.
     var wk = whoKey(it), wn = wk ? items.filter(function (x) { return whoKey(x) === wk; }).length : 0;
     var byl = xWords(it) && lit ? '' : byline(it, true), more = wn > 1 && S.who !== wk ? '<button type="button" class="ir-s-more" data-who="' + esc(wk) + '">' + esc(T('All {n} from {who}', { n: N(wn), who: whoName(it) })) + '</button>' : '';
-    var meta = '<p class="ir-s-m"><b>' + esc(when) + '</b> · ' + esc(where) + (whoName(it) ? '' : ' · ' + bd(esc(it.h || it.src))) + by + '</p>';
+    var rf = xWords(it) && !mediaOf(it).length ? { before: '', after: '' } : refHtml(it);          // THE POST IT ANSWERS
+    var meta = '<p class="ir-s-m"><b>' + esc(when) + '</b>' + (where ? ' · ' + esc(where) : '') + (whoName(it) ? '' : ' · ' + bd(esc(it.h || it.src))) + by + '</p>';
     var stage = y ? (lit ? '<div class="ir-s-v" style="background-image:url(https://i.ytimg.com/vi/' + y + '/hqdefault.jpg)">' : '<div class="ir-s-v is-dark">') + '<button type="button" data-play="' + y + '" aria-label="' + T('Play it here') + '"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button></div>'
       : mediaOf(it).length ? (lit ? mediaHtml(it) : '<button type="button" class="ir-s-b ir-pics1" data-pics1>' + T('Show the pictures and video ({n})', { n: N(mediaOf(it).length) }) + '</button>') : heroHtml(it);
     dlg.innerHTML = '<div class="ir-s-in">' +
-      '<div class="ir-s-top"><span>' + esc(LENS[S.lens]) + ' · ' + T('{i} of {n}', { i: N(i + 1), n: N(shown.length) }) + '</span><button class="ir-s-x" type="button" data-x aria-label="' + T('Close') + '">&times;</button></div>' +
-      (byl ? '<div class="ir-s-who">' + byl + more + '</div>' : '') +
+      '<div class="ir-s-top">' + (SPOTL && SPOTL.back ? '<button type="button" class="ir-s-bk" data-back><span aria-hidden="true">' + (CFG.rtl ? '&rsaquo;' : '&lsaquo;') + '</span> ' + esc(T('Back to {what}', { what: SPOTL.label })) + '</button>' : '') +
+      '<span>' + esc((SPOTL ? (SPOTL.back ? '' : SPOTL.label + ' · ') : LENS[S.lens] + ' · ') + T('{i} of {n}', { i: N(i + 1), n: N(SL.length) })) + '</span><button class="ir-s-x" type="button" data-x aria-label="' + T('Close') + '">&times;</button></div>' +
+      (byl ? '<div class="ir-s-who">' + byl + more + '</div>' : '') + rf.before +
       // an X post's WHOLE text, never its 160-character title (18 Oct 2026: "if i can't read the full thing, it is useless")
       '<h2 id="ir-spot-t"' + DA + (xWords(it) && lit ? ' class="vh"' : fullText(it).length > 140 ? ' class="is-long"' : '') + '>' + esc(fullText(it)) + '</h2>' +
       (!byl && more ? '<div class="ir-s-who">' + meta + more + '</div>' : meta) +
       // the thing itself straight under its headline (17 Oct 2026): the video or the pictures, then what is said about it
-      stage +
+      stage + rf.after +
       (chips ? '<div class="ir-s-c">' + chips + '</div>' : '') +
       spotReach(it) + (rpKey(it) && RP_ON ? '<section class="ir-s-rp" id="ir-s-rp" aria-label="' + T('Most-liked replies') + '"></section>' : '') +
       (it.hotWhy ? '<p class="ir-s-o">' + T('Why it is hot: ') + esc(it.hotWhy) + (it.also && it.also.length && !it.ls ? T('. Also carried by ') + bd(esc(it.also.join(T(', ')))) : '') + '.</p>' : '') +
@@ -2123,8 +2202,8 @@
       (it.pend ? '<p class="ir-s-o">' + T('A reader sent this in. It is not checked yet, so it is not on the map: open it with that in mind.') + '</p>' : '') +
       (rg ? '<p class="ir-s-o ir-s-rgn"><b>' + T('Regime media') + '</b> ' + T("Not linked: opening it would show the regime's servers who you are. You can copy its words.") + '</p>' : '') +
       '<div class="ir-s-a">' + (rg ? '<button class="ir-s-open" type="button" data-copyt>' + T('Copy the headline') + '</button>' : '<a class="ir-s-open" href="' + esc(it.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + T('Open on {src}', { src: esc(srcName) }) + '</a>') +
-      (it.p !== 'global' ? '<button class="ir-s-b" type="button" data-map>' + T('Show on the map') + '</button>' : '') +
-      '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="' + T('Previous') + '"' + (i ? '' : ' disabled') + '>' + (CFG.rtl ? '&rarr;' : '&larr;') + '</button><button type="button" data-step="1" aria-label="' + T('Next') + '"' + (i < shown.length - 1 ? '' : ' disabled') + '>' + (CFG.rtl ? '&larr;' : '&rarr;') + '</button></div></div>' +
+      (it.p && it.p !== 'global' && P[it.p] ? '<button class="ir-s-b" type="button" data-map>' + T('Show on the map') + '</button>' : '') +
+      '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="' + T('Previous') + '"' + (i ? '' : ' disabled') + '>' + (CFG.rtl ? '&rarr;' : '&larr;') + '</button><button type="button" data-step="1" aria-label="' + T('Next') + '"' + (i < SL.length - 1 ? '' : ' disabled') + '>' + (CFG.rtl ? '&larr;' : '&rarr;') + '</button></div></div>' +
       '<p class="ir-s-f">' + T('Weak, wrong, or missing context? <a {attrs}>Say why in the discussion</a>. That is how the room gets better.', { attrs: 'href="#feedback" data-kind="wrong" data-about="' + esc((T('Intel Room: ') + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="' + (CFG.talkOn || 'page:intel') + '" data-close-spot' }) + '</p>' +
       '</div>';
     var sxa = dlg.querySelector('.ir-s-sp'), sxw = sxa ? 'afterend' : 'beforebegin';          // an add-on's blocks (SPOTX): under "Who covered it", else above the buttons
@@ -2138,7 +2217,7 @@
       box.innerHTML = repliesHead(it, e) + (e && e.r.length ? repliesHtml(it, e.r.slice(0, 3), false) + (e.r.length > 3 ? '<button type="button" class="ir-s-b ir-rp-all" data-rp-all>' + T('Show all {n}', { n: N(e.r.length) }) + '</button>' : '') : repliesNone(it, st));
     });
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
-    [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
+    [].forEach.call($('ir-items').querySelectorAll('.ir-card'), function (li) { li.classList.toggle('on', !SPOTL && li.firstChild && +li.firstChild.getAttribute('data-i') === i); });
   }
   function spotLinks(it) {
     if (S.lens === 'readers' || !countryOf(it)) return '';
@@ -2249,7 +2328,7 @@
     LOC = {}; render(); drawWire();
     say(picsOn ? T('Pictures and videos now load on this device. Switch them off here any time.') : T('Nothing from another site loads until you tap it.'));
   }
-  function closeSpot() { var d = $('ir-spot'); spotAt = -1; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
+  function closeSpot() { var d = $('ir-spot'); spotAt = -1; SPOTL = null; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
 
   /* ------------------------------------------------------------ an X post's pictures and video (17 October 2026) */
   // Armin: "you need to show an image or something of the video ... i should be able to play the video or see the full
@@ -2880,17 +2959,18 @@
       var b = ev.target.closest('button'); if (!b) return;
       if (b.hasAttribute('data-x')) closeSpot();
       else if (b.hasAttribute('data-step')) openSpot(spotAt + (+b.getAttribute('data-step')));
-      else if (b.hasAttribute('data-rp-all')) { var rit = shown[spotAt]; repliesOf(rit, function (e) { if (e && e.r.length) { var bx = $('ir-s-rp'); if (bx) bx.innerHTML = repliesHead(rit, e) + repliesHtml(rit, e.r, false); } }); }
-      else if (b.hasAttribute('data-pics1')) { var pit = shown[spotAt]; if (pit) { pit._pics = 1; openSpot(spotAt); } }
-      else if (b.hasAttribute('data-copyt')) { var cit = shown[spotAt]; if (cit) { var ct = fullText(cit); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ct).then(function () { b.textContent = T('Headline copied.'); }, function () { fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); }); else fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); } }
+      else if (b.hasAttribute('data-back')) { var bk = SPOTL && SPOTL.back; closeSpot(); if (bk) xcall(bk); }
+      else if (b.hasAttribute('data-rp-all')) { var rit = spotList()[spotAt]; repliesOf(rit, function (e) { if (e && e.r.length) { var bx = $('ir-s-rp'); if (bx) bx.innerHTML = repliesHead(rit, e) + repliesHtml(rit, e.r, false); } }); }
+      else if (b.hasAttribute('data-pics1')) { var pit = spotList()[spotAt]; if (pit) { pit._pics = 1; openSpot(spotAt); } }
+      else if (b.hasAttribute('data-copyt')) { var cit = spotList()[spotAt]; if (cit) { var ct = postText(cit); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ct).then(function () { b.textContent = T('Headline copied.'); }, function () { fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); }); else fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); } }
       else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="Video" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
       else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say(T('What connects to "{what}": {n} items.', { what: cut(wi2 ? wi2.t : '', 60), n: N(shown.length) }), true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-      else if (b.hasAttribute('data-who')) { var wk = b.getAttribute('data-who'), wit = shown[spotAt]; closeSpot(); clearAll(); S.who = wk; render(); frameShown(); say(T('Every post here from {who}: {n}.', { who: wit ? whoName(wit) : wk, n: N(shown.length) }), true); $('ir-items').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-      else if (b.hasAttribute('data-map')) { var k = shown[spotAt].p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      else if (b.hasAttribute('data-who')) { var wk = b.getAttribute('data-who'), wit = spotList()[spotAt]; closeSpot(); clearAll(); S.who = wk; render(); frameShown(); say(T('Every post here from {who}: {n}.', { who: wit ? whoName(wit) : wk, n: N(shown.length) }), true); $('ir-items').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+      else if (b.hasAttribute('data-map')) { var mit = spotList()[spotAt]; if (!mit) return; var k = mit.p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     });
-    dlg.addEventListener('cancel', function () { spotAt = -1; setTimeout(function () { dlg.innerHTML = ''; }, 0); });
+    dlg.addEventListener('cancel', function () { spotAt = -1; SPOTL = null; setTimeout(function () { dlg.innerHTML = ''; }, 0); });
     // closed by any route at all: empty it, so a video in it cannot go on playing where nobody can see or stop it
-    dlg.addEventListener('close', function () { if (!dlg.open) { spotAt = -1; dlg.innerHTML = ''; } });
+    dlg.addEventListener('close', function () { if (!dlg.open) { spotAt = -1; SPOTL = null; dlg.innerHTML = ''; } });
     var dr = $('ir-drawer');
     if (dr) dr.addEventListener('click', function (ev) { if (ev.target === dr) closeDrawer(); });
     var ad = $('ir-add');
@@ -2924,7 +3004,7 @@
     document.addEventListener('keydown', function (ev) {
       if (SHOWING) return;          // the show screen has its own keys
       var typing = ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName);
-      if (dlg.open && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) { var s = spotAt + (ev.key === 'ArrowRight' ? 1 : -1); if (s >= 0 && s < shown.length) openSpot(s); return; }
+      if (dlg.open && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) { var s = spotAt + (ev.key === 'ArrowRight' ? 1 : -1); if (s >= 0 && s < spotList().length) openSpot(s); return; }
       if (dr && dr.open) return;
       if (!typing && !dlg.open && !ad.open && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
         if (ev.key === 'f' || ev.key === 'F') { stream(); return; }
@@ -3006,7 +3086,7 @@
     it.id = 'L' + it.id;
     // news and YouTube are an article or a video; an X post keeps what it carries (a post, an image, a video, an article)
     it.k = it.src === 'X' ? (['post', 'image', 'video', 'article'].indexOf(it.k) >= 0 ? it.k : 'post') : it.k === 'video' ? 'video' : 'article';
-    if (it.src !== 'X') { delete it.m; delete it.sn; delete it.av; delete it.cd; delete it.tx; }
+    if (it.src !== 'X') { delete it.m; delete it.sn; delete it.av; delete it.cd; delete it.tx; delete it.qt; delete it.ry; delete it.nt; }
     else if (!it.th && !it.sn && mediaOf(it).length) it.th = pic(mediaOf(it)[0], '240x240');
     if (it.src === 'News' && BING_RX.test(it.th || '')) it.th0 = it.th.replace(/&w=240&h=150&c=7$/, '');          // th: the list's size
     return it;
@@ -3101,7 +3181,7 @@
       // an X post's pictures and video: the block, its clicks (fallback replaces a video that will not play), full screen
       media: mediaOf, mediaHtml: mediaHtml, wireMedia: wireMedia, lightbox: lightbox, dur: fmtDur, vis: vis, heroHtml: heroHtml,
       // the most-liked replies and a post's whole text, for the show screen (18 Oct 2026)
-      rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, rpAsk: rpAsk, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, avOf: avOf, ago: ago,
+      rpKey: rpKey, repliesOn: RP_ON, replies: repliesOf, rpAsk: rpAsk, repliesHtml: repliesHtml, repliesHead: repliesHead, repliesNone: repliesNone, fullText: fullText, postText: postText, refHtml: refHtml, refLine: refLine, avOf: avOf, ago: ago,
       // regime media (Iran Uncensored): the show maker leaves it out of every show, and a saved show never links it
       regime: isRegime,
       // ADD-ONS (23 Oct 2026, see LAYERS): the map, the items of the lens, opening one, a filter in the address, a list tab,
@@ -3114,6 +3194,14 @@
         marks: function () { return pinData.map(function (m) { return { x: m.x, y: m.y, r: m.exp ? footR(m.m) + 3 : pinR(m.n) + 7 }; }); } },
       items: function () { return items.slice(); }, place: function (k) { return P[k] ? { name: P[k][0], country: P[k][1], lat: P[k][2], lon: P[k][3] } : null }, keys: keysOf,
       open: function (it) { var i = shown.indexOf(it); if (i < 0) return false; openSpot(i); return true; },
+      // an add-on's own list in the spotlight, stepping through it, with "Back to <label>" calling back (24 Oct 2026, SPOTL)
+      openList: function (list, i, o) {
+        if (!Array.isArray(list) || !list[i]) return false;
+        o = o || {}; stopTour();
+        SPOTL = { list: list.slice(), label: String(o.label || ''), back: typeof o.back === 'function' ? o.back : null };
+        openSpot(i); return true;
+      },
+      cardHtml: cardFor, pics: function () { return pics(); },
       addFilter: function (f) {
         EXT[f.key] = f;
         var v = RAWQ && RAWQ.get(f.key);
@@ -3131,7 +3219,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=877235e60b'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=0d029af7c3'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
