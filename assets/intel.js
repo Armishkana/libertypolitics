@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=cb21b42340) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=2b2c4449d5) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -760,13 +760,13 @@
   function refBox(it, r, kind, size) {
     var lit = pics() || it._pics, av = lit && AV_RX.test(r.av || '') ? r.av.replace(/_normal\.(\w+)$/, '_200x200.$1') : '';
     var md = refMedia(r), cd = !md.length && r.cd && CARD_RX.test(r.cd.i || '') ? r.cd : null;
-    var head = T(kind === 'ry' ? 'Replying to {who}' : 'Quoting {who}', { who: refWho(r) }), rg = isRegime(it);          // a regime post is never a link (THE REGIME RULE), nor what it quotes
+    var head = kind === 'ry' ? T('Replying to {who}', { who: refWho(r) }) : T('Quoting {who}', { who: refWho(r) }), rg = isRegime(it);          // a regime post is never a link (THE REGIME RULE), nor what it quotes
     return '<' + (rg ? 'div' : 'a') + ' class="ir-ref ir-ref-' + kind + (size ? ' ' + size : '') + '"' + (rg ? '' : ' href="' + esc(r.u) + '" target="_blank" rel="noopener"') + '>' +
       '<span class="ir-ref-k">' + ICO_REF[kind] + bd(esc(head)) + '</span>' +
       '<span class="ir-ref-h">' + (av ? '<span class="ir-ref-av" style="background-image:url(' + esc(av) + ')"></span>' : '<span class="ir-ref-av is-mono">' + esc(String(refWho(r)).replace(/^@/, '').slice(0, 1).toUpperCase()) + '</span>') +
       '<span class="ir-ref-who"><b' + DA + '>' + bd(esc(refWho(r))) + '</b><small>' + esc([r.h, r.d ? fmtDate(r.d) : ''].filter(Boolean).join(' · ')) + '</small></span></span>' +
-      (r.t ? '<span class="ir-ref-t"' + DA + '>' + esc(r.t) + '</span>' : '<span class="ir-ref-t is-dim">' + esc(T(kind === 'ry' ? 'Open it on X to read the post it answers.' : 'Open it on X to see the post it quotes.')) + '</span>') +
-      (r.mo ? '<span class="ir-ref-mo">' + esc(T(kindOf(it) === 'video' ? 'The video is from this quoted post.' : 'The pictures are from this quoted post.')) + '</span>' : '') +
+      (r.t ? '<span class="ir-ref-t"' + DA + '>' + esc(r.t) + '</span>' : '<span class="ir-ref-t is-dim">' + esc(kind === 'ry' ? T('Open it on X to read the post it answers.') : T('Open it on X to see the post it quotes.')) + '</span>') +
+      (r.mo ? '<span class="ir-ref-mo">' + esc(kindOf(it) === 'video' ? T('The video is from this quoted post.') : T('The pictures are from this quoted post.')) + '</span>' : '') +
       (lit && md.length ? '<span class="ir-ref-i' + (md[0].t !== 'p' ? ' is-v' : '') + '" style="background-image:url(' + esc(pic(md[0], 'small')) + ')"></span>' : '') +
       (lit && cd ? '<span class="ir-ref-i is-cd" style="background-image:url(' + esc(cd.i + '&name=600x314') + ')"></span>' : '') +
       (cd && (cd.t || cd.dm) ? '<span class="ir-ref-ct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') +
@@ -784,7 +784,7 @@
   // a card in a list: one line under its words, so a quote never reads as a post that stands alone
   function refLine(it) {
     var qt = refOf(it, 'qt'), ry = refOf(it, 'ry'), r = qt || ry, s = '';
-    if (r) s += '<span class="ir-c-q">' + ICO_REF[qt ? 'qt' : 'ry'] + '<b>' + bd(esc(T(qt ? 'Quoting {who}' : 'Replying to {who}', { who: refWho(r) }))) + '</b>' + (r.t ? ' <span' + DA + '>' + esc(cut(r.t, 140)) + '</span>' : '') + '</span>';
+    if (r) s += '<span class="ir-c-q">' + ICO_REF[qt ? 'qt' : 'ry'] + '<b>' + bd(esc(qt ? T('Quoting {who}', { who: refWho(r) }) : T('Replying to {who}', { who: refWho(r) }))) + '</b>' + (r.t ? ' <span' + DA + '>' + esc(cut(r.t, 140)) + '</span>' : '') + '</span>';
     if (noteOf(it)) s += '<span class="ir-c-nt">' + ICO_REF.nt + esc(T('Readers added context')) + '</span>';
     return s;
   }
@@ -887,7 +887,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=cb21b42340): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=2b2c4449d5): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -3219,7 +3219,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=cb21b42340'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=2b2c4449d5'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
