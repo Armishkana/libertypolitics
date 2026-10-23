@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=3928b12f93) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=46046bd7bd) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -755,7 +755,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=3928b12f93): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=46046bd7bd): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2143,7 +2143,7 @@
   function repliesNone(it, st) {
     var on = rpWhere(it), x = on === 'X';
     return '<p class="ir-rp-no">' + (st === 'ok' ? T('Nobody had replied when it was read.') : st === 'off' ? T(x ? 'The replies could not be loaded here.' : 'The comments could not be loaded here.') : T(x ? 'The top replies are not read for this one yet.' : 'The top comments are not read for this one yet.')) +
-      ' <a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + T(x ? 'Read the replies on {pf}' : 'Read the comments on {pf}', { pf: pfName(on) }) + '</a></p>';
+      ' <a href="' + esc(it.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + T(x ? 'Read the replies on {pf}' : 'Read the comments on {pf}', { pf: pfName(on) }) + '</a></p>';
   }
   // the rows: a button each on the show screen (so one can be put on the screen alone), a link to the reply in the room
   function repliesHtml(it, list, asButtons) {
@@ -2154,7 +2154,7 @@
         '<span class="ir-rp-b"><span class="ir-rp-who"><b>' + esc(nm) + '</b>' + (h ? '<small>' + esc(h) + '</small>' : '') + (Date.parse(r.d) ? '<small>' + esc(ago(Date.parse(r.d))) + '</small>' : '') +
         '<span class="ir-rp-lk" title="' + T('Likes') + '">' + ICO.like + '<b class="num">' + fmtN(r.lk || 0) + '</b></span></span><span class="ir-rp-t">' + esc(r.t) + '</span></span>';
       return '<li>' + (asButtons ? '<button type="button" class="ir-rp" data-rp="' + n + '" aria-label="' + T('Put this reply on the screen') + '">' + inner + '</button>'
-        : '<a class="ir-rp" href="' + esc(r.u) + '" target="_blank" rel="noopener">' + inner + '</a>') + '</li>';
+        : '<a class="ir-rp" href="' + esc(r.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + inner + '</a>') + '</li>';
     }).join('') + '</ol>';
   }
   function fullText(it) { return it && it.src === 'X' && it.tx && it.tx.length > String(it.t || '').length ? it.tx : String(it && it.t || ''); }
@@ -2901,7 +2901,11 @@
     if (it.src === 'YouTube' && it.vw >= 0) it.hotWhy = T('{n} views in {h}', { n: LN(+it.vw), h: hw(it.hs) });
     else if (it.no > 1) it.hotWhy = T('{n} outlets in {h}', { n: N(it.no), h: hw(it.hs) });
     if (it.src === 'X' && it.nm && it.h && String(it.h).charAt(0) !== '@') it.h = '@' + it.h;
-    delete it.pv; delete it.th; delete it.m; delete it.av;          // nothing from another site rides in on the feed
+    // 23 Oct 2026: the pictures, faces and whole posts stay (they were deleted here, so the Iran room never showed one, on
+    // either page, against its own README). Whether one LOADS is vis()'s call alone: on the Persian page none does before
+    // the reader taps Pictures (CFG.light). A regime item never carries a picture (intel_live.py check_news).
+    delete it.pv;
+    if (it.rg) { delete it.th; }
     return it;
   }
   function normLive(it) {
@@ -3032,7 +3036,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=3928b12f93'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=46046bd7bd'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

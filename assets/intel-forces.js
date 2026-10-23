@@ -1,6 +1,25 @@
-/* THE FORCES LAYER and HOW EACH SIDE FRAMED IT (build/intel-forces.js, 23 October 2026). Liberty Politics' Intel Room only:
-   build/intel.py names this file in the room's data-addons, and intel.js loads it once the room is ready. Iran Uncensored's
-   room loads no add-on, so nothing here needs its Persian words.
+/* THE FORCES LAYER and HOW EACH SIDE FRAMED IT (build/intel-forces.js, 23 October 2026). Both Intel Rooms: build/intel.py
+   (Liberty Politics) and site-iu/build/news.py (Iran Uncensored, English and Persian) name this file in the room's
+   data-addons, and intel.js loads it once the room is ready. The files it reads are the room's data-forces,
+   data-forces-news and data-frames.
+
+   TWO SITES, TWO LANGUAGES (23 Oct 2026). Iran Uncensored's room hands a config in the same #ir-cfg intel.js reads
+   (site-iu/build/news.py config()), and everything a reader sees here goes through it:
+   - T(s, vars): every sentence, key = the English exactly as written here, {name} parts filled in. news.py t_keys() reads
+     this file too, and STOPS the Persian build while a T('...') key has no spoken Persian in site-iu/data/news-words.json.
+     So a key is always a literal (never built by +), and one and many are two keys. N(): Persian digits on the Persian page.
+     CFG.months: the Persian page's month names.
+   - Data in Persian: on the Persian page a shown field X of a site, a ship, a theatre or a pulse row is read from X + '_fa'
+     when the room's forces file carries it (site-iu/data/forces-fa.json, merged by news.py). A site matches a headline by
+     its English rx OR its rx_fa. Wikipedia's English extract is hidden there unless x_fa exists. A ship's position, written
+     weekly in English, is composed from its structured fields (pr, the place) instead.
+   - CFG.sides: [[key, name in the page's language], ...]: the outlets' sides for HOW EACH SIDE FRAMED IT (Iran: free
+     Persian media, the press in English, the regime's media) instead of Left, Centre and Right. "Your balance" is a US
+     lean, so it is not kept or shown there.
+   - CFG.forcesWars: the conflicts picked when the address names none (Iran: the Iran war, the Houthis, Israel's fronts).
+   - CFG.light: this layer loads nothing from another site (no picture; every outside thing is a link the reader taps), and
+     regime media (window.IRoom.regime) is never a link.
+   Liberty Politics hands no config, so T() and N() give back what they are handed and every line reads as before.
 
    Armin, 23 Oct 2026: "figure out how we could better include the features of Ground News and Delta Sweep.com ... make
    sure that we have all the main military assets of important countries visibly shown on the map, especially in the
@@ -38,56 +57,75 @@
   var SVGNS = 'http://www.w3.org/2000/svg';
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } return null; }
+  var CFG = (function () { var el = document.getElementById('ir-cfg'); if (!el) return {}; try { var c = JSON.parse(el.textContent); return c && typeof c === 'object' ? c : {}; } catch (e) { return {}; } })();
+  var TT = CFG.t && typeof CFG.t === 'object' ? CFG.t : null, FA = CFG.lang === 'fa', IU = !!CFG.lang;
+  function T(s, v) {
+    var r = TT && typeof TT[s] === 'string' ? TT[s] : s;
+    if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); });
+    return r;
+  }
+  function N(n) { var s = String(n); return FA ? s.replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.charAt(+d); }).replace(/\./g, '٫') : s; }
+  function LN(n) { return FA ? N(n.toLocaleString('en-US').replace(/,/g, '٬')) : n.toLocaleString('en-US'); }
+  var DA = CFG.dirAuto ? ' dir="auto"' : '';
+  function bd(h) { return DA ? '<bdi>' + h + '</bdi>' : h; }          // a name or a headline in either language, kept whole inside a line
+  // a field as this page shows it: on the Persian page X_fa when the file carries it
+  function L(o, k) { var f = o && o[k + '_fa']; return FA && typeof f === 'string' && f ? f : o ? o[k] : ''; }
+  // regime media (Iran Uncensored): shown, never a link (intel.js isRegime; Liberty Politics: never one)
+  function regime(u) { return !!(R.regime && R.regime({ u: u })); }
+  function nozw(s) { return String(s).replace(/‌/g, ''); }          // Persian's half space out, as intel.js does before it matches
+  var FL = 'ء-غف-يپچژکگیۀٔ';          // Persian letters (site-iu/build/news.py boundary_fa)
   function fmtN(n) { return n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, '') + 'K' : String(n); }
   function agoMs(ms) {
     var h = (Date.now() - ms) / 36e5;
     if (!(h >= 0)) return '';
-    if (h < 1) return Math.max(1, Math.round(h * 60)) + ' min ago';
-    if (h < 48) return Math.round(h) + (Math.round(h) === 1 ? ' hour ago' : ' hours ago');
-    return Math.round(h / 24) + ' days ago';
+    if (h < 1) return T('{n} min ago', { n: N(Math.max(1, Math.round(h * 60))) });
+    if (h < 48) return Math.round(h) === 1 ? T('1 hour ago') : T('{n} hours ago', { n: N(Math.round(h)) });
+    return T('{n} days ago', { n: N(Math.round(h / 24)) });
   }
-  var MONS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  function day(iso) { var d = new Date(iso + (iso.length === 10 ? 'T12:00:00Z' : '')); return isNaN(d) ? '' : d.getUTCDate() + ' ' + MONS[d.getUTCMonth()]; }
+  var MONS = Array.isArray(CFG.months) && CFG.months.length === 12 ? CFG.months : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function day(iso) { var d = new Date(iso + (iso.length === 10 ? 'T12:00:00Z' : '')); return isNaN(d) ? '' : N(d.getUTCDate()) + ' ' + MONS[d.getUTCMonth()]; }
 
   /* WHO RUNS IT: the colour of a site's mark. Muted, so they sit on the room's black and gold, and never the gold itself
      (gold is the news). [key, name a reader sees, colour, operator codes]. */
   var BLOCS = [
-    ['us', 'United States', '#6E9BE8', ['US']],
-    ['il', 'Israel', '#7FD0EE', ['IL']],
-    ['ally', 'US allies in NATO and Asia', '#A9BCDD', ['UK', 'FR', 'NATO', 'DE', 'IT', 'ES', 'GR', 'AU', 'JP', 'KR', 'TW', 'PH']],
-    ['arab', 'Gulf Arab states, Egypt, Jordan and Turkey', '#8CC79C', ['SA', 'AE', 'QA', 'EG', 'JO', 'TR', 'BH', 'KW', 'OM']],
-    ['ir', 'Iran and its network', '#E4574B', ['IR', 'HZ', 'HT', 'IQM']],
-    ['ru', 'Russia', '#E59A4E', ['RU']],
-    ['cn', 'China', '#E37FAE', ['CN']],
-    ['kp', 'North Korea', '#B892E6', ['KP']],
-    ['sa', 'India and Pakistan', '#C8BFAA', ['IN', 'PK']]
+    ['us', T('United States'), '#6E9BE8', ['US']],
+    ['il', T('Israel'), '#7FD0EE', ['IL']],
+    ['ally', T('US allies in NATO and Asia'), '#A9BCDD', ['UK', 'FR', 'NATO', 'DE', 'IT', 'ES', 'GR', 'AU', 'JP', 'KR', 'TW', 'PH']],
+    ['arab', T('Gulf Arab states, Egypt, Jordan and Turkey'), '#8CC79C', ['SA', 'AE', 'QA', 'EG', 'JO', 'TR', 'BH', 'KW', 'OM']],
+    ['ir', T('Iran and its network'), '#E4574B', ['IR', 'HZ', 'HT', 'IQM']],          // Iran Uncensored names the regime here, never the country
+    ['ru', T('Russia'), '#E59A4E', ['RU']],
+    ['cn', T('China'), '#E37FAE', ['CN']],
+    ['kp', T('North Korea'), '#B892E6', ['KP']],
+    ['sa', T('India and Pakistan'), '#C8BFAA', ['IN', 'PK']]
   ];
   var BLOC_OF = {}, BLOC_BY = {};
   BLOCS.forEach(function (b) { BLOC_BY[b[0]] = b; b[3].forEach(function (o) { BLOC_OF[o] = b[0]; }); });
   // the other side, for "nearest sites of the other side": the war's two camps, and the great powers' rivals
   var RIVAL = { us: ['ir', 'ru', 'cn', 'kp'], il: ['ir'], ally: ['ru', 'cn', 'kp'], arab: ['ir'], ir: ['us', 'il', 'arab', 'ally'], ru: ['us', 'ally'], cn: ['us', 'ally'], kp: ['us', 'ally'], sa: [] };
-  var OPN = { US: 'United States', IL: 'Israel', UK: 'United Kingdom', FR: 'France', NATO: 'NATO', DE: 'Germany', IT: 'Italy', ES: 'Spain', GR: 'Greece', AU: 'Australia', JP: 'Japan', KR: 'South Korea', TW: 'Taiwan', PH: 'Philippines',
-    SA: 'Saudi Arabia', AE: 'United Arab Emirates', QA: 'Qatar', EG: 'Egypt', JO: 'Jordan', TR: 'Turkey', BH: 'Bahrain', KW: 'Kuwait', OM: 'Oman', IR: 'Iran', HZ: 'Hezbollah', HT: 'The Houthis', IQM: 'Iran-backed Iraqi militias',
-    RU: 'Russia', CN: 'China', KP: 'North Korea', IN: 'India', PK: 'Pakistan' };
+  // IR: Iran Uncensored always separates Iranians from the Islamic Republic, so a site the regime runs says so (its own key:
+  // the table's "Iran" is the country)
+  var OPN = { US: T('United States'), IL: T('Israel'), UK: T('United Kingdom'), FR: T('France'), NATO: T('NATO'), DE: T('Germany'), IT: T('Italy'), ES: T('Spain'), GR: T('Greece'), AU: T('Australia'), JP: T('Japan'), KR: T('South Korea'), TW: T('Taiwan'), PH: T('Philippines'),
+    SA: T('Saudi Arabia'), AE: T('United Arab Emirates'), QA: T('Qatar'), EG: T('Egypt'), JO: T('Jordan'), TR: T('Turkey'), BH: T('Bahrain'), KW: T('Kuwait'), OM: T('Oman'), IR: IU ? T('The Islamic Republic') : 'Iran', HZ: T('Hezbollah'), HT: T('The Houthis'), IQM: T('Iran-backed Iraqi militias'),
+    RU: T('Russia'), CN: T('China'), KP: T('North Korea'), IN: T('India'), PK: T('Pakistan') };
   function blocOf(a) { return BLOC_BY[BLOC_OF[a.o] || 'sa']; }
   function colOf(a) { return blocOf(a)[2]; }
 
   /* WHAT IT IS: a symbol per kind, drawn in a 20 by 20 box about 0,0, in the site's colour. [name, name in a list, path] */
   var KIND = {
-    air: ['Air base', 'Air bases', 'M0 -7 1.4 -2.2 7 1v1.6L1.4 0.6 1.2 4.4 3 5.8V7L0 6 -3 7V5.8L-1.2 4.4-1.4 0.6-7 2.6V1L-1.4-2.2z'],
-    naval: ['Naval base', 'Naval bases', 'M0-7a1.8 1.8 0 1 1 0 3.6A1.8 1.8 0 1 1 0-7zM-0.9-3.4h1.8V5.2c2.3-.3 3.9-1.6 4.4-3.6l-1.5.2L5.9-.9 7.1 2.6l-1.4-.5C5 5.2 2.8 7 0 7S-5 5.2-5.7 2.1l-1.4.5L-5.9-.9-3.8 1.8l-1.5-.2c.5 2 2.1 3.3 4.4 3.6z'],
-    army: ['Army base', 'Army bases', 'M-6.5 1 0-3.5 6.5 1V4L0-.5-6.5 4zM-6.5-4.5 0-9 6.5-4.5V-1.5L0-6-6.5-1.5z'],
-    hq: ['Command headquarters', 'Command headquarters', 'M0-7.2 2.1-2.4 7.2-2 3.3 1.4 4.5 6.5 0 3.8-4.5 6.5-3.3 1.4-7.2-2-2.1-2.4z'],
-    nuclear: ['Nuclear site', 'Nuclear sites', 'M0-1.6a1.6 1.6 0 1 1 0 3.2A1.6 1.6 0 1 1 0-1.6zM-1.1-2.6-3.5-6.6A7.3 7.3 0 0 1 3.5-6.6L1.1-2.6A2.8 2.8 0 0 0-1.1-2.6zM2.8 0.3 7.4 0.4A7.3 7.3 0 0 1 3.9 6.4L1.6 2.4A2.8 2.8 0 0 0 2.8 0.3zM-1.6 2.4-3.9 6.4A7.3 7.3 0 0 1-7.4 0.4L-2.8 0.3A2.8 2.8 0 0 0-1.6 2.4z'],
-    missile: ['Missile base', 'Missile bases', 'M0-8C1.6-6.6 2.2-4.6 2.2-2.6V3.2L4 5.2V7.2L2.2 6.2V7H-2.2V6.2L-4 7.2V5.2L-2.2 3.2V-2.6C-2.2-4.6-1.6-6.6 0-8z'],
-    drone: ['Drone base or factory', 'Drone sites', 'M0-6 7 4.5 4.5 4.5 0 1.5-4.5 4.5-7 4.5z'],
-    radar: ['Radar or missile defence', 'Radar and missile defence', 'M-6 4.5A8 8 0 0 1 4.5-6L-0.8-.8zM-0.8-.8 3.5-5M1.5 1.5A4 4 0 0 0 4.2-2.6M-1.5 6.5H5'],
-    space: ['Space launch site', 'Space launch sites', 'M0-8C2-6.2 2.6-3.8 2.6-1.6V3L4.6 6.6H-4.6L-2.6 3V-1.6C-2.6-3.8-2-6.2 0-8zM0-3.2a1.2 1.2 0 1 0 .1 0'],
-    oil: ['Oil or gas target', 'Oil and gas', 'M0-7.5C2.6-3.6 4.8-1 4.8 2A4.8 4.8 0 0 1-4.8 2C-4.8-1-2.6-3.6 0-7.5z'],
-    choke: ['Chokepoint', 'Chokepoints', 'M-7-6C-2-3-2 3-7 6M7-6C2-3 2 3 7 6M-3.5 0H3.5'],
-    proxy: ['Militia stronghold', 'Militia strongholds', 'M-5-7V7M-5-6.5H5.5L3.3-3 5.5 0.5H-5'],
-    carrier: ['Aircraft carrier', 'Aircraft carriers', 'M-8 1.5H8L6 5H-6.5zM-5-.5H5.5V1.5H-5zM2-3.5H4.5V-.5H2z'],
-    amphib: ['Amphibious assault ship', 'Amphibious ships', 'M-8 1.5H8L6 5H-6.5zM-5-.2H5V1.5H-5zM-1-3H1.5V-.2H-1z']
+    air: [T('Air base'), T('Air bases'), 'M0 -7 1.4 -2.2 7 1v1.6L1.4 0.6 1.2 4.4 3 5.8V7L0 6 -3 7V5.8L-1.2 4.4-1.4 0.6-7 2.6V1L-1.4-2.2z'],
+    naval: [T('Naval base'), T('Naval bases'), 'M0-7a1.8 1.8 0 1 1 0 3.6A1.8 1.8 0 1 1 0-7zM-0.9-3.4h1.8V5.2c2.3-.3 3.9-1.6 4.4-3.6l-1.5.2L5.9-.9 7.1 2.6l-1.4-.5C5 5.2 2.8 7 0 7S-5 5.2-5.7 2.1l-1.4.5L-5.9-.9-3.8 1.8l-1.5-.2c.5 2 2.1 3.3 4.4 3.6z'],
+    army: [T('Army base'), T('Army bases'), 'M-6.5 1 0-3.5 6.5 1V4L0-.5-6.5 4zM-6.5-4.5 0-9 6.5-4.5V-1.5L0-6-6.5-1.5z'],
+    hq: [T('Command headquarters'), T('Command headquarters'), 'M0-7.2 2.1-2.4 7.2-2 3.3 1.4 4.5 6.5 0 3.8-4.5 6.5-3.3 1.4-7.2-2-2.1-2.4z'],
+    nuclear: [T('Nuclear site'), T('Nuclear sites'), 'M0-1.6a1.6 1.6 0 1 1 0 3.2A1.6 1.6 0 1 1 0-1.6zM-1.1-2.6-3.5-6.6A7.3 7.3 0 0 1 3.5-6.6L1.1-2.6A2.8 2.8 0 0 0-1.1-2.6zM2.8 0.3 7.4 0.4A7.3 7.3 0 0 1 3.9 6.4L1.6 2.4A2.8 2.8 0 0 0 2.8 0.3zM-1.6 2.4-3.9 6.4A7.3 7.3 0 0 1-7.4 0.4L-2.8 0.3A2.8 2.8 0 0 0-1.6 2.4z'],
+    missile: [T('Missile base'), T('Missile bases'), 'M0-8C1.6-6.6 2.2-4.6 2.2-2.6V3.2L4 5.2V7.2L2.2 6.2V7H-2.2V6.2L-4 7.2V5.2L-2.2 3.2V-2.6C-2.2-4.6-1.6-6.6 0-8z'],
+    drone: [T('Drone base or factory'), T('Drone sites'), 'M0-6 7 4.5 4.5 4.5 0 1.5-4.5 4.5-7 4.5z'],
+    radar: [T('Radar or missile defence'), T('Radar and missile defence'), 'M-6 4.5A8 8 0 0 1 4.5-6L-0.8-.8zM-0.8-.8 3.5-5M1.5 1.5A4 4 0 0 0 4.2-2.6M-1.5 6.5H5'],
+    space: [T('Space launch site'), T('Space launch sites'), 'M0-8C2-6.2 2.6-3.8 2.6-1.6V3L4.6 6.6H-4.6L-2.6 3V-1.6C-2.6-3.8-2-6.2 0-8zM0-3.2a1.2 1.2 0 1 0 .1 0'],
+    oil: [T('Oil or gas target'), T('Oil and gas'), 'M0-7.5C2.6-3.6 4.8-1 4.8 2A4.8 4.8 0 0 1-4.8 2C-4.8-1-2.6-3.6 0-7.5z'],
+    choke: [T('Chokepoint'), T('Chokepoints'), 'M-7-6C-2-3-2 3-7 6M7-6C2-3 2 3 7 6M-3.5 0H3.5'],
+    proxy: [T('Militia stronghold'), T('Militia strongholds'), 'M-5-7V7M-5-6.5H5.5L3.3-3 5.5 0.5H-5'],
+    carrier: [T('Aircraft carrier'), T('Aircraft carriers'), 'M-8 1.5H8L6 5H-6.5zM-5-.5H5.5V1.5H-5zM2-3.5H4.5V-.5H2z'],
+    amphib: [T('Amphibious assault ship'), T('Amphibious ships'), 'M-8 1.5H8L6 5H-6.5zM-5-.2H5V1.5H-5zM-1-3H1.5V-.2H-1z']
   };
   var STROKED = { radar: 1, choke: 1, proxy: 1 };          // drawn as lines, not filled shapes
   function sym(k, extra) {
@@ -119,14 +157,15 @@
 
   function start(d) {
     D = d;
-    var thn = d.th || {};
+    var thn = d.th || {}, thf = FA && d.th_fa && typeof d.th_fa === 'object' ? d.th_fa : {};
     ['gulf', 'levant', 'redsea', 'europe', 'pacific', 'southasia', 'americas'].forEach(function (k, i) {
-      TH[k] = thn[k] || ['Iran war', 'Israel, Gaza and Lebanon', 'Houthis and the Red Sea', 'Russia and Ukraine', 'China, Taiwan and Korea', 'India and Pakistan', 'Venezuela and the Americas'][i];
+      TH[k] = thf[k] || thn[k] || [T('Iran war'), T('Israel, Gaza and Lebanon'), T('Houthis and the Red Sea'), T('Russia and Ukraine'), T('China, Taiwan and Korea'), T('India and Pakistan'), T('Venezuela and the Americas')][i];
     });
     if (d.fleet && /^\d{4}-\d\d-\d\d$/.test(d.fleet.at || '')) AGE = Math.floor((Date.now() - Date.parse(d.fleet.at + 'T12:00:00Z')) / 864e5);
     d.assets.forEach(function (a) {
       if (!a || !a.id || !Array.isArray(a.ll) || !isFinite(a.ll[0]) || !isFinite(a.ll[1])) return;
       try { a._rx = a.rx ? new RegExp(cleanRx(a.rx), 'i') : null; } catch (e) { a._rx = null; }
+      a._rxf = faRx(a.rx_fa);
       a._t = 'site'; BYID[a.id] = a; ASSETS.push(a);
     });
     var fl = d.fleet && Array.isArray(d.fleet.ships) ? d.fleet : null;
@@ -135,6 +174,7 @@
       var placed = Array.isArray(s.ll) && isFinite(s.ll[0]) && isFinite(s.ll[1]);
       if (!placed && s.pr !== 'none') return;
       try { s._rx = s.rx ? new RegExp(cleanRx(s.rx), 'i') : null; } catch (e) { s._rx = null; }
+      s._rxf = faRx(s.rx_fa);
       s._t = 'ship'; s.o = s.o || 'US'; s.tier = 1; s.th = s.th || (placed ? thOfSea(s.ll) : '');
       s._nomap = !placed || (AGE != null && AGE > GONE);          // listed, never drawn: no position, or a position too old to show
       BYID[s.id] = s; SHIPS.push(s);
@@ -144,9 +184,12 @@
     match();
     R.onRender(function () { match(); drawTabCount(); chipText(); });
     R.addFilter({ key: 'mil', valid: function (v) { return v === 'any' || (v.indexOf('th:') === 0 && !!TH[v.slice(3)]) || (v.indexOf('g:') === 0 && !!GBY[v.slice(2)]) || !!BYID[v]; }, test: passMil, label: milLabel });
-    R.addFilter({ key: 'war', valid: function (v) { return String(v).split(',').every(function (k) { return !!CF[k]; }); }, test: passWar, label: warLabel });
+    R.addFilter({ key: 'war', valid: function (v) { return (DEFW.length && v === 'all') || String(v).split(',').every(function (k) { return !!CF[k]; }); }, test: passWar, label: warLabel });
     var oldTh = R.filterOn('mil');          // a link from before 23 Oct 2026 (?mil=th:gulf) opens the same conflict
     if (oldTh.indexOf('th:') === 0 && CF[oldTh.slice(3)]) { R.filter('mil', ''); R.filter('war', oldTh.slice(3)); }
+    // the room's own conflicts when the address names none (Iran Uncensored: CFG.forcesWars); "every conflict" is then
+    // ?war=all, so the reader's choice is kept in the address like any other
+    if (DEFW.length && !R.filterOn('war')) R.filter('war', DEFW.join(','));
     R.addTab('forces', { el: 'irf-tab', draw: drawTab, count: drawTabCount });
     R.map.addLayer({ draw: draw, hit: hit, hitEl: hitEl, tip: tip, open: openMark });
     drawTabCount();
@@ -154,6 +197,8 @@
   }
   // A JSON "\b" read as a backspace (U+0008) where a word edge was meant: put the word edge back.
   function cleanRx(r) { return String(r).replace(/\u0008/g, '\\b'); }
+  // a site's Persian pattern (Iran Uncensored's forces file, rx_fa): matched against the text with its half spaces taken out
+  function faRx(r) { if (!r) return null; try { return new RegExp(nozw(r), 'i'); } catch (e) { return null; } }
   function thOfSea(ll) {          // a ship's theatre from where it is
     var la = ll[0], lo = ll[1];
     if (lo > 30 && lo < 45 && la > 10 && la < 30) return 'redsea';
@@ -179,24 +224,40 @@
      shows its stories. [key, name, pattern, context pattern or null, which sites are members] */
   var GULFCTX = /\b(iran\w*|tehran|irgc|middle east|mideast|the region|gulf|hormuz|iraq\w*|syria\w*|qatar\w*|bahrain\w*|kuwait\w*|saudi\w*|emirat\w*|uae|jordan\w*|centcom)\b/i;
   var GROUPS = [
-    ['usbases', 'US bases in the region', /\b(u\.?s\.?|us|american|america's)\s+(military\s+)?(bases?|troops|forces|personnel|military installations?)\b/i, GULFCTX,
+    ['usbases', T('US bases in the region'), /\b(u\.?s\.?|us|american|america's)\s+(military\s+)?(bases?|troops|forces|personnel|military installations?)\b/i, GULFCTX,
       function (a) { return a._t === 'site' && a.o === 'US' && ['gulf', 'levant', 'redsea'].indexOf(a.th) >= 0; }],
-    ['usfleet', 'US warships near Iran', /\b(aircraft carriers?|carrier strike groups?|warships?|destroyers?|naval blockade|blockade)\b/i, GULFCTX,
+    ['usfleet', T('US warships near Iran'), /\b(aircraft carriers?|carrier strike groups?|warships?|destroyers?|naval blockade|blockade)\b/i, GULFCTX,
       function (a) { return a._t === 'ship' && ['gulf', 'redsea', 'levant'].indexOf(a.th) >= 0; }],
-    ['irnuke', 'Iran\'s nuclear sites', /\bnuclear\s+(sites?|facilit\w+|program\w*|plants?)\b|\benrichment\b|\b(enriched\s+)?uranium\b/i, /\biran\w*\b|\btehran\b/i,
+    ['irnuke', T('Iran\'s nuclear sites'), /\bnuclear\s+(sites?|facilit\w+|program\w*|plants?)\b|\benrichment\b|\b(enriched\s+)?uranium\b/i, /\biran\w*\b|\btehran\b/i,
       function (a) { return a.o === 'IR' && a.k === 'nuclear'; }],
-    ['irnavy', 'Iran\'s navy and IRGC Navy', /\birgc[- ]?n(avy)?\b|\biranian navy\b|\birgc naval\b|\biran's navy\b|\bfast boats?\b/i, null,
+    ['irnavy', T('Iran\'s navy and IRGC Navy'), /\birgc[- ]?n(avy)?\b|\biranian navy\b|\birgc naval\b|\biran's navy\b|\bfast boats?\b/i, null,
       function (a) { return a.o === 'IR' && a.k === 'naval'; }],
-    ['iroil', 'Iran\'s oil and gas', /\boil (exports?|terminals?|fields?|facilit\w+|tankers?)\b|\bshadow fleet\b|\btankers?\b|\brefiner\w+\b/i, /\biran\w*\b|\bkharg\b|\bhormuz\b/i,
+    ['iroil', T('Iran\'s oil and gas'), /\boil (exports?|terminals?|fields?|facilit\w+|tankers?)\b|\bshadow fleet\b|\btankers?\b|\brefiner\w+\b/i, /\biran\w*\b|\bkharg\b|\bhormuz\b/i,
       function (a) { return a.o === 'IR' && a.k === 'oil'; }],
-    ['ilbases', 'Israel\'s air bases', /\bisraeli (air ?)?bases?\b|\b(air ?)?bases? in israel\b|\bidf bases?\b/i, null,
+    ['ilbases', T('Israel\'s air bases'), /\bisraeli (air ?)?bases?\b|\b(air ?)?bases? in israel\b|\bidf bases?\b/i, null,
       function (a) { return a.o === 'IL' && a.k === 'air'; }],
-    ['hz', 'Hezbollah', /\bhezbollah\b|\bhizbullah\b/i, null, function (a) { return a.o === 'HZ'; }],
-    ['ht', 'The Houthis', /\bhouthis?\b|\bansar ?allah\b/i, null, function (a) { return a.o === 'HT'; }],
-    ['iqm', 'Iran-backed Iraqi militias', /\biraqi militias?\b|\bkata'?ib hezbollah\b|\bpopular mobili[sz]ation\b|\bislamic resistance in iraq\b/i, null, function (a) { return a.o === 'IQM'; }]
+    ['hz', T('Hezbollah'), /\bhezbollah\b|\bhizbullah\b/i, null, function (a) { return a.o === 'HZ'; }],
+    ['ht', T('The Houthis'), /\bhouthis?\b|\bansar ?allah\b/i, null, function (a) { return a.o === 'HT'; }],
+    ['iqm', T('Iran-backed Iraqi militias'), /\biraqi militias?\b|\bkata'?ib hezbollah\b|\bpopular mobili[sz]ation\b|\bislamic resistance in iraq\b/i, null, function (a) { return a.o === 'IQM'; }]
   ];
   var GBY = {}, GNEWS = {}, GOF = {};          // GBY: key -> group; GNEWS: key -> stories; GOF: site id -> its group keys
   GROUPS.forEach(function (g) { GBY[g[0]] = g; });
+  // the same groups in Persian headlines (g[5] the pattern, g[6] the context), only where the room has a config
+  function fp(ws) { return new RegExp('(?:^|[^' + FL + '])(?:' + ws.map(nozw).join('|') + ')'); }          // a stem: the ending may run on
+  var FA_IR = fp(['ایران', 'تهران', 'جمهوری اسلامی', 'سپاه', 'رژیم']);
+  var FA_GULF = fp(['ایران', 'تهران', 'جمهوری اسلامی', 'سپاه', 'خاورمیانه', 'منطقه', 'خلیج فارس', 'هرمز', 'عراق', 'سوریه', 'قطر', 'بحرین', 'کویت', 'عربستان', 'امارات', 'اردن', 'سنتکام']);
+  if (IU) [
+    ['usbases', fp(['پایگاه‌های آمریکا', 'پایگاه‌های نظامی آمریکا', 'پایگاه‌های آمریکایی', 'نیروهای آمریکایی', 'نیروهای آمریکا', 'سربازان آمریکایی']), FA_GULF],
+    ['usfleet', fp(['ناو هواپیمابر', 'ناوهای هواپیمابر', 'ناوگروه', 'ناوشکن', 'ناوهای جنگی', 'کشتی‌های جنگی آمریکا', 'محاصرهٔ دریایی', 'محاصره دریایی']), FA_GULF],
+    ['irnuke', fp(['تأسیسات هسته‌ای', 'تاسیسات هسته‌ای', 'سایت‌های هسته‌ای', 'برنامهٔ هسته‌ای', 'برنامه هسته‌ای', 'غنی‌سازی', 'اورانیوم']), FA_IR],
+    ['irnavy', fp(['نیروی دریایی سپاه', 'نیروی دریایی ارتش', 'قایق‌های تندرو']), null],
+    ['iroil', fp(['صادرات نفت', 'پایانهٔ نفتی', 'پایانه نفتی', 'نفتکش', 'ناوگان سایه', 'پالایشگاه', 'میدان نفتی', 'میدان گازی']), fp(['ایران', 'جمهوری اسلامی', 'خارک', 'هرمز'])],
+    ['ilbases', fp(['پایگاه‌های اسرائیل', 'پایگاه هوایی اسرائیل', 'پایگاه‌های هوایی اسرائیل', 'پایگاه‌های ارتش اسرائیل']), null],
+    ['hz', fp(['حزب‌الله']), null],
+    ['ht', fp(['حوثی', 'انصارالله']), null],
+    ['iqm', fp(['شبه‌نظامیان عراقی', 'گروه‌های نیابتی عراق', 'کتائب حزب‌الله', 'حشد الشعبی', 'حشدالشعبی', 'مقاومت اسلامی عراق']), null]
+  ].forEach(function (x) { var g = GBY[x[0]]; if (g) { g[5] = x[1]; g[6] = x[2]; } });
+  function inGroup(g, w, wf) { return (g[2].test(w) && (!g[3] || g[3].test(w))) || (!!g[5] && g[5].test(wf) && (!g[6] || g[6].test(wf))); }
   function groupsOf(a) { return GOF[a.id] || []; }
   function match() {
     var its = R.items(), key = R.lens() + ':' + its.length + ':' + (its[0] ? its[0].id : '') + ':' + (its.length ? its[its.length - 1].id : '');
@@ -205,10 +266,10 @@
     var all = ASSETS.concat(SHIPS), sites = ASSETS;
     GROUPS.forEach(function (g) { all.forEach(function (a) { if (g[4](a)) (GOF[a.id] = GOF[a.id] || []).push(g[0]); }); });
     its.forEach(function (it) {
-      var w = words(it), hit1 = [];
-      all.forEach(function (a) { if (a._rx && a._rx.test(w)) { (NEWS[a.id] = NEWS[a.id] || []).push(it); hit1.push(a.id); } });
+      var w = words(it), wf = nozw(w), hit1 = [];
+      all.forEach(function (a) { if ((a._rx && a._rx.test(w)) || (a._rxf && a._rxf.test(wf))) { (NEWS[a.id] = NEWS[a.id] || []).push(it); hit1.push(a.id); } });
       GROUPS.forEach(function (g) {
-        if (g[2].test(w) && (!g[3] || g[3].test(w)) && all.some(g[4])) { (GNEWS[g[0]] = GNEWS[g[0]] || []).push(it); hit1.push('g:' + g[0]); }
+        if (inGroup(g, w, wf) && all.some(g[4])) { (GNEWS[g[0]] = GNEWS[g[0]] || []).push(it); hit1.push('g:' + g[0]); }
       });
       if (hit1.length) OF_ITEM[it.id] = hit1;
       // placed near a site: only a place smaller than a country (a city, a base), never a country's middle
@@ -246,10 +307,10 @@
     return (NEAR[v] || []).indexOf(it) >= 0;
   }
   function milLabel(v) {
-    if (v === 'any') return 'Military news';
-    if (v.indexOf('g:') === 0) return 'Military news: ' + (GBY[v.slice(2)] ? GBY[v.slice(2)][1] : v.slice(2));
-    if (v.indexOf('th:') === 0) return 'Military news: ' + (TH[v.slice(3)] || v.slice(3));
-    return 'Military site: ' + (BYID[v] ? BYID[v].n : v);
+    if (v === 'any') return T('Military news');
+    if (v.indexOf('g:') === 0) return T('Military news: {what}', { what: GBY[v.slice(2)] ? GBY[v.slice(2)][1] : v.slice(2) });
+    if (v.indexOf('th:') === 0) return T('Military news: {what}', { what: TH[v.slice(3)] || v.slice(3) });
+    return T('Military site: {name}', { name: BYID[v] ? L(BYID[v], 'n') : v });
   }
 
   /* CONFLICTS (23 Oct 2026, Armin: "If I want to see news and military assets related to the current Iran conflict, I
@@ -270,19 +331,33 @@
     americas: { rx: /\b(venezuel\w*|maduro|caracas|cartels?|boat strikes?)\b/i, c: ['Venezuela'] }
   };
   var CF_ORDER = ['gulf', 'redsea', 'levant', 'europe', 'pacific', 'southasia', 'americas'];
+  var DEFW = Array.isArray(CFG.forcesWars) ? CF_ORDER.filter(function (k) { return CFG.forcesWars.indexOf(k) >= 0; }) : [];
+  /* Persian headlines (Iran Uncensored's feed is two-thirds Persian): the same conflicts and groups in Persian words, whole
+     words, the half space taken out first. Only where the room has a config: Liberty Politics' matching stays as it was. */
+  function fw(ws) { return new RegExp('(?:^|[^' + FL + '])(?:' + ws.map(nozw).join('|') + ')(?![' + FL + '])'); }
+  if (IU) {
+    CF.gulf.fa = fw(['ایران', 'ایرانی', 'تهران', 'سپاه', 'خامنه‌ای', 'هرمز', 'خارک', 'فردو', 'نطنز', 'خلیج فارس', 'دریای عمان', 'جمهوری اسلامی']);
+    CF.redsea.fa = fw(['حوثی', 'حوثی‌ها', 'انصارالله', 'یمن', 'یمنی', 'دریای سرخ', 'باب‌المندب', 'صنعا', 'الحدیده', 'حدیده', 'عدن']);
+    CF.levant.fa = fw(['غزه', 'حماس', 'حزب‌الله', 'لبنان', 'لبنانی', 'بیروت', 'کرانهٔ باختری', 'کرانه باختری', 'نتانیاهو', 'اسرائیل', 'اسرائیلی', 'ارتش اسرائیل']);
+    CF.europe.fa = fw(['اوکراین', 'اوکراینی', 'کی‌یف', 'کییف', 'زلنسکی', 'دونباس', 'دونتسک', 'لوهانسک', 'زاپوریژیا', 'خارکیف', 'کریمه', 'کرملین', 'پوتین', 'روسیه', 'روسی']);
+    CF.pacific.fa = fw(['تایوان', 'دریای چین جنوبی', 'پکن', 'شی جین‌پینگ', 'ارتش چین', 'کرهٔ شمالی', 'کره شمالی', 'پیونگ‌یانگ', 'کیم جونگ اون']);
+    CF.southasia.fa = fw(['هند', 'هندی', 'پاکستان', 'پاکستانی', 'کشمیر', 'مودی', 'اسلام‌آباد', 'دهلی نو']);
+    CF.americas.fa = fw(['ونزوئلا', 'ونزوئلایی', 'مادورو', 'کاراکاس', 'کارتل', 'کارتل‌ها']);
+  }
   function wars() { var v = R.filterOn('war'); return v ? v.split(',').filter(function (k) { return CF[k]; }) : []; }
   function inWar(it, k) {
     var c = CF[k]; if (!c) return false;
     if (c.rx.test(words(it))) return true;
+    if (c.fa && c.fa.test(nozw(words(it)))) return true;
     var p = R.place(it.p); if (p && c.c.indexOf(p.country) >= 0) return true;
     return (OF_ITEM[it.id] || []).some(function (id) { return BYID[id] && BYID[id].th === k; });
   }
-  function passWar(it, v) { return String(v).split(',').some(function (k) { return inWar(it, k); }); }
-  function warLabel(v) { return String(v).split(',').map(function (k) { return TH[k] || k; }).join(' + '); }
+  function passWar(it, v) { return v === 'all' || String(v).split(',').some(function (k) { return inWar(it, k); }); }
+  function warLabel(v) { return v === 'all' ? T('Every conflict') : String(v).split(',').map(function (k) { return TH[k] || k; }).join(' + '); }
   function setWars(list, quiet) {
     list = CF_ORDER.filter(function (k) { return list.indexOf(k) >= 0; });
     if (!ON && list.length) setOn(true);
-    R.filter('war', list.join(','));
+    R.filter('war', list.length ? list.join(',') : DEFW.length ? 'all' : '');
     chipText();
     if (!quiet && list.length) frameWars(list);
     if ($('irf-tab') && R.tabOn() === 'forces') drawTab();
@@ -301,22 +376,35 @@
     if (pts.length) setTimeout(function () { R.map.fit(pts, 1.4, 12); }, 0);          // after the room frames its own list
   }
   function pulseOf(k) { return (D.pulse || []).filter(function (p) { return p.th === k; })[0] || null; }
+  // the level's word and the measurement in the page's words (the builder writes them in English: intel_forces.py
+  // word_of() and why_of(), the same numbers). The rows' "top" story ids are not read here, so a room without those
+  // stories (Iran Uncensored) loses nothing.
+  var LVW = { Calm: T('Calm'), Watch: T('Watch'), Elevated: T('Elevated'), High: T('High'), Critical: T('Critical') };
+  function lvWord(p) { return LVW[p.word] || p.word; }
+  function pulseWhy(p) {
+    if (!IU) return p.why || '';
+    var n = +p.now || 0, s = n === 1 ? T('1 war story in the last 24 hours') : T('{n} war stories in the last 24 hours', { n: N(n) });
+    if (p.prev == null) return T('{what} (no count from yesterday yet).', { what: s });
+    if (n > p.prev) return T('{what}, up from {n} the day before.', { what: s, n: N(p.prev) });
+    if (n < p.prev) return T('{what}, down from {n} the day before.', { what: s, n: N(p.prev) });
+    return T('{what}, the same as the day before.', { what: s });
+  }
   function lvClass(p) { return 'lv' + Math.min(4, Math.floor(((p && p.lvl) || 0) / 20)); }
   // the picker: every conflict with how hot it is today, tap to add or take away; the map and the list move behind it
   function warPicker() {
     var on = wars(), its = R.items();
     var rows = CF_ORDER.slice().sort(function (a, b) { return ((pulseOf(b) || {}).lvl || 0) - ((pulseOf(a) || {}).lvl || 0); }).map(function (k) {
       var p = pulseOf(k), n = its.filter(function (it) { return inWar(it, k); }).length, ns = ASSETS.filter(function (a) { return a.th === k; }).length + SHIPS.filter(function (s) { return s.th === k && !s._nomap; }).length;
-      var tr = !p || p.prev == null ? '' : p.now > p.prev ? ' · <span class="up">rising</span>' : p.now < p.prev ? ' · <span class="dn">easing</span>' : ' · holding';
+      var tr = !p || p.prev == null ? '' : p.now > p.prev ? ' · <span class="up">' + esc(T('rising')) + '</span>' : p.now < p.prev ? ' · <span class="dn">' + esc(T('easing')) + '</span>' : ' · ' + esc(T('holding'));
       var sel = on.indexOf(k) >= 0;
       return '<li><button type="button" class="irf-war' + (sel ? ' on' : '') + '" data-irf-war="' + k + '" aria-pressed="' + (sel ? 'true' : 'false') + '">' +
         '<span class="irf-war-box" aria-hidden="true"></span>' + (p ? gauge(p) : '') +
-        '<span class="irf-war-t"><b>' + esc(TH[k]) + '</b><small>' + (p ? '<span class="irf-pc-w ' + lvClass(p) + '">' + esc(p.word) + '</span> · ' : '') + esc(n + (n === 1 ? ' story now' : ' stories now') + ' · ' + ns + ' military sites') + tr + '</small></span></button></li>';
+        '<span class="irf-war-t"><b>' + esc(TH[k]) + '</b><small>' + (p ? '<span class="irf-pc-w ' + lvClass(p) + '">' + esc(lvWord(p)) + '</span> · ' : '') + esc((n === 1 ? T('1 story now') : T('{n} stories now', { n: N(n) })) + ' · ' + T('{n} military sites', { n: N(ns) })) + tr + '</small></span></button></li>';
     }).join('');
-    showDlg('<div class="ir-s-top"><span>Conflicts</span><button class="ir-s-x" type="button" data-irf-x aria-label="Close">&times;</button></div>' +
-      '<h2 id="irf-dlg-t" class="irf-h">Which conflicts?</h2><p class="irf-note">Tick one or several. The stories, the military sites, the odds and the map all follow. Hottest first: how many war stories the room carries today against yesterday.</p>' +
-      '<ul class="irf-wars">' + rows + '</ul><div class="ir-s-a"><button class="ir-s-open" type="button" data-irf-x>' + (on.length ? 'Show ' + esc(warLabel(on.join(','))) : 'Done') + '</button>' +
-      (on.length ? '<button class="ir-s-b" type="button" data-irf-allwars>Show every conflict</button>' : '') + '</div>');
+    showDlg('<div class="ir-s-top"><span>' + esc(T('Conflicts')) + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+      '<h2 id="irf-dlg-t" class="irf-h">' + esc(T('Which conflicts?')) + '</h2><p class="irf-note">' + esc(T('Tick one or several. The stories, the military sites, the odds and the map all follow. Hottest first: how many war stories the room carries today against yesterday.')) + '</p>' +
+      '<ul class="irf-wars">' + rows + '</ul><div class="ir-s-a"><button class="ir-s-open" type="button" data-irf-x>' + (on.length ? esc(T('Show {what}', { what: warLabel(on.join(',')) })) : esc(T('Done'))) + '</button>' +
+      (on.length ? '<button class="ir-s-b" type="button" data-irf-allwars>' + esc(T('Show every conflict')) + '</button>' : '') + '</div>');
   }
 
   /* ------------------------------------------------------------ the marks */
@@ -336,7 +424,7 @@
         (ship ? '<circle class="irf-area" r="17"/>' : '') + '<circle class="irf-ring" r="14"/>' +
         '<rect class="irf-b" x="-10" y="-10" width="20" height="20" rx="' + (ship ? 10 : 4.5) + '"/>' + sym(k, ' transform="scale(.92)"') +
         '<g class="irf-nb" transform="translate(10 -10)"><circle r="7.5"/><text class="irf-n"></text></g>' +
-        '<text class="irf-lb" y="22">' + esc(ship ? (a.hull || a.n) : shortName(a)) + '</text><text class="irf-more" x="12" y="13"></text></g>';
+        '<text class="irf-lb" y="22">' + esc(ship ? (a.hull || L(a, 'n')) : shortName(a)) + '</text><text class="irf-more" x="12" y="13"></text></g>';
     });
     g.innerHTML = html;
     [].forEach.call(g.childNodes, function (e) { EL[e.getAttribute('data-irf')] = e; });
@@ -350,11 +438,13 @@
     }
     setOn(ON, true);
   }
-  function shortName(a) { return String(a.n).replace(/\s+(Air Base|Air Force Base|Naval Base|Naval Station|Military Base|Airbase)$/i, '').replace(/^(Naval Support Activity|Naval Station|Naval Air Station)\s+/i, ''); }
+  function shortName(a) {
+    if (FA && a.n_fa) return String(a.n_fa).replace(/^(پایگاه (هوایی|دریایی|موشکی|نظامی|زمینی)|تأسیسات هسته‌ای|سایت هسته‌ای) /, '');          // the map's label: the name, not the kind
+    return String(a.n).replace(/\s+(Air Base|Air Force Base|Naval Base|Naval Station|Military Base|Airbase)$/i, '').replace(/^(Naval Support Activity|Naval Station|Naval Air Station)\s+/i, ''); }
   function setOn(v, quiet) {
     ON = !!v; store('ir-forces', ON ? 'on' : 'off');
     var b = $('irf-z');
-    if (b) { b.setAttribute('aria-pressed', ON ? 'true' : 'false'); b.setAttribute('aria-label', ON ? 'Hide the military sites' : 'Show the military sites'); b.title = ON ? 'Military sites: on' : 'Military sites: off'; }
+    if (b) { b.setAttribute('aria-pressed', ON ? 'true' : 'false'); b.setAttribute('aria-label', ON ? T('Hide the military sites') : T('Show the military sites')); b.title = ON ? T('Military sites: on') : T('Military sites: off'); }
     if (g) g.style.display = ON ? '' : 'none';
     if (gL) gL.style.display = ON ? '' : 'none';
     if (!quiet) R.map.redraw();
@@ -398,7 +488,7 @@
       e.setAttribute('transform', 'translate(' + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + ')');
       if (!e._on) { e.setAttribute('display', 'inline'); e._on = 1; }
       var want = c.a.id === FOCUS || (c.a._t === 'ship' && v.k >= 1.4) || (v.k >= lbK && (c.a.tier !== 2 || v.k >= lbK * 1.8));
-      var lw = (c.a._t === 'ship' ? (c.a.hull || c.a.n) : shortName(c.a)).length * 6.1 + 6, lr = [c.x - lw / 2, c.y + 12, c.x + lw / 2, c.y + 26];
+      var lw = (c.a._t === 'ship' ? (c.a.hull || L(c.a, 'n')) : shortName(c.a)).length * 6.1 + 6, lr = [c.x - lw / 2, c.y + 12, c.x + lw / 2, c.y + 26];
       var lb = want && (c.a.id === FOCUS || free(lr));
       if (lb) boxes.push(lr);
       if (e._lb !== lb) { e.classList.toggle('lb', lb); e._lb = lb; }
@@ -475,20 +565,40 @@
   /* A SHIP'S POSITION IN WORDS, always with how exact it is and how old: "In port at Sasebo", "Left Yokosuka, at sea",
      "Somewhere in the Arabian Sea", or no place at all. Never a bare point that reads as a live position. */
   function shipWhere(s) {
+    if (IU) return shipWhereT(s);
     if (s.pr === 'none' || !s.ll) return (s.area ? s.area + ', ' : '') + 'no position published';
     if (s.pr === 'area') return 'Somewhere in the ' + String(s.area).replace(/^the /i, '');
     return s.area || '';
   }
+  /* Iran Uncensored: the same line from its parts, in the page's words. The builder writes "area" in English every week
+     (intel_forces.py place_of(): "In port at X", "Near X", "Left X, at sea", a sea's name, or USNI's own section name), so
+     the place is taken out of it and named from the forces file's places_fa (site-iu/data/forces-fa.json "places"); a
+     place it does not know stays in its own letters, kept whole. */
+  function placeT(x) {
+    x = String(x || '').replace(/^the /i, '').trim();
+    var pf = FA && D.places_fa && typeof D.places_fa === 'object' ? D.places_fa : null, k = x.toLowerCase();
+    return pf && typeof pf[k] === 'string' ? pf[k] : x;
+  }
+  function shipWhereT(s) {
+    var ar = String(L(s, 'area') || ''), m;
+    if (FA && s.area_fa) return s.pr === 'none' || !s.ll ? T('{place}, no position published', { place: s.area_fa }) : s.area_fa;
+    if (s.pr === 'none' || !s.ll) return ar ? T('{place}, no position published', { place: placeT(ar) }) : T('No position published');
+    if (s.pr === 'area') return T('Somewhere in the {place}', { place: placeT(ar) });
+    if ((m = /^In port at (.+)$/i.exec(ar))) return T('In port at {place}', { place: placeT(m[1]) });
+    if ((m = /^Left (.+), at sea$/i.exec(ar))) return T('Left {place}, at sea', { place: placeT(m[1]) });
+    if ((m = /^Near (.+)$/i.exec(ar))) return T('Near {place}', { place: placeT(m[1]) });
+    return placeT(ar);
+  }
   function shipWhen(s) {
     // a story has its hour, so its age is measured ("9 hours ago"); the tracker has only a day, so its age is counted in
     // calendar days, never called "today" because of a clock's midnight
-    var at = s.by ? s.by.at : D.fleet.at, src = s.by ? 'USNI News, ' : 'USNI Fleet Tracker, ';
-    if (String(at).length > 10) { var ms = Date.parse(at); return src + day(at) + (isFinite(ms) ? ' (' + agoMs(ms) + ')' : ''); }
-    return src + day(at) + (AGE == null ? '' : ' (' + ageWords(AGE) + ')');
+    var at = s.by ? s.by.at : D.fleet.at, src = s.by ? T('USNI News') : T('USNI Fleet Tracker');
+    if (String(at).length > 10) { var ms = Date.parse(at); return T('{src}, {date}', { src: src, date: day(at) }) + (isFinite(ms) ? ' (' + agoMs(ms) + ')' : ''); }
+    return T('{src}, {date}', { src: src, date: day(at) }) + (AGE == null ? '' : ' (' + ageWords(AGE) + ')');
   }
   function latestOf(a) {          // the asset's own newest news: USNI's newer stories about a ship first, then the search
     var seen = {}, out = [];
-    (a.nw || []).map(function (x) { return { t: x.t, u: x.u, s: 'USNI News', d: x.at }; }).concat(AN[a.id] || []).forEach(function (x) {
+    (a.nw || []).map(function (x) { return { t: x.t, u: x.u, s: T('USNI News'), d: x.at }; }).concat(AN[a.id] || []).forEach(function (x) {
       var k = String(x.t).toLowerCase().replace(/\W+/g, ' ').slice(0, 60);
       if (!seen[k]) { seen[k] = 1; out.push(x); }
     });
@@ -496,10 +606,10 @@
   }
   function tip(m) {
     var a = m.a, n = (NEWS[a.id] || []).length, la = latestOf(a)[0];
-    var sub = a._t === 'ship' ? shipWhere(a) + ' · ' + shipWhen(a) : kindName(a) + ' · ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' && OPN[a.o] !== a.host ? ' · in ' + a.host : '');
-    return '<span class="tip-k" style="--pc:' + colOf(a) + '"><i class="irf-dot"></i>' + esc(a._t === 'ship' ? (a.hull || 'At sea') : kindName(a)) + '</span>' + esc(a.n) +
-      '<small>' + esc(sub) + '.</small>' + (la ? '<small class="irf-tip-la">Latest: ' + esc(la.t) + ' · ' + esc(agoMs(Date.parse(la.d))) + '</small>' : '') +
-      '<small>' + (n ? esc(n === 1 ? '1 story here names it. ' : n + ' stories here name it. ') : '') + (m.near.length ? esc('+' + m.near.length + ' more on this spot. ') : '') + 'Tap for its news.</small>';
+    var sub = a._t === 'ship' ? shipWhere(a) + ' · ' + shipWhen(a) : kindName(a) + ' · ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' && OPN[a.o] !== L(a, 'host') ? ' · ' + T('in {place}', { place: L(a, 'host') }) : '');
+    return '<span class="tip-k" style="--pc:' + colOf(a) + '"><i class="irf-dot"></i>' + esc(a._t === 'ship' ? (a.hull || T('At sea')) : kindName(a)) + '</span>' + esc(L(a, 'n')) +
+      '<small>' + esc(sub) + '.</small>' + (la ? '<small class="irf-tip-la">' + esc(T('Latest:')) + ' ' + bd(esc(la.t)) + ' · ' + esc(agoMs(Date.parse(la.d))) + '</small>' : '') +
+      '<small>' + (n ? esc(n === 1 ? T('1 story here names it.') + ' ' : T('{n} stories here name it.', { n: N(n) }) + ' ') : '') + (m.near.length ? esc(T('+{n} more on this spot.', { n: N(m.near.length) }) + ' ') : '') + esc(T('Tap for its news.')) + '</small>';
   }
   function openMark(m) {
     if (m.near && m.near.length) { picker([m.a].concat(m.near)); return; }
@@ -547,18 +657,19 @@
   }
   function picker(list) {
     list = list.slice().sort(function (x, y) { return prio(y) - prio(x); });
-    showDlg('<div class="ir-s-top"><span>' + esc(list.length + ' military sites here') + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="Close">&times;</button></div>' +
-      '<h2 id="irf-dlg-t" class="irf-h">Pick one</h2><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul>' +
-      '<p class="irf-note">Zoom in and they come apart on the map.</p>');
+    showDlg('<div class="ir-s-top"><span>' + esc(T('{n} military sites here', { n: N(list.length) })) + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+      '<h2 id="irf-dlg-t" class="irf-h">' + esc(T('Pick one')) + '</h2><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul>' +
+      '<p class="irf-note">' + esc(T('Zoom in and they come apart on the map.')) + '</p>');
   }
   function row(a, extra) {
     var n = (NEWS[a.id] || []).length;
-    return '<li><button type="button" class="irf-row" data-irf-site="' + esc(a.id) + '">' + icon(a) + '<span class="irf-row-t"><b>' + esc(a.n) + '</b><small>' + esc(extra || (kindName(a) + ' · ' + (OPN[a.o] || a.o))) + '</small></span>' +
-      (n ? '<span class="irf-row-n" title="Stories that name it">' + n + '</span>' : '') + '</button></li>';
+    return '<li><button type="button" class="irf-row" data-irf-site="' + esc(a.id) + '">' + icon(a) + '<span class="irf-row-t"><b>' + esc(L(a, 'n')) + '</b><small>' + bd(esc(extra || (kindName(a) + ' · ' + (OPN[a.o] || a.o)))) + '</small></span>' +
+      (n ? '<span class="irf-row-n" title="' + esc(T('Stories that name it')) + '">' + N(n) + '</span>' : '') + '</button></li>';
   }
   function itemRow(it, forId) {
     var src = it.src === 'X' ? (it.nm || it.h || 'X') : (it.h || it.src);
-    return '<li><button type="button" class="irf-it" data-irf-item="' + esc(String(it.id)) + '" data-irf-for="' + esc(forId) + '"><span class="irf-it-t">' + esc(it.t) + '</span><small>' + esc(src + (it.d ? ' · ' + agoMs(Date.parse(it.d)) : '') + (it.hot != null ? ' · Hot ' + it.hot : '')) + '</small></button></li>';
+    return '<li><button type="button" class="irf-it" data-irf-item="' + esc(String(it.id)) + '" data-irf-for="' + esc(forId) + '"><span class="irf-it-t"' + DA + '>' + esc(it.t) + '</span><small>' + bd(esc(src)) +
+      esc((it.d ? ' · ' + agoMs(Date.parse(it.d)) : '') + (it.hot != null ? ' · ' + T('Hot {n}', { n: N(it.hot) }) : '')) + '</small></button></li>';
   }
   function openItem(forId, itemId) {
     closeDlg();
@@ -577,70 +688,83 @@
      get the information on it and the most recent news items in relation to it, especially specifically about that item").
      In the order a host needs it on air: where it is now and how sure that is; the newest news ABOUT IT (its own search,
      every headline names it); what the room's stories say; then what it is. */
+  // a sentence with HTML put into its {parts} (handed the sentence already through T): the words escaped first, the parts handed in already made
+  function Th(t, v) { var r = esc(t); if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); }); return r; }
+  function link(u, h) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + h + '</a>'; }
   function newsRow(x) {
-    var ms = Date.parse(x.d);
-    return '<li><a class="irf-it irf-nw" href="' + esc(x.u) + '" target="_blank" rel="noopener"><span class="irf-it-t">' + esc(x.t) + '</span><small>' +
-      esc((x.s || '') + (isFinite(ms) ? ' · ' + agoMs(ms) : '')) + '</small></a></li>';
+    var ms = Date.parse(x.d), meta = esc((x.s || '') + (isFinite(ms) ? ' · ' + agoMs(ms) : ''));
+    // regime media (Iran Uncensored): shown, marked, never a link: opening it would show the regime's servers who reads it
+    if (regime(x.u)) return '<li><div class="irf-it irf-nw irf-rg"><span class="irf-it-t"' + DA + '>' + esc(x.t) + '</span><small>' + meta + ' · ' + esc(T('Regime media, not linked')) + '</small></div></li>';
+    return '<li><a class="irf-it irf-nw" href="' + esc(x.u) + '" target="_blank" rel="noopener"><span class="irf-it-t"' + DA + '>' + esc(x.t) + '</span><small>' + meta + '</small></a></li>';
   }
+  function coordN(v) { return v >= 0 ? T('{n}°N', { n: N(Math.abs(v).toFixed(2)) }) : T('{n}°S', { n: N(Math.abs(v).toFixed(2)) }); }
+  function coordE(v) { return v >= 0 ? T('{n}°E', { n: N(Math.abs(v).toFixed(2)) }) : T('{n}°W', { n: N(Math.abs(v).toFixed(2)) }); }
+  /* THE BETTING MARKETS are shown on the English pages only. Their questions are Polymarket's own English titles, a new set
+     every hour, so the Persian page could only show them in English or in a machine's Persian; it shows neither. */
+  var MK_ON = !FA;
   function dossier(id) {
     var a = BYID[id]; if (!a) return;
     FOCUS = a.id; R.map.redraw();
     var ship = a._t === 'ship', bl = blocOf(a), news = NEWS[a.id] || [], near = NEAR[a.id] || [], latest = latestOf(a);
-    var facts = [['Run by', OPN[a.o] || a.o], ['What', kindName(a)], ship ? ['Home port', a.home || ''] : ['Where', a.host === 'Sea' ? 'At sea' : a.host], ['Conflict', TH[a.th] || '']].filter(function (f) { return f[1]; });
-    var ll = a.ll ? (Math.abs(a.ll[0]).toFixed(2) + '°' + (a.ll[0] >= 0 ? 'N' : 'S') + ' ' + Math.abs(a.ll[1]).toFixed(2) + '°' + (a.ll[1] >= 0 ? 'E' : 'W')) : '';
-    var wl = a.w ? '<a href="https://en.wikipedia.org/wiki/' + esc(encodeURIComponent(a.w.replace(/ /g, '_'))) + '" target="_blank" rel="noopener">Wikipedia: ' + esc(a.w) + '</a>' : '';
+    var home = FA ? a.home_fa || '' : a.home || '';
+    var facts = [[T('Run by'), OPN[a.o] || a.o], [T('What'), kindName(a)], ship ? [T('Home port'), home] : [T('Where'), a.host === 'Sea' ? T('At sea') : L(a, 'host')], [T('Conflict'), TH[a.th] || '']].filter(function (f) { return f[1]; });
+    var ll = a.ll ? (coordN(a.ll[0]) + ' ' + coordE(a.ll[1])) : '';
+    // Wikipedia is English Wikipedia: on the Persian page it says so, and its English sentences show only in Persian (x_fa)
+    var wl = a.w ? link('https://en.wikipedia.org/wiki/' + encodeURIComponent(a.w.replace(/ /g, '_')), Th(T('Wikipedia: {title}'), { title: bd(esc(a.w)) })) : '';
+    var xx = FA ? a.x_fa || '' : a.x || '', grp = FA ? a.grp_fa || '' : a.grp || '', say = FA ? a.say_fa || '' : a.say || '';
     var where = '';
     if (ship) {
       var old = AGE != null && AGE > STALE && !a.by, rough = a.pr === 'area', none = a.pr === 'none' || !a.ll;
-      where = '<section class="irf-now' + (old ? ' old' : '') + '"><h3>Where it is</h3><p class="irf-now-w">' + esc(shipWhere(a)) + '</p>' +
-        '<p class="irf-now-s">' + esc(shipWhen(a)) + '. ' + (a.by ? '<a href="' + esc(a.by.u) + '" target="_blank" rel="noopener">' + esc(a.by.t) + '</a>' : D.fleet.u ? '<a href="' + esc(D.fleet.u) + '" target="_blank" rel="noopener">Read the tracker</a>' : '') + '</p>' +
-        (a.say ? '<p class="irf-now-q">' + (a.by ? esc('The tracker of ' + day(D.fleet.at) + ', before that: ') : '') + '"' + esc(a.say) + '"</p>' : '') +
-        '<p class="irf-note">' + (none ? 'The report names no place we can put on a map, so it has no mark. ' : rough ? 'The report names the sea, not a point: the mark is the middle of that sea. ' : '') +
-        (old ? 'This report is ' + AGE + ' days old; the ship has probably moved since. ' : '') + 'The Navy does not publish live positions, so this is the last public one.' + '</p></section>';
-    } else if (a.st) where = '<p class="irf-st"><b>Status</b> ' + esc(a.st) + '</p>';
+      where = '<section class="irf-now' + (old ? ' old' : '') + '"><h3>' + esc(T('Where it is')) + '</h3><p class="irf-now-w">' + esc(shipWhere(a)) + '</p>' +
+        '<p class="irf-now-s">' + esc(shipWhen(a)) + '. ' + (a.by ? link(a.by.u, bd(esc(a.by.t))) : D.fleet.u ? link(D.fleet.u, esc(T('Read the tracker'))) : '') + '</p>' +
+        (say ? '<p class="irf-now-q">' + (a.by ? esc(T('The tracker of {date}, before that:', { date: day(D.fleet.at) }) + ' ') : '') + '"' + esc(say) + '"</p>' : '') +
+        '<p class="irf-note">' + (none ? esc(T('The report names no place we can put on a map, so it has no mark.')) + ' ' : rough ? esc(T('The report names the sea, not a point: the mark is the middle of that sea.')) + ' ' : '') +
+        (old ? esc(T('This report is {n} days old; the ship has probably moved since.', { n: N(AGE) })) + ' ' : '') + esc(T('The Navy does not publish live positions, so this is the last public one.')) + '</p></section>';
+    } else if (a.st) where = '<p class="irf-st"><b>' + esc(T('Status')) + '</b> ' + esc(L(a, 'st')) + '</p>';
     var riv = ship ? [] : rivalsOf(a);
-    var mk = (D.markets || []).filter(function (m) { return m.th === a.th; }).slice(0, 2);
-    var html = '<div class="ir-s-top"><span>' + esc(ship ? 'Warship' : 'Military site') + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="Close">&times;</button></div>' +
-      '<div class="irf-hd">' + icon(a, true) + '<div><h2 id="irf-dlg-t" class="irf-h">' + esc(a.n) + (ship && a.hull ? ' <span class="irf-hull">' + esc(a.hull) + '</span>' : '') + '</h2>' +
+    var mk = MK_ON ? (D.markets || []).filter(function (m) { return m.th === a.th; }).slice(0, 2) : [];
+    var html = '<div class="ir-s-top"><span>' + esc(ship ? T('Warship') : T('Military site')) + '</span><button class="ir-s-x" type="button" data-irf-x aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+      '<div class="irf-hd">' + icon(a, true) + '<div><h2 id="irf-dlg-t" class="irf-h">' + esc(L(a, 'n')) + (ship && a.hull ? ' <span class="irf-hull">' + esc(a.hull) + '</span>' : '') + '</h2>' +
       '<p class="irf-side" style="--c:' + bl[2] + '"><i class="irf-dot"></i>' + esc(bl[1]) + '</p></div></div>' + where +
-      '<section class="irf-sec"><h3>Latest news about it</h3>' +
-      (latest.length ? '<ul class="irf-its">' + latest.slice(0, 6).map(newsRow).join('') + '</ul><p class="irf-note">Every headline here names it. Searched across the news in the last 30 days; opens the article.</p>'
-        : '<p class="irf-note">No headline in the last 30 days names it. Searched again every few hours.</p>') + '</section>' +
-      (news.length ? '<section class="irf-sec"><h3>' + esc(news.length === 1 ? 'In the room now: 1 story names it' : 'In the room now: ' + news.length + ' stories name it') + '</h3><ul class="irf-its">' + news.slice(0, 6).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
+      '<section class="irf-sec"><h3>' + esc(T('Latest news about it')) + '</h3>' +
+      (latest.length ? '<ul class="irf-its">' + latest.slice(0, 6).map(newsRow).join('') + '</ul><p class="irf-note">' + esc(T('Every headline here names it. Searched across the news in the last 30 days; opens the article.')) + '</p>'
+        : '<p class="irf-note">' + esc(T('No headline in the last 30 days names it. Searched again every few hours.')) + '</p>') + '</section>' +
+      (news.length ? '<section class="irf-sec"><h3>' + esc(news.length === 1 ? T('In the room now: 1 story names it') : T('In the room now: {n} stories name it', { n: N(news.length) })) + '</h3><ul class="irf-its">' + news.slice(0, 6).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
       groupSecs(a) +
-      (near.length ? '<section class="irf-sec"><h3>' + esc(near.length === 1 ? '1 story placed near it' : near.length + ' stories placed near it') + '</h3><p class="irf-note">Within ' + NEAR_KM + ' km. Near is not the same as about it.</p><ul class="irf-its">' + near.slice(0, 4).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
-      '<section class="irf-sec"><h3>What it is</h3>' + (a.why ? '<p class="irf-why">' + esc(a.why) + '</p>' : '') + (a.grp ? '<p class="irf-why">' + esc(a.grp) + '</p>' : '') +
+      (near.length ? '<section class="irf-sec"><h3>' + esc(near.length === 1 ? T('1 story placed near it') : T('{n} stories placed near it', { n: N(near.length) })) + '</h3><p class="irf-note">' + esc(T('Within {n} km. Near is not the same as about it.', { n: N(NEAR_KM) })) + '</p><ul class="irf-its">' + near.slice(0, 4).map(function (it) { return itemRow(it, a.id); }).join('') + '</ul></section>' : '') +
+      '<section class="irf-sec"><h3>' + esc(T('What it is')) + '</h3>' + (a.why ? '<p class="irf-why">' + esc(L(a, 'why')) + '</p>' : '') + (grp ? '<p class="irf-why">' + esc(grp) + '</p>' : '') +
       '<dl class="irf-facts">' + facts.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl>' +
-      (a.x ? '<p class="irf-x">' + esc(a.x) + '</p>' : '') + '<p class="irf-src">' + [wl, ship ? '' : esc(ll)].filter(Boolean).join(' · ') + '</p></section>' +
-      (riv.length ? '<section class="irf-sec"><h3>The other side\'s nearest sites</h3><ul class="irf-rows">' + riv.map(function (r) { return row(r.b, Math.round(r.d).toLocaleString('en-US') + ' km · ' + kindName(r.b) + ' · ' + (OPN[r.b.o] || r.b.o)); }).join('') + '</ul><p class="irf-note">Straight-line distance.</p></section>' : '') +
-      (mk.length ? '<section class="irf-sec"><h3>What the betting markets say</h3>' + mk.map(market).join('') + '</section>' : '') +
-      '<div class="ir-s-a">' + (news.length || near.length ? '<button class="ir-s-open" type="button" data-irf-show="' + esc(a.id) + '">Show its stories in the room</button>' : '') +
-      (a.ll && !a._nomap ? '<button class="ir-s-b" type="button" data-irf-fly="' + esc(a.id) + '">Go to it on the map</button>' : '') + '<button class="ir-s-b" type="button" data-irf-copy="' + esc(a.id) + '">Copy for the show</button></div>';
+      (xx ? '<p class="irf-x">' + esc(xx) + '</p>' : '') + '<p class="irf-src">' + [wl, ship ? '' : esc(ll)].filter(Boolean).join(' · ') + '</p></section>' +
+      (riv.length ? '<section class="irf-sec"><h3>' + esc(T('The other side\'s nearest sites')) + '</h3><ul class="irf-rows">' + riv.map(function (r) { return row(r.b, T('{n} km', { n: LN(Math.round(r.d)) }) + ' · ' + kindName(r.b) + ' · ' + (OPN[r.b.o] || r.b.o)); }).join('') + '</ul><p class="irf-note">' + esc(T('Straight-line distance.')) + '</p></section>' : '') +
+      (mk.length ? '<section class="irf-sec"><h3>' + esc(T('What the betting markets say')) + '</h3>' + mk.map(market).join('') + '</section>' : '') +
+      '<div class="ir-s-a">' + (news.length || near.length ? '<button class="ir-s-open" type="button" data-irf-show="' + esc(a.id) + '">' + esc(T('Show its stories in the room')) + '</button>' : '') +
+      (a.ll && !a._nomap ? '<button class="ir-s-b" type="button" data-irf-fly="' + esc(a.id) + '">' + esc(T('Go to it on the map')) + '</button>' : '') + '<button class="ir-s-b" type="button" data-irf-copy="' + esc(a.id) + '">' + esc(T('Copy for the show')) + '</button></div>';
     showDlg(html);
   }
   // the stories about a group this site belongs to (US bases in the region, Iran's nuclear sites ...): connected, not counted on its mark
   function groupSecs(a) {
     return groupsOf(a).filter(function (k) { return (GNEWS[k] || []).length; }).map(function (k) {
-      var L = GNEWS[k], g = GBY[k];
-      return '<section class="irf-sec"><h3>' + esc((L.length === 1 ? '1 story about ' : L.length + ' stories about ') + g[1]) + '</h3><p class="irf-note">They name the group, not this site by name.</p><ul class="irf-its">' +
-        L.slice(0, 5).map(function (it) { return itemRow(it, 'g:' + k); }).join('') + '</ul><button type="button" class="ir-s-b" data-irf-show="g:' + esc(k) + '">' + esc('Show all ' + L.length + ' about ' + g[1]) + '</button></section>';
+      var LL = GNEWS[k], g = GBY[k];
+      return '<section class="irf-sec"><h3>' + esc(LL.length === 1 ? T('1 story about {what}', { what: g[1] }) : T('{n} stories about {what}', { n: N(LL.length), what: g[1] })) + '</h3><p class="irf-note">' + esc(T('They name the group, not this site by name.')) + '</p><ul class="irf-its">' +
+        LL.slice(0, 5).map(function (it) { return itemRow(it, 'g:' + k); }).join('') + '</ul><button type="button" class="ir-s-b" data-irf-show="g:' + esc(k) + '">' + esc(T('Show all {n} about {what}', { n: N(LL.length), what: g[1] })) + '</button></section>';
     }).join('');
   }
   function market(m) {
     var p = Math.round((+m.p || 0) * 100);
-    return '<a class="irf-mk" href="' + esc(m.u) + '" target="_blank" rel="noopener"><span class="irf-mk-p"><b>' + p + '%</b><small>say yes</small></span><span class="irf-mk-q">' + esc(m.q) + '<small>' + esc('$' + fmtN(m.vol || 0) + ' bet on Polymarket' + (m.end ? ' · closes ' + day(m.end) : '')) + '</small></span></a>';
+    return '<a class="irf-mk" href="' + esc(m.u) + '" target="_blank" rel="noopener"><span class="irf-mk-p"><b>' + N(p) + '%</b><small>' + esc(T('say yes')) + '</small></span><span class="irf-mk-q">' + esc(m.q) + '<small>' + esc(T('${n} bet on Polymarket', { n: fmtN(m.vol || 0) }) + (m.end ? ' · ' + T('closes {date}', { date: day(m.end) }) : '')) + '</small></span></a>';
   }
+  var SITE_MARK = CFG.mark || 'libertypolitics.com/intel';          // the room's own address, on what is copied for a show
   function copy(id, btn) {
     var a = BYID[id]; if (!a) return;
-    var lines = [a.n + (a._t === 'ship' ? ' (' + (a.hull || '') + '): ' + shipWhere(a) + '. ' + shipWhen(a) : ', ' + kindName(a) + ', ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' ? ', in ' + a.host : ''))];
-    if (a.why) lines.push(a.why);
-    if (a.st) lines.push('Status: ' + a.st);
+    var lines = [L(a, 'n') + (a._t === 'ship' ? ' (' + (a.hull || '') + '): ' + shipWhere(a) + '. ' + shipWhen(a) : ', ' + kindName(a) + ', ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' ? ', ' + T('in {place}', { place: L(a, 'host') }) : ''))];
+    if (a.why) lines.push(L(a, 'why'));
+    if (a.st) lines.push(T('Status:') + ' ' + L(a, 'st'));
     var la = latestOf(a).slice(0, 5);
-    if (la.length) { lines.push('Latest news:'); la.forEach(function (x) { lines.push('- ' + x.t + ' (' + (x.s || '') + ', ' + day(x.d) + ') ' + x.u); }); }
-    if ((NEWS[a.id] || []).length) lines.push('In the room now:');
-    (NEWS[a.id] || []).slice(0, 10).forEach(function (it) { lines.push('- ' + it.t + ' (' + (it.src === 'X' ? (it.nm || it.h) : it.h || it.src) + ') ' + it.u); });
-    lines.push('libertypolitics.com/intel/?mil=' + a.id);
-    var txt = lines.join('\n'), done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy for the show'; }, 1600); };
+    if (la.length) { lines.push(T('Latest news:')); la.forEach(function (x) { lines.push('- ' + x.t + ' (' + (x.s || '') + ', ' + day(x.d) + ')' + (regime(x.u) ? '' : ' ' + x.u)); }); }
+    if ((NEWS[a.id] || []).length) lines.push(T('In the room now:'));
+    (NEWS[a.id] || []).slice(0, 10).forEach(function (it) { lines.push('- ' + it.t + ' (' + (it.src === 'X' ? (it.nm || it.h) : it.h || it.src) + ')' + (R.regime && R.regime(it) ? '' : ' ' + it.u)); });
+    lines.push(SITE_MARK + '/?mil=' + a.id);
+    var txt = lines.join('\n'), done = function () { btn.textContent = T('Copied'); setTimeout(function () { btn.textContent = T('Copy for the show'); }, 1600); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallback(txt); done(); });
     else { fallback(txt); done(); }
   }
@@ -664,53 +788,53 @@
     if (tb && !tb.querySelector('[data-ltab="forces"]')) {
       var b = document.createElement('button');
       b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('data-ltab', 'forces'); b.setAttribute('aria-selected', 'false');
-      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.6c0 4.6 3.2 8 7.5 9.4 4.3-1.4 7.5-4.8 7.5-9.4V6z"/></svg>Forces <i class="num" id="irf-tab-n"></i>';
+      b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.6c0 4.6 3.2 8 7.5 9.4 4.3-1.4 7.5-4.8 7.5-9.4V6z"/></svg>' + esc(T('Forces')) + ' <i class="num" id="irf-tab-n"></i>';
       tb.appendChild(b); tb.classList.add('irf-3');
     }
     return el;
   }
-  function drawTabCount() { tabEl(); var n = $('irf-tab-n'); if (n) n.textContent = NAMED_N ? String(NAMED_N) : ''; }
+  function drawTabCount() { tabEl(); var n = $('irf-tab-n'); if (n) n.textContent = NAMED_N ? N(NAMED_N) : ''; }
   function listTop() { var l = root.querySelector('.ir-list'); if (l && l.getBoundingClientRect().top < 0) l.scrollIntoView({ block: 'start' }); }
   function gauge(p) {
     var lv = Math.max(0, Math.min(100, +p.lvl || 0)), ang = Math.PI * (1 - lv / 100), x = 30 + 24 * Math.cos(ang), y = 32 - 24 * Math.sin(ang);
     return '<svg class="irf-ga" viewBox="0 0 60 36" aria-hidden="true"><path class="irf-ga-b" d="M6 32A24 24 0 0 1 54 32"/><path class="irf-ga-v lv' + Math.min(4, Math.floor(lv / 20)) + '" d="M6 32A24 24 0 0 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '"/><line x1="30" y1="32" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/><circle cx="30" cy="32" r="2.6"/></svg>';
   }
   function inWs(a, ws) { return !ws.length || ws.indexOf(a.th) >= 0; }
-  function ageWords(n) { return n == null ? '' : n <= 0 ? 'today' : n === 1 ? '1 day ago' : n + ' days ago'; }
+  function ageWords(n) { return n == null ? '' : n <= 0 ? T('today') : n === 1 ? T('1 day ago') : T('{n} days ago', { n: N(n) }); }
   /* The Forces tab. War pressure moved INTO the conflict picker on 23 Oct 2026, so the gauges and the choosing are one
      place (one door); the tab says which conflicts it is showing and lists what follows from that. */
   function drawTab() {
-    var el = tabEl(); if (!D) { el.innerHTML = '<p class="ir-empty">The military sites could not load. Everything else in the room works.</p>'; return; }
+    var el = tabEl(); if (!D) { el.innerHTML = '<p class="ir-empty">' + esc(T('The military sites could not load. Everything else in the room works.')) + '</p>'; return; }
     var mil = R.filterOn('mil'), ws = wars();
     var named = ASSETS.concat(SHIPS).filter(function (a) { return (NEWS[a.id] || []).length && inWs(a, ws); }).sort(function (x, y) { return NEWS[y.id].length - NEWS[x.id].length; });
-    var html = '<div class="irf-tab-h"><p>' + (ws.length ? 'Showing <b>' + esc(warLabel(ws.join(','))) + '</b>. Pick others with the Conflicts button on the map.' : 'Every conflict. To follow one or several, use the Conflicts button on the map.') + '</p>' +
-      '<button type="button" class="irf-tog" id="irf-on" aria-pressed="' + (ON ? 'true' : 'false') + '"><span>On the map</span></button></div>';
+    var html = '<div class="irf-tab-h"><p>' + (ws.length ? Th(T('Showing {what}. Pick others with the Conflicts button on the map.'), { what: '<b>' + esc(warLabel(ws.join(','))) + '</b>' }) : esc(T('Every conflict. To follow one or several, use the Conflicts button on the map.'))) + '</p>' +
+      '<button type="button" class="irf-tog" id="irf-on" aria-pressed="' + (ON ? 'true' : 'false') + '"><span>' + esc(T('On the map')) + '</span></button></div>';
     var gk = GROUPS.filter(function (g) { return (GNEWS[g[0]] || []).length && ASSETS.concat(SHIPS).some(function (a) { return g[4](a) && inWs(a, ws); }); }).sort(function (x, y) { return GNEWS[y[0]].length - GNEWS[x[0]].length; });
-    html += '<section class="irf-sec"><h3>In the news now</h3>' +
+    html += '<section class="irf-sec"><h3>' + esc(T('In the news now')) + '</h3>' +
       (named.length || gk.length ? '<ul class="irf-rows">' + gk.map(function (g) {
-        var L = GNEWS[g[0]], a0 = ASSETS.concat(SHIPS).filter(g[4])[0];
-        return '<li><button type="button" class="irf-row' + (mil === 'g:' + g[0] ? ' on' : '') + '" data-irf-g="' + esc(g[0]) + '">' + (a0 ? icon(a0) : '') + '<span class="irf-row-t"><b>' + esc(g[1]) + '</b><small>' + esc(L[0].t) + '</small></span><span class="irf-row-n" title="Stories about them">' + L.length + '</span></button></li>';
+        var LL = GNEWS[g[0]], a0 = ASSETS.concat(SHIPS).filter(g[4])[0];
+        return '<li><button type="button" class="irf-row' + (mil === 'g:' + g[0] ? ' on' : '') + '" data-irf-g="' + esc(g[0]) + '">' + (a0 ? icon(a0) : '') + '<span class="irf-row-t"><b>' + esc(g[1]) + '</b><small>' + bd(esc(LL[0].t)) + '</small></span><span class="irf-row-n" title="' + esc(T('Stories about them')) + '">' + N(LL.length) + '</span></button></li>';
       }).join('') + named.slice(0, 12).map(function (a) { return row(a, NEWS[a.id][0].t); }).join('') + '</ul>' +
-        '<button type="button" class="ir-s-b irf-any" data-irf-any aria-pressed="' + (mil === 'any' ? 'true' : 'false') + '">' + (mil === 'any' ? 'Show every story again' : 'Show only military news') + '</button>'
-        : '<p class="irf-note">No story in this view names a military site.</p>') + '</section>';
+        '<button type="button" class="ir-s-b irf-any" data-irf-any aria-pressed="' + (mil === 'any' ? 'true' : 'false') + '">' + esc(mil === 'any' ? T('Show every story again') : T('Show only military news')) + '</button>'
+        : '<p class="irf-note">' + esc(T('No story in this view names a military site.')) + '</p>') + '</section>';
     var sh = SHIPS.filter(function (s) { return !ws.length || ws.indexOf(s.th) >= 0; });
     if (sh.length) {
       var old = AGE != null && AGE > STALE;
-      html += '<section class="irf-sec"><h3>US carriers and big-deck ships</h3><p class="irf-note' + (old ? ' irf-warn' : '') + '">Last public positions: the US Naval Institute\'s Fleet Tracker of ' + esc(day(D.fleet.at)) + ' (' + esc(ageWords(AGE)) + ')' +
-        (D.fleet.checked ? ', checked ' + esc(agoMs(Date.parse(D.fleet.checked))) : '') + ', and its newer stories where they say where a ship is. ' +
-        (old ? 'This report is old: ships have probably moved. ' : '') + 'The Navy does not publish live positions.</p><ul class="irf-rows">' +
-        sh.map(function (s) { return row(s, (s.hull ? s.hull + ' · ' : '') + shipWhere(s) + (s.by ? ' · USNI ' + day(s.by.at) : '')); }).join('') + '</ul></section>';
+      html += '<section class="irf-sec"><h3>' + esc(T('US carriers and big-deck ships')) + '</h3><p class="irf-note' + (old ? ' irf-warn' : '') + '">' + esc(T('Last public positions: the US Naval Institute\'s Fleet Tracker of {date} ({age})', { date: day(D.fleet.at), age: ageWords(AGE) }) +
+        (D.fleet.checked ? T(', checked {ago}', { ago: agoMs(Date.parse(D.fleet.checked)) }) : '') + T(', and its newer stories where they say where a ship is.') + ' ' +
+        (old ? T('This report is old: ships have probably moved.') + ' ' : '') + T('The Navy does not publish live positions.')) + '</p><ul class="irf-rows">' +
+        sh.map(function (s) { return row(s, (s.hull ? s.hull + ' · ' : '') + shipWhere(s) + (s.by ? ' · ' + T('USNI {date}', { date: day(s.by.at) }) : '')); }).join('') + '</ul></section>';
     }
-    var mk = (D.markets || []).filter(function (m) { return !ws.length || ws.indexOf(m.th) >= 0; });
-    if (mk.length) html += '<section class="irf-sec"><h3>What the betting markets say</h3><p class="irf-note">Prices on Polymarket: what bettors expect, not a fact.</p>' + mk.slice(0, 8).map(market).join('') + '</section>';
+    var mk = MK_ON ? (D.markets || []).filter(function (m) { return !ws.length || ws.indexOf(m.th) >= 0; }) : [];
+    if (mk.length) html += '<section class="irf-sec"><h3>' + esc(T('What the betting markets say')) + '</h3><p class="irf-note">' + esc(T('Prices on Polymarket: what bettors expect, not a fact.')) + '</p>' + mk.slice(0, 8).map(market).join('') + '</section>';
     var ths = ws.length ? ws : Object.keys(TH);
-    html += '<section class="irf-sec"><h3>Every site, by conflict</h3>' + ths.map(function (th) {
-      var list = ASSETS.filter(function (a) { return a.th === th; }).sort(function (x, y) { return prio(y) - prio(x) || x.n.localeCompare(y.n); });
+    html += '<section class="irf-sec"><h3>' + esc(T('Every site, by conflict')) + '</h3>' + ths.map(function (th) {
+      var list = ASSETS.filter(function (a) { return a.th === th; }).sort(function (x, y) { return prio(y) - prio(x) || String(L(x, 'n')).localeCompare(L(y, 'n')); });
       if (!list.length) return '';
-      return '<details class="irf-th"' + (ws.length === 1 ? ' open' : '') + '><summary><span>' + esc(TH[th]) + '</span><i class="num">' + list.length + '</i></summary><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul></details>';
+      return '<details class="irf-th"' + (ws.length === 1 ? ' open' : '') + '><summary><span>' + esc(TH[th]) + '</span><i class="num">' + N(list.length) + '</i></summary><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul></details>';
     }).join('') + '</section>';
-    html += '<section class="irf-sec irf-key"><h3>Colour: who runs it</h3><ul>' + BLOCS.filter(function (b) { return ASSETS.some(function (a) { return BLOC_OF[a.o] === b[0]; }); }).map(function (b) { return '<li style="--c:' + b[2] + '"><i class="irf-dot"></i>' + esc(b[1]) + '</li>'; }).join('') +
-      '</ul><p class="irf-note">A gold ring means a story in the room names it. A dashed ring round a ship means the report gives the sea, not a point. Sites come from the register in our repository, each checked against Wikipedia and against the news of 2025 and 2026. Wrong or missing? Say so in the discussion.</p></section>';
+    html += '<section class="irf-sec irf-key"><h3>' + esc(T('Colour: who runs it')) + '</h3><ul>' + BLOCS.filter(function (b) { return ASSETS.some(function (a) { return BLOC_OF[a.o] === b[0]; }); }).map(function (b) { return '<li style="--c:' + b[2] + '"><i class="irf-dot"></i>' + esc(b[1]) + '</li>'; }).join('') +
+      '</ul><p class="irf-note">' + esc(T('A gold ring means a story in the room names it. A dashed ring round a ship means the report gives the sea, not a point. Sites come from the register in our repository, each checked against Wikipedia and against the news of 2025 and 2026. Wrong or missing? Say so in the discussion.')) + '</p></section>';
     el.innerHTML = html;
   }
 
@@ -729,51 +853,88 @@
     var b = $('irf-chip'); if (!b || !D) return;
     var ws = wars(), p = ws.length ? ws.map(pulseOf).filter(Boolean).sort(function (x, y) { return (y.lvl || 0) - (x.lvl || 0); })[0] : hottest();
     b.className = 'irf-chip ' + lvClass(p) + (ws.length ? ' on' : '');
-    var h = ws.length ? '<b>' + esc(warLabel(ws.join(','))) + '</b>' : 'All conflicts' + (p ? '<small>' + esc(TH[p.th] + ': ' + p.word) + '</small>' : '');
+    var h = ws.length ? '<b>' + esc(warLabel(ws.join(','))) + '</b>' : esc(T('All conflicts')) + (p ? '<small>' + esc(TH[p.th] + T(': ') + lvWord(p)) + '</small>' : '');
     var html = '<i aria-hidden="true"></i><span>' + h + '</span><svg class="irf-chip-v" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>';
     if (b._h !== html) { b.innerHTML = html; b._h = html; }
-    b.setAttribute('aria-label', ws.length ? 'Conflicts: showing ' + warLabel(ws.join(',')) + '. Change' : 'Conflicts: showing all. Pick one or several');
-    b.title = p && p.why ? p.why : '';
+    b.setAttribute('aria-label', ws.length ? T('Conflicts: showing {what}. Change', { what: warLabel(ws.join(',')) }) : T('Conflicts: showing all. Pick one or several'));
+    b.title = p ? pulseWhy(p) : '';
   }
 
   /* ------------------------------------------------------------ in the spotlight: how each side framed it, the sites, your balance */
   var SIDE_N = { L: 'Left', C: 'Centre', R: 'Right' };
+  /* THE SIDES (CFG.sides, Iran Uncensored: free Persian media, the press in English, the regime's media; names already in
+     the page's language). With them the framing block is framedSides(); without them it is Liberty Politics' Left, Centre
+     and Right, untouched (framedLCR), and only there is "Your balance" kept and shown: it is a US lean (it.sd). */
+  var SIDES = Array.isArray(CFG.sides) ? CFG.sides.filter(function (x) { return Array.isArray(x) && x[0] && x[1]; }) : [];
+  if (!SIDES.length) SIDES = null;
   function outletName(o) { return String(o).replace(/\s+[-|:]\s+.*$/, '').replace(/^www\./, ''); }
   function spot(it) {
-    record(it);
+    if (!SIDES) record(it);
     var out = '', fr = FR && /^L/.test(String(it.id)) && FR.by[String(it.id).slice(1)];          // a live item's id is 'L' + the feed's own (normLive)
-    if (fr && fr.length >= 2) {
-      var col = { L: [], C: [], R: [] }, first = {}, un = [];
-      fr.forEach(function (r) { var t = Date.parse(r[3]); if (r[0] && col[r[0]]) { col[r[0]].push(r); if (!(first[r[0]] <= t)) first[r[0]] = t; } else un.push(r); });
-      var rated = ['L', 'C', 'R'].filter(function (s) { return col[s].length; });
-      var t0 = Math.min.apply(null, fr.map(function (r) { return Date.parse(r[3]) || Infinity; })), lead = fr.filter(function (r) { return Date.parse(r[3]) === t0; })[0];
-      var tl = [];
-      if (lead) tl.push('First: ' + outletName(lead[1]) + (lead[0] ? ' (' + SIDE_N[lead[0]] + ')' : '') + ', ' + agoMs(t0));
-      ['L', 'C', 'R'].filter(function (s) { return first[s] && !(lead && lead[0] === s && first[s] === t0); })
-        .sort(function (x, y) { return first[x] - first[y]; })          // in the order the sides came to it
-        .forEach(function (s) {
-          var h = Math.round((first[s] - t0) / 36e5);
-          tl.push((s === 'C' ? 'the Centre' : 'the ' + SIDE_N[s]) + (h < 1 ? ' within the hour' : ' ' + h + (h === 1 ? ' hour later' : ' hours later')));
-        });
-      var none = ['L', 'R'].filter(function (s) { return !col[s].length && rated.length; }).map(function (s) { return 'the ' + SIDE_N[s]; });
-      var tls = tl.length ? tl[0] + (tl.length > 1 ? '. Then ' + tl.slice(1).join(', ') : '') + '.' + (none.length ? ' Not carried by ' + none.join(' or ') + ' at all.' : '') : '';
-      if (rated.length >= 1 || un.length) out += '<section class="irf-fr" aria-label="How each side framed it"><h3>How each side framed it</h3>' +
-        (tls ? '<p class="irf-tl">' + esc(tls) + '</p>' : '') +
-        '<div class="irf-fr-c">' + ['L', 'C', 'R'].map(function (s) {
-          return '<div class="irf-fc s' + s + '"><h4>' + SIDE_N[s] + '</h4>' + (col[s].length ? col[s].map(function (r) { return '<p><b>' + esc(outletName(r[1])) + '</b>' + esc(r[2]) + '<small>' + esc(agoMs(Date.parse(r[3]))) + '</small></p>'; }).join('') : '<p class="irf-none">Not covered by the outlets we rate on this side.</p>') + '</div>';
-        }).join('') + '</div>' +
-        (un.length ? '<p class="irf-un">Also: ' + un.map(function (r) { return '<b>' + esc(outletName(r[1])) + '</b> "' + esc(r[2]) + '"'; }).join('; ') + '</p>' : '') + '</section>';
-    }
+    if (fr && fr.length >= 2) out += SIDES ? framedSides(fr) : framedLCR(fr);
     var sites = (OF_ITEM[it.id] || []).map(function (id) { return BYID[id]; }).filter(Boolean);
     var gs = (OF_ITEM[it.id] || []).filter(function (id) { return id.indexOf('g:') === 0 && GBY[id.slice(2)]; });
-    if (gs.length) out += '<section class="irf-sp" aria-label="Military news it belongs to"><h3>Military news it belongs to</h3><div class="irf-sp-c">' + gs.map(function (id) {
-      return '<button type="button" class="irf-sc" data-irf-gf="' + esc(id) + '"><span>' + esc(GBY[id.slice(2)][1] + ' (' + GNEWS[id.slice(2)].length + ')') + '</span></button>';
+    if (gs.length) out += '<section class="irf-sp" aria-label="' + esc(T('Military news it belongs to')) + '"><h3>' + esc(T('Military news it belongs to')) + '</h3><div class="irf-sp-c">' + gs.map(function (id) {
+      return '<button type="button" class="irf-sc" data-irf-gf="' + esc(id) + '"><span>' + esc(GBY[id.slice(2)][1] + ' (' + N(GNEWS[id.slice(2)].length) + ')') + '</span></button>';
     }).join('') + '</div></section>';
-    if (sites.length) out += '<section class="irf-sp" aria-label="Military sites it names"><h3>Military sites it names</h3><div class="irf-sp-c">' + sites.slice(0, 6).map(function (a) {
-      return '<button type="button" class="irf-sc" data-irf-spot="' + esc(a.id) + '">' + icon(a) + '<span>' + esc(a.n) + '</span></button>';
+    if (sites.length) out += '<section class="irf-sp" aria-label="' + esc(T('Military sites it names')) + '"><h3>' + esc(T('Military sites it names')) + '</h3><div class="irf-sp-c">' + sites.slice(0, 6).map(function (a) {
+      return '<button type="button" class="irf-sc" data-irf-spot="' + esc(a.id) + '">' + icon(a) + '<span>' + esc(L(a, 'n')) + '</span></button>';
     }).join('') + '</div></section>';
-    out += balance();
+    if (!SIDES) out += balance();
     return out;
+  }
+  // Liberty Politics: Left, Centre, Right (data/intel-frames.json rows [side, outlet, headline, when])
+  function framedLCR(fr) {
+    var out = '';
+    var col = { L: [], C: [], R: [] }, first = {}, un = [];
+    fr.forEach(function (r) { var t = Date.parse(r[3]); if (r[0] && col[r[0]]) { col[r[0]].push(r); if (!(first[r[0]] <= t)) first[r[0]] = t; } else un.push(r); });
+    var rated = ['L', 'C', 'R'].filter(function (s) { return col[s].length; });
+    var t0 = Math.min.apply(null, fr.map(function (r) { return Date.parse(r[3]) || Infinity; })), lead = fr.filter(function (r) { return Date.parse(r[3]) === t0; })[0];
+    var tl = [];
+    if (lead) tl.push('First: ' + outletName(lead[1]) + (lead[0] ? ' (' + SIDE_N[lead[0]] + ')' : '') + ', ' + agoMs(t0));
+    ['L', 'C', 'R'].filter(function (s) { return first[s] && !(lead && lead[0] === s && first[s] === t0); })
+      .sort(function (x, y) { return first[x] - first[y]; })          // in the order the sides came to it
+      .forEach(function (s) {
+        var h = Math.round((first[s] - t0) / 36e5);
+        tl.push((s === 'C' ? 'the Centre' : 'the ' + SIDE_N[s]) + (h < 1 ? ' within the hour' : ' ' + h + (h === 1 ? ' hour later' : ' hours later')));
+      });
+    var none = ['L', 'R'].filter(function (s) { return !col[s].length && rated.length; }).map(function (s) { return 'the ' + SIDE_N[s]; });
+    var tls = tl.length ? tl[0] + (tl.length > 1 ? '. Then ' + tl.slice(1).join(', ') : '') + '.' + (none.length ? ' Not carried by ' + none.join(' or ') + ' at all.' : '') : '';
+    if (rated.length >= 1 || un.length) out += '<section class="irf-fr" aria-label="How each side framed it"><h3>How each side framed it</h3>' +
+      (tls ? '<p class="irf-tl">' + esc(tls) + '</p>' : '') +
+      '<div class="irf-fr-c">' + ['L', 'C', 'R'].map(function (s) {
+        return '<div class="irf-fc s' + s + '"><h4>' + SIDE_N[s] + '</h4>' + (col[s].length ? col[s].map(function (r) { return '<p><b>' + esc(outletName(r[1])) + '</b>' + esc(r[2]) + '<small>' + esc(agoMs(Date.parse(r[3]))) + '</small></p>'; }).join('') : '<p class="irf-none">Not covered by the outlets we rate on this side.</p>') + '</div>';
+      }).join('') + '</div>' +
+      (un.length ? '<p class="irf-un">Also: ' + un.map(function (r) { return '<b>' + esc(outletName(r[1])) + '</b> "' + esc(r[2]) + '"'; }).join('; ') + '</p>' : '') + '</section>';
+    return out;
+  }
+  // the room's own sides (CFG.sides), in its words: who carried it first, when each side came to it, who did not at all
+  function framedSides(fr) {
+    var keys = SIDES.map(function (x) { return String(x[0]); }), name = {}, col = {}, first = {}, un = [];
+    SIDES.forEach(function (x) { name[x[0]] = String(x[1]); });
+    keys.forEach(function (k) { col[k] = []; });
+    fr.forEach(function (r) { var t = Date.parse(r[3]); if (r[0] && col[r[0]]) { col[r[0]].push(r); if (!(first[r[0]] <= t)) first[r[0]] = t; } else un.push(r); });
+    var rated = keys.filter(function (s) { return col[s].length; });
+    var t0 = Math.min.apply(null, fr.map(function (r) { return Date.parse(r[3]) || Infinity; })), lead = fr.filter(function (r) { return Date.parse(r[3]) === t0; })[0];
+    var tl = [], who = function (o) { return bd(esc(outletName(o))); };
+    if (lead) tl.push(lead[0] && name[lead[0]] ? Th(T('First: {who} ({side}), {ago}'), { who: who(lead[1]), side: esc(name[lead[0]]), ago: esc(agoMs(t0)) })
+      : Th(T('First: {who}, {ago}'), { who: who(lead[1]), ago: esc(agoMs(t0)) }));
+    keys.filter(function (s) { return first[s] && !(lead && lead[0] === s && first[s] === t0); })
+      .sort(function (x, y) { return first[x] - first[y]; })
+      .forEach(function (s) {
+        var h = Math.round((first[s] - t0) / 36e5);
+        tl.push(esc(h < 1 ? T('{side} within the hour', { side: name[s] }) : h === 1 ? T('{side} 1 hour later', { side: name[s] }) : T('{side} {n} hours later', { side: name[s], n: N(h) })));
+      });
+    var none = rated.length ? keys.filter(function (s) { return !col[s].length; }).map(function (s) { return name[s]; }) : [];
+    var tls = tl.length ? tl[0] + (tl.length > 1 ? Th(T('. Then {list}'), { list: tl.slice(1).join(esc(T(', '))) }) : '') + '.' +
+      (none.length ? ' ' + esc(T('Not carried by {list} at all.', { list: none.join(T(' or ')) })) : '') : '';
+    if (!rated.length && !un.length) return '';
+    return '<section class="irf-fr" aria-label="' + esc(T('How each side framed it')) + '"><h3>' + esc(T('How each side framed it')) + '</h3>' +
+      (tls ? '<p class="irf-tl">' + tls + '</p>' : '') +
+      '<div class="irf-fr-c">' + keys.map(function (s) {
+        return '<div class="irf-fc s' + esc(s) + '"><h4>' + esc(name[s]) + '</h4>' + (col[s].length ? col[s].map(function (r) { return '<p><b' + DA + '>' + esc(outletName(r[1])) + '</b><span' + DA + '>' + esc(r[2]) + '</span><small>' + esc(agoMs(Date.parse(r[3]))) + '</small></p>'; }).join('') : '<p class="irf-none">' + esc(T('None of the outlets I follow on this side carried it.')) + '</p>') + '</div>';
+      }).join('') + '</div>' +
+      (un.length ? '<p class="irf-un">' + esc(T('Also:')) + ' ' + un.map(function (r) { return '<b' + DA + '>' + esc(outletName(r[1])) + '</b> ' + bd('"' + esc(r[2]) + '"'); }).join(esc(T('; '))) + '</p>' : '') + '</section>';
   }
   // a tap on a group in the spotlight: close the spotlight, show the group's stories
   document.addEventListener('click', function (ev) {
