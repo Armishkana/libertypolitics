@@ -80,7 +80,13 @@
   var ROLE = { report: 'The report', own: 'In their own words', clip: 'The clip', reaction: 'Reaction', more: 'More on it', other: 'The other side, or the silence',
     proof: 'Background, from the bank', related: 'Related', rank: '' };
   var PACKS = null;
-  var KEY = 'ir-creator', MAXN = 25;
+  var KEY = 'ir-creator';
+  /* HOW MANY GO IN (23 Oct 2026, Armin: "How could somebody create a show that is three hours with three items? ... I
+     should be able to make a three-hour show out of it"). A live show talks about each item for a few minutes, the
+     comments included, so three hours wants about sixty; an edited video about twenty-five. The run order says how long
+     the show it holds would run on air (MIN_PER, minutes an item, a planning number, never a promise). */
+  var MAXN_LIVE = 60, MAXN_VIDEO = 25, MIN_PER = { live: 3, video: 0.75 };
+  function maxN() { return !PLAIN && st.kind === 'video' ? MAXN_VIDEO : MAXN_LIVE; }
   var TONES = [['plain', 'Descriptive'], ['mid', 'Balanced'], ['bold', 'Engaging']], AIMS = [['clicks', 'Clicks'], ['watch', 'Watch time']], KINDS2 = [['live', 'Live show'], ['video', 'Video']];
   var st = store(KEY);
   if (!st || typeof st !== 'object') st = {};
@@ -497,7 +503,7 @@
      STRENGTH: how hot the item is and how far it has travelled (heat, its viral rank, likes, views), times how squarely it
      is ON the show's subject: an item that names none of the set's main names, its country or what happened counts for
      little more than a third (the Iran post in the France riots set, a Congress post in it: strong, but another story).
-     WHICH ITEMS GO IN: the strongest MAXN of everything the filters leave (never just the first MAXN of the room's sort), a
+     WHICH ITEMS GO IN: the strongest MAXN of everything the filters leave (never just the first maxN() of the room's sort), a
      repost of the same thing kept once.
      THE ORDER: threads. The strongest opens (for a live show a video or picture when one is nearly as strong: the opener is
      on screen); then up to three that are closest to it, closest first; then the strongest left opens the next thread.
@@ -556,7 +562,7 @@
   var NEAR = 1.1, THREAD = 4;
   function pickSet(all) {
     var score = scorer(all), sorted = all.slice().sort(function (a, b) { return score(b) - score(a); }), out = [], seenU = {};
-    for (var i = 0; i < sorted.length && out.length < MAXN; i++) {
+    for (var i = 0; i < sorted.length && out.length < maxN(); i++) {
       var it = sorted[i], u = String(it.u || '').replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.|mobile\.)?/, '');
       if (u && seenU[u]) continue;
       if (out.some(function (x) { return sameWords(x, it); })) continue;          // the same clip reposted with the same words
@@ -697,12 +703,18 @@
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>', down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
     out: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>', add: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'
   };
+  function onAir(n) {          // how long a show of n items runs (MIN_PER), in words: "About 2 h 15 min on air, 45 items"
+    var k = st.kind === 'video' ? 'video' : 'live', m = Math.round(n * MIN_PER[k]), h = Math.floor(m / 60), r = m % 60;
+    var t = h ? h + ' h' + (r ? ' ' + r + ' min' : '') : m + ' min';
+    return (k === 'video' ? 'About ' + t + ' of video, ' : 'About ' + t + ' on air at about 3 minutes an item, ') + n + ' items. Add or take out items below to change it.';
+  }
   function runHtml() {
     var why = ui.best ? ui.best.why : {}, last = ui.set.length - 1;
     var since = ui.acts.length - 1 - ui.acts.lastIndexOf('reset');          // the log keeps everything; the count is since the last reset
     var head = '<div class="ir-sm-rhead"><p>' + (ui.mine ? '<b>' + esc(T('Your order')) + '</b> · ' + esc(since === 1 ? T('1 change, kept on this device') : T('{n} changes, kept on this device', { n: N(since) }))
       : '<b>' + esc(T('Best order')) + '</b> · ' + esc(T('the strongest first, then what is closest to it, then the next thread'))) + '</p>' +
-      (ui.mine ? '<button type="button" class="ir-sm-best" data-mk="best">' + ICON.redo + '<span>' + esc(T('Back to the best order')) + '</span></button>' : '') + '</div>';
+      (ui.mine ? '<button type="button" class="ir-sm-best" data-mk="best">' + ICON.redo + '<span>' + esc(T('Back to the best order')) + '</span></button>' : '') + '</div>' +
+      (PLAIN ? '' : '<p class="ir-sm-len">' + esc(onAir(ui.set.length)) + '</p>');
     var list = '<ol class="ir-sm-run">' + ui.set.map(function (it, i) {
       var c = R.code(it), w = why[c] || '';
       return '<li data-c="' + esc(c) + '"><span class="num">' + N(i + 1) + '</span>' + R.mark(it) + itemLink(it) +
@@ -714,9 +726,9 @@
     var inSet = {}; ui.set.forEach(function (it) { inSet[R.code(it)] = 1; });
     var sc = ui.best && ui.best.score || vScore, rest = ui.pool.filter(function (it) { return !inSet[R.code(it)]; }).sort(function (a, b) { return sc(b) - sc(a); });
     var more = rest.length ? '<div class="ir-sm-rest"><p class="ir-sm-rl"><b>' + esc(T('Not in the show: {n}', { n: N(rest.length) })) + '</b> · ' + esc(T('the strongest first. Add one and it goes at the end.')) +
-      (ui.set.length >= MAXN ? ' ' + esc(T('The show holds {n}: take one out first.', { n: N(MAXN) })) : '') + '</p>' +
+      (ui.set.length >= maxN() ? ' ' + esc(T('The show holds {n}: take one out first.', { n: N(maxN()) })) : '') + '</p>' +
       '<ul>' + rest.slice(0, ui.rest).map(function (it) {
-        return '<li><button type="button" class="ir-sm-add" data-add="' + esc(R.code(it)) + '" aria-label="' + esc(T('Add to the show')) + '"' + (ui.set.length >= MAXN ? ' disabled' : '') + '>' + MOVE.add + '</button>' + R.mark(it) +
+        return '<li><button type="button" class="ir-sm-add" data-add="' + esc(R.code(it)) + '" aria-label="' + esc(T('Add to the show')) + '"' + (ui.set.length >= maxN() ? ' disabled' : '') + '>' + MOVE.add + '</button>' + R.mark(it) +
           itemLink(it) + '<small>' + esc(bitsOf(it)) + '</small></li>';
       }).join('') + '</ul>' + (rest.length > ui.rest ? '<button type="button" class="ir-sm-more" data-mk="rest">' + ICON.redo + '<span>' + esc(T('Show {n} more', { n: N(Math.min(12, rest.length - ui.rest)) })) + '</span></button>' : '') + '</div>' : '';
     return head + list + more;
@@ -751,13 +763,13 @@
       if (mine && Array.isArray(mine.codes)) {
         var byC = {}; all.forEach(function (it) { byC[R.code(it)] = it; });
         var back = mine.codes.map(function (c) { return byC[c]; }).filter(Boolean);
-        if (back.length) { ui.set = back.slice(0, MAXN); ui.mine = true; ui.acts = Array.isArray(mine.acts) ? mine.acts.slice() : []; }
+        if (back.length) { ui.set = back.slice(0, maxN()); ui.mine = true; ui.acts = Array.isArray(mine.acts) ? mine.acts.slice() : []; }
       }
       rewords();
     }
     var A = ui.pack && ui.pack.A;
     var bar = '<div class="ir-sm-bar"><span class="ir-sm-ic" aria-hidden="true">' + ICON.play + '</span><p class="ir-sm-l"><b>' + esc(n ? T('Make a show from these {n}', { n: N(n) }) : T('Your filters leave nothing')) + '</b><span>' +
-      (n ? esc(mix(A)) + (n > MAXN ? ' · ' + esc(T('the strongest {n} go in, in the best order', { n: N(ui.set.length) })) : '') : esc(T('Loosen a filter and the show fills again'))) + '</span></p>' +
+      (n ? esc(mix(A)) + (n > maxN() ? ' · ' + esc(T('the strongest {n} go in, in the best order', { n: N(ui.set.length) })) : '') : esc(T('Loosen a filter and the show fills again'))) + '</span></p>' +
       '<button type="button" class="ir-sm-go" data-mk="toggle" aria-expanded="true">' + esc(T('Close')) + '</button></div>';          // the head of the open maker: its only button closes it (the bar's "Make a show" is the one way in)
     if (!n) { keepFocus(function () { panel.innerHTML = bar; }); panel.classList.toggle('open', false); return; }
     var bf = R.brief ? R.brief() : null;          // the quick briefing (Brief me until 21 Oct): the hottest stories, ready to play, no choices
@@ -1035,7 +1047,7 @@
       draw(); var fb = sel && panel.querySelector(sel); if (fb && !fb.disabled) fb.focus(); return;
     }
     if (b.hasAttribute('data-add')) {
-      if (ui.set.length >= MAXN) return;
+      if (ui.set.length >= maxN()) return;
       var ac = b.getAttribute('data-add'), ait = ui.pool.filter(function (x) { return R.code(x) === ac; })[0];
       if (ait) { ui.set.push(ait); ui.mine = true; ui.acts.push('a' + ui.set.length + ':' + ac); keepOrder(); rewords(); }
       draw(); var nb = panel.querySelector('.ir-sm-add'); if (nb) nb.focus(); return;
@@ -1111,7 +1123,7 @@
 
   // The show the address spells out (?show=, made by the maker on this device): its items must still be in the room
   function fromQuery() {
-    var codes = String(q.get('show') || '').split('.').filter(Boolean).slice(0, 40);
+    var codes = String(q.get('show') || '').split('.').filter(Boolean).slice(0, MAXN_LIVE);          // as many as a live show holds (HOW MANY GO IN)
     var rows = codes.map(function (c) { var m = /^([a-z]+)~(.+)$/.exec(c); if (!m) return null; var x = R.byId(m[2]); return x && !isReg(x) ? { role: m[1], it: x } : null; }).filter(Boolean);
     var story = null, sid = q.get('st') || '';
     if (PACKS) PACKS.stories.forEach(function (s) { if (s.id === sid) story = s; });
@@ -1140,7 +1152,7 @@
         var rows = (Array.isArray(items) ? items : []).filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string'; }).map(function (o) {
           var live = o._code ? R.byId(o._code) : null;
           return { role: 'on', it: live || o };
-        }).filter(function (r) { return !isReg(r.it); }).slice(0, 40);
+        }).filter(function (r) { return !isReg(r.it); }).slice(0, MAXN_LIVE);
         wait.remove();
         showScreen({ rows: rows, video: v('kind') === 'video', title: String(v('title') || T('The Intel Room')), intro: String(v('note') || ''), cover: String(v('cover') || ''), desc: String(v('desc') || ''),
           saved: { id: id, by: String(v('by') || ''), uid: String(v('uid') || ''), views: +v('views') || 0, at: v('updatedAt') || v('createdAt') || 0 } });

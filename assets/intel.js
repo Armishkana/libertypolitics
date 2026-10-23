@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=5721044808) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=f532a918da) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -171,13 +171,21 @@
 
   var D, BANK = [], LIVE = [], RD = [], LIVE_AT = 0, items = [], P, topics, buckets = [], REACH = {}, REACH_AT = 0;
   var PACKS = null, WORDS = null, HOTS = [], HOTALL = {}, STORY_OF = {}, RHOOK = [];
+  /* EVERY TRENDING STORY IS A SHOW (23 Oct 2026, Armin on a chip that opened 3 items: "How could somebody create a show
+     that is three hours with three items?"). data/intel-deep.json (build/intel_deep.py, hourly) adds to each story what
+     the room already holds on it (rel) and what a news and a YouTube search for it found (deep). Those found items live
+     only inside their story: "Everything" stays the last 24 hours, a story's door opens on all of it. A story with fewer
+     than SHOW_MIN items behind it is not offered on the Trending row while the deep file is fresh: it would be a door
+     into an empty room. FACES: the same file names each YouTube channel's picture and each outlet's web address, so every
+     card shows who posted it by its own face (WHO POSTED IT, below). */
+  var DEEP = null, DEEP_FRESH = false, FACE_YT = {}, FACE_DOM = {}, SHOW_MIN = 20;
   var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '', ext: {} };
   /* ADD-ONS (23 Oct 2026, the Forces layer, build/intel-forces.js, Liberty Politics only). An add-on loaded after the room
      is ready can draw its own marks over the map (LAYERS: draw, hit by position, hit by element, its tip, what a tap does),
      add a filter that lives in the address and has a pill like every other (EXT: key, test, label, valid), add a tab to the
      list (LTX) and add a block to the spotlight (SPOTX). Nothing here has words of its own, so the Iran room, which loads no
      add-on, is unchanged. An add-on that throws never breaks the room: every call into one is caught. */
-  var LAYERS = [], EXT = {}, LTX = {}, SPOTX = [], RAWQ = null;
+  var LAYERS = [], EXT = {}, LTX = {}, SPOTX = [], RAWQ = null, BADGEX = [];
   function xcall(f, a, b, c) { try { return f(a, b, c); } catch (e) { return null; } }
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
 
@@ -388,7 +396,7 @@
     var el = $('ir-lens'), html = '';
     ['live', 'bank', 'readers'].forEach(function (l) {
       if (l === 'live' && !liveShown()) return;
-      var n = setOf(l).length, on = S.lens === l;
+      var n = setOf(l).filter(function (it) { return !it._deep; }).length, on = S.lens === l;
       var sub = l === 'live' ? (LIVE_AT ? T('updated {t}', { t: ago(LIVE_AT) }) : '') : l === 'readers' ? (rdState === 'loading' ? T('loading') : T('being checked')) : T('checked');
       html += '<button type="button" role="tab" class="ir-lens-' + l + '" data-lens="' + l + '" aria-selected="' + on + '">' +
         (l === 'live' ? '<i class="ir-live-dot" aria-hidden="true"></i>' : '') + '<b>' + LENS[l] + '</b> <span class="num">' + N(n) + '</span><small>' + esc(sub) + '</small></button>';
@@ -475,14 +483,16 @@
     if (fresh) {
       PACKS.stories.forEach(function (s) {
         var its = (s.items || []).map(function (id) { return byId['L' + id]; }).filter(Boolean);
-        if (its.length) list.push({ id: String(s.id), lead: String(s.lead), hot: +s.hot || 0, its: its, title: s.title || its[0].t, s: s });
+        var ds = DEEP_FRESH && DEEP.stories[String(s.id)], seen = {}, all = [];
+        its.concat(ds ? (ds.rel || []).concat(ds.deep || []).map(function (id) { return byId['L' + id]; }) : []).forEach(function (it) { if (it && !seen[it.id]) { seen[it.id] = 1; all.push(it); } });
+        if (its.length) list.push({ id: String(s.id), lead: String(s.lead), hot: +s.hot || 0, its: its, all: all, q: ds ? String(ds.q || '') : '', title: s.title || its[0].t, s: s });
       });
     } else {
       var by = {};
       LIVE.forEach(function (it) { var c = P[it.p] ? P[it.p][1] : 'global'; var k = c + '|' + ((it.tp || [])[0] != null ? it.tp[0] : ''); (by[k] = by[k] || []).push(it); });
       Object.keys(by).forEach(function (k) {
         var its = by[k].sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); });
-        list.push({ id: 'g' + k.replace(/[^a-z0-9]/gi, '').toLowerCase(), lead: String(its[0].id).slice(1), hot: its[0].hot || 0, its: its, title: its[0].t, s: null });
+        list.push({ id: 'g' + k.replace(/[^a-z0-9]/gi, '').toLowerCase(), lead: String(its[0].id).slice(1), hot: its[0].hot || 0, its: its, all: its, q: '', title: its[0].t, s: null });
       });
     }
     list.forEach(function (h) {
@@ -491,18 +501,19 @@
       h.name = w && w.name ? w.name : h.s && h.s.name ? String(h.s.name) : cut(unshout(h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, '')), 56);
       h.w = w || null;
       h.score = h.hot * (0.6 + 0.4 * Math.min(1, h.its.length / 3));
-      h.ids = {}; h.its.forEach(function (it) { h.ids[it.id] = 1; STORY_OF[it.id] = h; });
+      h.ids = {}; h.all.forEach(function (it) { h.ids[it.id] = 1; }); h.its.forEach(function (it) { STORY_OF[it.id] = h; });
     });
     list.sort(function (a, b) { return b.score - a.score; });
-    list.filter(function (h) { return h.hot >= HOT_MIN; }).forEach(function (h) { h.its.forEach(function (it) { HOTALL[it.id] = 1; }); });
+    list.filter(function (h) { return h.hot >= HOT_MIN; }).forEach(function (h) { h.its.forEach(function (it) { HOTALL[it.id] = 1; }); });          // the hours' own items: All hot stays inside Everything
     HOTS = list;
   }
-  function hotTop() { return HOTS.filter(function (h) { return h.hot >= HOT_MIN; }).slice(0, HOT_TOP); }
+  function hotTop() { return HOTS.filter(function (h) { return h.hot >= HOT_MIN && (!DEEP_FRESH || h.all.length >= SHOW_MIN); }).slice(0, HOT_TOP); }
   // a Blindspot item: its own story says so, or the topic it belongs to does (who covered it, above)
   function isBlind(it) { var o = spreadOf(it); return !!(o && o.bs); }
   function hotById(id) { return HOTS.filter(function (h) { return h.id === id; })[0] || null; }
   function pass(it, skip) {
     if (skip !== 'link' && LSET && !LSET[it.id]) return false;
+    if (it._deep && skip !== 'hot' && !(S.lens === 'live' && S.hot && S.hot !== 'blind' && (S.hot === 'all' ? HOTALL[it.id] : (hotById(S.hot) || { ids: {} }).ids[it.id]))) return false;          // a found item lives inside its story
     if (S.who && whoKey(it) !== S.who) return false;          // one account's posts (WHO POSTED IT)
     if (skip !== 'hot' && S.hot && S.lens === 'live') {
       if (S.hot === 'all') { if (!HOTALL[it.id]) return false; }
@@ -579,6 +590,7 @@
     if (it.by) b += ' · <span class="by">' + T('Sent by {who}', { who: esc(it.by) }) + '</span>';
     if (it.pend) b += ' · <span class="pend">' + T('Being checked') + '</span>';
     if (isRegime(it)) b += ' · <span class="rg">' + T('Regime media') + '</span>';
+    BADGEX.forEach(function (f) { var x = xcall(f, it); if (x) b += ' · ' + x; });          // an add-on's marks (IRoom.addBadge)
     if (isNew(it)) b = ' · <span class="new">' + T('New') + '</span>' + b;
     return b;
   }
@@ -627,17 +639,42 @@
      tap (the Persian room) shows the author's initials until pictures are on. One line, so a long name never wraps. */
   function whoName(it) { return String(it.src === 'X' ? (it.nm || it.h || '') : (it.h || it.nm || T(it.src || ''))).replace(/\s+/g, ' ').trim(); }
   function whoKey(it) { return String(it.h || it.nm || '').toLowerCase(); }
+  /* FACES (23 Oct 2026, Armin: "you failed to include the profile picture of the YouTube channel ... for the Reuters
+     article, you should have included the logo of Reuters ... make it easier for people to understand what's going on").
+     Every source shows its own face: an X post its author, a video its channel's picture, an article its outlet's logo,
+     and on every face a badge with the platform's own mark (X, YouTube, an article, Telegram ...), so who and where read
+     at one glance. Initials stand in when no picture is known, or before a tap on a page that loads none (CFG.light). */
+  var PF_ICON = {
+    X: '<path d="M4 3.5h3.6l2.9 4.1 3.4-4.1h2.1l-4.5 5.4 5 7.6h-3.6l-3.2-4.6-3.9 4.6H3.7l5-5.9z"/>',
+    YouTube: '<path fill-rule="evenodd" d="M10 4.6c-3.8 0-5.5.3-6.1.9-.6.6-.8 1.9-.8 4.5s.2 3.9.8 4.5c.6.6 2.3.9 6.1.9s5.5-.3 6.1-.9c.6-.6.8-1.9.8-4.5s-.2-3.9-.8-4.5c-.6-.6-2.3-.9-6.1-.9zM8.5 7.5l4.2 2.5-4.2 2.5z"/>',
+    News: '<path d="M4 4h9.5v11.2c0 .5.4.8.8.8H5.2A1.2 1.2 0 0 1 4 14.8zm11 3h1.5v8.2a.8.8 0 0 1-1.5 0zM5.8 6v2.6h5.9V6zm0 4.2v1.2h5.9v-1.2zm0 2.5v1.2h5.9v-1.2z"/>',
+    Telegram: '<path d="M3.4 9.5 15.8 4.7c.6-.2 1.1.1.9.9l-2.1 9.8c-.1.6-.8.8-1.3.5l-3.2-2.4-1.6 1.5c-.2.2-.5.1-.5-.2l.1-2.5 5.2-4.7c.2-.2 0-.3-.3-.2l-6.5 4-2.9-.9c-.6-.2-.6-.6.1-.8z"/>',
+    Facebook: '<path d="M11.2 16.5v-5.6h1.9l.3-2.2h-2.2V7.3c0-.6.2-1.1 1.1-1.1h1.2v-2a15 15 0 0 0-1.7-.1c-1.7 0-2.9 1-2.9 3v1.6H7v2.2h1.9v5.6z"/>',
+    Instagram: '<path fill-rule="evenodd" d="M7 3.5h6A3.5 3.5 0 0 1 16.5 7v6a3.5 3.5 0 0 1-3.5 3.5H7A3.5 3.5 0 0 1 3.5 13V7A3.5 3.5 0 0 1 7 3.5zm0 1.5A2 2 0 0 0 5 7v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm3 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6zm0 1.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm3.2-2.4a.7.7 0 1 1 0 1.4.7.7 0 0 1 0-1.4z"/>',
+    Document: '<path d="M5.5 3.5h6l3.5 3.5v9.5h-9.5z"/>'
+  };
+  function pfBadge(it) {
+    var p = pfOf(it), ic = PF_ICON[p] || PF_ICON[kindOf(it) === 'video' ? 'YouTube' : 'News'];
+    return '<span class="ir-pfb" style="--pc:' + pfColor(p) + '"><svg viewBox="0 0 20 20" aria-hidden="true">' + ic + '</svg></span>';
+  }
+  var NO_LOGO = /(^|\.)(news\.google\.com|google\.com|youtube\.com|youtu\.be|x\.com|twitter\.com|t\.me|bing\.com|facebook\.com|instagram\.com|threads\.net|tiktok\.com)$/;
+  function faceUrl(it, big) {
+    if (!(pics() || it._pics)) return '';
+    if (it.src === 'X') return avOf(it, big ? '200x200' : 'bigger');
+    var yt = FACE_YT[it.h] || '';
+    if (/^https:\/\/yt3\.(?:ggpht|googleusercontent)\.com\/[A-Za-z0-9_\/=+-]+$/.test(yt)) return yt.replace(/=s\d+-/, big ? '=s176-' : '=s88-');
+    var dom = FACE_DOM[it.h] || (it.src === 'YouTube' ? '' : hostOf(it.u));
+    if (dom && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(dom) && !NO_LOGO.test(dom)) return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(dom) + '&sz=' + (big ? 128 : 64);
+    return '';
+  }
   function whoFace(it, big) {
-    if (it.src === 'X') {
-      var av = pics() || it._pics ? avOf(it, big ? '200x200' : 'bigger') : '';
-      return av ? '<span class="ir-by-av" style="background-image:url(' + esc(av) + ')" aria-hidden="true"></span>'
-        : '<span class="ir-by-av is-mono" style="--pc:' + pfColor(pfOf(it)) + '" aria-hidden="true">' + esc(initials(it)) + '</span>';
-    }
-    return '<span class="ir-by-av is-mk" aria-hidden="true">' + mark(it, 'ir-by-mk') + '</span>';
+    var u = faceUrl(it, big), cls = !u ? ' is-mono' : it.src === 'X' || it.src === 'YouTube' ? '' : ' is-logo';
+    return '<span class="ir-by-av' + cls + '" style="--pc:' + pfColor(pfOf(it)) + (u ? ';background-image:url(' + esc(u) + ')' : '') + '" aria-hidden="true">' +
+      (u ? '' : '<i>' + esc(initials(it)) + '</i>') + pfBadge(it) + '</span>';
   }
   function byline(it, big) {
     var nm = whoName(it); if (!nm) return '';
-    var h = it.src === 'X' && it.h && it.h.toLowerCase() !== nm.toLowerCase() ? it.h : '';
+    var h = it.src === 'X' ? (it.h && it.h.toLowerCase() !== nm.toLowerCase() ? it.h : '') : pfName(pfOf(it));          // a handle on X; elsewhere the platform by name (YouTube, News)
     return '<span class="ir-by' + (big ? ' ir-by-big' : '') + '">' + whoFace(it, big) + '<b' + DA + '>' + bd(esc(nm)) + '</b>' + (h ? '<small>' + esc(h) + '</small>' : '') + '</span>';
   }
   // Shouting taken out of a line the room writes itself (the story line under a pill): a run of three or more words in
@@ -721,6 +758,8 @@
     // an X post of words only: the author's face, sharp in the middle of the same face blurred (as a chat app previews it)
     if (v.k === 'av') return '<span class="ir-th ir-th-av" style="' + pc + (under ? ';background-image:url(' + under + ')' : '') + '"><span class="ir-th-i" style="background-image:url(' + esc(v.u) + ')"></span><span class="ir-th-a" style="background-image:url(' + esc(v.u) + ')"></span>' + m + '</span>';
     if (v.k === 'loc') return '<span class="ir-th ir-th-loc" style="' + pc + ';background-image:url(' + v.u + ')">' + m + '</span>';
+    var lg = it.src !== 'X' ? faceUrl(it, true) : '';          // an article with no picture shows its outlet's logo (FACES)
+    if (lg) return '<span class="ir-th ir-th-logo" style="' + pc + '"><span class="ir-th-i" style="background-image:url(' + esc(lg) + ')"></span>' + m + '</span>';
     return '<span class="ir-th ir-th-mono" style="' + pc + '"><i>' + esc(initials(it)) + '</i>' + m + '</span>';
   }
   function card(it, i) {
@@ -731,6 +770,20 @@
     return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
       '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span><span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
   }
+  /* NEVER A DEAD END (23 Oct 2026). A story, a search or a subject that leaves fewer than SHOW_MIN things ends in the way
+     to more: the same search on X, YouTube and Google News, each in a new tab, and every filter cleared in one tap. */
+  function moreSources() {
+    if (S.lens !== 'live' || shown.length >= SHOW_MIN) return '';
+    var h = S.hot && S.hot !== 'all' && S.hot !== 'blind' ? hotById(S.hot) : null;
+    var q = h ? (h.q || h.name) : S.q ? S.q : S.tp.length ? S.tp.map(topicName).join(' ') : '';
+    q = String(q || '').replace(/[^\p{L}\p{N}\s'’.-]/gu, ' ').replace(/\s+/g, ' ').trim();
+    if (!q) return '';
+    var e = encodeURIComponent(q);
+    var a = function (u, p, w) { return '<a href="' + u + '" target="_blank" rel="noopener" style="--pc:' + pfColor(p) + '"><svg viewBox="0 0 20 20" aria-hidden="true">' + PF_ICON[p] + '</svg><span>' + w + '</span></a>'; };
+    return '<li class="ir-moresrc"><p>' + T('Only {n} here. Find more on:', { n: N(shown.length) }) + '</p><div>' +
+      a('https://x.com/search?q=' + e + '&f=top', 'X', T('More on X')) + a('https://www.youtube.com/results?search_query=' + e, 'YouTube', T('More on YouTube')) +
+      a('https://news.google.com/search?q=' + e, 'News', T('More in the news')) + (nActive() ? '<button type="button" data-clear>' + T('Clear every filter') + '</button>' : '') + '</div></li>';
+  }
   function moreText() { return T('Show {n} more ({m} left)', { n: N(Math.min(PAGE_N, shown.length - limit)), m: N(shown.length - limit) }); }
   function drawList() {
     var ol = $('ir-items');
@@ -739,7 +792,7 @@
         ? '<li class="ir-empty">' + (rdState === 'loading' ? T('Loading what readers sent.') : rdState === 'off' ? T('Readers\' finds show here on the live site.') : T('Nothing waiting to be checked right now.')) + '<br><a href="#add">' + T('Be the next to add something') + '</a></li>'
         : '<li class="ir-empty">' + T('Nothing here matches all of that.') + '<br><button type="button" data-clear>' + T('Clear every filter') + '</button></li>';
     } else {
-      ol.innerHTML = shown.slice(0, limit).map(card).join('');
+      ol.innerHTML = shown.slice(0, limit).map(card).join('') + (shown.length <= limit ? moreSources() : '');
     }
     $('ir-more').hidden = shown.length <= limit;
     $('ir-more').textContent = moreText();
@@ -755,7 +808,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=5721044808): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=f532a918da): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1357,7 +1410,7 @@
         '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg><span>Blindspots</span> <i>' + blind + '</i></button>' : '');
     if (top.length) {
       html += '<span class="ir-hc-sep" aria-hidden="true"></span>' + top.map(function (h) {
-        var n = h.its.filter(function (it) { return pass(it, 'hot'); }).length;
+        var n = h.all.filter(function (it) { return pass(it, 'hot'); }).length;
         return '<button class="ir-chip ir-hc ir-hs" type="button" data-hot="' + esc(h.id) + '" aria-pressed="' + (onLive && S.hot === h.id) + '" title="' + esc(h.title + (h.s && h.s.ls ? '. ' + spreadWords(h.s.ls) : '')) + '"><b class="num">' + N(h.hot) + '</b><span class="ir-hs-n"' + DA + '>' + esc(h.name) + '</span>' + (onLive ? ' <i>' + N(n) + '</i>' : '') +
           (h.s && h.s.ls ? spreadBar(h.s.ls, 'ir-sp-chip') : '') + '</button>';
       }).join('');
@@ -1567,9 +1620,12 @@
     var h = hotById(S.hot); if (!h) return '';
     var lead = h.its.filter(function (it) { return it.id === 'L' + h.lead; })[0] || h.its[0];
     var s = h.s || {}, bits = [];
-    var xn = s.xn != null ? s.xn : h.its.filter(function (it) { return it.src === 'X'; }).length;
+    var cnt = function (src) { return h.all.filter(function (it) { return it.src === src; }).length; }, xn = cnt('X'), an = cnt('News'), vn = cnt('YouTube');
+    if (h.all.length > h.its.length) bits.push(T('{n} in all', { n: N(h.all.length) }));
     if (xn) bits.push(T(xn === 1 ? '1 post on X' : '{n} posts on X', { n: N(xn) }));
-    if (s.out) bits.push(T(s.out === 1 ? '1 outlet' : '{n} outlets', { n: N(s.out) }));
+    if (an) bits.push(T(an === 1 ? '1 article' : '{n} articles', { n: N(an) }));
+    if (vn) bits.push(T(vn === 1 ? '1 video' : '{n} videos', { n: N(vn) }));
+    if (s.out && !an) bits.push(T(s.out === 1 ? '1 outlet' : '{n} outlets', { n: N(s.out) }));
     if (s.x10k) bits.push(T('{n} over 10,000 likes', { n: N(s.x10k) }));
     var said = String(fullText(lead) || lead.t || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, ' ')
       .replace(/^\W*(?:(?:major |big )?breaking(?: news)?|just in|now|wow|boom)\s*[:!\-|]+\s*/i, '').replace(/\s+/g, ' ').trim();
@@ -2361,12 +2417,12 @@
     if (!shown.length) return;
     closeSpot(); tourAt = -1; tourStep(1);
     clearInterval(tourT); tourT = setInterval(function () { tourStep(1); }, TOUR_MS);
-    $('ir-tour').setAttribute('aria-pressed', 'true'); $('ir-tour').querySelector('span').textContent = T('Stop tour');
+    $('ir-tour').setAttribute('aria-pressed', 'true'); $('ir-tour').querySelector('span').textContent = T('Stop playing');
   }
   function stopTour() {
     if (!tourT && $('ir-lt').hidden) return;
     clearInterval(tourT); tourT = 0; lowerThird(null);
-    $('ir-tour').setAttribute('aria-pressed', 'false'); $('ir-tour').querySelector('span').textContent = T('Tour');
+    $('ir-tour').setAttribute('aria-pressed', 'false'); $('ir-tour').querySelector('span').textContent = T('Play');
   }
 
   /* ------------------------------------------------------------ full screen, for a stream */
@@ -2933,12 +2989,22 @@
   Promise.all([fetch(root.getAttribute('data-src')).then(function (r) { if (!r.ok) throw r; return r.json(); }),
                G ? soft(root.getAttribute('data-geo')) : Promise.resolve(null),
                soft(liveUrl, { cache: 'no-cache' }), soft(reachUrl, { cache: 'no-cache' }),
-               soft(root.getAttribute('data-packs'), { cache: 'no-cache' }), soft(root.getAttribute('data-words'), { cache: 'no-cache' })]).then(function (res) {
+               soft(root.getAttribute('data-packs'), { cache: 'no-cache' }), soft(root.getAttribute('data-words'), { cache: 'no-cache' }),
+               soft(root.getAttribute('data-deep'), { cache: 'no-cache' })]).then(function (res) {
     D = res[0]; BANK = D.items; P = D.places; topics = D.topics;
     if (CFG.live === 'news' && res[2] && (res[2].schema !== CFG.schema || !Array.isArray(res[2].topics))) res[2] = null;          // an unknown shape is refused; the headlines the page came with stay
     if (CFG.live === 'news' && res[2]) NEWS_TK = res[2].topics.map(String);
     if (res[2] && Array.isArray(res[2].items)) { LIVE_AT = Date.parse(res[2].at) || 0; LIVE = res[2].items.filter(function (it) { return it && it.u && it.t; }).map(normLive); }
     PACKS = res[4] && Array.isArray(res[4].stories) ? res[4] : null;
+    var dp = res[6];
+    if (dp && Array.isArray(dp.items) && dp.stories && typeof dp.stories === 'object') {
+      FACE_YT = dp.faces && dp.faces.yt || {}; FACE_DOM = dp.faces && dp.faces.dom || {};
+      if (LIVE.length && PACKS && dp.packs === PACKS.at) {          // the found items of this hour's stories, never another hour's
+        var haveU = {}; LIVE.forEach(function (it) { haveU[it.u] = 1; });
+        dp.items.forEach(function (it) { if (it && it.u && it.t && it.d && !haveU[it.u]) { haveU[it.u] = 1; it = normLive(it); it._deep = 1; LIVE.push(it); } });
+        DEEP = dp; DEEP_FRESH = true;
+      }
+    }
     WORDS = res[5] && res[5].stories && typeof res[5].stories === 'object' ? res[5] : null;
     makeHots();
     if (res[3] && res[3].by && typeof res[3].by === 'object') { REACH = res[3].by; REACH_AT = Date.parse(res[3].at) || 0; }
@@ -3031,12 +3097,14 @@
       addTab: function (key, t) { LTX[key] = t; drawLinkList(); },
       tab: function (key) { LT = LTX[key] || key === 'links' ? key : 'items'; drawList(); drawLinkList(); },
       tabOn: function () { return LT; },
-      addSpot: function (f) { SPOTX.push(f); }, spread: spreadOf, rendered: function () { render(); } };
+      addSpot: function (f) { SPOTX.push(f); }, spread: spreadOf, rendered: function () { render(); },
+      // a mark on every card's meta line, after the room's own (23 Oct 2026: the Iran room's camp of each source, news-camps.js)
+      addBadge: function (f) { BADGEX.push(f); drawList(); } };
     (root.getAttribute('data-addons') || '').split(' ').filter(Boolean).forEach(function (src, i) {          // the page's add-ons (intel.py), after the room is ready
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=5721044808'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=f532a918da'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
