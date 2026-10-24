@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=9a2e265742 and assets/community-fa.js?v=9a2e265742, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=853cec594a and assets/community-fa.js?v=853cec594a, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -1722,7 +1722,7 @@ function keptMark(text) {
       : (me && me.name && V && vsay(V.nudge, { name: me.name })) || (discCount > 0 ? tt('Agree, or not? Add what you think.') : ph.getAttribute('data-was'));
     const i = nd.querySelector('.nudge-in i'); if (i) i.textContent = kept ? tt('Finish it') : tt('Discuss');
   }
-  if (go) go.textContent = kept ? tt('Finish your unsent note') : tt('Open the discussion') + (discCount > 0 ? ' (' + (discCount > 99 ? dig('99') + '+' : dig(discCount)) + ')' : '');
+  if (go) go.textContent = kept ? tt('Finish your unsent note') : tt('Open the discussion') + (discCount > 0 ? ' (' + (discCount >= 300 ? dig(300) + '+' : dig(discCount)) + ')' : '');
   if (tab) tab.setAttribute('aria-label', (discCount > 0 ? (discCount === 1 ? tt('Discussion, {n} post', { n: discCount }) : tt('Discussion, {n} posts', { n: discCount })) : tt('Discussion')) + (kept ? tt(', your unsent note is here') : ''));
 }
 function paintBox() {
