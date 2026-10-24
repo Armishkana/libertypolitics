@@ -44,6 +44,9 @@
    7. Every asset's own newest news (data/intel-forces-news.json, its own search, every headline names it) heads its
       profile; a ship says where, how exact, the date and how old. A site that would sit on a news circle moves to its
       rim with a thin line back, so no count is ever hidden.
+   8. A site's or a ship's card (24 Oct 2026, photoHtml and covHtml): up to three photos of it from its Wikipedia article,
+      then everything said about it (the room's items, its own X, YouTube and article searches) drawn as the room's own
+      cards with All / X / YouTube / Articles; a tap opens the room's spotlight on it (IRoom.openList) with Back to the card.
    5. In every story's spotlight: HOW EACH SIDE FRAMED IT (Ground News's headlines side by side, from
       data/intel-frames.json, written by intel_live.py frames()), who reported it first, the military sites the story
       names, and YOUR BALANCE: the lean of what this reader opened here in 7 days (kept on this device only).
@@ -617,7 +620,22 @@
      article search (30 days) from build/intel_forces.py, and USNI's newer stories about a ship. One address or one headline
      is one row; newest first. A tap opens the room's own spotlight on it (window.IRoom.openList), stepping through what the
      reader is looking at, with "Back to <the asset>". */
-  var COV = {}, COVF = {}, COVN = {}, COV_STEP = 6, CUR = '', SCROLL = {};
+  var COV = {}, COVF = {}, COVN = {}, COVS = {}, COV_STEP = 6, CUR = '', SCROLL = {};
+  /* BEST FIRST (24 Oct 2026, Armin on USS George Washington: "are these really the best things"). Newest first put an
+     unknown channel's video on top because it was an hour newer than Sky News'. Each item now scores by how much the
+     room trusts who said it (cr: the room's own lists, build/intel_forces.py cr_of), how far it reached (likes and
+     reposts on X, views on YouTube) and how fresh it is, a day costing what a tenth more reach buys. The Persian page puts
+     Persian first. "Newest first" is one tap away for the latest word on where a ship is. Language is never decided
+     here: every file this reads holds only what this room's readers can read (build/room_lang.py). */
+  function covScore(it, a) {
+    var ms = Date.parse(it.d || ''), age = isFinite(ms) ? Math.max(0, (Date.now() - ms) / 864e5) : 30;
+    // about IT, not only mentioning it: a post on USS Theodore Roosevelt that names George Washington in its last line
+    // ranked first on George Washington's card (24 Oct). Named in the opening words counts for a fifth of the trust scale.
+    var lead = String(it.t || '').slice(0, 120), about = a && ((a._rx && a._rx.test(lead)) || (a._rxf && a._rxf.test(nozw(lead)))) ? 12 : 0;
+    var cr = it.cr != null && isFinite(+it.cr) ? +it.cr : it.src === 'News' ? 55 : 50;
+    var reach = it.src === 'X' ? 8 * Math.log(1 + (+it.lk || 0) + 2 * (+it.rp || 0)) / Math.LN10 : it.src === 'YouTube' || /youtu\.?be/.test(it.u || '') ? 5 * Math.log(1 + (+it.vw || 0)) / Math.LN10 : 0;
+    return cr + reach + about - Math.min(30, 2.5 * age) + (FA && /[؀-ۿ]/.test(it.t || '') ? 25 : 0);
+  }
   function urlKey(u) {
     u = String(u || ''); var m;
     if ((m = /(?:x|twitter)\.com\/[^\/]+\/status\/(\d+)/.exec(u))) return 'x:' + m[1];
@@ -629,7 +647,7 @@
   function names(a, it) { var w = words(it); return !!((a._rx && a._rx.test(w)) || (a._rxf && a._rxf.test(nozw(w)))); }
   function coverOf(a) {
     var lv = R.live ? R.live() : [], bk = R.bank ? R.bank() : [];
-    var key = MKEY + ':' + lv.length + ':' + bk.length;
+    var srt = COVS[a.id] || 'best', key = MKEY + ':' + lv.length + ':' + bk.length + ':' + srt;
     if (COV[a.id] && COV[a.id].key === key) return COV[a.id].list;
     var out = [], seenU = {}, seenT = {};
     function add(it) {
@@ -644,10 +662,11 @@
     (AYT[a.id] || []).forEach(add);
     (a.nw || []).forEach(function (x, i) { add({ id: 'usni-' + a.id + '-' + i, t: x.t, u: x.u, src: 'News', h: T('USNI News'), dm: 'news.usni.org', d: x.at, k: 'article' }); });
     (AN[a.id] || []).forEach(function (x, i) { add({ id: 'an-' + a.id + '-' + i, t: x.t, u: x.u, src: 'News', h: x.s || '', dm: x.dm || '', d: x.d, k: 'article' }); });
-    // each kind newest first, then taken in turns (an X post, a video, an article ...), the kind with the newest item first:
-    // newest first alone filled the first screen with one kind and hid the others (measured on USS Theodore Roosevelt, 24 Oct)
+    // each kind best first (or newest first), then taken in turns (an X post, a video, an article ...), the kind with the
+    // best item first: one order alone filled the first screen with one kind and hid the others (USS Theodore Roosevelt, 24 Oct)
     var ms = function (it) { var v = Date.parse(it.d || ''); return isFinite(v) ? v : 0; };
-    out.sort(function (x, y) { return ms(y) - ms(x); });
+    out = out.map(function (it) { return { it: it, s: srt === 'new' ? 0 : covScore(it, a), m: ms(it) }; })
+      .sort(function (x, y) { return y.s - x.s || y.m - x.m; }).map(function (x) { return x.it; });
     var by = {}, order = [];
     out.forEach(function (it) { var k = covKind(it); if (!by[k]) { by[k] = []; order.push(k); } by[k].push(it); });
     var mixed = [];
@@ -672,6 +691,12 @@
     if (chips.length > 2) h += '<div class="irf-cfs" role="group" aria-label="' + esc(T('Show only')) + '">' + chips.map(function (c) {
       return '<button type="button" class="irf-cf" data-irf-cf="' + c[0] + '" aria-pressed="' + (f === c[0] ? 'true' : 'false') + '">' + esc(c[1]) + ' <i class="num">' + N(cnt[c[0]]) + '</i></button>';
     }).join('') + '</div>';
+    if (all.length > 1) {
+      var so = COVS[a.id] || 'best';
+      h += '<div class="irf-cfs irf-cso" role="group" aria-label="' + esc(T('Order')) + '">' + [['best', T('Best first')], ['new', T('Newest first')]].map(function (c) {
+        return '<button type="button" class="irf-cf" data-irf-cs="' + c[0] + '" aria-pressed="' + (so === c[0] ? 'true' : 'false') + '">' + esc(c[1]) + '</button>';
+      }).join('') + '</div>';
+    }
     h += '<ol class="irf-covl">' + list.slice(0, n).map(function (it, i) { return R.cardHtml(it, 'data-irf-cov="' + i + '"'); }).join('') + '</ol>';
     if (list.length > n) h += '<button type="button" class="ir-s-b irf-covm" data-irf-covm>' + esc(T('Show {n} more', { n: N(Math.min(10, list.length - n)) })) + '</button>';
     return h + '<p class="irf-note">' + esc(T('Every one names it: X posts from the last 7 days, videos and articles from the last 30 days, and what the room carries. Tap one to see it here.')) + '</p>' + moreOn(a) + '</section>';
@@ -732,6 +757,7 @@
       if ((b = t.closest('[data-irf-cov]'))) { openCov(+b.getAttribute('data-irf-cov')); return; }
       if ((b = t.closest('[data-irf-oi]'))) { openFrom(listOf(b.getAttribute('data-irf-ol') || ''), +b.getAttribute('data-irf-oi')); return; }
       if ((b = t.closest('[data-irf-cf]'))) { COVF[CUR] = b.getAttribute('data-irf-cf'); COVN[CUR] = COV_STEP; redrawCov(); return; }
+      if ((b = t.closest('[data-irf-cs]'))) { COVS[CUR] = b.getAttribute('data-irf-cs'); COVN[CUR] = COV_STEP; redrawCov(); return; }
       if ((b = t.closest('[data-irf-covm]'))) { COVN[CUR] = (COVN[CUR] || COV_STEP) + 10; redrawCov(); return; }
       if ((b = t.closest('[data-irf-ph]'))) { PH_AT[CUR] = +b.getAttribute('data-irf-ph') || 0; redrawPh(); return; }
       if ((b = t.closest('[data-irf-phon]'))) { PH_ON[CUR] = 1; redrawPh(); return; }

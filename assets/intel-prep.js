@@ -242,7 +242,9 @@
     Object.keys(cand).forEach(function (w) {
       if (Object.keys(names).some(function (k) { return names[k].rx.test(w); })) return;          // already known (Macron, France)
       var placeish = set.filter(function (it) { return new RegExp('\\b(in|across|from|near|outside)\\s+' + w + '\\b(?!\\s+[A-Z])').test(it.t || ''); }).length >= 2;
-      add(w, { name: w, up: w.toUpperCase(), rx: rxWord(w), foe: false, kind: placeish ? 'place' : 'name', of: '', open: true });
+      // a name found by its capital is matched with its capital (24 Oct 2026: "Ilhan Nur Said Elmi" made "Said" a name, and the
+      // case-free match then refused every description that says "who said what", leaving the maker with one)
+      add(w, { name: w, up: w.toUpperCase(), rx: new RegExp('(^|[^A-Za-z])(' + w + ')([^A-Za-z]|$)'), foe: false, kind: placeish ? 'place' : 'name', of: '', open: true });
     });
     Object.keys(names).forEach(function (k) {
       var e = names[k];
@@ -495,29 +497,54 @@
       '\n\nEvery source on one map: https://' + SITE_MARK;
   }
 
-  /* ---------------------------------------------------------------- the run order
+  /* ---------------------------------------------------------------- the run order, story by story
      Armin, 18 October 2026: "come up with the best order of the items so that the most viral, most important things are
-     first. We don't jump around, so we start with something very viral, and then we do a couple of things that are very
-     close to the first item before we move to the next items ... give me the option to change ... Always take notes on how
-     people and I change it."
-     STRENGTH: how hot the item is and how far it has travelled (heat, its viral rank, likes, views), times how squarely it
-     is ON the show's subject: an item that names none of the set's main names, its country or what happened counts for
-     little more than a third (the Iran post in the France riots set, a Congress post in it: strong, but another story).
-     WHICH ITEMS GO IN: the strongest MAXN of everything the filters leave (never just the first maxN() of the room's sort), a
-     repost of the same thing kept once.
-     THE ORDER: threads. The strongest opens (for a live show a video or picture when one is nearly as strong: the opener is
-     on screen); then up to three that are closest to it, closest first; then the strongest left opens the next thread.
-     "Close" is the rare words two headlines share, weighted by how rare they are in this set: Limoges, Marseille, town
-     hall, Macron's absence. A word that half the set shares (France, riots) separates nothing; a word only one item has
-     links nothing; a name counts half again. Every change he makes is kept on this device and, when he opens the show screen
-     or copies the package, sent to showedits/ (build/show_learn.py counts them). */
+     first. We don't jump around ... give me the option to change ... Always take notes on how people and I change it."
+     And 24 October 2026, on the order that came out: "when I create a filter and I have 20 tweets to show, and then I click
+     make a show ... you don't put it in a logical order for that to make sense on the show. It goes all over the place.
+     Come up with the best strategy to fix that." What made it jump, read in the 18 October code: a thread held at most four
+     items, so a big story was cut into several threads that were then interleaved with other stories by strength; a Persian
+     headline had no words at all (only Latin letters were kept), so on Iran Uncensored nothing grouped; threads followed
+     each other by strength alone, never by how related they were; inside a thread the order was likeness to its first
+     item, not the order a host tells a story; and the room's own stories (R.storyOf) were only ever a penalty.
+     So now, the show is told story by story:
+     STRENGTH (vScore, scorer): how hot an item is and how far it has travelled, times how squarely it is ON the show's subject.
+     SEGMENTS (segment): an item's segment is its story of the hour (R.storyOf: a story build/show_packs.py made; the room's
+     own fallback groups by country are not stories), whole, with no cap. An item with no story joins the segment it is
+     strongly related to (JOIN): the rare words two items share in either language (Persian letters made one first: ي ی,
+     ك ک, the half space out, a small list of Persian small words), the people and groups both name (R.actors), the X posts
+     a news story lists as its own (rx), and, weaker, the exact place, the country, the names, the subjects and the region.
+     A word or a mark that half the set shares separates nothing. Otherwise an item is a segment of its own.
+     WHICH GO IN (pickSet), when the filters leave more than the show holds: segments in order of strength, each giving its
+     strongest items up to a cap (8 for a live show, 6 for a video), so a big story comes in with its core and never as one
+     stray item; then, while there is room, the rest of each segment in the same order. A repost of the same thing once.
+     THE ORDER (threadOrder): the strongest segment opens (a live show opens on something to look at when one is nearly as
+     strong, as before); after each segment the next is the one most related to it (REL) among those within about a third of
+     the strongest left (all the war stories together, then US politics), else the strongest left. A story once left is
+     never come back to.
+     INSIDE A SEGMENT (tell), the order a host tells it: what happened (the best report: an article or a news outlet's
+     video, unless the strongest clip is far stronger, then the clip opens), the evidence (clips and pictures, strongest
+     first), the reactions (posts, most liked first), the other reports, and long commentary last; ties go older first, so
+     the story moves forward in time.
+     Every change a creator makes is kept on this device and, when they open the show screen or copy its package, sent to
+     showedits/ (build/show_learn.py counts them). build/phone-test.html "THE RUN ORDER" holds the fixture that proves it. */
   var STOP = /^(the|and|for|that|this|these|those|with|from|have|has|had|are|was|were|will|would|could|should|just|now|they|their|them|there|then|what|when|where|which|who|whom|you|your|our|ours|not|but|all|out|into|about|after|over|more|most|than|very|been|being|its|his|her|she|him|how|why|can|does|did|doing|get|got|gets|says|said|say|today|tonight|yet|again|still|here|one|two|new|breaking|watch|live|video|full|report|update|amp|https|com|www|every|like|looking|look|people|country|make|made|going|know|think|thing|things|really|even|only|also|some|any|many|much|while|because|before|right|left|time|year|years|day|days|week|now|soon|happen|happening|want|need|see|seen|come|coming|take|taking|way|back|down|off|ever|never|always|another|other|same|first|last|next|big|huge|massive|literally|absolutely|holy|shit|fuck|damn|crap)$/;
-  var TOKS = {};          // the words of each item, by its code: kept here, never written onto the room's items
+  // Persian small words (written and spoken), made one the way normFa makes a headline: they link nothing
+  var STOP_FA = /^(و|در|به|از|که|این|آن|اون|با|را|رو|برای|یک|یه|هم|تا|بر|است|هست|نیست|بود|بودن|شد|شده|شود|میشه|میشود|نمیشه|می|نمی|ها|های|خود|خودش|ما|شما|او|اونا|آنها|انها|ایشان|یا|اما|ولی|پس|چه|چی|کرد|کرده|کند|کنه|کنند|کنن|کردن|دارد|داره|دارند|دارن|گفت|گفته|باید|اگر|اگه|روی|پیش|بعد|قبل|همه|هر|دیگر|دیگه|نه|ای|اند|ایم|باشد|باشه|میکند|میکنه|توی|تو|اینکه|چون|حتی|فقط|الان|امروز|دیروز|امشب|ویدیو|ویدئو|فوری|خبر|خبری|گزارش|کامل|ببینید|زنده|جدید|بیشتر|هنوز|سال|روز|ساعت|شب|درباره|مورد|علیه|بین|بدون|عنوان|طور|چند|خیلی|کسی|چیزی|کار|حال|زمان|دو|سه|یکی|اینها|آن‌ها|اینجا|آنجا|اونجا|ببین|لطفا|نظر)$/;
+  function normFa(s) { return String(s).replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/‌/g, '').replace(/[ً-ٰٟـ]/g, '').replace(/[۰-۹]/g, function (d) { return String(d.charCodeAt(0) - 0x06F0); }); }
+  var TOKS = {}, FEATS = {};          // the words and marks of each item, by its code: kept here, never written onto the room's items
   function toks(it) {
-    var key = R.code(it) + '|' + (it.t || '').length;
+    var t = String(it.t || ''), tx = typeof it.tx === 'string' && it.tx.length > t.length ? it.tx.slice(0, 400) : t, key = R.code(it) + '|' + tx.length;
     if (TOKS[key]) return TOKS[key];
     var o = {};
-    String(it.t || '').replace(/[^A-Za-zÀ-ÿ0-9\s]/g, ' ').split(/\s+/).forEach(function (raw, i) {
+    normFa(tx).split(/[^\p{L}\p{N}]+/u).forEach(function (raw, i) {
+      if (!raw) return;
+      if (/[؀-ۿ]/.test(raw)) {          // Persian (or Arabic) letters: the plural ending off, the small words out
+        var p = raw.replace(/(های|ها)$/, '');
+        if (p.length < 3 || STOP_FA.test(raw) || STOP_FA.test(p)) return;
+        o[p] = Math.max(o[p] || 0, 1);
+        return;
+      }
       var w = raw.toLowerCase();
       if (w.length < 3 || STOP.test(w) || /^\d+$/.test(w)) return;
       var name = i > 0 && /^[A-Z][a-zà-ÿ]/.test(raw);
@@ -526,9 +553,22 @@
     });
     return (TOKS[key] = o);
   }
+  // the structured marks an item carries, as tokens with their own weight: the people and groups it names count most
+  function feats(it) {
+    var key = R.code(it);
+    if (FEATS[key]) return FEATS[key];
+    var f = {}, c = R.placeOf ? R.placeOf(it) : '';
+    (R.actors ? R.actors(it) : []).forEach(function (a) { f['a:' + a] = 1.6; });
+    (R.names ? R.names(it) : []).forEach(function (n) { f['n:' + n] = 0.5; });
+    if (it.p && it.p !== 'global' && it.p !== c) f['p:' + it.p] = 0.8;
+    if (c) f['c:' + c] = 0.7;
+    (R.subjects ? R.subjects(it) : []).forEach(function (k) { f['t:' + k] = 0.4; });
+    (R.fx ? R.fx(it) : []).forEach(function (k) { f['f:' + k] = 0.3; });
+    return (FEATS[key] = f);
+  }
   function vScore(it) {
     var lk = R.likes ? R.likes(it) : likes(it), r = R.reach(it) || {};
-    return (it.hot || 0) + (it._v || 0) * 0.4 + (lk ? 9 * Math.log(1 + lk) / Math.LN10 : 0) + (r.views ? 5 * Math.log(1 + r.views) / Math.LN10 : 0);
+    return (+it.hot || 0) + (it._v || 0) * 0.4 + (lk ? 9 * Math.log(1 + +lk) / Math.LN10 : 0) + (r.views ? 5 * Math.log(1 + r.views) / Math.LN10 : 0);
   }
   // strength times subject: a function of an item, measured against the pool the filters leave
   function scorer(pool) {
@@ -543,15 +583,17 @@
       return (memo[k] = vScore(it) * (on ? 1 : 0.36));
     };
   }
+  // How related two items are: the rare words and marks they share, each weighted by how rare it is in this set
   function simOf(list) {
-    var df = {}, N = list.length || 1;
-    list.forEach(function (it) { Object.keys(toks(it)).forEach(function (w) { df[w] = (df[w] || 0) + 1; }); });
-    var idf = function (w) { var d = df[w] || 0; return d < 2 || d >= N * 0.5 ? 0 : Math.log(N / d); };
+    var df = {}, N = list.length || 1, raw = function (it) { return String(it.id || '').replace(/^L/, ''); };
+    list.forEach(function (it) { Object.keys(toks(it)).concat(Object.keys(feats(it))).forEach(function (w) { df[w] = (df[w] || 0) + 1; }); });
+    var idf = function (w) { var d = df[w] || 0; return d < 2 || d > Math.max(2, N * 0.5) ? 0 : Math.log(1 + N / d); };
     return function (a, b) {
-      var ta = toks(a), tb = toks(b), s = 0;
+      var ta = toks(a), tb = toks(b), fa = feats(a), fb = feats(b), s = 0;
       Object.keys(ta).forEach(function (w) { if (tb[w]) s += idf(w) * Math.max(ta[w], tb[w]); });
-      var ha = R.storyOf ? R.storyOf(a) : null, hb = R.storyOf ? R.storyOf(b) : null;
-      if (ha && hb && ha !== hb) s -= 1;          // two different stories of the hour are two threads
+      Object.keys(fa).forEach(function (w) { if (fb[w]) s += idf(w) * fa[w]; });
+      // a news story names the X posts that share its words (intel_live.py join_x, rx): the same story, whatever else
+      if ((Array.isArray(a.rx) && a.rx.indexOf(raw(b)) >= 0) || (Array.isArray(b.rx) && b.rx.indexOf(raw(a)) >= 0)) s += 4;
       return s;
     };
   }
@@ -559,57 +601,139 @@
     var ta = Object.keys(toks(a)), tb = toks(b), n = 0; ta.forEach(function (w) { if (tb[w]) n++; });
     var u = ta.length + Object.keys(tb).length - n; return u > 3 && n / u >= 0.8;
   }
-  var NEAR = 1.1, THREAD = 4;
-  function pickSet(all) {
-    var score = scorer(all), sorted = all.slice().sort(function (a, b) { return score(b) - score(a); }), out = [], seenU = {};
-    for (var i = 0; i < sorted.length && out.length < maxN(); i++) {
-      var it = sorted[i], u = String(it.u || '').replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.|mobile\.)?/, '');
+  var JOIN = 2.4, REL = 2, NEAR_STR = 0.65;
+  // the story an item belongs to: one build/show_packs.py made (it carries s); the room's fallback groups by country do not
+  // An item the hourly search found FOR a story (build/intel_deep.py: rel and deep, the story's ids) is in that story too.
+  function storyFn(opt) {
+    if (opt && typeof opt.storyOf === 'function') return opt.storyOf;
+    var found = {};
+    (R.hots ? R.hots() : []).forEach(function (h) { if (h.s && h.ids) Object.keys(h.ids).forEach(function (id) { if (!found[id]) found[id] = h; }); });
+    return function (it) { var h = R.storyOf ? R.storyOf(it) : null; return h && h.s ? h : found[it.id] || null; };
+  }
+  function segment(list, score, sim, storyOf) {
+    var segs = [], by = {}, order = list.slice().sort(function (a, b) { return score(b) - score(a); });
+    order.forEach(function (it) { var h = storyOf(it); if (!h) return; var k = 's' + h.id; if (!by[k]) segs.push(by[k] = { key: k, h: h, its: [] }); by[k].its.push(it); });
+    order.forEach(function (it) {
+      if (storyOf(it)) return;
+      var best = null, bs = 0;
+      segs.forEach(function (g) {
+        var ss = g.its.map(function (x) { return sim(it, x); }).sort(function (a, b) { return b - a; });
+        var s = ss.length > 1 ? (ss[0] + ss[1]) / 2 : ss[0];
+        if (s > bs) { bs = s; best = g; }
+      });
+      if (best && bs >= JOIN) best.its.push(it); else segs.push({ key: 'i' + R.code(it), h: null, its: [it] });
+    });
+    segs.forEach(function (g) {
+      g.its.sort(function (a, b) { return score(b) - score(a); });
+      g.str = score(g.its[0]) + (g.its[1] ? 0.3 * score(g.its[1]) : 0) + (g.its[2] ? 0.15 * score(g.its[2]) : 0);
+    });
+    return segs.sort(function (a, b) { return b.str - a.str; });
+  }
+  // what an item is in the telling of a story: the report, the clip (or picture), a reaction, or long commentary
+  function roleOf(it) {
+    var k = typeOf(it), dur = +it.dur || 0;
+    if (k === 'article') return it.src === 'X' ? 'reaction' : 'report';          // an X post that links an article is somebody's take on it
+    if (it.src === 'YouTube') {
+      if (/\/shorts\//.test(it.u || '')) return 'clip';
+      if (it.cat === 'commentary' || dur > 20 * 60) return 'talk';
+      return 'report';          // a news outlet's video (cat news), or a channel the room has no word for: the news
+    }
+    if (k === 'video' || k === 'image') return 'clip';
+    return 'reaction';
+  }
+  function tell(its, score, live) {
+    var older = function (a, b) { return (Date.parse(a.d || '') || 0) - (Date.parse(b.d || '') || 0); };
+    var by = function (f) { return function (a, b) { return (f(b) - f(a)) || older(a, b); }; };
+    var lk = function (it) { var l = R.likes ? R.likes(it) : likes(it); return +l || 0; };
+    var g = { report: [], clip: [], reaction: [], talk: [] };
+    its.forEach(function (it) { g[roleOf(it)].push(it); });
+    g.report.sort(by(score)); g.clip.sort(by(score)); g.talk.sort(by(score));
+    g.reaction.sort(function (a, b) { return (lk(b) - lk(a)) || (score(b) - score(a)) || older(a, b); });
+    var out = [], rep = g.report, v0 = g.clip[0], lead = rep[0];
+    // the clip opens when it is far stronger than any report; and a live show's first story opens on something to look at
+    if (lead && v0 && score(v0) > score(lead) * (live ? 0.85 : 1.6)) lead = null;
+    if (lead) { out.push(lead); rep = rep.slice(1); return out.concat(g.clip, g.reaction, rep, g.talk); }
+    // the clip opened: what happened comes straight after it, then the rest of the evidence
+    return g.clip.slice(0, 1).concat(rep.slice(0, 1), g.clip.slice(1), g.reaction, rep.slice(1), g.talk);
+  }
+  var NEARV = 0.85;
+  function pickSet(all, opt) {
+    var score = scorer(all), sorted = all.slice().sort(function (a, b) { return score(b) - score(a); }), cand = [], seenU = {};
+    var want = Math.max(maxN() * 4, 120);
+    for (var i = 0; i < sorted.length && cand.length < want; i++) {
+      // one address per thing: a YouTube video by its id (24 Oct 2026: cutting the query made every watch?v= link one address,
+      // so a show only ever held one YouTube video)
+      var it = sorted[i], y = R.yt ? R.yt(it.u) : '', u = y ? 'yt:' + y : String(it.u || '').replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.|mobile\.)?/, '');
       if (u && seenU[u]) continue;
-      if (out.some(function (x) { return sameWords(x, it); })) continue;          // the same clip reposted with the same words
+      if (cand.some(function (x) { return sameWords(x, it); })) continue;          // the same clip reposted with the same words
       if (u) seenU[u] = 1;
-      out.push(it);
+      cand.push(it);
+    }
+    var out = cand;
+    if (cand.length > maxN()) {
+      var segs = segment(cand, score, simOf(cand), storyFn(opt)), cap = maxN() >= 40 ? 8 : maxN() >= 20 ? 6 : 4;
+      out = [];
+      segs.forEach(function (g) { g.its.slice(0, cap).forEach(function (x) { if (out.length < maxN()) out.push(x); }); });
+      segs.forEach(function (g) { g.its.slice(cap).forEach(function (x) { if (out.length < maxN()) out.push(x); }); });
     }
     out.score = score;
     return out;
   }
-  // Threads are found for the whole set first, then put in order: every item joins the thread it is closest to overall (the
-  // two Limoges town hall clips together, even though one also names Macron), at most THREAD to a thread. Then the thread
-  // holding the strongest item opens, each thread is told strongest first and then closest to that, and the next thread is
-  // the one holding the strongest item left.
-  function threadOrder(set) {
-    var score = set.score || vScore, sim = simOf(set), visual = function (it) { var k = typeOf(it); return k === 'video' || k === 'image'; };
-    var n = set.length, S = [], i, j;
-    for (i = 0; i < n; i++) { S.push([]); for (j = 0; j < n; j++) S[i].push(i === j ? 0 : sim(set[i], set[j])); }
-    var groups = set.map(function (it, k) { return [k]; });
-    for (;;) {
-      var best = -1, bi = -1, bj = -1;
-      for (i = 0; i < groups.length; i++) for (j = i + 1; j < groups.length; j++) {
-        if (groups[i].length + groups[j].length > THREAD) continue;
-        var tot = 0; groups[i].forEach(function (x) { groups[j].forEach(function (y) { tot += S[x][y]; }); });
-        var avg = tot / (groups[i].length * groups[j].length);
-        if (avg > best) { best = avg; bi = i; bj = j; }
-      }
-      if (bi < 0 || best < NEAR) break;
-      groups[bi] = groups[bi].concat(groups[bj]); groups.splice(bj, 1);
+  // The set in the order it is told: segments (above), the strongest first, each followed by the most related one near it
+  // in strength; inside each, the order a host tells it. why: one plain line per item; segs: each segment, where it starts.
+  function threadOrder(set, opt) {
+    var score = set.score || vScore, sim = simOf(set), live = st.kind === 'live' && !(opt && opt.video);
+    var visual = function (it) { var k = typeOf(it); return k === 'video' || k === 'image'; };
+    var left = segment(set, score, sim, storyFn(opt));
+    if (!left.length) return { list: [], why: {}, threads: 0, segs: [], segOf: {} };
+    var top0 = score(left[0].its[0]), vis0 = function (g) { return g.its.some(function (x) { return visual(x) && score(x) >= top0 * NEARV; }); };
+    // a live show opens on something to look at: the segment with a video or picture nearly as strong as the strongest goes first
+    var first = live && !vis0(left[0]) ? left.filter(vis0)[0] || left[0] : left[0];
+    // how related two segments are: each item's best match on the other side, the middle one of them taken both ways, so one stray joke post
+    // that names Netanyahu does not make a celebrity story "related" to a West Bank attack: both sides must be about the other
+    var rel = function (A, B) {
+      var best = function (P, Q) {
+        var m = P.its.map(function (x) { return Math.max.apply(null, Q.its.map(function (y) { return sim(x, y); })); }).sort(function (a, b) { return a - b; }), h = m.length >> 1;
+        return m.length % 2 ? m[h] : (m[h - 1] + m[h]) / 2;          // the median: one item that happens to share a name moves nothing
+      };
+      return Math.min(best(A, B), best(B, A));
+    };
+    var placed = [first]; left.splice(left.indexOf(first), 1); first.relTo = null;
+    while (left.length) {
+      var last = placed[placed.length - 1], strong = left[0].str, best = null, br = REL;
+      left.forEach(function (g) { if (g.str < strong * NEAR_STR) return; var r = rel(last, g); if (r > br) { br = r; best = g; } });
+      var next = best || left[0];
+      next.relTo = best ? last : null;
+      placed.push(next); left.splice(left.indexOf(next), 1);
     }
-    var top = function (g) { return Math.max.apply(null, g.map(function (k) { return score(set[k]); })); };
-    groups.sort(function (a, b) { return top(b) - top(a); });
-    // a live show opens on something to look at: the thread with a video or picture nearly as strong as the strongest goes first
-    if (st.kind === 'live' && groups.length > 1 && !groups[0].some(function (k) { return visual(set[k]) && score(set[k]) >= top(groups[0]) * 0.85; })) {
-      var vi = -1; groups.some(function (g, gi) { if (g.some(function (k) { return visual(set[k]) && score(set[k]) >= top(groups[0]) * 0.85; })) { vi = gi; return true; } return false; });
-      if (vi > 0) groups.unshift(groups.splice(vi, 1)[0]);
-    }
-    var out = [], why = {};
-    groups.forEach(function (g, gi) {
-      var lead = g.slice().sort(function (a, b) { return score(set[b]) - score(set[a]); });
-      var seed = lead[0];
-      if (gi === 0 && st.kind === 'live' && !visual(set[seed])) { var v = lead.filter(function (k) { return visual(set[k]) && score(set[k]) >= score(set[seed]) * 0.85; })[0]; if (v != null) seed = v; }
-      var at = out.length + 1;
-      out.push(set[seed]); why[R.code(set[seed])] = gi === 0 ? 'Opens the show: the strongest' : 'Next thread: the strongest left';
-      g.filter(function (k) { return k !== seed; }).sort(function (a, b) { return S[seed][b] - S[seed][a] || score(set[b]) - score(set[a]); })
-        .forEach(function (k) { out.push(set[k]); why[R.code(set[k])] = 'Same thread as #' + at; });
+    var out = [], why = {}, segs = [], segOf = {};
+    placed.forEach(function (g, gi) {
+      var its = tell(g.its, score, live && gi === 0), at = out.length + 1;
+      g.at = at;
+      segs.push({ at: out.length, n: its.length, name: segName(g), rel: !!g.relTo, relAt: g.relTo ? g.relTo.at : 0 });
+      var sawReport = false;
+      its.forEach(function (it, k) {
+        var c = R.code(it), role = roleOf(it);
+        segOf[c] = gi;
+        if (!k) why[c] = gi === 0 ? 'Opens the show: the biggest story' : g.relTo ? 'Next story, related to #' + g.relTo.at : 'Next story: the biggest left';
+        else why[c] = role === 'report' ? (sawReport ? 'More reporting' : 'What happened') : role === 'clip' ? (typeOf(it) === 'image' ? 'The picture' : 'The clip') : role === 'reaction' ? 'Reaction' : 'Commentary';
+        if (role === 'report') sawReport = true;
+        out.push(it);
+      });
     });
-    return { list: out, why: why, threads: groups.length };
+    return { list: out, why: why, threads: segs.length, segs: segs, segOf: segOf };
+  }
+  // a segment's name: its story's own name, else its strongest headline, cut at a clause
+  function segName(g) {
+    if (g.h && g.h.name) return String(g.h.name);
+    return clip(cleanHead(g.its[0].t), 64) || String(g.its[0].t || '').slice(0, 64);
+  }
+  // Where each segment of a list starts (indexes), by the segments of the best order: a creator's own order still shows
+  // where it changes story. An item the best order does not know is a segment of its own.
+  function segStarts(list, best) {
+    var so = best && best.segOf || {}, out = [];
+    list.forEach(function (it, i) { var s = so[R.code(it)]; if (!i || s == null || s !== so[R.code(list[i - 1])]) out.push(i); });
+    return out;
   }
 
   /* ---------------------------------------------------------------- the switch, and the maker */
@@ -704,6 +828,7 @@
   // The bar's button opens the whole maker at once, and closes it again.
   mkb.addEventListener('click', function () {
     if (st.on) { setOn(false); return; }
+    if (ui.src) { ui.src = null; ui.sig = ''; }          // the bar's door always makes a show from the filters
     setOn(true);
     if (panel.getBoundingClientRect().top > innerHeight - 160 || panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start', behavior: 'smooth' });
   });
@@ -739,9 +864,23 @@
   function itemLink(it) { return isReg(it) ? '<span class="ir-sm-a">' + esc(it.t) + '</span>' : '<a href="' + esc(it.u) + '" target="_blank" rel="noopener nofollow">' + esc(it.t) + '</a>'; }
   function isReg(it) { return !!(R.regime && R.regime(it)); }
   function whyWords(w) {
-    var m = /^Same thread as #(\d+)$/.exec(w);
-    if (m) return T('Same thread as #{n}', { n: N(m[1]) });
-    return w === 'Opens the show: the strongest' ? T('Opens the show: the strongest') : w === 'Next thread: the strongest left' ? T('Next thread: the strongest left') : w;
+    var m = /^Next story, related to #(\d+)$/.exec(w);
+    if (m) return T('Next story, related to #{n}', { n: N(m[1]) });
+    var WHY = { 'Opens the show: the biggest story': T('Opens the show: the biggest story'), 'Next story: the biggest left': T('Next story: the biggest left'), 'What happened': T('What happened'),
+      'More reporting': T('More reporting'), 'The clip': T('The clip'), 'The picture': T('The picture'), 'Reaction': T('Reaction'), 'Commentary': T('Commentary') };
+    return WHY[w] || w;
+  }
+  // The header over each story in the run order: its name, how many items, and whether it follows on from the one before.
+  // A run of stories of one item each shares one header, so five lone posts are not five headers.
+  function segHead(list, i, starts) {
+    var k = starts.indexOf(i); if (k < 0) return '';
+    var end = k + 1 < starts.length ? starts[k + 1] : list.length, n = end - i, sg = ui.best && ui.best.segs ? ui.best.segs[(ui.best.segOf || {})[R.code(list[i])]] : null;
+    if (n === 1) {
+      var prevOne = k > 0 && starts[k] - starts[k - 1] === 1;
+      return prevOne ? '' : '<li class="ir-sm-sg is-one"><b>' + esc(T('Other stories, one item each')) + '</b></li>';
+    }
+    var name = sg ? sg.name : clip(cleanHead(list[i].t), 64);
+    return '<li class="ir-sm-sg"><b' + (FA ? ' dir="auto"' : '') + '>' + esc(name) + '</b><small>' + esc(T('{n} items', { n: N(n) })) + (sg && sg.rel && !ui.mine ? ' · ' + esc(T('related to the story before')) : '') + '</small></li>';
   }
   var MOVE = {
     up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>', down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
@@ -755,13 +894,14 @@
   function runHtml() {
     var why = ui.best ? ui.best.why : {}, last = ui.set.length - 1;
     var since = ui.acts.length - 1 - ui.acts.lastIndexOf('reset');          // the log keeps everything; the count is since the last reset
-    var head = '<div class="ir-sm-rhead"><p>' + (ui.mine ? '<b>' + esc(T('Your order')) + '</b> · ' + esc(since === 1 ? T('1 change, kept on this device') : T('{n} changes, kept on this device', { n: N(since) }))
-      : '<b>' + esc(T('Best order')) + '</b> · ' + esc(T('the strongest first, then what is closest to it, then the next thread'))) + '</p>' +
-      (ui.mine ? '<button type="button" class="ir-sm-best" data-mk="best">' + ICON.redo + '<span>' + esc(T('Back to the best order')) + '</span></button>' : '') + '</div>' +
+    var head = '<div class="ir-sm-rhead"><p>' + (ui.mine ? '<b>' + esc(T('Your order')) + '</b> · ' + esc(ui.listOrder && !since ? T('the order of your list') : since === 1 ? T('1 change, kept on this device') : T('{n} changes, kept on this device', { n: N(since) }))
+      : '<b>' + esc(T('Best order')) + '</b> · ' + esc(T('story by story: the biggest first, each one from what happened to the reactions, related stories side by side'))) + '</p>' +
+      (ui.mine ? '<button type="button" class="ir-sm-best" data-mk="best">' + ICON.redo + '<span>' + esc(ui.listOrder ? T('Best order for a show') : T('Back to the best order')) + '</span></button>' : '') + '</div>' +
       (PLAIN ? '' : '<p class="ir-sm-len">' + esc(onAir(ui.set.length)) + '</p>');
+    var starts = segStarts(ui.set, ui.best);
     var list = '<ol class="ir-sm-run">' + ui.set.map(function (it, i) {
       var c = R.code(it), w = why[c] || '';
-      return '<li data-c="' + esc(c) + '"><span class="num">' + N(i + 1) + '</span>' + R.mark(it) + itemLink(it) +
+      return segHead(ui.set, i, starts) + '<li data-c="' + esc(c) + '"><span class="num">' + N(i + 1) + '</span>' + R.mark(it) + itemLink(it) +
         '<span class="ir-sm-mv"><button type="button" data-mv="up" data-i="' + i + '" aria-label="' + esc(T('Move up')) + '"' + (i ? '' : ' disabled') + '>' + MOVE.up + '</button>' +
         '<button type="button" data-mv="down" data-i="' + i + '" aria-label="' + esc(T('Move down')) + '"' + (i < last ? '' : ' disabled') + '>' + MOVE.down + '</button>' +
         '<button type="button" data-mv="out" data-i="' + i + '" aria-label="' + esc(T('Take out of the show')) + '"' + (ui.set.length > 1 ? '' : ' disabled') + '>' + MOVE.out + '</button></span>' +
@@ -793,7 +933,8 @@
   }
   function draw() {
     if (panel.hidden) return;
-    var all = R.shown().filter(function (it) { return !isReg(it); }), n = all.length;
+    // the pool: what the filters leave, or a list the creator made (SAVE LISTS: "Make a show from this list")
+    var all = (ui.src ? srcPool() : R.shown()).filter(function (it) { return !isReg(it); }), n = all.length;
     var mem = sigOf(all), sig = mem + '|' + st.kind;
     if (sig !== ui.sig) {
       var kindOnly = ui.mem === mem;
@@ -802,7 +943,9 @@
       var picked = n ? pickSet(all) : null;
       ui.best = picked ? threadOrder(picked) : null;
       if (ui.best) ui.best.score = picked.score;
-      ui.set = ui.best ? ui.best.list.slice() : []; ui.mine = false; ui.acts = []; ui.rest = 8;
+      ui.set = ui.best ? ui.best.list.slice() : []; ui.mine = false; ui.acts = []; ui.rest = 8; ui.listOrder = false;
+      // a list its maker put in order by hand opens in that order ("Your order"); the best order is one tap away
+      if (ui.src && ui.src.mine && n) { ui.set = all.slice(0, maxN()); ui.mine = true; ui.listOrder = true; }
       var kept = store(ORDER_KEY), mine = kept && kept[mem];
       if (mine && Array.isArray(mine.codes)) {
         var byC = {}; all.forEach(function (it) { byC[R.code(it)] = it; });
@@ -820,7 +963,7 @@
     var acts = '<div class="ir-sm-acts"><a class="ir-sm-show" href="' + esc(showUrl()) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Open the show screen')) + '</span></a>' +
       '<button type="button" class="ir-sm-copy" data-mk="copy">' + ICON.copy + '<span>' + esc(T('Copy the package')) + '</span></button>' +
       (bf && bf.url ? '<a class="ir-sm-brief" id="ir-brief" href="' + esc(bf.url) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Or play the quick briefing: the {n} hottest stories', { n: N(bf.n) })) + '</span></a>' : '') + '</div>';
-    var from = '<p class="ir-sm-from"><span>' + esc(T('Built from')) + '</span> ' + esc(R.filterLine ? R.filterLine() : '') + '</p>';
+    var from = '<p class="ir-sm-from"><span>' + esc(T('Built from')) + '</span> ' + esc(fromLine()) + (ui.src ? ' <button type="button" class="ir-sm-best" data-mk="nolist">' + esc(T('Use the filters instead')) + '</button>' : '') + '</p>';
     var body;
     if (PLAIN) {
       // Iran Uncensored: the creator's own title and note, the run order, the screen, saving and the link (see PLAIN above)
@@ -848,7 +991,9 @@
   }
   function showUrl() {
     var A = ui.pack.A, c = curCover(), d = curDesc();
+    var gs = segStarts(ui.set, ui.best).filter(function (i) { return i > 0; });          // where each story starts, for the screen's rundown
     return '?show=' + ui.set.map(function (it) { return 'on~' + R.code(it); }).join('.') + '&kind=' + (PLAIN ? 'live' : st.kind) + '&t=' + encodeURIComponent((curTitle() || (PLAIN ? '' : A.H)).slice(0, 100)) +
+      (gs.length ? '&g=' + gs.join('.') : '') +
       (c ? '&c=' + encodeURIComponent(c.slice(0, 40)) : '') + '&i=' + encodeURIComponent(curNote().slice(0, 420)) + (!PLAIN && A.dom && A.dom.s ? '&st=' + encodeURIComponent(A.dom.id) : '') +
       (d ? '&d=' + encodeURIComponent(firstLine(d).slice(0, 200)) : '');
   }
@@ -874,7 +1019,7 @@
     var t = PLAIN || (ui.myTitle != null && ui.myTitle.trim()) ? { t: curTitle(), id: 'own' } : chosen('titles') || {}, c = PLAIN ? {} : chosen('covers') || {}, d = PLAIN ? {} : chosen('descs') || {}, A = ui.pack.A;
     var codes = function (l) { return l.map(function (it) { return R.code(it); }).join('.').slice(0, 900); };
     var titles = ranked(ui.pack.titles, 'titles').map(function (x) { return x.t; });
-    var rec = { v: 1, how: how, from: String(R.filterLine ? R.filterLine() : '').slice(0, 160), story: A.dom ? String(A.dom.id).slice(0, 40) : '', pool: ui.pool.length,
+    var rec = { v: 1, how: how, from: String(fromLine()).slice(0, 160), story: A.dom ? String(A.dom.id).slice(0, 40) : '', pool: ui.pool.length,
       auto: codes(ui.best.list), final: codes(ui.set), moved: ui.mine, acts: ui.acts.join(' ').slice(0, 600),
       kind: st.kind, tone: st.tone, aim: st.aim, words: String(ui.pack.src || '').slice(0, 10),
       title: String(t.t || '').slice(0, 100), titleId: String(t.id || '').slice(0, 24), titleAt: Math.max(-1, titles.indexOf(t.t)),
@@ -935,7 +1080,7 @@
     return o;
   }
   function snapAll() {
-    var list = ui.set.map(snapItem), js = JSON.stringify(list);
+    var gs = segStarts(ui.set, ui.best), list = ui.set.map(function (it, i) { var o = snapItem(it); if (i && gs.indexOf(i) >= 0) o._sg = 1; return o; }), js = JSON.stringify(list);          // _sg: a new story starts here
     // the database caps the copy (firestore.rules, 200,000 characters): drop the heaviest optional parts until it fits
     ['also', 'cd', 'm', 'tx'].forEach(function (k) { if (js.length > 190000) { list.forEach(function (o) { delete o[k]; }); js = JSON.stringify(list); } });
     return js.length > 190000 ? null : js;
@@ -1018,7 +1163,7 @@
         var name = us.exists() ? String(us.data().name || '') : '';
         var d = { uid: u.uid, by: name, title: title, note: plainTx(curNote(), 1200), cover: plainTx(curCover(), 40), desc: plainTx(curDesc(), 2000),
           kind: PLAIN ? 'live' : st.kind, n: ui.set.length, items: items, story: !PLAIN && A && A.dom && A.dom.s ? String(A.dom.id).slice(0, 40) : '',
-          from: String(R.filterLine ? R.filterLine() : '').slice(0, 160), lang: FA ? 'fa' : 'en', updatedAt: S.F.serverTimestamp() };
+          from: String(fromLine()).slice(0, 160), lang: FA ? 'fa' : 'en', updatedAt: S.F.serverTimestamp() };
         var ref = S.F.doc(S.db, 'shows', id);
         if (ui.saved) return S.F.updateDoc(ref, d);
         return S.F.setDoc(ref, Object.assign(d, { createdAt: S.F.serverTimestamp(), views: 0, hidden: false }));
@@ -1064,6 +1209,7 @@
     if (mk === 'toggle') { setOn(false); mkb.focus({ preventScroll: true }); return; }          // Close: the maker goes, focus back on its one door
     if (mk === 'more') { ui.page[ui.tab]++; draw(); return; }
     if (mk === 'rest') { ui.rest += 12; draw(); return; }
+    if (mk === 'nolist') { ui.src = null; ui.sig = ''; draw(); var fb0 = panel.querySelector('[data-tab="run"]') || panel.querySelector('[data-mk="toggle"]'); if (fb0) fb0.focus(); return; }
     if (mk === 'best') { ui.set = ui.best.list.slice(); ui.mine = false; ui.acts.push('reset'); keepOrder(); rewords(); draw(); var rb = panel.querySelector('[data-tab="run"]'); if (rb) rb.focus(); return; }
     if (mk === 'copy') { sendEdit('copy'); copyText(packageText(), function () { flash(b, T('Copied: the words and every link')); }, function () { flash(b, T('Copying is blocked here')); }); return; }
     var sv = b.getAttribute('data-sv');
@@ -1155,20 +1301,519 @@
   });
   moneyLoad();
   // for build/phone-test.html, which checks every story of the hour against the gate: nothing here changes the page
-  window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st,
+  window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, simOf: simOf, roleOf: roleOf, toks: toks, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st,
     money: function (d) { MONEY = d; moneyPaint(); } };          // phone-test hands it a made-up table; the real one only comes from the database
+
+  /* ---------------------------------------------------------------- SAVE LISTS (24 October 2026)
+     Armin: "every single item that I click on can be saved. For example, every tweet, every YouTube video, and every news
+     article, I should be able to save it and add it to a save list. I could create multiple save lists ... and change the
+     order of it. I should be able to have a link to that save list where I could share my save list, and every save list
+     should be able to be turned into a show as well, by itself ... 'Make a Show' option should be available for a list that
+     I create myself, and figure out the order and everything of it."
+     THE CONTROL: a bookmark beside every card (intel.js CARDX: a sibling button, so the card is still one tap target), in the
+     spotlight's buttons (SPOTA) and on the show screen's stage. One tap saves to the list used last and says so, with Change
+     list and Undo; the first save ever makes a list called Saved. Change list is a sheet with every list (an item can be in
+     several) and a box for a new one. A saved item's bookmark is filled everywhere.
+     THE LISTS: one door on the room's bar, "Lists" with how many, beside Make a show (a different tool: the show maker keeps
+     its ONE DOOR). Each list: rename, delete (tap twice), move items up and down (and drag them on a computer), take one out,
+     Arrange for a show (the run order of the show maker, story by story; undo), Make a show from this list, Share link, Copy
+     as text.
+     WHERE IT LIVES: on this device (localStorage 'ir-lists'), each item as a copy (snapItem: the room's own fields, without
+     its working notes), so a list keeps working after its items leave the room's last 24 hours. Signed in, every list is
+     also savelists/<id> on the account (firebase/firestore.rules "savelists": only its owner reads and writes it; anyone with
+     the link reads it once it is shared), so the phone and the computer hold the same lists; the two are merged on sign-in,
+     list by list, the later change winning, and nothing made on the device signed out is lost. Sharing needs the free
+     account with a confirmed email, as saving a show does: a shared list is a page with its maker's name on it.
+     THE LINK: ?l=<id> is the list as a page (title, maker, every item with its source; regime media never a link), with
+     Make a show from this list and Save a copy to my lists. Openings are counted, never who.
+     A SHOW FROM A LIST: the maker opens with the list as its pool ("Built from: your list ..."); a list put in order by hand
+     opens in that order, the best order one tap away; the show screen finds an item that has left the room in this device's
+     lists. build/phone-test.html "SAVE LISTS" clicks all of it. */
+  var LKEY = 'ir-lists', LMAX = 50, LITEMS = 100;
+  var DEFNAME = FA ? T('Saved items') : 'Saved';          // the list the first save ever makes (on the Persian page its own word: "Saved" there is the button's)
+  var BM = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.8-5.5 3.8z"/></svg>';
+  var LISTI = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.8-5.5 3.8z"/><path d="M9.5 8h5M9.5 11h5"/></svg>';
+  var DRAG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg>';
+  function okList(l) { return !!l && typeof l === 'object' && typeof l.id === 'string' && /^[a-z0-9]{8,24}$/.test(l.id) && typeof l.name === 'string' && Array.isArray(l.items); }
+  var LS = (function () { var v = store(LKEY); return v && typeof v === 'object' && Array.isArray(v.lists) ? v : {}; })();
+  LS = { v: 1, last: typeof LS.last === 'string' ? LS.last : '', lists: (LS.lists || []).filter(okList), gone: Array.isArray(LS.gone) ? LS.gone.filter(function (x) { return typeof x === 'string'; }) : [] };
+  LS.lists.forEach(function (l) { l.items = l.items.filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string' && o._code; }); });
+  var ME = '';          // the account signed in, once community.js knows it ('' signed out)
+  var LV = { open: '', arm: '', ren: false, msg: '', undo: null, drag: -1, sharing: '' };          // the Lists panel: the list open, the delete armed, renaming
+  function lsSave() { if (store(LKEY, LS) === null) { toast(T('This device has no room left for lists. Take some items out.')); return false; } return true; }
+  function lists() { return LS.lists.filter(function (l) { return !ME || !l.uid || l.uid === ME; }); }
+  function byList(id) { return lists().filter(function (l) { return l.id === id; })[0] || null; }
+  function has(l, c) { return l.items.some(function (o) { return o._code === c; }); }
+  function savedIn(c) { return lists().filter(function (l) { return has(l, c); }); }
+  // an item that has left the room, from this device's own copies (the show screen, a show made from a list)
+  function lsSnap(c) { for (var i = 0; i < LS.lists.length; i++) for (var j = 0; j < LS.lists[i].items.length; j++) if (LS.lists[i].items[j]._code === c) return LS.lists[i].items[j]; return null; }
+  // the freshest copy of a list's item: the room's own while it is still there (its counts move), else the list's
+  function fresh(o) { return (o._code && R.byId(o._code)) || o; }
+  function srcPool() { return ui.src ? ui.src.items.map(fresh) : []; }
+  function fromLine() { return ui.src ? T('your list "{name}"', { name: ui.src.name }) : R.filterLine ? R.filterLine() : ''; }
+  function makeList(name) {
+    if (lists().length >= LMAX) { toast(T('You have {n} lists, the most there can be. Delete one first.', { n: N(LMAX) })); return null; }
+    var l = { id: newId(), name: String(name || DEFNAME).replace(/[<>]/g, '').trim().slice(0, 60) || DEFNAME, items: [], mine: false, at: Date.now(), sv: 0, dirty: true, shared: false, uid: ME, views: 0 };
+    LS.lists.unshift(l);
+    return l;
+  }
+  // a change to a list: kept on this device at once, sent to the account a moment later, every mark and the door redrawn
+  function touch(l) { if (l) { l.at = Date.now(); l.dirty = true; } lsSave(); lsSyncSoon(); marks(); if (lsDlg && lsDlg.open) lsDraw(); }
+  var SVREG = {};          // the item behind every Save button drawn, by its code (an add-on's list in the spotlight is not in the room's index)
+  function svFor(c) { return SVREG[c] || R.byId(c) || lsSnap(c); }
+  function saveBtn(it, cls) {
+    var c = R.code(it), on = savedIn(c).length > 0;
+    SVREG[c] = it;
+    return '<button type="button" class="ir-svb' + (cls ? ' ' + cls : '') + (on ? ' is-on' : '') + '" data-svk="' + esc(c) + '" aria-pressed="' + on + '" aria-label="' + esc(on ? T('Saved to a list. Change it') : T('Save to a list')) + '" title="' + esc(on ? T('Saved to a list. Change it') : T('Save to a list')) + '">' + BM +
+      (/\bir-svb-w\b/.test(cls || '') ? '<span>' + esc(on ? T('Saved') : T('Save')) + '</span>' : '') + '</button>';
+  }
+  // every Save button on the page follows the lists, and the door says how many there are
+  function marks() {
+    [].forEach.call(document.querySelectorAll('[data-svk]'), function (b) {
+      var on = savedIn(b.getAttribute('data-svk')).length > 0, w = on ? T('Saved to a list. Change it') : T('Save to a list');
+      b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', w); b.title = w;
+      var sp = b.querySelector('span'); if (sp) sp.textContent = on ? T('Saved') : T('Save');
+    });
+    var n = $('ir-ls-n'); if (n) n.textContent = lists().length ? N(lists().length) : '';
+  }
+  function addItem(l, it) {
+    if (!l || has(l, R.code(it))) return false;
+    if (l.items.length >= LITEMS) { toast(T('"{name}" holds {n} items, the most a list can. Start another list.', { name: l.name, n: N(LITEMS) })); return false; }
+    l.items.push(snapItem(it)); LS.last = l.id; touch(l);
+    return true;
+  }
+  function dropItem(l, c) { var n0 = l.items.length; l.items = l.items.filter(function (o) { return o._code !== c; }); if (l.items.length !== n0) touch(l); }
+  // One tap: into the list used last (the first ever makes "Saved"); a tap on a filled bookmark opens Change list
+  function tapSave(c, btn) {
+    var it = svFor(c); if (!it) return;
+    if (savedIn(c).length) { openPick(c, btn); return; }
+    var l = byList(LS.last) || lists()[0] || makeList(DEFNAME);
+    if (!l || !addItem(l, it)) return;
+    toast(T('Saved to "{name}"', { name: l.name }), [[T('Change list'), function () { openPick(c, btn); }], [T('Undo'), function () { dropItem(l, c); toast(T('Taken out of "{name}"', { name: l.name })); }]]);
+  }
+  /* The short line that says what a tap did, with what can be done next. It sits where the reader is: inside the open
+     sheet or spotlight (a page under a modal cannot be tapped), on the show screen or the list's page, else at the foot. */
+  var toastT = 0;
+  function toast(msg, acts) {
+    var old = $('ir-svt'); if (old) old.remove();
+    clearTimeout(toastT);
+    var host = [$('ir-svd'), lsDlg, $('ir-spot')].filter(function (d) { return d && d.open; })[0] || $('ir-sh') || $('ir-lp') || document.body;
+    var el = document.createElement('div'); el.className = 'ir-svt ir-keep'; el.id = 'ir-svt'; el.setAttribute('role', 'status');
+    el.innerHTML = '<p>' + esc(msg) + '</p>' + (acts || []).map(function (a, i) { return '<button type="button" data-svt="' + i + '">' + esc(a[0]) + '</button>'; }).join('') +
+      '<button type="button" class="ir-svt-x" data-svt="x" aria-label="' + esc(T('Close')) + '">&times;</button>';
+    el.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-svt]'); if (!b) return;
+      ev.stopPropagation();
+      var k = b.getAttribute('data-svt'); el.remove();
+      if (k !== 'x' && acts && acts[+k]) acts[+k][1]();
+    });
+    host.appendChild(el);
+    toastT = setTimeout(function () { if (el.isConnected && !el.contains(document.activeElement)) el.remove(); }, 10000);
+  }
+  /* ---- Change list: the sheet. A modal of its own, so it opens over the spotlight as well as over the room. */
+  var pickDlg = null, pickC = '', pickBack = null;
+  function openPick(c, back) {
+    pickC = c; pickBack = back || null;
+    if (!pickDlg) {
+      pickDlg = document.createElement('dialog'); pickDlg.className = 'ir-spot ir-svd ir-keep'; pickDlg.id = 'ir-svd'; pickDlg.setAttribute('aria-labelledby', 'ir-svd-h');
+      document.body.appendChild(pickDlg);
+      pickDlg.addEventListener('click', function (ev) {
+        if (ev.target === pickDlg) { closePick(); return; }
+        var b = ev.target.closest('button'); if (!b) return;
+        if (b.hasAttribute('data-svd-x')) closePick();
+      });
+      pickDlg.addEventListener('change', function (ev) {
+        var cb = ev.target; if (!cb.hasAttribute('data-svd-l')) return;
+        var l = byList(cb.getAttribute('data-svd-l')), it = svFor(pickC); if (!l || !it) return;
+        if (cb.checked) { if (!addItem(l, it)) cb.checked = false; } else dropItem(l, pickC);
+        pickDraw(cb.getAttribute('data-svd-l'));
+      });
+      pickDlg.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var inp = $('ir-svd-n'), nm = inp ? inp.value.trim() : '', it = svFor(pickC);
+        if (!nm) { if (inp) inp.focus(); return; }
+        var l = makeList(nm); if (!l) return;
+        if (it) addItem(l, it); else touch(l);
+        pickDraw(l.id);
+      });
+      pickDlg.addEventListener('close', function () { var b = pickBack; pickBack = null; if (b && b.isConnected) try { b.focus({ preventScroll: true }); } catch (e) { } });
+    }
+    pickDraw();
+    if (!pickDlg.open) { if (pickDlg.showModal) pickDlg.showModal(); else pickDlg.setAttribute('open', ''); }
+    var f = pickDlg.querySelector('input[type="checkbox"]') || $('ir-svd-n'); if (f) f.focus();
+  }
+  function closePick() { if (pickDlg && pickDlg.open) { if (pickDlg.close) pickDlg.close(); else pickDlg.removeAttribute('open'); } }
+  function pickDraw(focusId) {
+    var it = svFor(pickC), ls = lists();
+    pickDlg.innerHTML = '<div class="ir-s-in"><div class="ir-s-top"><h2 class="ir-svd-h" id="ir-svd-h">' + esc(T('Save to a list')) + '</h2><button class="ir-s-x" type="button" data-svd-x aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+      (it ? '<p class="ir-svd-it"' + (FA ? ' dir="auto"' : '') + '>' + R.mark(it) + '<span>' + esc(String(it.t || '').slice(0, 160)) + '</span></p>' : '') +
+      (ls.length ? '<ul class="ir-svd-ls">' + ls.map(function (l) {
+        return '<li><label><input type="checkbox" data-svd-l="' + esc(l.id) + '"' + (has(l, pickC) ? ' checked' : '') + '><span' + (FA ? ' dir="auto"' : '') + '>' + esc(l.name) + '</span><small>' + esc(l.items.length === 1 ? T('1 item') : T('{n} items', { n: N(l.items.length) })) + '</small></label></li>';
+      }).join('') + '</ul>' : '<p class="ir-svd-none">' + esc(T('No lists yet. Name the first one below.')) + '</p>') +
+      '<form class="ir-svd-new" autocomplete="off"><label for="ir-svd-n">' + esc(T('A new list')) + '</label><span><input id="ir-svd-n" type="text" maxlength="60" dir="auto" placeholder="' + esc(T('Name it, for example Friday show')) + '"><button type="submit">' + ICON.plus + '<span>' + esc(T('Make it')) + '</span></button></span></form>' +
+      '<button type="button" class="ir-svd-done" data-svd-x>' + esc(T('Done')) + '</button></div>';
+    if (focusId) { var cb = pickDlg.querySelector('[data-svd-l="' + focusId + '"]'); if (cb) cb.focus(); }
+  }
+  // Save buttons anywhere (cards, spotlight, show screen, a list's page): caught first, so a card's own tap never fires too
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest && ev.target.closest('[data-svk]'); if (!b) return;
+    ev.preventDefault(); ev.stopPropagation();
+    tapSave(b.getAttribute('data-svk'), b);
+  }, true);
+  if (R.addCardX) R.addCardX(function (it) { return saveBtn(it, 'ir-c-sv'); });
+  if (R.addSpotAct) R.addSpotAct(function (it) { return saveBtn(it, 'ir-svb-w ir-s-b'); });
+
+  /* ---- the Lists door and its panel */
+  var lsb = document.createElement('button');
+  lsb.type = 'button'; lsb.className = 'ir-cb ir-cb-ls'; lsb.id = 'ir-ls-b'; lsb.setAttribute('aria-haspopup', 'dialog');
+  lsb.innerHTML = LISTI + '<span>' + esc(T('Lists')) + '</span><i class="num" id="ir-ls-n"></i>';
+  if (cmdb) { if (mkb.parentNode === cmdb) cmdb.insertBefore(lsb, mkb.nextSibling); else cmdb.appendChild(lsb); }
+  var lsDlg = document.createElement('dialog');
+  lsDlg.className = 'ir-spot ir-ls ir-keep'; lsDlg.id = 'ir-ls'; lsDlg.setAttribute('aria-labelledby', 'ir-ls-h');
+  document.body.appendChild(lsDlg);
+  marks();
+  function lsOpen(id) {
+    LV.open = id || ''; LV.arm = ''; LV.ren = false; LV.msg = '';
+    lsDraw();
+    if (!lsDlg.open) { if (lsDlg.showModal) lsDlg.showModal(); else lsDlg.setAttribute('open', ''); }
+    var f = lsDlg.querySelector('[data-ls-go], [data-ls="new"], .ir-s-x'); if (f) f.focus();
+  }
+  function lsClose() { if (lsDlg.open) { if (lsDlg.close) lsDlg.close(); else lsDlg.removeAttribute('open'); } }
+  lsb.addEventListener('click', function () { lsOpen(''); });
+  function listUrl(id) { return location.origin + location.pathname + '?l=' + id; }
+  function changed(l) { return l.at ? T('changed {t}', { t: R.ago ? R.ago(l.at) : dayOf(l.at) }) : ''; }
+  function where() {
+    var me = who(LPX);
+    if (!LPX) return '<p class="ir-ls-where">' + esc(T('Your lists are kept on this device.')) + '</p>';
+    if (!me) return '<p class="ir-ls-where">' + esc(T('Your lists are kept on this device. Sign in, free, and they are on your phone and your computer too.')) + ' <button type="button" class="ir-ls-in" data-ls="in">' + esc(T('Sign in')) + '</button></p>';
+    return '<p class="ir-ls-where">' + esc(T('On your account: the same lists on every device you sign in on.')) + '</p>';
+  }
+  function lsDraw() {
+    var l = LV.open ? byList(LV.open) : null, h;
+    if (!l) {
+      LV.open = '';
+      var ls = lists();
+      h = '<div class="ir-s-in"><div class="ir-s-top"><h2 class="ir-ls-h" id="ir-ls-h">' + LISTI + '<span>' + esc(T('Your lists')) + '</span></h2><button class="ir-s-x" type="button" data-ls="x" aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+        (ls.length ? '<ul class="ir-ls-all">' + ls.map(function (x) {
+          return '<li><button type="button" data-ls-go="' + esc(x.id) + '"><b' + (FA ? ' dir="auto"' : '') + '>' + esc(x.name) + '</b><small>' + esc([x.items.length === 1 ? T('1 item') : T('{n} items', { n: N(x.items.length) }), changed(x), x.shared ? T('shared') : ''].filter(Boolean).join(' · ')) + '</small>' + ICON.next + '</button></li>';
+        }).join('') + '</ul>' : '<p class="ir-ls-none">' + esc(T('Nothing saved yet. Tap the bookmark on any post, video or article to keep it here.')) + '</p>') +
+        '<form class="ir-svd-new ir-ls-new" autocomplete="off"><label for="ir-ls-nn">' + esc(T('A new list')) + '</label><span><input id="ir-ls-nn" type="text" maxlength="60" dir="auto" placeholder="' + esc(T('Name it, for example Friday show')) + '"><button type="submit" data-ls="new">' + ICON.plus + '<span>' + esc(T('Make it')) + '</span></button></span></form>' +
+        where() + '<p class="ir-ls-msg" aria-live="polite">' + esc(LV.msg) + '</p></div>';
+      lsKeep(function () { lsDlg.innerHTML = h; });
+      return;
+    }
+    var n = l.items.length, last = n - 1, arm = LV.arm === l.id;
+    h = '<div class="ir-s-in"><div class="ir-s-top"><button type="button" class="ir-s-bk" data-ls="home"><span aria-hidden="true">' + (CFG.rtl ? '&rsaquo;' : '&lsaquo;') + '</span> ' + esc(T('All lists')) + '</button><button class="ir-s-x" type="button" data-ls="x" aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+      (LV.ren ? '<form class="ir-svd-new ir-ls-ren" autocomplete="off"><label for="ir-ls-rn">' + esc(T('The list\'s name')) + '</label><span><input id="ir-ls-rn" type="text" maxlength="60" dir="auto" value="' + esc(l.name) + '"><button type="submit">' + esc(T('Save')) + '</button></span></form>'
+        : '<h2 class="ir-ls-h ir-ls-name" id="ir-ls-h"' + (FA ? ' dir="auto"' : '') + '>' + esc(l.name) + '</h2>') +
+      '<p class="ir-ls-meta">' + esc([n === 1 ? T('1 item') : T('{n} items', { n: N(n) }), changed(l), l.mine ? T('in your own order') : ''].filter(Boolean).join(' · ')) + '</p>' +
+      '<div class="ir-ls-acts">' +
+      '<button type="button" class="ir-ls-show" data-ls="show"' + (n ? '' : ' disabled') + '>' + ICON.play + '<span>' + esc(T('Make a show from this list')) + '</span></button>' +
+      '<button type="button" data-ls="arrange"' + (n > 1 ? '' : ' disabled') + '>' + ICON.redo + '<span>' + esc(T('Arrange for a show')) + '</span></button>' +
+      '<button type="button" data-ls="share"' + (n ? '' : ' disabled') + '>' + ICON.link + '<span>' + esc(l.shared ? T('The link') : T('Share link')) + '</span></button>' +
+      '<button type="button" data-ls="text"' + (n ? '' : ' disabled') + '>' + ICON.copy + '<span>' + esc(T('Copy as text')) + '</span></button>' +
+      '<button type="button" data-ls="ren">' + ICON.notes + '<span>' + esc(T('Rename')) + '</span></button>' +
+      '<button type="button" data-ls="del" class="' + (arm ? 'is-arm' : '') + '">' + ICON.out + '<span>' + esc(arm ? T('Tap again to delete the list') : T('Delete the list')) + '</span></button></div>' +
+      shareBox(l) + '<p class="ir-ls-msg" aria-live="polite">' + esc(LV.msg) + '</p>' +
+      (n ? '<ol class="ir-ls-its">' + l.items.map(function (o, i) {
+        var x = fresh(o);
+        return '<li draggable="true" data-ls-i="' + i + '"><span class="ir-ls-grip" aria-hidden="true" title="' + esc(T('Drag to move it')) + '">' + DRAG + '</span><span class="num">' + N(i + 1) + '</span>' + R.mark(x) +
+          (isReg(x) ? '<span class="ir-sm-a"' + (FA ? ' dir="auto"' : '') + '>' + esc(x.t) + '</span>' : '<a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow"' + (FA ? ' dir="auto"' : '') + '>' + esc(x.t) + '</a>') +
+          '<span class="ir-sm-mv"><button type="button" data-ls-mv="up" data-i="' + i + '" aria-label="' + esc(T('Move up')) + '"' + (i ? '' : ' disabled') + '>' + MOVE.up + '</button>' +
+          '<button type="button" data-ls-mv="down" data-i="' + i + '" aria-label="' + esc(T('Move down')) + '"' + (i < last ? '' : ' disabled') + '>' + MOVE.down + '</button>' +
+          '<button type="button" data-ls-mv="out" data-i="' + i + '" aria-label="' + esc(T('Take it out of the list')) + '">' + MOVE.out + '</button></span>' +
+          '<small>' + esc(bitsOf(x)) + (isReg(x) ? ' · ' + esc(T('Regime media: not linked.')) : '') + '</small></li>';
+      }).join('') + '</ol>' : '<p class="ir-ls-none">' + esc(T('This list is empty. Tap the bookmark on any item to put it here.')) + '</p>') + '</div>';
+    lsKeep(function () { lsDlg.innerHTML = h; });
+  }
+  // a redraw keeps the cursor in the box being typed in
+  function lsKeep(fn) {
+    var a = document.activeElement, id = a && lsDlg.contains(a) && a.id, s0 = id && a.selectionStart, s1 = id && a.selectionEnd;
+    fn();
+    var b = id && $(id); if (!b) return;
+    b.focus({ preventScroll: true }); try { if (s0 != null) b.setSelectionRange(s0, s1); } catch (e) { }
+  }
+  function shareBox(l) {
+    if (LV.sharing !== l.id && !l.shared) return '';
+    var me = who(LPX);
+    if (!LPX) return '<div class="ir-ls-sh"><p>' + esc(T('Sharing works on the live site.')) + '</p></div>';
+    if (!me) return '<div class="ir-ls-sh"><p>' + esc(T('A shared list carries its maker\'s name, so sharing needs the free account.')) + '</p><button type="button" class="ir-sv-go" data-ls="in">' + ICON.save + '<span>' + esc(T('Sign in to share it')) + '</span></button></div>';
+    if (!me.v) return '<div class="ir-ls-sh"><p>' + esc(T('We sent you a link when you made the account. One tap on it and you can share.')) + '</p><button type="button" class="ir-sv-go" data-ls="check">' + ICON.save + '<span>' + esc(T('Confirm your email to share it')) + '</span></button></div>';
+    if (!l.shared || l.dirty || !l.sv) return '<div class="ir-ls-sh"><p>' + esc(T('Making the link...')) + '</p></div>';
+    var url = listUrl(l.id), enc = encodeURIComponent;
+    return '<div class="ir-ls-sh"><p>' + esc(T('Anyone with this link can open the list, make a show from it or save a copy.')) + (l.views ? ' ' + esc(l.views === 1 ? T('opened once') : T('opened {n} times', { n: N(l.views) })) : '') + '</p>' +
+      '<div class="ir-sv-link"><label class="vh" for="ir-ls-u">' + esc(T('The link')) + '</label><input id="ir-ls-u" type="text" readonly dir="ltr" value="' + esc(url) + '"><button type="button" data-ls="copy">' + ICON.copy + '<span>' + esc(T('Copy the link')) + '</span></button></div>' +
+      '<div class="ir-sv-to" role="group" aria-label="' + esc(T('Send it')) + '">' + (navigator.share ? '<button type="button" data-ls="send">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
+      '<a href="https://wa.me/?text=' + enc(l.name + '\n' + url) + '" target="_blank" rel="noopener">WhatsApp</a><a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(l.name) + '" target="_blank" rel="noopener">Telegram</a>' +
+      '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(T('Open it as they will')) + '</a>' +
+      '<button type="button" data-ls="unshare">' + esc(T('Stop sharing')) + '</button></div></div>';
+  }
+  function listText(name, its) {
+    var out = [name, ''];
+    its.forEach(function (o, i) { var x = fresh(o); out.push(N(i + 1) + '. ' + String(x.t || '').replace(/\s+/g, ' ').trim() + '\n   ' + (isReg(x) ? T('Regime media: not linked.') : x.u)); });
+    out.push('', T('Made in the Intel Room: {site}', { site: 'https://' + SITE_MARK }));
+    return out.join('\n');
+  }
+  function lsMove(l, i, to) {
+    if (to < 0 || to >= l.items.length || i === to) return;
+    var o = l.items.splice(i, 1)[0]; l.items.splice(to, 0, o); l.mine = true; touch(l);
+  }
+  // "Arrange for a show": the show maker's own order (threadOrder), story by story; undo puts the old order back
+  function arrange(l) {
+    var prev = { items: l.items.slice(), mine: l.mine }, pool = l.items.map(fresh);
+    pool.score = scorer(pool);
+    var o = threadOrder(pool), byC = {};
+    l.items.forEach(function (x) { byC[x._code] = x; });
+    var next = o.list.map(function (x) { return byC[R.code(x)]; }).filter(Boolean);
+    l.items.forEach(function (x) { if (next.indexOf(x) < 0) next.push(x); });
+    l.items = next; l.mine = false; touch(l);
+    toast(T('Arranged for a show: story by story'), [[T('Undo'), function () { l.items = prev.items; l.mine = prev.mine; touch(l); }]]);
+  }
+  // A show from a list: the maker opens with the list as its pool
+  function makeFrom(src) {
+    lsClose();
+    ui.src = { id: src.id || '', name: src.name, items: src.items.slice(), mine: !!src.mine };
+    ui.sig = ''; ui.tab = 'run';
+    if (st.on) draw(); else setOn(true);
+    setTimeout(function () { panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); var r = panel.querySelector('[data-tab="run"]') || panel.querySelector('[data-mk="toggle"]'); if (r) r.focus({ preventScroll: true }); }, 60);
+  }
+  lsDlg.addEventListener('click', function (ev) {
+    if (ev.target === lsDlg) { lsClose(); return; }
+    var b = ev.target.closest('button'); if (!b || !lsDlg.contains(b)) return;
+    var l = byList(LV.open), k = b.getAttribute('data-ls');
+    if (b.hasAttribute('data-ls-go')) { LV.open = b.getAttribute('data-ls-go'); LV.arm = ''; LV.ren = false; LV.msg = ''; lsDraw(); var f0 = lsDlg.querySelector('[data-ls="home"]'); if (f0) f0.focus(); return; }
+    if (k === 'x') { lsClose(); return; }
+    if (k === 'home') { var was = LV.open; LV.open = ''; LV.msg = ''; lsDraw(); var f1 = lsDlg.querySelector('[data-ls-go="' + was + '"]'); if (f1) f1.focus(); return; }
+    if (k === 'in') { if (LPX) { LV.wantShare = LV.sharing; LPX.members.open('auth', { opener: lsb }); } return; }
+    if (k === 'check') { if (LPX) LPX.members.open('check', { resend: true, opener: lsb }); return; }
+    if (!l) return;
+    if (k === 'show') { makeFrom(l); return; }
+    if (k === 'arrange') { arrange(l); return; }
+    if (k === 'text') { copyText(listText(l.name, l.items), function () { flash(b, T('Copied: every item and its link')); }, function () { flash(b, T('Copying is blocked here')); }); return; }
+    if (k === 'ren') { LV.ren = !LV.ren; lsDraw(); var ri = $('ir-ls-rn'); if (ri) { ri.focus(); ri.select(); } return; }
+    if (k === 'del') {
+      if (LV.arm !== l.id) { LV.arm = l.id; lsDraw(); var ab = lsDlg.querySelector('[data-ls="del"]'); if (ab) ab.focus(); setTimeout(function () { if (LV.arm === l.id) { LV.arm = ''; if (lsDlg.open) lsDraw(); } }, 4000); return; }
+      LS.lists = LS.lists.filter(function (x) { return x !== l; });
+      if (l.sv) LS.gone.push(l.id);
+      if (LS.last === l.id) LS.last = '';
+      LV.open = ''; LV.arm = ''; LV.msg = T('Deleted "{name}".', { name: l.name }) + (l.shared ? ' ' + T('Its link opens nothing now.') : '');
+      touch(null); lsDraw(); var nb = lsDlg.querySelector('[data-ls-go], #ir-ls-nn'); if (nb) nb.focus(); return;
+    }
+    if (k === 'share') {
+      LV.sharing = l.id;
+      var me = who(LPX);
+      if (me && me.v && !l.shared) { l.shared = true; touch(l); }
+      else lsDraw();
+      var sf = lsDlg.querySelector('.ir-ls-sh button, #ir-ls-u'); if (sf) sf.focus();
+      return;
+    }
+    if (k === 'unshare') { l.shared = false; LV.sharing = ''; LV.msg = T('Not shared any more: its link opens nothing now.'); touch(l); return; }
+    if (k === 'copy') { copyText(listUrl(l.id), function () { flash(b, T('Copied')); }, function () { flash(b, T('Copying is blocked here')); }); return; }
+    if (k === 'send') { navigator.share({ title: l.name, text: l.name, url: listUrl(l.id) }).catch(function () { }); return; }
+    if (b.hasAttribute('data-ls-mv')) {
+      var i = +b.getAttribute('data-i'), mv = b.getAttribute('data-ls-mv'), sel;
+      if (mv === 'up') { lsMove(l, i, i - 1); sel = '[data-ls-mv="up"][data-i="' + (i - 1) + '"]'; }
+      else if (mv === 'down') { lsMove(l, i, i + 1); sel = '[data-ls-mv="down"][data-i="' + (i + 1) + '"]'; }
+      else { var gone = l.items[i]; dropItem(l, gone._code); sel = '[data-ls-mv="out"][data-i="' + Math.min(i, l.items.length - 1) + '"]'; toast(T('Taken out of "{name}"', { name: l.name }), [[T('Undo'), function () { l.items.splice(Math.min(i, l.items.length), 0, gone); touch(l); }]]); }
+      var fb = lsDlg.querySelector(sel); if (fb && !fb.disabled) fb.focus(); else { var fo = lsDlg.querySelector('[data-ls="home"]'); if (fo) fo.focus(); }
+    }
+  });
+  lsDlg.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = ev.target;
+    if (f.classList.contains('ir-ls-ren')) {
+      var l = byList(LV.open), v = ($('ir-ls-rn').value || '').replace(/[<>]/g, '').trim().slice(0, 60);
+      if (l && v) { l.name = v; LV.ren = false; touch(l); var nm = lsDlg.querySelector('[data-ls="ren"]'); if (nm) nm.focus(); }
+      return;
+    }
+    var inp = $('ir-ls-nn'), name = inp ? inp.value.trim() : '';
+    if (!name) { if (inp) inp.focus(); return; }
+    var nl = makeList(name); if (!nl) return;
+    LS.last = nl.id; LV.open = nl.id; LV.msg = T('Made. Tap the bookmark on any item to put it here.'); touch(nl);
+    var hb = lsDlg.querySelector('[data-ls="home"]'); if (hb) hb.focus();
+  });
+  // drag to reorder, on a computer (the up and down buttons do the same on a phone)
+  lsDlg.addEventListener('dragstart', function (ev) { var li = ev.target.closest && ev.target.closest('[data-ls-i]'); if (!li) return; LV.drag = +li.getAttribute('data-ls-i'); li.classList.add('is-drag'); try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', String(LV.drag)); } catch (e) { } });
+  lsDlg.addEventListener('dragover', function (ev) { var li = ev.target.closest && ev.target.closest('[data-ls-i]'); if (!li || LV.drag < 0) return; ev.preventDefault(); [].forEach.call(lsDlg.querySelectorAll('.is-over'), function (x) { x.classList.remove('is-over'); }); li.classList.add('is-over'); });
+  lsDlg.addEventListener('dragend', function () { LV.drag = -1; [].forEach.call(lsDlg.querySelectorAll('.is-over,.is-drag'), function (x) { x.classList.remove('is-over', 'is-drag'); }); });
+  lsDlg.addEventListener('drop', function (ev) {
+    var li = ev.target.closest && ev.target.closest('[data-ls-i]'), l = byList(LV.open); if (!li || !l || LV.drag < 0) return;
+    ev.preventDefault();
+    var from = LV.drag, to = +li.getAttribute('data-ls-i'); LV.drag = -1;
+    lsMove(l, from, to);
+  });
+  if (location.hash === '#lists') { if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); if (!/[?&](show|s|l)=/.test(location.search)) setTimeout(function () { lsOpen(''); }, 200); }
+
+  /* ---- the lists on the account (savelists/, firebase/firestore.rules) */
+  var LSY = { t: 0, busy: false, again: false, uid: '', name: null };
+  function lsItemsJson(l) {
+    var list = l.items.map(function (o) { return Object.assign({}, o); }), js = JSON.stringify(list);
+    ['also', 'lsn', 'cd', 'm', 'tx'].forEach(function (k) { if (js.length > 190000) { list.forEach(function (o) { delete o[k]; }); js = JSON.stringify(list); } });
+    return js.length > 190000 ? null : js;
+  }
+  function parseItems(s) { try { var a = JSON.parse(s || '[]'); return Array.isArray(a) ? a.filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string' && o._code; }).slice(0, LITEMS) : []; } catch (e) { return []; } }
+  function lsSyncSoon() { clearTimeout(LSY.t); if (ME) LSY.t = setTimeout(lsSync, 1200); }
+  function lsSync(pull) {
+    var L = LPX; if (!L || L.off || !L.members.fb || !who(L)) return;
+    if (LSY.busy) { LSY.again = true; LSY.pullAgain = LSY.pullAgain || pull; return; }
+    LSY.busy = true;
+    L.members.fb().then(function (S) {
+      var u = S.auth && S.auth.currentUser; if (!u) return null;
+      var first = LSY.uid !== u.uid; LSY.uid = u.uid;
+      if (first) LSY.name = null;
+      var nm = LSY.name != null ? Promise.resolve() : S.F.getDoc(S.F.doc(S.db, 'users', u.uid)).then(function (d) { LSY.name = d.exists() ? String(d.data().name || '') : ''; });
+      return nm.then(function () {
+        if (!first && !pull) return null;
+        return S.F.getDocs(S.F.query(S.F.collection(S.db, 'savelists'), S.F.where('uid', '==', u.uid), S.F.limit(LMAX))).then(function (snap) { lsMerge(snap.docs, u.uid); });
+      }).then(function () { return lsPush(S, u); });
+    }).catch(function () { /* offline, or refused: the lists stay on this device and go up with the next change */ }).then(function () {
+      LSY.busy = false;
+      if (LSY.again) { var p = LSY.pullAgain; LSY.again = false; LSY.pullAgain = false; lsSync(p); }
+    });
+  }
+  // The device and the account, list by list: a list changed in only one place takes that change; changed in both, the later
+  // one wins; made on this device signed out, it goes up; gone from the account and unchanged here, it was deleted elsewhere.
+  function lsMerge(docs, uid) {
+    var mine = {}, seen = {};
+    LS.lists.forEach(function (l) { mine[l.id] = l; });
+    docs.forEach(function (d) {
+      var x = d.data() || {}, at = x.updatedAt && x.updatedAt.toMillis ? x.updatedAt.toMillis() : 0, l = mine[d.id];
+      seen[d.id] = 1;
+      if (LS.gone.indexOf(d.id) >= 0) return;          // deleted on this device: lsPush deletes it on the account
+      var r = { id: d.id, name: String(x.name || DEFNAME).slice(0, 60), items: parseItems(x.items), mine: !!x.mine, shared: !!x.shared, at: at, sv: at, dirty: false, uid: uid, views: +x.views || 0 };
+      if (!l) { LS.lists.push(r); return; }
+      l.uid = uid; l.views = r.views;
+      if (at > (l.sv || 0) && (!l.dirty || at >= l.at)) Object.assign(l, r);
+    });
+    LS.lists = LS.lists.filter(function (l) {
+      if (seen[l.id] || (l.uid && l.uid !== uid)) return true;
+      if (l.sv && !l.dirty) return false;
+      l.uid = uid; l.sv = 0; l.dirty = true; return true;
+    });
+    LS.gone = LS.gone.filter(function (id) { return seen[id]; });
+    LS.lists.sort(function (a, b) { return (b.at || 0) - (a.at || 0); });
+    lsSave(); marks(); if (lsDlg.open) lsDraw();
+  }
+  function lsPush(S, u) {
+    var jobs = LS.gone.map(function (id) { return S.F.deleteDoc(S.F.doc(S.db, 'savelists', id)).then(function () { LS.gone = LS.gone.filter(function (x) { return x !== id; }); }, function () { }); });
+    LS.lists.forEach(function (l) {
+      if (!l.dirty || (l.uid && l.uid !== u.uid)) return;
+      var items = lsItemsJson(l); if (!items) return;
+      var at0 = l.at, ref = S.F.doc(S.db, 'savelists', l.id);
+      var d = { uid: u.uid, by: LSY.name || '', name: l.name.replace(/[<>]/g, '').slice(0, 60) || DEFNAME, items: items, n: l.items.length, mine: !!l.mine,
+        shared: !!(l.shared && u.emailVerified), lang: FA ? 'fa' : 'en', updatedAt: S.F.serverTimestamp() };
+      var w = l.sv ? S.F.updateDoc(ref, d) : S.F.setDoc(ref, Object.assign(d, { createdAt: S.F.serverTimestamp(), views: 0 }));
+      jobs.push(w.then(function () { return S.F.getDoc(ref); }).then(function (snap) {
+        var x = snap.data() || {}; l.sv = x.updatedAt && x.updatedAt.toMillis ? x.updatedAt.toMillis() : Date.now(); l.uid = u.uid; l.views = +x.views || 0;
+        if (l.at === at0) l.dirty = false;
+      }).catch(function (e) { if (e && e.code === 'not-found') { l.sv = 0; LSY.again = true; } }));
+    });
+    return Promise.all(jobs).then(function () { lsSave(); marks(); if (lsDlg.open) lsDraw(); });
+  }
+  lp(function (L) {
+    if (!L || L.off || !L.members.sub) return;
+    L.members.sub(function () {
+      var me = who(L), was = ME;
+      ME = me ? me.uid : '';
+      if (ME !== was) { marks(); if (lsDlg.open) lsDraw(); if (pickDlg && pickDlg.open) pickDraw(); }
+      if (ME) {
+        lsSync(true);
+        if (LV.wantShare) { var l = byList(LV.wantShare); LV.wantShare = ''; if (l && me.v && !l.shared) { l.shared = true; touch(l); } }
+      }
+    });
+  });
+
+  /* ---- a shared list, as a page (?l=<id>) */
+  function listPage(id) {
+    document.documentElement.classList.add('ir-sh-on');
+    var wait = document.createElement('div'); wait.className = 'ir-sh ir-sh-wait'; wait.id = 'ir-lp';
+    wait.innerHTML = '<div class="ir-sh-card"><p class="ir-sh-ck">' + esc(BRAND) + ' · ' + esc(T('Intel Room')) + '</p><p class="ir-sh-ct">' + esc(T('Opening the list...')) + '</p></div>';
+    document.body.appendChild(wait);
+    var fail = function () {
+      wait.innerHTML = '<div class="ir-sh-card"><h1>' + esc(T('This list is not here, or it is not shared')) + '</h1><p>' + esc(T('Its maker may have stopped sharing it or deleted it, or the link is cut short.')) + '</p>' +
+        '<p class="ir-sh-cta"><a class="ir-sh-mk" href="' + esc(location.pathname) + '">' + ICON.play + '<span>' + esc(T('Open the Intel Room')) + '</span></a></p></div>';
+    };
+    if (!/^[a-z0-9]{8,24}$/.test(id)) { fail(); return; }
+    var own = LS.lists.filter(function (l) { return l.id === id; })[0];
+    if (own) { wait.remove(); drawListPage({ id: id, name: own.name, items: own.items, mine: own.mine, by: '', mineToo: true }); return; }          // its maker, on their own device: the list as it is now
+    lp(function (L) {
+      if (!L || !L.members || !L.members.restDoc) { fail(); return; }
+      fetch(L.members.restDoc('savelists/' + id), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (doc) {
+        var f = doc && doc.fields; if (!f) { fail(); return; }
+        var v = function (k) { var x = f[k]; if (!x) return ''; return x.stringValue != null ? x.stringValue : x.integerValue != null ? +x.integerValue : x.booleanValue != null ? x.booleanValue : x.timestampValue != null ? Date.parse(x.timestampValue) : ''; };
+        wait.remove();
+        drawListPage({ id: id, name: String(v('name') || T('A list')), items: parseItems(v('items')), mine: !!v('mine'), by: String(v('by') || ''), at: v('updatedAt') || 0 });
+        lsCountView(L, id, String(v('uid') || ''));
+      }).catch(fail);
+    });
+  }
+  function lsCountView(L, id, owner) {
+    var k = 'ir-seen-l-' + id;
+    try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { return; }
+    var me = who(L); if (me && me.uid === owner) return;
+    if (!L || L.off || !L.members.fb) return;
+    L.members.fb().then(function (S) { return S.F.updateDoc(S.F.doc(S.db, 'savelists', id), { views: S.F.increment(1) }); }).catch(function () { });
+  }
+  function drawListPage(spec) {
+    var its = spec.items.map(fresh), pg = document.createElement('div');
+    pg.className = 'ir-sh is-read ir-lpg'; pg.id = 'ir-lp';
+    var meta = function (x) { var w = R.where(x); return [R.when(x), x.nm || x.h || x.src, w && w !== 'No single place' ? w : ''].filter(Boolean).join(' · '); };
+    var acts = '<button type="button" data-lp="show"' + (its.length ? '' : ' disabled') + '>' + ICON.play + '<span>' + esc(T('Make a show from this list')) + '</span></button>' +
+      (spec.mineToo ? '<button type="button" data-lp="open">' + LISTI + '<span>' + esc(T('Open it in your lists')) + '</span></button>' : '<button type="button" data-lp="copy">' + BM + '<span>' + esc(T('Save a copy to my lists')) + '</span></button>');
+    pg.innerHTML = '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="' + esc(T('Back to the Intel Room')) + '"><img src="' + esc(SEAL) + '" alt="" width="40" height="40"><span><b>' + esc(BRAND) + '</b> ' + esc(T('Intel Room')) + '</span></a>' +
+      '<p class="ir-sh-title"' + (FA ? ' dir="auto"' : '') + '>' + esc(spec.name) + '</p><div class="ir-sh-tools ir-lp-tools">' + acts + '</div></header>' +
+      '<main class="ir-sh-stage" id="ir-lp-stage"><article class="ir-rd"><header class="ir-rd-h"><p class="ir-rd-k">' + esc(T('A list from the Intel Room')) + '</p><h1' + (FA ? ' dir="auto"' : '') + '>' + esc(spec.name) + '</h1>' +
+      '<p class="ir-rd-by">' + esc([spec.by ? T('Made by {name}', { name: spec.by }) : '', spec.at ? dayOf(spec.at) : '', its.length === 1 ? T('1 item') : T('{n} items', { n: N(its.length) })].filter(Boolean).join(' · ')) + '</p></header>' +
+      (its.length ? '<ol class="ir-rd-list">' + its.map(function (x, i) {
+        var rg = isReg(x);
+        return '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
+          '<p class="ir-rd-t"' + (FA ? ' dir="auto"' : '') + '>' + esc(R.fullText ? R.fullText(x) : x.t) + '</p>' +
+          (rg ? '<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow">' + esc(T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0] })) + '</a></p>') +
+          '<p class="ir-lp-sv">' + saveBtn(x, 'ir-svb-w') + '</p></div></li>';
+      }).join('') + '</ol>' : '<p class="ir-rd-none">' + esc(T('This list is empty.')) + '</p>') +
+      '<footer class="ir-rd-f"><p>' + esc(T('Every item links to where it was first published. Check it yourself.')) + '</p><p class="ir-rd-acts">' + acts + '</p>' +
+      '<p class="ir-rd-mark">' + esc(T('Made in the Intel Room: the news and the evidence of the last 24 hours on one map, free for anyone.')) + ' <a href="' + esc(location.pathname) + '">' + esc(SITE_MARK) + '</a></p></footer></article></main>';
+    document.body.appendChild(pg);
+    document.title = spec.name + ' | ' + BRAND + ' ' + T('Intel Room');
+    pg.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-lp]'); if (!b) return;
+      var k = b.getAttribute('data-lp');
+      if (k === 'copy') {
+        var l = makeList(spec.name); if (!l) return;
+        spec.items.slice(0, LITEMS).forEach(function (o) { l.items.push(Object.assign({}, o)); });
+        l.mine = spec.mine; LS.last = l.id; touch(l);
+        toast(T('Saved to your lists as "{name}"', { name: l.name }), [[T('Open your lists'), function () { leavePage(); lsOpen(l.id); }]]);
+        return;
+      }
+      if (k === 'open') { leavePage(); lsOpen(spec.id); return; }
+      if (k === 'show') { leavePage(); makeFrom(spec); }
+    });
+    pg.setAttribute('data-ready', '1');
+  }
+  // from a list's page back into the room (to make a show of it, or to open the lists): the page goes, the room comes back
+  function leavePage() {
+    var pg = $('ir-lp'); if (pg) pg.remove();
+    document.documentElement.classList.remove('ir-sh-on');
+    if (history.replaceState) history.replaceState(null, '', location.pathname);
+    if (R.showing) R.showing(false);
+    document.title = BRAND + ' ' + T('Intel Room');
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 30);          // the map was measured while the page hid it
+  }
 
   /* ---------------------------------------------------------------- the show screen (?show=) */
   var q = new URLSearchParams(location.search);
   PACKS = R.packs ? R.packs() : null;          // intel.js has already read data/show-packs.json
   if (q.get('s')) loadSaved(q.get('s'));
+  else if (q.get('l')) listPage(q.get('l'));          // a shared list (SAVE LISTS)
   else if (q.get('show')) showScreen(fromQuery());
   else { if (location.hash === '#make') { setOn(true); if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); setTimeout(function () { panel.scrollIntoView({ block: 'start' }); }, 300); } draw(); }          // #make: a show screen's "Make your own" (a hash, because the room rewrites its query)
 
   // The show the address spells out (?show=, made by the maker on this device): its items must still be in the room
   function fromQuery() {
     var codes = String(q.get('show') || '').split('.').filter(Boolean).slice(0, MAXN_LIVE);          // as many as a live show holds (HOW MANY GO IN)
-    var rows = codes.map(function (c) { var m = /^([a-z]+)~(.+)$/.exec(c); if (!m) return null; var x = R.byId(m[2]); return x && !isReg(x) ? { role: m[1], it: x } : null; }).filter(Boolean);
+    var gs = String(q.get('g') || '').split('.').map(Number);          // where each story starts (the maker's segStarts)
+    // an item that has left the room is still on the screen when a list on this device holds its copy (SAVE LISTS)
+    var rows = codes.map(function (c, i) { var m = /^([a-z]+)~(.+)$/.exec(c); if (!m) return null; var x = R.byId(m[2]) || lsSnap(m[2]); return x && !isReg(x) ? { role: m[1], it: x, sg: gs.indexOf(i) >= 0 } : null; }).filter(Boolean);
     var story = null, sid = q.get('st') || '';
     if (PACKS) PACKS.stories.forEach(function (s) { if (s.id === sid) story = s; });
     var video = q.get('kind') === 'video';
@@ -1195,7 +1840,7 @@
         var items = []; try { items = JSON.parse(v('items') || '[]'); } catch (e) { items = []; }
         var rows = (Array.isArray(items) ? items : []).filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string'; }).map(function (o) {
           var live = o._code ? R.byId(o._code) : null;
-          return { role: 'on', it: live || o };
+          return { role: 'on', it: live || o, sg: !!o._sg };
         }).filter(function (r) { return !isReg(r.it); }).slice(0, MAXN_LIVE);
         wait.remove();
         showScreen({ rows: rows, video: v('kind') === 'video', title: String(v('title') || T('The Intel Room')), intro: String(v('note') || ''), cover: String(v('cover') || ''), desc: String(v('desc') || ''),
@@ -1245,10 +1890,29 @@
     var narrow = matchMedia('(max-width:900px)').matches;
     function notes(on) { $('ir-sh-pad').hidden = !on; $('ir-sh-notes').setAttribute('aria-pressed', on ? 'true' : 'false'); sh.classList.toggle('has-notes', on); if (typeof refitSoon === 'function') refitSoon(); }
     notes(narrow && !!intro);
+    // THE STORIES OF THE SHOW (24 Oct 2026, the run order told story by story): where each starts, from the maker (g in the
+    // address, _sg in a saved show's copy). A run of one-item stories shares one break. An older link carries none: no breaks.
+    var SEGS = (function () {
+      if (!rows.some(function (r) { return r.sg; })) return null;
+      var s0 = []; rows.forEach(function (r, i) { if (!i || r.sg) s0.push(i); });
+      return s0.map(function (a, k) {
+        var b = k + 1 < s0.length ? s0[k + 1] : rows.length, x = rows[a].it, h = R.storyOf ? R.storyOf(x) : null;
+        return { at: a, n: b - a, name: h && h.s && h.name ? String(h.name) : clip(cleanHead(x.t), 64) };
+      });
+    })();
+    function segAt(i) {
+      if (!SEGS) return null;
+      for (var k = 0; k < SEGS.length; k++) if (SEGS[k].at === i) {
+        if (SEGS[k].n > 1) return SEGS[k];
+        return k > 0 && SEGS[k - 1].n === 1 ? null : { name: T('Other stories, one item each'), n: 0 };
+      }
+      return null;
+    }
     function strip() {
       $('ir-sh-strip').innerHTML = '<li><button type="button" data-go="0"' + (at === 0 ? ' aria-current="true"' : '') + '><span class="ir-sh-sn">' + esc(T('Intro')) + '</span><span class="ir-sh-stt">' + esc(title) + '</span></button></li>' +
         rows.map(function (r, i) {
-          return '<li><button type="button" data-go="' + (i + 1) + '"' + (at === i + 1 ? ' aria-current="true"' : '') + '>' + R.mark(r.it) + '<span class="ir-sh-sn num">' + N(i + 1) + '</span><span class="ir-sh-stt">' + esc(r.it.t) + '</span></button></li>';
+          var sg = segAt(i);
+          return (sg ? '<li class="ir-sh-sg"><span' + (FA ? ' dir="auto"' : '') + '>' + esc(sg.name) + '</span></li>' : '') + '<li><button type="button" data-go="' + (i + 1) + '"' + (at === i + 1 ? ' aria-current="true"' : '') + '>' + R.mark(r.it) + '<span class="ir-sh-sn num">' + N(i + 1) + '</span><span class="ir-sh-stt">' + esc(r.it.t) + '</span></button></li>';
         }).join('');
       var cur = $('ir-sh-strip').querySelector('[aria-current]');
       if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'center' });
@@ -1275,8 +1939,8 @@
         (desc ? '<p class="ir-rd-d">' + esc(desc) + '</p>' : '') +
         (intro ? '<div class="ir-rd-n"><p class="ir-rd-nl">' + esc(saved ? T('A note from the maker') : video ? T('Your opening hook') : T('Your 30-second intro')) + '</p><p>' + esc(intro) + '</p></div>' : '') + '</header>' +
         (empty ? '<p class="ir-rd-none">' + esc(T('This show has nothing in it')) + '</p>' : '<ol class="ir-rd-list">' + rows.map(function (r, i) {
-          var x = r.it, rg = isReg(x);
-          return '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
+          var x = r.it, rg = isReg(x), sg = segAt(i);
+          return (sg ? '<li class="ir-rd-sg"><h2' + (FA ? ' dir="auto"' : '') + '>' + esc(sg.name) + '</h2>' + (sg.n ? '<small>' + esc(T('{n} items', { n: N(sg.n) })) + '</small>' : '') + '</li>' : '') + '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
             '<p class="ir-rd-t">' + paras(full(x)) + '</p>' + counts(x) +
             (!rg && R.repliesOn !== false && R.rpKey && R.rpKey(x) ?'<div class="ir-rd-rp" data-rdrp="' + i + '"></div>' : '') +
             (rg ?'<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow">' + esc(srcLine(x)) + '</a></p>') + '</div></li>';
@@ -1366,7 +2030,7 @@
         '<p class="ir-sh-meta">' + R.mark(x) + esc((isX ? [R.when(x), where] : [R.when(x), x.nm || x.h || x.src, where]).filter(Boolean).join(' · ')) + '</p>' +
         counts(x) + (x.hotWhy ? '<p class="ir-sh-why">' + ICON.flame + esc(x.hotWhy) + '</p>' : '') + (x.also && x.also.length ? '<p class="ir-sh-also">' + esc(T('Also carried by {list}', { list: x.also.join(T(', ')) })) + '</p>' : '') +
         '<p class="ir-sh-acts">' + (hasM && words.length > 110 ? '<button type="button" class="ir-sh-rpb ir-sh-wb" id="ir-sh-wb" title="' + esc(T('The words on the screen alone (W)')) + '">' + ICON.full + '<span>' + esc(T('Words on the screen')) + '</span></button>' : '') + (k ? '<button type="button" class="ir-sh-rpb" id="ir-sh-rpb" aria-pressed="false" aria-controls="ir-sh-rp" title="' + esc(T('Top replies (R)')) + '">' + ICON.reply + '<span>' + esc(k.slice(0, 2) === 'yt' ? T('Top comments') : T('Top replies')) + '</span><b class="num" id="ir-sh-rpn"></b></button>' : '') +
-        '<a class="ir-sh-src" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(srcLine(x)) + '</a></p></div>' +
+        saveBtn(x, 'ir-svb-w ir-sh-svb') + '<a class="ir-sh-src" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(srcLine(x)) + '</a></p></div>' +
         (k ? '<aside class="ir-sh-rp" id="ir-sh-rp" aria-label="' + esc(T('Most-liked replies')) + '" hidden></aside>' : '') +
         '<div class="ir-sh-rbig" id="ir-sh-rbig" role="dialog" aria-label="' + esc(T('A reply on the screen')) + '" hidden></div>';
       // a post with a video or pictures and many words: the words get as much of the screen as the picture

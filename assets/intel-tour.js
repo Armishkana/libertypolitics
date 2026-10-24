@@ -18,12 +18,22 @@
    It never hides content and animates it back (CLAUDE.md, phone rules): the spotlight and the card simply appear.
    KEYS. Right arrow or Enter: next. Left arrow: back. Esc: close. Focus stays inside the tour card while it is open.
    PHONE. The card sits at the bottom of the screen (at the top when the spotlight is low), every button at least 44 px.
-   Words a Persian page needs are not here: the Iran room does not load this add-on yet (job: a Persian tour).
-   Test: build/phone-test.html "TOUR" walks both tours at 360 px and 1280 px. */
+   BOTH SITES (24 October 2026). Iran Uncensored's room loads this same file (site-iu/build/news.py names it in data-addons).
+   Every sentence goes through T(), the room's own table (CFG.t, from site-iu/data/news-words.json): on Liberty Politics
+   there is no CFG and T() gives back the English as written; the Iran page's English says its own version of a step where
+   that room differs ("en", e.g. the camps in place of left and right), its Persian is spoken Persian ("fa"), and news.py
+   t_keys() reads this file, so the Persian build stops while a sentence here has no Persian. A step whose control exists on
+   one site only (the Iran room's Media tab) is simply skipped on the other, the same rule as any absent control. On a
+   right-to-left page the left arrow is "next".
+   Test: build/phone-test.html "TOUR" walks both tours at 360 px and 1280 px; site-iu/build/phone-test.html the Iran ones. */
 (function () {
   var R = window.IRoom, root = document.getElementById('ir');
   if (!R || !root || document.getElementById('irt-b')) return;
   var SEEN = 'ir-tour-seen';
+  var CFG = (function () { var el = document.getElementById('ir-cfg'); if (!el) return {}; try { var c = JSON.parse(el.textContent); return c && typeof c === 'object' ? c : {}; } catch (e) { return {}; } })();
+  var TT = CFG.t && typeof CFG.t === 'object' ? CFG.t : null, FA = CFG.lang === 'fa', RTL = !!CFG.rtl;
+  function T(s, v) { var r = TT && typeof TT[s] === 'string' ? TT[s] : s; if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); }); return r; }
+  function N(n) { var s = String(n); return FA ? s.replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.charAt(+d); }) : s; }
   function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function put(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
   function $(id) { return document.getElementById(id); }
@@ -41,44 +51,48 @@
 
   /* ------------------------------------------------------------------ the steps (the words a five-year-old can follow) */
   var ROOM = [
-    { e: '👋', h: 'Welcome to the Intel Room', p: 'It finds the news, videos and posts the world is talking about right now, and helps you turn them into a show. This tour takes about a minute.' },
-    { at: ['#ir-lens'], e: '🕐', h: 'Pick what to look at', p: 'Last 24 hours is today. The Bank is older things we kept. From readers is what people sent in. The number is how many things are in each.' },
-    { at: ['#ir-ask'], e: '🔎', h: 'Search or ask', p: 'Type anything, like Iran or videos from Gaza today. Or tap the microphone and just say it.' },
-    { at: ['#ir-hotrow'], e: '🔥', h: 'The hottest stories', p: 'Each button is one story people are talking about. The first number says how hot it is (100 is the hottest). The last number says how many things you can look at.',
-      act: { label: 'Show me', run: function () { clickEl(firstShown(['#ir-hots .ir-hs'])); } } },
-    { at: ['#ir-pills'], when: storyOn, e: '📌', h: 'Now you see only that story', p: 'Posts on X, articles and videos about it, all in one place: enough for a whole show. Tap the x next to its name to see everything again.' },
-    { at: ['#ir-cmd [data-open]'], all: true, e: '🗂️', h: 'Topic, Region and Filters', p: 'Topic picks a subject, like war or AI. Region picks a part of the world. Filters keeps only what you want: only videos, only X posts, only articles, or only the most liked.' },
-    { at: ['#ir-mapbox'], e: '🌍', h: 'The map', p: 'Each circle is a place where things are happening. A bigger circle means more. Tap a circle to see what happened there. Lines join places in the same story.' },
-    { at: ['#ir-items .ir-card .ir-by'], e: '🃏', h: 'Who posted it', p: 'The round picture is who posted it: a person, a YouTube channel or a news site’s logo. The little badge on it says where: X, YouTube or an article.' },
-    { at: ['#ir-items .ir-card .ir-c-x'], e: '🏷️', h: 'The little labels', p: 'Hot: how much people are talking about it right now. Viral: more likes than usual. The coloured bar: which news sites carried it, blue left, grey centre, red right.' },
-    { at: ['#ir-items .ir-card'], e: '👆', h: 'Open a card', p: 'Tap any card to open it big: watch the video, read the whole post and see the comments with the most likes.' },
-    { at: ['#ir-mk-b'], e: '🎬', h: 'Make a show', p: 'This turns what you are looking at into a show: titles, cover words, a description and the best order to talk about things.' },
-    { at: ['#ir-add-b'], e: '➕', h: 'Add something', p: 'Found a good post or video that is not here? Add it, and after a quick check everyone can see it.' },
-    { at: ['#ir-tour'], e: '▶️', h: 'Play', p: 'Play shows every card big, one after another, by itself. Good for putting the room on screen during a live show.' },
-    { e: '🎉', h: 'That’s the room!', p: 'Tap Tour on the bar any time to see this again. Want to see how the show maker works too?', end: 'room' }
+    { e: '👋', h: T('Welcome to the Intel Room'), p: T('It finds the news, videos and posts the world is talking about right now, and helps you turn them into a show. This tour takes about a minute.') },
+    { at: ['#ir-lens'], e: '🕐', h: T('Pick what to look at'), p: T('Last 24 hours is today. The Bank is older things we kept. From readers is what people sent in. The number is how many things are in each.') },
+    { at: ['#ir-ask'], e: '🔎', h: T('Search or ask'), p: T('Type anything, like Iran or videos from Gaza today. Or tap the microphone and just say it.') },
+    { at: ['#ir-hotrow'], e: '🔥', h: T('The hottest stories'), p: T('Each button is one story people are talking about. The first number says how hot it is (100 is the hottest). The last number says how many things you can look at.'),
+      act: { label: T('Show me'), run: function () { clickEl(firstShown(['#ir-hots .ir-hs'])); } } },
+    { at: ['#ir-pills'], when: storyOn, e: '📌', h: T('Now you see only that story'), p: T('Posts on X, articles and videos about it, all in one place: enough for a whole show. Tap the x next to its name to see everything again.') },
+    { at: ['#ir-cmd [data-open]'], all: true, e: '🗂️', h: T('Topic, Region and Filters'), p: T('Topic picks a subject, like war or AI. Region picks a part of the world. Filters keeps only what you want: only videos, only X posts, only articles, or only the most liked.') },
+    { at: ['#ir-mapbox'], e: '🌍', h: T('The map'), p: T('Each circle is a place where things are happening. A bigger circle means more. Tap a circle to see what happened there. Lines join places in the same story.') },
+    { at: ['#ir-items .ir-card .ir-by'], e: '🃏', h: T('Who posted it'), p: T('The round picture is who posted it: a person, a YouTube channel or a news site’s logo. The little badge on it says where: X, YouTube or an article.') },
+    { at: ['#ir-items .ir-card .ir-c-x'], e: '🏷️', h: T('The little labels'), p: T('Hot: how much people are talking about it right now. Viral: more likes than usual. The coloured bar: which news sites carried it, blue left, grey centre, red right.') },
+    // the Iran room's own tab (site-iu/build/news-camps.js): Liberty Politics has no such tab, so there the step is skipped
+    { at: ['#ir-ltab [data-ltab="media"]'], e: '🧭', h: T('Who runs the media'), p: T('This tab lists who is behind every source: the regime and each part of it, the opposition, foreign money, the independent press. Tap one to see only what it says.') },
+    { at: ['#ir-items .ir-card'], e: '👆', h: T('Open a card'), p: T('Tap any card to open it big: watch the video, read the whole post and see the comments with the most likes.') },
+    { at: ['#ir-mk-b'], e: '🎬', h: T('Make a show'), p: T('This turns what you are looking at into a show: titles, cover words, a description and the best order to talk about things.') },
+    { at: ['#ir-add-b'], e: '➕', h: T('Add something'), p: T('Found a good post or video that is not here? Add it, and after a quick check everyone can see it.') },
+    { at: ['#ir-tour'], e: '▶️', h: T('Play'), p: T('Play shows every card big, one after another, by itself. Good for putting the room on screen during a live show.') },
+    { e: '🎉', h: T('That’s the room!'), p: T('Tap Tour on the bar any time to see this again. Want to see how the show maker works too?'), end: 'room' }
   ];
   var MAKER = [
-    { at: ['#ir-sm .ir-sm-bar'], e: '🎬', h: 'This is the show maker', p: 'It already picked the strongest things from what you were looking at, and put them in a good order to talk about.' },
-    { at: ['#ir-sm .ir-sm-from'], e: '🧭', h: 'Made from your choices', p: 'This says what the show is made from. Pick another story or change a filter, and the show changes with it.' },
-    { at: ['#ir-sm .ir-sm-dials'], e: '🎛️', h: 'Three choices', p: 'Making: a live show or a video. Style: plain words or bold ones. Aim for: more clicks or more watching.' },
-    { at: ['#ir-sm .ir-sm-tabs'], e: '📝', h: 'Ready-made words', p: 'Titles, Cover text and Description give you words you can use right away. Tap the one you like best to pick it.' },
-    { at: ['#ir-sm .ir-sm-tabs [data-tab="run"]'], e: '📋', h: 'The run order', p: 'This is the list of things in the order you will talk about them, and how long the show will run.',
-      act: { label: 'Show me', run: function () { clickEl(q('#ir-sm [data-tab="run"]')); } } },
-    { at: ['#ir-sm .ir-sm-run', '#ir-sm .ir-sm-pane'], e: '↕️', h: 'Change the order', p: 'Use the arrows to move a thing up or down, and the x to take it out. The maker keeps your changes on this device.' },
-    { at: ['#ir-sm .ir-sm-acts'], e: '📺', h: 'Go live', p: 'Open the show screen to present it full screen, one thing at a time, with the top comments. Copy the package to paste all the words anywhere.' },
-    { at: ['#ir-sm .ir-sv'], e: '🔗', h: 'Save it and share it', p: 'Save the show to get one link. Anyone who opens it can present it, read it as a page, or make their own.' },
-    { at: ['#ir-sm .ir-sm-go'], e: '✅', h: 'You are ready', p: 'Close goes back to the room. Make a show any time from the bar. Have fun!', end: 'maker' }
+    { at: ['#ir-sm .ir-sm-bar'], e: '🎬', h: T('This is the show maker'), p: T('It already picked the strongest things from what you were looking at, and put them in a good order to talk about.') },
+    { at: ['#ir-sm .ir-sm-from'], e: '🧭', h: T('Made from your choices'), p: T('This says what the show is made from. Pick another story or change a filter, and the show changes with it.') },
+    { at: ['#ir-sm .ir-sm-dials'], e: '🎛️', h: T('Three choices'), p: T('Making: a live show or a video. Style: plain words or bold ones. Aim for: more clicks or more watching.') },
+    { at: ['#ir-sm .ir-sm-tabs'], e: '📝', h: T('Ready-made words'), p: T('Titles, Cover text and Description give you words you can use right away. Tap the one you like best to pick it.') },
+    // the plain maker (Iran Uncensored, intel-prep.js PLAIN): the creator's own title and note, and no ready-made words
+    { at: ['#ir-sm .ir-sv-words'], e: '✍️', h: T('Your title and your note'), p: T('Write the show’s title and a note in your own words. Nothing here is written for you.') },
+    { at: ['#ir-sm .ir-sm-tabs [data-tab="run"]'], e: '📋', h: T('The run order'), p: T('This is the list of things in the order you will talk about them, and how long the show will run.'),
+      act: { label: T('Show me'), run: function () { clickEl(q('#ir-sm [data-tab="run"]')); } } },
+    { at: ['#ir-sm .ir-sm-run', '#ir-sm .ir-sm-pane'], e: '↕️', h: T('Change the order'), p: T('Use the arrows to move a thing up or down, and the x to take it out. The maker keeps your changes on this device.') },
+    { at: ['#ir-sm .ir-sm-acts'], e: '📺', h: T('Go live'), p: T('Open the show screen to present it full screen, one thing at a time, with the top comments. Copy the package to paste all the words anywhere.') },
+    { at: ['#ir-sm .ir-sv'], e: '🔗', h: T('Save it and share it'), p: T('Save the show to get one link. Anyone who opens it can present it, read it as a page, or make their own.') },
+    { at: ['#ir-sm .ir-sm-go'], e: '✅', h: T('You are ready'), p: T('Close goes back to the room. Make a show any time from the bar. Have fun!'), end: 'maker' }
   ];
 
   /* ------------------------------------------------------------------ the overlay */
   var ov = null, hole = null, tip = null, steps = null, at = 0, back = null, raf = 0, name = '';
   function build() {
     ov = document.createElement('div');
-    ov.className = 'irt'; ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'irt-h');
+    ov.className = 'irt'; if (RTL) { ov.setAttribute('dir', 'rtl'); ov.setAttribute('lang', 'fa'); } ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'irt-h');
     ov.innerHTML = '<div class="irt-hole" aria-hidden="true"></div><div class="irt-tip" tabindex="-1"><div class="irt-top"><span class="irt-e" aria-hidden="true"></span><p class="irt-n"></p>' +
-      '<button type="button" class="irt-x" data-t="end" aria-label="Close the tour">×</button></div><h3 id="irt-h"></h3><p class="irt-p"></p><div class="irt-dots" aria-hidden="true"></div>' +
-      '<div class="irt-b"><button type="button" class="irt-skip" data-t="end">Skip the tour</button><span><button type="button" class="irt-back" data-t="back">Back</button>' +
-      '<button type="button" class="irt-act" data-t="act"></button><button type="button" class="irt-next" data-t="next">Next</button></span></div></div>';
+      '<button type="button" class="irt-x" data-t="end" aria-label="' + esc(T('Close the tour')) + '">×</button></div><h3 id="irt-h"></h3><p class="irt-p"></p><div class="irt-dots" aria-hidden="true"></div>' +
+      '<div class="irt-b"><button type="button" class="irt-skip" data-t="end">' + esc(T('Skip the tour')) + '</button><span><button type="button" class="irt-back" data-t="back">' + esc(T('Back')) + '</button>' +
+      '<button type="button" class="irt-act" data-t="act"></button><button type="button" class="irt-next" data-t="next">' + esc(T('Next')) + '</button></span></div></div>';
     document.body.appendChild(ov);
     hole = q('.irt-hole', ov); tip = q('.irt-tip', ov);
     ov.addEventListener('click', function (ev) {
@@ -91,8 +105,8 @@
     });
     ov.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape') { ev.preventDefault(); end(); }
-      else if (ev.key === 'ArrowRight') { ev.preventDefault(); q('.irt-next', ov).click(); }
-      else if (ev.key === 'ArrowLeft') { ev.preventDefault(); if (at > 0) go(at - 1, -1); }
+      else if (ev.key === (RTL ? 'ArrowLeft' : 'ArrowRight')) { ev.preventDefault(); q('.irt-next', ov).click(); }          // forward is the way the page reads
+      else if (ev.key === (RTL ? 'ArrowRight' : 'ArrowLeft')) { ev.preventDefault(); if (at > 0) go(at - 1, -1); }
       else if (ev.key === 'Tab') {          // focus stays in the card
         var f = [].filter.call(tip.querySelectorAll('button'), function (b) { return !b.hidden; });
         if (!f.length) return;
@@ -126,16 +140,16 @@
     }
     var real = steps.filter(function (x) { return x.when ? true : usable(x); }), n = real.indexOf(s);          // a step that waits on "Show me" keeps its number
     q('.irt-e', ov).textContent = s.e || '';
-    q('.irt-n', ov).textContent = (n + 1) + ' of ' + real.length;
+    q('.irt-n', ov).textContent = T('{n} of {m}', { n: N(n + 1), m: N(real.length) });
     q('#irt-h', ov).textContent = s.h;
     q('.irt-p', ov).textContent = s.p;
     q('.irt-dots', ov).innerHTML = real.map(function (x, k) { return '<i' + (k === n ? ' class="on"' : '') + '></i>'; }).join('');
     var act = q('.irt-act', ov), next = q('.irt-next', ov);
     q('.irt-back', ov).hidden = n <= 0;
     q('.irt-skip', ov).hidden = !!s.end;
-    if (s.end === 'room') { act.hidden = !q('#ir-mk-b'); act.textContent = 'Tour the show maker'; next.textContent = 'Done'; }
-    else if (s.end === 'maker') { act.hidden = true; next.textContent = 'Done'; }
-    else { act.hidden = !s.act; act.textContent = s.act ? s.act.label : ''; next.textContent = 'Next'; }
+    if (s.end === 'room') { act.hidden = !q('#ir-mk-b'); act.textContent = T('Tour the show maker'); next.textContent = T('Done'); }
+    else if (s.end === 'maker') { act.hidden = true; next.textContent = T('Done'); }
+    else { act.hidden = !s.act; act.textContent = s.act ? s.act.label : ''; next.textContent = T('Next'); }
     ov.classList.toggle('is-center', !els.length);
     placeNow();
     setTimeout(placeNow, 80);          // a scroll or a "Show me" moves the page under the spotlight: measure again
@@ -195,8 +209,8 @@
   /* ------------------------------------------------------------------ the doors */
   var ICO = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9v.4"/><path d="M12 17.2h.01"/></svg>';
   var tb = document.createElement('button');
-  tb.type = 'button'; tb.className = 'ir-cb ir-cb-tour'; tb.id = 'irt-b'; tb.setAttribute('aria-label', 'Take the tour: how the Intel Room works');
-  tb.innerHTML = ICO + '<span>Tour</span>';
+  tb.type = 'button'; tb.className = 'ir-cb ir-cb-tour'; tb.id = 'irt-b'; tb.setAttribute('aria-label', T('Take the tour: how the Intel Room works'));
+  tb.innerHTML = ICO + '<span>' + esc(T('Tour')) + '</span>';
   tb.addEventListener('click', startRoom);
   if (!get(SEEN)) tb.classList.add('is-new');          // a first visit: the button itself is lit (a phone has no room for the nudge line above the map)
   var cmdb = q('#ir-cmd .ir-cmd-b');
@@ -205,8 +219,8 @@
   if (!get(SEEN) && $('ir-cmd')) {
     var nd = document.createElement('p');
     nd.className = 'irt-nudge'; nd.id = 'irt-nudge';
-    nd.innerHTML = '<span aria-hidden="true">👋</span><b>New here?</b> <span>See how the Intel Room works in one minute.</span>' +
-      '<button type="button" class="irt-go">Take the tour</button><button type="button" class="irt-no" aria-label="No thanks, hide this">×</button>';
+    nd.innerHTML = '<span aria-hidden="true">👋</span><b>' + esc(T('New here?')) + '</b> <span>' + esc(T('See how the Intel Room works in one minute.')) + '</span>' +
+      '<button type="button" class="irt-go">' + esc(T('Take the tour')) + '</button><button type="button" class="irt-no" aria-label="' + esc(T('No thanks, hide this')) + '">×</button>';
     $('ir-cmd').parentNode.insertBefore(nd, $('ir-cmd'));
     q('.irt-go', nd).addEventListener('click', startRoom);
     q('.irt-no', nd).addEventListener('click', function () { put(SEEN, '1'); nd.remove(); tb.classList.remove('is-new'); });
@@ -217,7 +231,7 @@
     var body = sm && q('.ir-sm-body', sm);
     if (!body || q('.irt-how', body)) return;
     var b = document.createElement('button');
-    b.type = 'button'; b.className = 'irt-how'; b.innerHTML = ICO + '<span>How the show maker works</span>';
+    b.type = 'button'; b.className = 'irt-how'; b.innerHTML = ICO + '<span>' + esc(T('How the show maker works')) + '</span>';
     b.addEventListener('click', function () { start(MAKER, 'maker'); });
     body.insertBefore(b, body.firstChild);
   }

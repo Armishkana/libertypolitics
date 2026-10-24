@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=2b2c4449d5) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=75ee67264d) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -186,6 +186,9 @@
      list (LTX) and add a block to the spotlight (SPOTX). Nothing here has words of its own, so the Iran room, which loads no
      add-on, is unchanged. An add-on that throws never breaks the room: every call into one is caught. */
   var LAYERS = [], EXT = {}, LTX = {}, SPOTX = [], RAWQ = null, BADGEX = [];
+  // SAVE LISTS (24 Oct 2026, build/intel-prep.js): a control beside every card (CARDX) and in the spotlight's row of buttons
+  // (SPOTA), drawn by the creator tools once they are loaded; nothing of its own here
+  var CARDX = null, SPOTA = [];
   function xcall(f, a, b, c) { try { return f(a, b, c); } catch (e) { return null; } }
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
   // A LIST AN ADD-ON OPENS IN THE SPOTLIGHT (24 Oct 2026: a warship's or a site's own X posts, videos and articles, from
@@ -835,8 +838,9 @@
     // who posted it leads the card (byline); the meta line keeps when and where
     var by = byline(it), meta = '<span>' + esc(it.pend && !it.d ? T('Sent {t}', { t: ago(it.ms) }) : fmtDate(it.d)) + '</span> · ' + esc(where) + (by ? '' : ' · ' + bd(esc(it.h || it.src))) + badges(it);
     var tags = hotTag(it) + viralTag(it) + reachLine(it) + spreadTag(it);
-    return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
-      '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span>' + refLine(it) + '<span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button></li>';
+    var sx = CARDX ? xcall(CARDX, it) || '' : '';          // the card's Save button (SAVE LISTS): a sibling, so the card stays one tap target
+    return '<li class="ir-card' + (i === spotAt ? ' on' : '') + (it.hot != null ? ' is-live' : '') + (sx ? ' has-sv' : '') + '"><button type="button" data-i="' + i + '">' + thumb(it) +
+      '<span>' + by + '<span class="ir-c-t"' + DA + '>' + esc(it.t) + '</span>' + refLine(it) + '<span class="ir-c-m">' + meta + '</span>' + (tags ? '<span class="ir-c-x">' + tags + '</span>' : '') + '</span></button>' + sx + '</li>';
   }
   /* AN ITEM DRAWN AS THE ROOM DRAWS IT, for an add-on's own list (24 Oct 2026, Armin on a warship's card: "news items
      related to it (x posts, YouTube, articles etc) shown here, the same way that you show it on the intel room"). The same
@@ -887,7 +891,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=2b2c4449d5): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=75ee67264d): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1955,7 +1959,7 @@
     var h = location.hash === '#add' ? '' : location.hash;
     history.replaceState(null, '', location.pathname + query() + h);
   }
-  var defLens = 'bank', SHOWING = /[?&](show|s)=/.test(location.search);          // ?s=: a saved show (intel-prep.js loadSaved)
+  var defLens = 'bank', SHOWING = /[?&](show|s|l)=/.test(location.search);          // ?s=: a saved show (intel-prep.js loadSaved); ?l=: a shared list
   function readUrl(search) {
     var u = new URLSearchParams(search);
     RAWQ = u;          // an add-on's filter reads its own key from here once it is loaded (it loads after this first read)
@@ -2202,6 +2206,7 @@
       (it.pend ? '<p class="ir-s-o">' + T('A reader sent this in. It is not checked yet, so it is not on the map: open it with that in mind.') + '</p>' : '') +
       (rg ? '<p class="ir-s-o ir-s-rgn"><b>' + T('Regime media') + '</b> ' + T("Not linked: opening it would show the regime's servers who you are. You can copy its words.") + '</p>' : '') +
       '<div class="ir-s-a">' + (rg ? '<button class="ir-s-open" type="button" data-copyt>' + T('Copy the headline') + '</button>' : '<a class="ir-s-open" href="' + esc(it.u) + '" target="_blank" rel="' + (CFG.noref ? 'noopener noreferrer' : 'noopener') + '">' + T('Open on {src}', { src: esc(srcName) }) + '</a>') +
+      SPOTA.map(function (f) { return xcall(f, it) || ''; }).join('') +
       (it.p && it.p !== 'global' && P[it.p] ? '<button class="ir-s-b" type="button" data-map>' + T('Show on the map') + '</button>' : '') +
       '<div class="ir-s-nav"><button type="button" data-step="-1" aria-label="' + T('Previous') + '"' + (i ? '' : ' disabled') + '>' + (CFG.rtl ? '&rarr;' : '&larr;') + '</button><button type="button" data-step="1" aria-label="' + T('Next') + '"' + (i < SL.length - 1 ? '' : ' disabled') + '>' + (CFG.rtl ? '&larr;' : '&rarr;') + '</button></div></div>' +
       '<p class="ir-s-f">' + T('Weak, wrong, or missing context? <a {attrs}>Say why in the discussion</a>. That is how the room gets better.', { attrs: 'href="#feedback" data-kind="wrong" data-about="' + esc((T('Intel Room: ') + it.t).slice(0, 78)) + '" data-id="intel-' + esc(String(it.id)) + '" data-on="' + (CFG.talkOn || 'page:intel') + '" data-close-spot' }) + '</p>' +
@@ -3214,12 +3219,16 @@
       tabOn: function () { return LT; },
       addSpot: function (f) { SPOTX.push(f); }, spread: spreadOf, rendered: function () { render(); },
       // a mark on every card's meta line, after the room's own (23 Oct 2026: the Iran room's camp of each source, news-camps.js)
-      addBadge: function (f) { BADGEX.push(f); drawList(); } };
+      addBadge: function (f) { BADGEX.push(f); drawList(); },
+      // SAVE LISTS (24 Oct 2026, intel-prep.js): the Save button beside every card and in the spotlight's buttons; the people
+      // and countries an item names (the run order groups by them); and the address handed back when a list's page closes
+      addCardX: function (f) { CARDX = f; drawList(); }, addSpotAct: function (f) { SPOTA.push(f); },
+      actors: actorsOf, names: namesOf, showing: function (on) { SHOWING = !!on; if (!on) writeUrl(); } };
     (root.getAttribute('data-addons') || '').split(' ').filter(Boolean).forEach(function (src, i) {          // the page's add-ons (intel.py), after the room is ready
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=2b2c4449d5'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=75ee67264d'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
