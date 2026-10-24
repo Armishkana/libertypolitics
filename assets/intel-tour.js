@@ -95,18 +95,25 @@
       '<button type="button" class="irt-act" data-t="act"></button><button type="button" class="irt-next" data-t="next">' + esc(T('Next')) + '</button></span></div></div>';
     document.body.appendChild(ov);
     hole = q('.irt-hole', ov); tip = q('.irt-tip', ov);
+    /* The keys live on the overlay, so the overlay must keep the focus (24 Oct 2026): a tap on the dim page around the
+       card left the focus on nothing, and Esc and the arrows stopped working. The overlay takes focus itself (tabIndex
+       -1), and a tap anywhere outside the card's buttons puts it back on the card's main button. */
+    ov.tabIndex = -1;
     ov.addEventListener('click', function (ev) {
-      var b = ev.target.closest('[data-t]'); if (!b) return;
+      var b = ev.target.closest('[data-t]');
+      if (!b) { if (steps && !tip.contains(ev.target)) focusMain(); return; }          // inside the card, the card (tabindex -1) keeps the focus itself
       var t = b.getAttribute('data-t');
+      if (!steps) return;
       if (t === 'end') end();
-      else if (t === 'back') go(at - 1, -1);
+      else if (t === 'back') back1();
       else if (t === 'next') { if (steps[at].end === 'room') { end(); return; } if (steps[at].end === 'maker') { end(); return; } go(at + 1, 1); }
-      else if (t === 'act') { var s = steps[at]; if (s.end === 'room') { end(); startMaker(); return; } if (s.act) { s.act.run(); setTimeout(function () { go(at + 1, 1); }, 120); } }
+      else if (t === 'act') { var s = steps[at]; if (s.end === 'room') { end(); startMaker(); return; } if (s.act) { s.act.run(); setTimeout(function () { if (steps) go(at + 1, 1); }, 120); } }          // Esc in those 120 ms ends the tour: nothing to go to
     });
     ov.addEventListener('keydown', function (ev) {
+      if (!steps) return;
       if (ev.key === 'Escape') { ev.preventDefault(); end(); }
-      else if (ev.key === (RTL ? 'ArrowLeft' : 'ArrowRight')) { ev.preventDefault(); q('.irt-next', ov).click(); }          // forward is the way the page reads
-      else if (ev.key === (RTL ? 'ArrowRight' : 'ArrowLeft')) { ev.preventDefault(); if (at > 0) go(at - 1, -1); }
+      else if (ev.key === (RTL ? 'ArrowLeft' : 'ArrowRight')) { ev.preventDefault(); q('.irt-next', ov).click(); }          // forward is the way the page reads (the buttons are mirrored on a right-to-left page)
+      else if (ev.key === (RTL ? 'ArrowRight' : 'ArrowLeft')) { ev.preventDefault(); back1(); }
       else if (ev.key === 'Tab') {          // focus stays in the card
         var f = [].filter.call(tip.querySelectorAll('button'), function (b) { return !b.hidden; });
         if (!f.length) return;
@@ -128,9 +135,16 @@
     els.forEach(function (el) { var b = el.getBoundingClientRect(); r = r ? { l: Math.min(r.l, b.left), t: Math.min(r.t, b.top), r: Math.max(r.r, b.right), b: Math.max(r.b, b.bottom) } : { l: b.left, t: b.top, r: b.right, b: b.bottom }; });
     return r;
   }
+  // the card's main button: "Show me" where the step has one, else Next
+  function focusMain() { var s = steps && steps[at], act = q('.irt-act', ov), next = q('.irt-next', ov); ((s && s.act && !s.end && !act.hidden) ? act : next).focus({ preventScroll: true }); }
+  // Back, from the button or the key: only where the Back button is shown (a step behind this one can be used)
+  function back1() { if (steps && !q('.irt-back', ov).hidden) go(at - 1, -1); }
   function go(i, dir) {
     while (i >= 0 && i < steps.length && !usable(steps[i])) i += dir || 1;
-    if (i < 0) i = 0;
+    if (i < 0) {          // nothing usable behind: stay where we are, or (at the start) take the first usable step ahead
+      if (dir < 0 && steps[at] && usable(steps[at])) { focusMain(); return; }
+      i = 0; while (i < steps.length && !usable(steps[i])) i++;
+    }
     if (i >= steps.length) { end(); return; }
     at = i;
     var s = steps[at], els = targets(s);
@@ -154,7 +168,7 @@
     placeNow();
     setTimeout(placeNow, 80);          // a scroll or a "Show me" moves the page under the spotlight: measure again
     setTimeout(placeNow, 400);
-    (s.act && !s.end ? act : next).focus({ preventScroll: true });
+    focusMain();
   }
   function place() { cancelAnimationFrame(raf); raf = requestAnimationFrame(placeNow); }          // scrolling and resizing: once a frame
   function placeNow() {

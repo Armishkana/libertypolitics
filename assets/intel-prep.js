@@ -31,6 +31,16 @@
   var TT = CFG.t && typeof CFG.t === 'object' ? CFG.t : null, FA = CFG.lang === 'fa';
   function T(s, v) { var r = TT && typeof TT[s] === 'string' ? TT[s] : s; if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); }); return r; }
   function N(n) { var s = String(n); return FA ? s.replace(/\d/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.charAt(+d); }) : s; }
+  // Every link this file draws opens without telling the far site where it came from when the page asks (CFG.noref: Iran
+  // Uncensored), and only ever to a web address: a saved show or list is JSON anyone can write by hand (cleanSnap below),
+  // so an item's u is never trusted to be http(s) (24 Oct 2026: a "javascript:" u ran on a tap and "Save a copy" spread it).
+  var RELN = CFG.noref ? 'noopener noreferrer' : 'noopener';
+  function href(u) { u = String(u == null ? '' : u); return /^https?:\/\//i.test(u) ? u : '#'; }
+  // a cut that never leaves half of a character pair behind (encodeURIComponent throws on a lone high surrogate, and the
+  // throw took the whole maker down: an emoji at character 100 of a title was enough)
+  function cutU(s, n) { s = String(s == null ? '' : s).slice(0, n); var c = s.charCodeAt(s.length - 1); return c >= 0xD800 && c <= 0xDBFF ? s.slice(0, -1) : s; }
+  // the arrows of the show screen and the lists point the way the page reads (CFG.rtl: the Persian page reads right to left)
+  var RTL = !!CFG.rtl;
   // PLAIN (Iran Uncensored, CFG.prep 'plain', 19 October 2026): the maker without the machine-written titles, cover lines and
   // descriptions. Over a feed two-thirds Persian they came out mixed, and a machine-made Persian title is a brand risk on
   // Kaveh's channel (site-iu/README.md, "Show tools"). So there the creator writes the title and the note; the run order,
@@ -77,8 +87,10 @@
      one such story, those are used. Otherwise (a mix of stories, the bank, a reader's finds) the words are built here from
      what the items measurably are: the named people and countries in their headlines, the story names, the counts, the
      outlets and the hours. Never a claim the items do not carry: every fact in a show is one of its linked items. */
-  var ROLE = { report: 'The report', own: 'In their own words', clip: 'The clip', reaction: 'Reaction', more: 'More on it', other: 'The other side, or the silence',
-    proof: 'Background, from the bank', related: 'Related', rank: '' };
+  // the part an item plays, for an older show link that carries one (role~code); read only through roleName(), which looks
+  // up own keys alone (a role of "constructor" in a hand-made address printed "function Object()")
+  var ROLE = { report: T('The report'), own: T('In their own words'), clip: T('The clip'), reaction: T('Reaction'), more: T('More on it'), other: T('The other side, or the silence'),
+    proof: T('Background, from the bank'), related: T('Related'), rank: '' };
   var PACKS = null;
   var KEY = 'ir-creator';
   /* HOW MANY GO IN (23 Oct 2026, Armin: "How could somebody create a show that is three hours with three items? ... I
@@ -204,8 +216,11 @@
   // What the set measurably is. Every name in it carries its share: the part of the items that name it.
   function analyse(set) {
     var n = set.length, by = {}, outlets = {}, kinds = { video: 0, post: 0, article: 0, image: 0 }, views = 0, maxLike = 0, t0 = Infinity, t1 = 0, W = [], wsum = 0;
+    // the story of each item counts what the hourly search found FOR it too (storyFn: rel and deep), as the run order does;
+    // R.storyOf alone knows only a story's own items, so a show of one hot story read under half and lost its written words
+    var sOf = storyFn();
     set.forEach(function (it, i) {
-      var h = R.storyOf ? R.storyOf(it) : null;
+      var h = sOf(it);
       if (h) { (by[h.id] = by[h.id] || { h: h, n: 0 }).n++; }
       var r = R.reach(it) || {}, lk = R.likes ? R.likes(it) : likes(it);
       var w = 1 + (it.hot || 0) / 50 + (lk ? Math.log(1 + lk) / Math.LN10 / 2 : 0) + (i < 3 ? 0.5 : 0);
@@ -657,13 +672,29 @@
     return g.clip.slice(0, 1).concat(rep.slice(0, 1), g.clip.slice(1), g.reaction, rep.slice(1), g.talk);
   }
   var NEARV = 0.85;
+  /* One address per thing, without its tracking (24 Oct 2026). Cutting the whole query made article.php?id=1 and ?id=2 one
+     address, so the second article never got in. Now only what says who shared it is dropped (utm_ and the click ids,
+     share tokens); everything else stays, sorted, so the same link shared twice is still one. On X a post is its path:
+     its ?s= and ?t= are the share source and token, and nothing on X's side needs them. */
+  var TRACK = /^(utm_\w*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|msclkid|yclid|twclid|ttclid|li_fat_id|mc_cid|mc_eid|_hsenc|_hsmi|mkt_tok|igsh|igshid|si|ref|ref_src|ref_url|cmpid|smid|ocid|at_medium|at_campaign|share|sharetype|feature)$/i;
+  function urlKey(u0) {
+    var s = String(u0 || '').replace(/#.*$/, ''), at = s.indexOf('?'), base = at < 0 ? s : s.slice(0, at), qs = at < 0 ? '' : s.slice(at + 1);
+    base = base.replace(/^https?:\/\/(www\.|mobile\.|m\.)?/i, '');
+    if (/^(x|twitter)\.com\//i.test(base)) qs = '';
+    var keep = qs.split('&').filter(function (p) {
+      if (!p) return false;
+      var k = p.split('=')[0]; try { k = decodeURIComponent(k); } catch (e) { }
+      return !TRACK.test(k);
+    }).sort();
+    return base + (keep.length ? '?' + keep.join('&') : '');
+  }
   function pickSet(all, opt) {
     var score = scorer(all), sorted = all.slice().sort(function (a, b) { return score(b) - score(a); }), cand = [], seenU = {};
     var want = Math.max(maxN() * 4, 120);
     for (var i = 0; i < sorted.length && cand.length < want; i++) {
       // one address per thing: a YouTube video by its id (24 Oct 2026: cutting the query made every watch?v= link one address,
       // so a show only ever held one YouTube video)
-      var it = sorted[i], y = R.yt ? R.yt(it.u) : '', u = y ? 'yt:' + y : String(it.u || '').replace(/[?#].*$/, '').replace(/^https?:\/\/(www\.|mobile\.)?/, '');
+      var it = sorted[i], y = R.yt ? R.yt(it.u) : '', u = y ? 'yt:' + y : urlKey(it.u);
       if (u && seenU[u]) continue;
       if (cand.some(function (x) { return sameWords(x, it); })) continue;          // the same clip reposted with the same words
       if (u) seenU[u] = 1;
@@ -756,7 +787,7 @@
   var cmdb = root.querySelector('.ir-cmd-b'), addb = $('ir-add-b');
   if (cmdb) { if (addb && addb.parentNode === cmdb) cmdb.insertBefore(mkb, addb); else cmdb.appendChild(mkb); }
   var panel = document.createElement('section');
-  panel.className = 'ir-sm'; panel.id = 'ir-sm'; panel.hidden = true; panel.setAttribute('aria-label', 'Make a show');
+  panel.className = 'ir-sm'; panel.id = 'ir-sm'; panel.hidden = true; panel.setAttribute('aria-label', T('Make a show'));
   var anchor = $('ir-main');          // the show maker is one bar, right above the map (18 Oct 2026: the map comes first)
   if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(panel, anchor); else root.appendChild(panel);          // an older page without #ir-main still gets the panel
   var msg = document.createElement('p');
@@ -770,13 +801,19 @@
      {st: 'ask'} (firebase/firestore.rules "replyasks"), build/intel_replies.py --asks on his PC answers it within about a
      minute, and this waits for the answer and hands it to intel.js (R.rpAsk). cb(entry, 'asking' | 'done' | 'fail' |
      'unread'): 'unread' when this account may not ask (the rules refused), so the panel shows only the link. */
-  var RPA = {};
+  /* WAITING FOR THE ANSWER (24 Oct 2026). It read the ask's document every 5 seconds for up to 5 minutes, per post: a
+     45-row show opened as a creator was about 2,700 reads. Now one listener per post (onSnapshot: a read only when the
+     document changes), closed the moment the answer, a failure or the 5 minutes come; polling, slowing down, only where
+     the database script has no listener. What is remembered: an answer, and an ask under way. A failure or a refusal is
+     tried again on the next open after a minute (it was kept for good, so one cold start of his PC left a post "could not
+     be read" until the page was reloaded), and an ask nobody answered in 30 minutes is asked again, not waited on. */
+  var RPA = {}, RPA_RETRY = 60000;
   function askReplies(k, cb) {
     var a = RPA[k];
-    if (a) { if (a.st === 'asking') a.cbs.push(cb); cb(a.e, a.st); return; }
-    a = RPA[k] = { st: 'asking', e: null, cbs: [cb] };
+    if (a && (a.st === 'asking' || a.st === 'done' || Date.now() - a.t < RPA_RETRY)) { if (a.st === 'asking') a.cbs.push(cb); cb(a.e, a.st); return; }
+    a = RPA[k] = { st: 'asking', e: null, cbs: [cb], t: Date.now() };
     cb(null, 'asking');
-    function end(e, st) { a.st = st; a.e = e; var c = a.cbs; a.cbs = []; c.forEach(function (f) { try { f(e, st); } catch (x) { } }); }
+    function end(e, st) { if (a.st !== 'asking') return; a.st = st; a.e = e; a.t = Date.now(); var c = a.cbs; a.cbs = []; c.forEach(function (f) { try { f(e, st); } catch (x) { } }); }
     lp(function (L) {
       if (!L || L.off || !L.members.fb || !signedIn(L)) { end(null, 'unread'); return; }
       L.members.fb().then(function (S) {
@@ -787,19 +824,34 @@
           return { at: d.at && d.at.toDate ? d.at.toDate().toISOString() : new Date().toISOString(), r: Array.isArray(r) ? r : [] };
         }
         function old(d) { return !d.at || !d.at.toMillis || Date.now() - d.at.toMillis() > 30 * 60000; }
-        function poll() {
-          look().then(function (d) {
-            if (d && d.st === 'done') end(entry(d), 'done');
-            else if (d && d.st === 'fail') end(null, 'fail');
-            else if (Date.now() - t0 > 5 * 60000) end(null, 'fail');          // his PC is off: say so, never wait forever
-            else setTimeout(poll, 5000);
-          }).catch(function () { end(null, 'fail'); });
+        // the answer, or its absence: true when it ended the wait
+        function seen(d) {
+          if (d && d.st === 'done') { end(entry(d), 'done'); return true; }
+          if (d && d.st === 'fail') { end(null, 'fail'); return true; }
+          return false;
+        }
+        function wait() {
+          var un = null, stop = function () { clearTimeout(cap); if (un) { try { un(); } catch (x) { } un = null; } };
+          var cap = setTimeout(function () { stop(); end(null, 'fail'); }, Math.max(1000, 5 * 60000 - (Date.now() - t0)));          // his PC is off: say so, never wait forever
+          if (typeof S.F.onSnapshot === 'function') {
+            try {
+              un = S.F.onSnapshot(ref, function (snap) { if (a.st !== 'asking') { stop(); return; } if (seen(snap.exists() ? snap.data() : null)) stop(); },
+                function () { stop(); end(null, 'fail'); });
+              return;
+            } catch (x) { un = null; }
+          }
+          var gap = 5000;
+          (function poll() {
+            if (a.st !== 'asking') { stop(); return; }
+            look().then(function (d) { if (seen(d) || a.st !== 'asking') { stop(); return; } gap = Math.min(30000, gap * 1.5); setTimeout(poll, gap); })
+              .catch(function () { stop(); end(null, 'fail'); });
+          })();
         }
         return look().then(function (d) {
           if (d && d.st === 'done' && (!old(d) || entry(d).r.length)) { end(entry(d), 'done'); return; }
-          if (d && d.st === 'ask') { poll(); return; }
+          if (d && d.st === 'ask' && !old(d)) { wait(); return; }          // asked lately (by him on another device): wait for that answer
           if (d && d.st === 'fail' && !old(d)) { end(null, 'fail'); return; }
-          return S.F.setDoc(ref, { st: 'ask', at: S.F.serverTimestamp() }).then(function () { setTimeout(poll, 4000); },
+          return S.F.setDoc(ref, { st: 'ask', at: S.F.serverTimestamp() }).then(function () { wait(); },
             function (ex) { end(null, ex && ex.code === 'permission-denied' ? 'unread' : 'fail'); });
         });
       }).catch(function () { end(null, 'fail'); });
@@ -852,7 +904,7 @@
     return '<ul class="ir-sm-opts" role="radiogroup" aria-label="' + (kind === 'titles' ? 'Titles' : kind === 'covers' ? 'Cover text' : 'Descriptions') + '">' + list.map(function (x, i) {
       var meta = kind === 'titles' ? x.t.length + ' characters' + (x.t.length > 70 ? ', long for YouTube' : '') : kind === 'covers' ? words(x.t) + (words(x.t) === 1 ? ' word' : ' words') : x.t.length + ' characters';
       return '<li class="ir-sm-o ir-sm-' + kind + (x.t === cur ? ' on' : '') + '"><button type="button" role="radio" class="ir-sm-pick" data-pick="' + kind + '" data-i="' + i + '" aria-checked="' + (x.t === cur) + '"><span class="ir-sm-t">' + esc(x.t) + '</span><small>' + meta + '</small></button>' +
-        '<button type="button" class="ir-sm-cp" data-cp="' + kind + '" data-i="' + i + '" aria-label="Copy this one">' + ICON.copy + '</button></li>';
+        '<button type="button" class="ir-sm-cp" data-cp="' + kind + '" data-i="' + i + '" aria-label="' + esc(T('Copy this one')) + '">' + ICON.copy + '</button></li>';
     }).join('') + '</ul>' + (many ? '<button type="button" class="ir-sm-more" data-mk="more">' + ICON.redo + '<span>Other options</span></button>' : '');
   }
   function bitsOf(it) {
@@ -861,7 +913,7 @@
     return bits.filter(Boolean).join(' · ');
   }
   // An item's headline as a link to its source; regime media (Iran Uncensored) is never a link, and never in a show at all.
-  function itemLink(it) { return isReg(it) ? '<span class="ir-sm-a">' + esc(it.t) + '</span>' : '<a href="' + esc(it.u) + '" target="_blank" rel="noopener nofollow">' + esc(it.t) + '</a>'; }
+  function itemLink(it) { return isReg(it) ? '<span class="ir-sm-a">' + esc(it.t) + '</span>' : '<a href="' + esc(href(it.u)) + '" target="_blank" rel="' + RELN + ' nofollow">' + esc(it.t) + '</a>'; }
   function isReg(it) { return !!(R.regime && R.regime(it)); }
   function whyWords(w) {
     var m = /^Next story, related to #(\d+)$/.exec(w);
@@ -950,19 +1002,22 @@
       if (mine && Array.isArray(mine.codes)) {
         var byC = {}; all.forEach(function (it) { byC[R.code(it)] = it; });
         var back = mine.codes.map(function (c) { return byC[c]; }).filter(Boolean);
-        if (back.length) { ui.set = back.slice(0, maxN()); ui.mine = true; ui.acts = Array.isArray(mine.acts) ? mine.acts.slice() : []; }
+        // an order kept on this device is his edit of the show, not the list's own order: the header says changes, not "the order of your list"
+        if (back.length) { ui.set = back.slice(0, maxN()); ui.mine = true; ui.listOrder = false; ui.acts = Array.isArray(mine.acts) ? mine.acts.slice() : []; }
       }
       rewords();
     }
     var A = ui.pack && ui.pack.A;
-    var bar = '<div class="ir-sm-bar"><span class="ir-sm-ic" aria-hidden="true">' + ICON.play + '</span><p class="ir-sm-l"><b>' + esc(n ? T('Make a show from these {n}', { n: N(n) }) : T('Your filters leave nothing')) + '</b><span>' +
-      (n ? esc(mix(A)) + (n > maxN() ? ' · ' + esc(T('the strongest {n} go in, in the best order', { n: N(ui.set.length) })) : '') : esc(T('Loosen a filter and the show fills again'))) + '</span></p>' +
+    // 24 Oct 2026: with "Regime only" on, the room listed 88 items and this said the filters left nothing. It now says why.
+    var shownNow = R.shown ? R.shown() : [], regOnly = !n && shownNow.length > 0 && shownNow.every(isReg);
+    var bar = '<div class="ir-sm-bar"><span class="ir-sm-ic" aria-hidden="true">' + ICON.play + '</span><p class="ir-sm-l"><b>' + esc(n ? T('Make a show from these {n}', { n: N(n) }) : regOnly ? T('Regime media never goes into a show') : T('Your filters leave nothing')) + '</b><span>' +
+      (n ? esc(mix(A)) + (n > maxN() ? ' · ' + esc(T('the strongest {n} go in, in the best order', { n: N(ui.set.length) })) : '') : esc(regOnly ? T('Take the regime filter off and the show fills again') : T('Loosen a filter and the show fills again'))) + '</span></p>' +
       '<button type="button" class="ir-sm-go" data-mk="toggle" aria-expanded="true">' + esc(T('Close')) + '</button></div>';          // the head of the open maker: its only button closes it (the bar's "Make a show" is the one way in)
     if (!n) { keepFocus(function () { panel.innerHTML = bar; }); panel.classList.toggle('open', false); return; }
     var bf = R.brief ? R.brief() : null;          // the quick briefing (Brief me until 21 Oct): the hottest stories, ready to play, no choices
-    var acts = '<div class="ir-sm-acts"><a class="ir-sm-show" href="' + esc(showUrl()) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Open the show screen')) + '</span></a>' +
+    var acts = '<div class="ir-sm-acts"><a class="ir-sm-show" href="' + esc(showUrl()) + '" target="_blank" rel="' + RELN + '">' + ICON.play + '<span>' + esc(T('Open the show screen')) + '</span></a>' +
       '<button type="button" class="ir-sm-copy" data-mk="copy">' + ICON.copy + '<span>' + esc(T('Copy the package')) + '</span></button>' +
-      (bf && bf.url ? '<a class="ir-sm-brief" id="ir-brief" href="' + esc(bf.url) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Or play the quick briefing: the {n} hottest stories', { n: N(bf.n) })) + '</span></a>' : '') + '</div>';
+      (bf && bf.url ? '<a class="ir-sm-brief" id="ir-brief" href="' + esc(bf.url) + '" target="_blank" rel="' + RELN + '">' + ICON.play + '<span>' + esc(T('Or play the quick briefing: the {n} hottest stories', { n: N(bf.n) })) + '</span></a>' : '') + '</div>';
     var from = '<p class="ir-sm-from"><span>' + esc(T('Built from')) + '</span> ' + esc(fromLine()) + (ui.src ? ' <button type="button" class="ir-sm-best" data-mk="nolist">' + esc(T('Use the filters instead')) + '</button>' : '') + '</p>';
     var body;
     if (PLAIN) {
@@ -992,10 +1047,10 @@
   function showUrl() {
     var A = ui.pack.A, c = curCover(), d = curDesc();
     var gs = segStarts(ui.set, ui.best).filter(function (i) { return i > 0; });          // where each story starts, for the screen's rundown
-    return '?show=' + ui.set.map(function (it) { return 'on~' + R.code(it); }).join('.') + '&kind=' + (PLAIN ? 'live' : st.kind) + '&t=' + encodeURIComponent((curTitle() || (PLAIN ? '' : A.H)).slice(0, 100)) +
+    return '?show=' + ui.set.map(function (it) { return 'on~' + R.code(it); }).join('.') + '&kind=' + (PLAIN ? 'live' : st.kind) + '&t=' + encodeURIComponent(cutU(curTitle() || (PLAIN ? '' : A.H), 100)) +
       (gs.length ? '&g=' + gs.join('.') : '') +
-      (c ? '&c=' + encodeURIComponent(c.slice(0, 40)) : '') + '&i=' + encodeURIComponent(curNote().slice(0, 420)) + (!PLAIN && A.dom && A.dom.s ? '&st=' + encodeURIComponent(A.dom.id) : '') +
-      (d ? '&d=' + encodeURIComponent(firstLine(d).slice(0, 200)) : '');
+      (c ? '&c=' + encodeURIComponent(cutU(c, 40)) : '') + '&i=' + encodeURIComponent(cutU(curNote(), 420)) + (!PLAIN && A.dom && A.dom.s ? '&st=' + encodeURIComponent(A.dom.id) : '') +
+      (d ? '&d=' + encodeURIComponent(cutU(firstLine(d), 200)) : '');          // cutU: never half an emoji (encodeURIComponent throws on one)
   }
   // The show's words as they stand: what the creator typed wins; else (Liberty Politics) the picks of the tabs.
   function curTitle() { if (ui.myTitle != null && ui.myTitle.trim()) return ui.myTitle.trim(); return PLAIN || !ui.pack ? '' : ((chosen('titles') || {}).t || ui.pack.A.H || ''); }
@@ -1079,6 +1134,61 @@
     o._code = R.code(it);
     return o;
   }
+  /* THE ONE DOOR FOR A COPY THAT COMES BACK (24 Oct 2026). A saved show (?s=), a shared list (?l=), the lists on an account
+     and this device's own lists all hand back items as JSON the database checks only for its brackets, so anyone can
+     write one by hand and send the link: "hot":"<img onerror=...>" ran the moment the show opened, a "javascript:" u ran
+     on a tap, and a th0 on any host made every reader's browser call that host (a reader inside Iran included). So every
+     such copy comes in through cleanSnap() and nowhere else, and the room's own drawing (R.mark, R.vis, R.refHtml, the
+     counts) only ever sees what it lets through: plain values, no working notes ("_" keys, but _code and _sg), u a web
+     address, th0 a Bing News picture, th a picture on Bing, X or YouTube, the counts numbers, d a date, the words
+     words. An item without words or a web address is not an item: it is dropped. */
+  var TH0_RX = /^https:\/\/www\.bing\.com\/th\?id=[A-Za-z0-9._-]{8,120}&pid=News$/;
+  var TH_RX = [/^https:\/\/www\.bing\.com\/th\?id=[A-Za-z0-9._-]{8,120}&pid=News&w=240&h=150&c=7$/, /^https:\/\/i\.ytimg\.com\/vi\/[A-Za-z0-9_-]{11}\/[A-Za-z0-9_]+\.jpg$/,
+    /^https:\/\/pbs\.twimg\.com\/[A-Za-z0-9_\/-]+(?:\.(?:jpg|jpeg|png|webp)|\?format=(?:jpg|png|webp)&name=[A-Za-z0-9]+)$/];
+  var SNAP_NUM = ['hot', 'lk', 'vw', 'rp', 'dur', 'cr'], SNAP_TXT = ['t', 'h', 'nm', 'src', 'tx', 'hotWhy', 'pw', 'dm', 'cat', 'sd', 'av'];
+  var SNAP_KINDS = { post: 1, image: 1, video: 1, article: 1, document: 1, data: 1 }, DATE_RX = /^[0-9TZ:.+\- ]{4,40}$/;
+  function badKey(k) { return k === '__proto__' || k === 'constructor' || k === 'prototype'; }
+  // plain values only: strings, finite numbers, true/false/null, and arrays and objects of them, three deep at most
+  function sane(v, depth) {
+    if (typeof v === 'string') return v.length > 20000 ? v.slice(0, 20000) : v;
+    if (typeof v === 'number') return isFinite(v) ? v : undefined;
+    if (typeof v === 'boolean' || v === null) return v;
+    if (!v || typeof v !== 'object' || depth > 3) return undefined;
+    if (Array.isArray(v)) { var a = []; for (var i = 0; i < v.length && a.length < 200; i++) { var x = sane(v[i], depth + 1); if (x !== undefined) a.push(x); } return a; }
+    var o = {};
+    Object.keys(v).forEach(function (k) { if (badKey(k)) return; var x = sane(v[k], depth + 1); if (x !== undefined) o[k] = x; });
+    return o;
+  }
+  function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function cleanSnap(o0) {
+    if (!isObj(o0)) return null;
+    var x = sane(o0, 0); if (!x) return null;
+    Object.keys(x).forEach(function (k) { if (k.charAt(0) === '_' && k !== '_code' && k !== '_sg') delete x[k]; });
+    if (typeof x.t !== 'string' || !x.t.trim() || typeof x.u !== 'string' || !/^https?:\/\//i.test(x.u)) return null;
+    if (x._code != null && (typeof x._code !== 'string' || !/^[^\s<>"'`\\]{1,120}$/.test(x._code))) delete x._code;
+    if (x._sg) x._sg = 1; else delete x._sg;
+    if (x.id != null && typeof x.id !== 'string' && typeof x.id !== 'number') delete x.id;
+    SNAP_NUM.forEach(function (k) { if (x[k] != null && typeof x[k] !== 'number') delete x[k]; });
+    SNAP_TXT.forEach(function (k) { if (x[k] != null && typeof x[k] !== 'string') delete x[k]; });
+    if (x.d != null && !(typeof x.d === 'string' && DATE_RX.test(x.d))) delete x.d;
+    if (x.k != null && !(typeof x.k === 'string' && Object.prototype.hasOwnProperty.call(SNAP_KINDS, x.k))) delete x.k;
+    if (x.p != null && x.p !== 'global') { var pl = typeof x.p === 'string' && R.place ? R.place(x.p) : null; if (typeof x.p !== 'string' || (R.place && !(pl && typeof pl.name === 'string'))) x.p = 'global'; }
+    if (x.th0 != null && !(typeof x.th0 === 'string' && TH0_RX.test(x.th0))) delete x.th0;
+    if (x.th != null && !(typeof x.th === 'string' && TH_RX.some(function (rx) { return rx.test(x.th); }))) delete x.th;
+    ['also', 'rx'].forEach(function (k) { if (x[k] != null) { if (Array.isArray(x[k])) x[k] = x[k].filter(function (s) { return typeof s === 'string'; }); else delete x[k]; } });
+    ['tp', 'ls'].forEach(function (k) { if (x[k] != null) { if (Array.isArray(x[k])) x[k] = x[k].filter(function (n) { return typeof n === 'number'; }); else delete x[k]; } });
+    if (x.m != null) { if (Array.isArray(x.m)) x.m = x.m.filter(isObj); else delete x.m; }
+    // what a post quotes or answers, its note and its link card: objects whose words are words and whose date is a date
+    ['qt', 'ry', 'nt', 'cd', 'lsn'].forEach(function (k) {
+      if (x[k] == null) return;
+      if (!isObj(x[k])) { delete x[k]; return; }
+      var r = x[k];
+      ['t', 'nm', 'h', 'u', 'av', 'dm', 'i'].forEach(function (f) { if (r[f] != null && typeof r[f] !== 'string') delete r[f]; });
+      if (r.d != null && !(typeof r.d === 'string' && DATE_RX.test(r.d))) delete r.d;
+      if (r.m != null) { if (Array.isArray(r.m)) r.m = r.m.filter(isObj); else delete r.m; }
+    });
+    return x;
+  }
   function snapAll() {
     var gs = segStarts(ui.set, ui.best), list = ui.set.map(function (it, i) { var o = snapItem(it); if (i && gs.indexOf(i) >= 0) o._sg = 1; return o; }), js = JSON.stringify(list);          // _sg: a new story starts here
     // the database caps the copy (firestore.rules, 200,000 characters): drop the heaviest optional parts until it fits
@@ -1093,7 +1203,17 @@
   }
   function who(L) { return L && !L.off && L.members.who ? L.members.who() : null; }
   var LPX = null;          // the account hooks, once community.js has them (null on a copy of the site with no accounts)
-  lp(function (L) { LPX = L && !L.off ? L : null; if (LPX && LPX.members.sub) LPX.members.sub(function () { ui.mineState = 'idle'; ui.shows = []; if (ui.wantSave && signedIn(LPX)) { ui.wantSave = false; draw(); saveShow(); } else draw(); }); if (!panel.hidden) draw(); });
+  lp(function (L) {
+    LPX = L && !L.off ? L : null;
+    if (LPX && LPX.members.sub) LPX.members.sub(function () {
+      // another account (or none): the show this maker saved belongs to the last one, so it is not "saved" here any more
+      var uid = (who(LPX) || {}).uid || '';
+      if (ui.uidAt != null && uid !== ui.uidAt) { ui.saved = null; ui.savedSig = ''; ui.svMsg = ''; ui.arm = ''; }
+      ui.uidAt = uid;
+      ui.mineState = 'idle'; ui.shows = []; if (ui.wantSave && signedIn(LPX)) { ui.wantSave = false; draw(); saveShow(); } else draw();
+    });
+    if (!panel.hidden) draw();
+  });
   function shareHtml() {
     var me = who(LPX), fresh = savedFresh(), url = ui.saved ? savedUrl(ui.saved.id) : '';
     var h = '<section class="ir-sv" aria-labelledby="ir-sv-h"><h4 class="ir-sv-h" id="ir-sv-h">' + ICON.link + '<span>' + esc(T('Save it and send the link')) + '</span></h4>' +
@@ -1111,12 +1231,12 @@
         '<button type="button" data-sv="copy">' + ICON.copy + '<span>' + esc(T('Copy the link')) + '</span></button></div>' +
         '<div class="ir-sv-to" role="group" aria-label="' + esc(T('Send it')) + '">' +
         (navigator.share ? '<button type="button" data-sv="share">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
-        '<a href="https://wa.me/?text=' + enc(msg) + '" target="_blank" rel="noopener">WhatsApp</a>' +
-        '<a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(curTitle()) + '" target="_blank" rel="noopener">Telegram</a>' +
-        '<a href="https://x.com/intent/post?text=' + enc(curTitle()) + '&url=' + enc(url) + '" target="_blank" rel="noopener">X</a>' +
+        '<a href="https://wa.me/?text=' + enc(msg) + '" target="_blank" rel="' + RELN + '">WhatsApp</a>' +
+        '<a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(curTitle()) + '" target="_blank" rel="' + RELN + '">Telegram</a>' +
+        '<a href="https://x.com/intent/post?text=' + enc(curTitle()) + '&url=' + enc(url) + '" target="_blank" rel="' + RELN + '">X</a>' +
         '<a href="mailto:?subject=' + enc(curTitle()) + '&body=' + enc(packageText()) + '">' + esc(T('Email')) + '</a>' +
         '<button type="button" data-sv="pack">' + ICON.copy + '<span>' + esc(T('Copy it with the package')) + '</span></button></div>' +
-        '<p class="ir-sv-open"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + ICON.play + '<span>' + esc(T('Open it as they will')) + '</span></a></p>';
+        '<p class="ir-sv-open"><a href="' + esc(url) + '" target="_blank" rel="' + RELN + '">' + ICON.play + '<span>' + esc(T('Open it as they will')) + '</span></a></p>';
     }
     h += '<p class="ir-sv-say" id="ir-sv-say" aria-live="polite">' + esc(ui.svMsg) + '</p>';
     if (me && me.v) h += mineHtml();
@@ -1126,7 +1246,7 @@
     if (ui.mineState !== 'done' || !ui.shows.length) return '';
     return '<details class="ir-sv-mine"' + (ui.mineOpen ? ' open' : '') + '><summary>' + esc(T('Your saved shows ({n})', { n: N(ui.shows.length) })) + '</summary><ul>' + ui.shows.map(function (s) {
       var arm = ui.arm === s.id;
-      return '<li><a href="' + esc(savedUrl(s.id)) + '" target="_blank" rel="noopener">' + esc(s.title) + '</a><small>' +
+      return '<li><a href="' + esc(savedUrl(s.id)) + '" target="_blank" rel="' + RELN + '">' + esc(s.title) + '</a><small>' +
         esc([s.n === 1 ? T('1 item') : T('{n} items', { n: N(s.n) }), s.at ? dayOf(s.at) : '', s.views === 1 ? T('opened once') : T('opened {n} times', { n: N(s.views || 0) })].filter(Boolean).join(' · ')) + '</small>' +
         '<span class="ir-sv-mb"><button type="button" data-sv="copyone" data-id="' + esc(s.id) + '" aria-label="' + esc(T('Copy the link')) + '">' + ICON.copy + '</button>' +
         '<button type="button" data-sv="del" data-id="' + esc(s.id) + '" class="' + (arm ? 'is-arm' : '') + '" aria-label="' + esc(arm ? T('Tap again to delete it') : T('Delete')) + '">' + ICON.out + (arm ? '<span>' + esc(T('Tap again to delete it')) + '</span>' : '') + '</button></span></li>';
@@ -1150,7 +1270,7 @@
     if (!L) { svSay(T('Saving works on the live site.')); return; }
     if (!me) { ui.wantSave = true; L.members.open('auth', { opener: mkb }); return; }
     if (!me.v) { L.members.open('check', { resend: true, opener: mkb }); return; }
-    var plainTx = function (s, n) { return String(s || '').replace(/[<>]/g, '').slice(0, n); };          // the rules take no markup in a show's words
+    var plainTx = function (s, n) { return cutU(String(s || '').replace(/[<>]/g, ''), n); };          // the rules take no markup in a show's words; never half an emoji
     var title = plainTx(curTitle(), 120).trim();
     if (title.length < 3) { svSay(T('Give the show a title first.')); var ti = $('ir-sv-t'); if (ti) ti.focus(); return; }
     var items = snapAll();
@@ -1161,12 +1281,17 @@
       var u = S.auth && S.auth.currentUser; if (!u) throw new Error('signed-out');
       return S.F.getDoc(S.F.doc(S.db, 'users', u.uid)).then(function (us) {
         var name = us.exists() ? String(us.data().name || '') : '';
-        var d = { uid: u.uid, by: name, title: title, note: plainTx(curNote(), 1200), cover: plainTx(curCover(), 40), desc: plainTx(curDesc(), 2000),
+        // desc: the description alone. curDesc() adds the run order and the room's address for a YouTube description, and the
+        // saved show's page drew that as one run-on paragraph above the very items it listed
+        var dsc = PLAIN || !ui.pack || !chosen('descs') ? '' : chosen('descs').t;
+        var d = { uid: u.uid, by: name, title: title, note: plainTx(curNote(), 1200), cover: plainTx(curCover(), 40), desc: plainTx(dsc, 2000),
           kind: PLAIN ? 'live' : st.kind, n: ui.set.length, items: items, story: !PLAIN && A && A.dom && A.dom.s ? String(A.dom.id).slice(0, 40) : '',
           from: String(fromLine()).slice(0, 160), lang: FA ? 'fa' : 'en', updatedAt: S.F.serverTimestamp() };
         var ref = S.F.doc(S.db, 'shows', id);
-        if (ui.saved) return S.F.updateDoc(ref, d);
-        return S.F.setDoc(ref, Object.assign(d, { createdAt: S.F.serverTimestamp(), views: 0, hidden: false }));
+        var make = function () { return S.F.setDoc(ref, Object.assign({}, d, { createdAt: S.F.serverTimestamp(), views: 0, hidden: false })); };
+        // deleted elsewhere (his other device, "Your saved shows"): the same link is made again, never "not-found" forever
+        if (ui.saved) return S.F.updateDoc(ref, d).catch(function (e) { if (e && e.code === 'not-found') return make(); throw e; });
+        return make();
       });
     }).then(function () {
       ui.saved = { id: id }; ui.savedSig = sig; ui.mineState = 'idle'; ui.svMsg = T('Saved. Copy the link and send it.');
@@ -1198,9 +1323,11 @@
     try { var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e) { return false; }
   }
   function flash(b, txt) {
-    var s = b.querySelector('span'), was = s ? s.textContent : '';
+    // a button with no words of its own says what happened in its label, then gets its own label back (it was always "Copy
+    // this one", in English, even on the saved shows' "Copy the link")
+    var s = b.querySelector('span'), was = s ? s.textContent : '', wasL = b.getAttribute('aria-label');
     b.classList.add('done'); if (s) s.textContent = txt; else b.setAttribute('aria-label', txt);
-    setTimeout(function () { b.classList.remove('done'); if (s) s.textContent = was; else b.setAttribute('aria-label', 'Copy this one'); }, 1800);
+    setTimeout(function () { b.classList.remove('done'); if (s) s.textContent = was; else if (wasL != null) b.setAttribute('aria-label', wasL); else b.removeAttribute('aria-label'); }, 1800);
   }
   panel.addEventListener('click', function (ev) {
     if (ev.target.closest('.ir-sm-show')) { sendEdit('screen'); return; }          // the link opens the screen; the record goes with it
@@ -1253,7 +1380,7 @@
     if (b.hasAttribute('data-cp')) {
       var o = opts(b.getAttribute('data-cp'))[+b.getAttribute('data-i')]; if (!o) return;
       var txt = b.getAttribute('data-cp') === 'descs' ? fullDesc(o.t) : o.t;
-      copyText(txt, function () { flash(b, 'Copied'); }, function () { flash(b, 'Copying is blocked here'); });
+      copyText(txt, function () { flash(b, T('Copied')); }, function () { flash(b, T('Copying is blocked here')); });
     }
   });
   /* SHOW MONEY (job 6hp9CRVm7P59vwGf, 19 October 2026). Beside each topic chip, what a live hour on that subject has
@@ -1263,7 +1390,11 @@
      and nothing is drawn. Display only: he still picks. Since 21 Oct it is drawn whenever an admin is signed in (html
      class ir-money-on), no longer tied to the maker being open: the maker no longer stays open between visits. */
   var MONEY = null;
+  // Liberty Politics only: it is the English channel's Super Chat, and Iran Uncensored (the page that hands a word table,
+  // CFG.t) is Kaveh's channel, where an admin signed in saw his English income on the Persian chips
+  var MONEY_HERE = !CFG.t;
   function moneyLoad() {
+    if (!MONEY_HERE) return;
     if (MONEY) { moneyPaint(); return; }
     lp(function (L) {
       if (!L || L.off || !signedIn(L) || !L.members.fb) return;
@@ -1280,9 +1411,10 @@
     var box = $('ir-topics');
     if (box) [].forEach.call(box.querySelectorAll('[data-t]'), function (b) {
       var g = by[b.getAttribute('data-t')], m = b.querySelector('.ir-money');
-      if (!g) { if (m) m.parentNode.removeChild(m); return; }
+      if (!g) { if (m) m.parentNode.removeChild(m); if (b.hasAttribute('data-mt0')) { var t0 = b.getAttribute('data-mt0'); if (t0) b.title = t0; else b.removeAttribute('title'); b.removeAttribute('data-mt0'); } return; }
       if (!m) { m = document.createElement('b'); m.className = 'ir-money'; b.appendChild(m); }
       m.textContent = usd(g.perHour) + '/h';
+      if (!b.hasAttribute('data-mt0')) b.setAttribute('data-mt0', b.getAttribute('title') || '');          // the chip's own tooltip, put back on sign-out
       b.title = 'Super Chat per live hour on this topic: ' + usd(g.perHour) + ' (' + g.streams + ' shows, ' + MONEY.window + '). Median show: ' + usd(MONEY.medianPerHour) + '.';
     });
     var line = $('ir-money-line');
@@ -1296,9 +1428,16 @@
   if (R.onRender) R.onRender(moneyPaint);
   lp(function (L) {
     if (L && L.members.sub) L.members.sub(function () {
-      if (signedIn(L)) moneyLoad(); else { MONEY = null; document.documentElement.classList.remove('ir-money-on'); }          // signed out: his income leaves the page
+      if (signedIn(L)) moneyLoad(); else moneyClear();          // signed out: his income leaves the page, tooltips and the line too
     });
   });
+  function moneyClear() {
+    MONEY = null;
+    document.documentElement.classList.remove('ir-money-on');
+    [].forEach.call(document.querySelectorAll('.ir-money'), function (m) { m.parentNode.removeChild(m); });
+    [].forEach.call(document.querySelectorAll('[data-mt0]'), function (b) { var t0 = b.getAttribute('data-mt0'); if (t0) b.title = t0; else b.removeAttribute('title'); b.removeAttribute('data-mt0'); });
+    var line = $('ir-money-line'); if (line) line.parentNode.removeChild(line);
+  }
   moneyLoad();
   // for build/phone-test.html, which checks every story of the hour against the gate: nothing here changes the page
   window.IRShow = { analyse: analyse, build: build, pickSet: pickSet, threadOrder: threadOrder, simOf: simOf, roleOf: roleOf, toks: toks, fits: fits, lint: lint, vScore: vScore, scorer: scorer, ui: ui, st: st,
@@ -1337,11 +1476,13 @@
   function okList(l) { return !!l && typeof l === 'object' && typeof l.id === 'string' && /^[a-z0-9]{8,24}$/.test(l.id) && typeof l.name === 'string' && Array.isArray(l.items); }
   var LS = (function () { var v = store(LKEY); return v && typeof v === 'object' && Array.isArray(v.lists) ? v : {}; })();
   LS = { v: 1, last: typeof LS.last === 'string' ? LS.last : '', lists: (LS.lists || []).filter(okList), gone: Array.isArray(LS.gone) ? LS.gone.filter(function (x) { return typeof x === 'string'; }) : [] };
-  LS.lists.forEach(function (l) { l.items = l.items.filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string' && o._code; }); });
+  LS.lists.forEach(function (l) { l.items = l.items.map(cleanSnap).filter(function (o) { return o && o._code; }); l.views = +l.views || 0; if (typeof l.uid !== 'string') l.uid = ''; });          // a list's copies come in through cleanSnap too
   var ME = '';          // the account signed in, once community.js knows it ('' signed out)
   var LV = { open: '', arm: '', ren: false, msg: '', undo: null, drag: -1, sharing: '' };          // the Lists panel: the list open, the delete armed, renaming
   function lsSave() { if (store(LKEY, LS) === null) { toast(T('This device has no room left for lists. Take some items out.')); return false; } return true; }
-  function lists() { return LS.lists.filter(function (l) { return !ME || !l.uid || l.uid === ME; }); }
+  // the lists of whoever is here: signed in, theirs and the ones made on this device signed out; signed out, only those
+  // (until 24 Oct 2026 signing out showed every account's synced lists on a shared computer)
+  function lists() { return LS.lists.filter(function (l) { return !l.uid || l.uid === ME; }); }
   function byList(id) { return lists().filter(function (l) { return l.id === id; })[0] || null; }
   function has(l, c) { return l.items.some(function (o) { return o._code === c; }); }
   function savedIn(c) { return lists().filter(function (l) { return has(l, c); }); }
@@ -1436,6 +1577,8 @@
         if (it) addItem(l, it); else touch(l);
         pickDraw(l.id);
       });
+      // its keys are its own: typing a list's name must not step the spotlight or the show screen behind it ("F" ran the stream)
+      pickDlg.addEventListener('keydown', function (ev) { ev.stopPropagation(); });
       pickDlg.addEventListener('close', function () { var b = pickBack; pickBack = null; if (b && b.isConnected) try { b.focus({ preventScroll: true }); } catch (e) { } });
     }
     pickDraw();
@@ -1443,8 +1586,18 @@
     var f = pickDlg.querySelector('input[type="checkbox"]') || $('ir-svd-n'); if (f) f.focus();
   }
   function closePick() { if (pickDlg && pickDlg.open) { if (pickDlg.close) pickDlg.close(); else pickDlg.removeAttribute('open'); } }
+  // A redraw of a sheet keeps the line that says what a tap did (its Undo was wiped a second later by the account's answer)
+  function keepToast(host, fn) {
+    var t = $('ir-svt'), inside = !!(t && host.contains(t));
+    fn();
+    if (inside && !t.isConnected) host.appendChild(t);
+  }
   function pickDraw(focusId) {
     var it = svFor(pickC), ls = lists();
+    keepToast(pickDlg, function () { pickHtml(it, ls); });
+    if (focusId) { var cb = pickDlg.querySelector('[data-svd-l="' + focusId + '"]'); if (cb) cb.focus(); }
+  }
+  function pickHtml(it, ls) {
     pickDlg.innerHTML = '<div class="ir-s-in"><div class="ir-s-top"><h2 class="ir-svd-h" id="ir-svd-h">' + esc(T('Save to a list')) + '</h2><button class="ir-s-x" type="button" data-svd-x aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
       (it ? '<p class="ir-svd-it"' + (FA ? ' dir="auto"' : '') + '>' + R.mark(it) + '<span>' + esc(String(it.t || '').slice(0, 160)) + '</span></p>' : '') +
       (ls.length ? '<ul class="ir-svd-ls">' + ls.map(function (l) {
@@ -1452,7 +1605,6 @@
       }).join('') + '</ul>' : '<p class="ir-svd-none">' + esc(T('No lists yet. Name the first one below.')) + '</p>') +
       '<form class="ir-svd-new" autocomplete="off"><label for="ir-svd-n">' + esc(T('A new list')) + '</label><span><input id="ir-svd-n" type="text" maxlength="60" dir="auto" placeholder="' + esc(T('Name it, for example Friday show')) + '"><button type="submit">' + ICON.plus + '<span>' + esc(T('Make it')) + '</span></button></span></form>' +
       '<button type="button" class="ir-svd-done" data-svd-x>' + esc(T('Done')) + '</button></div>';
-    if (focusId) { var cb = pickDlg.querySelector('[data-svd-l="' + focusId + '"]'); if (cb) cb.focus(); }
   }
   // Save buttons anywhere (cards, spotlight, show screen, a list's page): caught first, so a card's own tap never fires too
   document.addEventListener('click', function (ev) {
@@ -1471,6 +1623,7 @@
   var lsDlg = document.createElement('dialog');
   lsDlg.className = 'ir-spot ir-ls ir-keep'; lsDlg.id = 'ir-ls'; lsDlg.setAttribute('aria-labelledby', 'ir-ls-h');
   document.body.appendChild(lsDlg);
+  lsDlg.addEventListener('keydown', function (ev) { ev.stopPropagation(); });          // as the Save sheet: its keys never reach the room
   marks();
   function lsOpen(id) {
     LV.open = id || ''; LV.arm = ''; LV.ren = false; LV.msg = '';
@@ -1495,7 +1648,7 @@
       var ls = lists();
       h = '<div class="ir-s-in"><div class="ir-s-top"><h2 class="ir-ls-h" id="ir-ls-h">' + LISTI + '<span>' + esc(T('Your lists')) + '</span></h2><button class="ir-s-x" type="button" data-ls="x" aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
         (ls.length ? '<ul class="ir-ls-all">' + ls.map(function (x) {
-          return '<li><button type="button" data-ls-go="' + esc(x.id) + '"><b' + (FA ? ' dir="auto"' : '') + '>' + esc(x.name) + '</b><small>' + esc([x.items.length === 1 ? T('1 item') : T('{n} items', { n: N(x.items.length) }), changed(x), x.shared ? T('shared') : ''].filter(Boolean).join(' · ')) + '</small>' + ICON.next + '</button></li>';
+          return '<li><button type="button" data-ls-go="' + esc(x.id) + '"><b' + (FA ? ' dir="auto"' : '') + '>' + esc(x.name) + '</b><small>' + esc([x.items.length === 1 ? T('1 item') : T('{n} items', { n: N(x.items.length) }), changed(x), x.shared ? T('shared') : ''].filter(Boolean).join(' · ')) + '</small>' + (RTL ? ICON.prev : ICON.next) + '</button></li>';
         }).join('') + '</ul>' : '<p class="ir-ls-none">' + esc(T('Nothing saved yet. Tap the bookmark on any post, video or article to keep it here.')) + '</p>') +
         '<form class="ir-svd-new ir-ls-new" autocomplete="off"><label for="ir-ls-nn">' + esc(T('A new list')) + '</label><span><input id="ir-ls-nn" type="text" maxlength="60" dir="auto" placeholder="' + esc(T('Name it, for example Friday show')) + '"><button type="submit" data-ls="new">' + ICON.plus + '<span>' + esc(T('Make it')) + '</span></button></span></form>' +
         where() + '<p class="ir-ls-msg" aria-live="polite">' + esc(LV.msg) + '</p></div>';
@@ -1503,7 +1656,7 @@
       return;
     }
     var n = l.items.length, last = n - 1, arm = LV.arm === l.id;
-    h = '<div class="ir-s-in"><div class="ir-s-top"><button type="button" class="ir-s-bk" data-ls="home"><span aria-hidden="true">' + (CFG.rtl ? '&rsaquo;' : '&lsaquo;') + '</span> ' + esc(T('All lists')) + '</button><button class="ir-s-x" type="button" data-ls="x" aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
+    h = '<div class="ir-s-in"><div class="ir-s-top"><button type="button" class="ir-s-bk" data-ls="home"><span aria-hidden="true">' + (RTL ? '&rsaquo;' : '&lsaquo;') + '</span> ' + esc(T('All lists')) + '</button><button class="ir-s-x" type="button" data-ls="x" aria-label="' + esc(T('Close')) + '">&times;</button></div>' +
       (LV.ren ? '<form class="ir-svd-new ir-ls-ren" autocomplete="off"><label for="ir-ls-rn">' + esc(T('The list\'s name')) + '</label><span><input id="ir-ls-rn" type="text" maxlength="60" dir="auto" value="' + esc(l.name) + '"><button type="submit">' + esc(T('Save')) + '</button></span></form>'
         : '<h2 class="ir-ls-h ir-ls-name" id="ir-ls-h"' + (FA ? ' dir="auto"' : '') + '>' + esc(l.name) + '</h2>') +
       '<p class="ir-ls-meta">' + esc([n === 1 ? T('1 item') : T('{n} items', { n: N(n) }), changed(l), l.mine ? T('in your own order') : ''].filter(Boolean).join(' · ')) + '</p>' +
@@ -1518,7 +1671,7 @@
       (n ? '<ol class="ir-ls-its">' + l.items.map(function (o, i) {
         var x = fresh(o);
         return '<li draggable="true" data-ls-i="' + i + '"><span class="ir-ls-grip" aria-hidden="true" title="' + esc(T('Drag to move it')) + '">' + DRAG + '</span><span class="num">' + N(i + 1) + '</span>' + R.mark(x) +
-          (isReg(x) ? '<span class="ir-sm-a"' + (FA ? ' dir="auto"' : '') + '>' + esc(x.t) + '</span>' : '<a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow"' + (FA ? ' dir="auto"' : '') + '>' + esc(x.t) + '</a>') +
+          (isReg(x) ? '<span class="ir-sm-a"' + (FA ? ' dir="auto"' : '') + '>' + esc(x.t) + '</span>' : '<a href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + ' nofollow"' + (FA ? ' dir="auto"' : '') + '>' + esc(x.t) + '</a>') +
           '<span class="ir-sm-mv"><button type="button" data-ls-mv="up" data-i="' + i + '" aria-label="' + esc(T('Move up')) + '"' + (i ? '' : ' disabled') + '>' + MOVE.up + '</button>' +
           '<button type="button" data-ls-mv="down" data-i="' + i + '" aria-label="' + esc(T('Move down')) + '"' + (i < last ? '' : ' disabled') + '>' + MOVE.down + '</button>' +
           '<button type="button" data-ls-mv="out" data-i="' + i + '" aria-label="' + esc(T('Take it out of the list')) + '">' + MOVE.out + '</button></span>' +
@@ -1529,7 +1682,7 @@
   // a redraw keeps the cursor in the box being typed in
   function lsKeep(fn) {
     var a = document.activeElement, id = a && lsDlg.contains(a) && a.id, s0 = id && a.selectionStart, s1 = id && a.selectionEnd;
-    fn();
+    keepToast(lsDlg, fn);
     var b = id && $(id); if (!b) return;
     b.focus({ preventScroll: true }); try { if (s0 != null) b.setSelectionRange(s0, s1); } catch (e) { }
   }
@@ -1544,8 +1697,8 @@
     return '<div class="ir-ls-sh"><p>' + esc(T('Anyone with this link can open the list, make a show from it or save a copy.')) + (l.views ? ' ' + esc(l.views === 1 ? T('opened once') : T('opened {n} times', { n: N(l.views) })) : '') + '</p>' +
       '<div class="ir-sv-link"><label class="vh" for="ir-ls-u">' + esc(T('The link')) + '</label><input id="ir-ls-u" type="text" readonly dir="ltr" value="' + esc(url) + '"><button type="button" data-ls="copy">' + ICON.copy + '<span>' + esc(T('Copy the link')) + '</span></button></div>' +
       '<div class="ir-sv-to" role="group" aria-label="' + esc(T('Send it')) + '">' + (navigator.share ? '<button type="button" data-ls="send">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
-      '<a href="https://wa.me/?text=' + enc(l.name + '\n' + url) + '" target="_blank" rel="noopener">WhatsApp</a><a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(l.name) + '" target="_blank" rel="noopener">Telegram</a>' +
-      '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(T('Open it as they will')) + '</a>' +
+      '<a href="https://wa.me/?text=' + enc(l.name + '\n' + url) + '" target="_blank" rel="' + RELN + '">WhatsApp</a><a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(l.name) + '" target="_blank" rel="' + RELN + '">Telegram</a>' +
+      '<a href="' + esc(url) + '" target="_blank" rel="' + RELN + '">' + esc(T('Open it as they will')) + '</a>' +
       '<button type="button" data-ls="unshare">' + esc(T('Stop sharing')) + '</button></div></div>';
   }
   function listText(name, its) {
@@ -1651,7 +1804,7 @@
     ['also', 'lsn', 'cd', 'm', 'tx'].forEach(function (k) { if (js.length > 190000) { list.forEach(function (o) { delete o[k]; }); js = JSON.stringify(list); } });
     return js.length > 190000 ? null : js;
   }
-  function parseItems(s) { try { var a = JSON.parse(s || '[]'); return Array.isArray(a) ? a.filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string' && o._code; }).slice(0, LITEMS) : []; } catch (e) { return []; } }
+  function parseItems(s) { try { var a = JSON.parse(typeof s === 'string' && s ? s : '[]'); return Array.isArray(a) ? a.slice(0, LITEMS * 2).map(cleanSnap).filter(function (o) { return o && o._code; }).slice(0, LITEMS) : []; } catch (e) { return []; } }          // through cleanSnap: a shared list is anyone's JSON
   function lsSyncSoon() { clearTimeout(LSY.t); if (ME) LSY.t = setTimeout(lsSync, 1200); }
   function lsSync(pull) {
     var L = LPX; if (!L || L.off || !L.members.fb || !who(L)) return;
@@ -1747,17 +1900,11 @@
       }).catch(fail);
     });
   }
-  function lsCountView(L, id, owner) {
-    var k = 'ir-seen-l-' + id;
-    try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { return; }
-    var me = who(L); if (me && me.uid === owner) return;
-    if (!L || L.off || !L.members.fb) return;
-    L.members.fb().then(function (S) { return S.F.updateDoc(S.F.doc(S.db, 'savelists', id), { views: S.F.increment(1) }); }).catch(function () { });
-  }
+  function lsCountView(L, id, owner) { countOpen(L, 'savelists', id, owner, 'ir-seen-l-' + id); }
   function drawListPage(spec) {
     var its = spec.items.map(fresh), pg = document.createElement('div');
     pg.className = 'ir-sh is-read ir-lpg'; pg.id = 'ir-lp';
-    var meta = function (x) { var w = R.where(x); return [R.when(x), x.nm || x.h || x.src, w && w !== 'No single place' ? w : ''].filter(Boolean).join(' · '); };
+    var meta = function (x) { var w = R.where(x); return [R.when(x), x.nm || x.h || x.src, w && w !== T('No single place') ? w : ''].filter(Boolean).join(' · '); };
     var acts = '<button type="button" data-lp="show"' + (its.length ? '' : ' disabled') + '>' + ICON.play + '<span>' + esc(T('Make a show from this list')) + '</span></button>' +
       (spec.mineToo ? '<button type="button" data-lp="open">' + LISTI + '<span>' + esc(T('Open it in your lists')) + '</span></button>' : '<button type="button" data-lp="copy">' + BM + '<span>' + esc(T('Save a copy to my lists')) + '</span></button>');
     pg.innerHTML = '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="' + esc(T('Back to the Intel Room')) + '"><img src="' + esc(SEAL) + '" alt="" width="40" height="40"><span><b>' + esc(BRAND) + '</b> ' + esc(T('Intel Room')) + '</span></a>' +
@@ -1768,7 +1915,7 @@
         var rg = isReg(x);
         return '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
           '<p class="ir-rd-t"' + (FA ? ' dir="auto"' : '') + '>' + esc(R.fullText ? R.fullText(x) : x.t) + '</p>' +
-          (rg ? '<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow">' + esc(T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0] })) + '</a></p>') +
+          (rg ? '<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + ' nofollow">' + esc(T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0] })) + '</a></p>') +
           '<p class="ir-lp-sv">' + saveBtn(x, 'ir-svb-w') + '</p></div></li>';
       }).join('') + '</ol>' : '<p class="ir-rd-none">' + esc(T('This list is empty.')) + '</p>') +
       '<footer class="ir-rd-f"><p>' + esc(T('Every item links to where it was first published. Check it yourself.')) + '</p><p class="ir-rd-acts">' + acts + '</p>' +
@@ -1806,7 +1953,11 @@
   if (q.get('s')) loadSaved(q.get('s'));
   else if (q.get('l')) listPage(q.get('l'));          // a shared list (SAVE LISTS)
   else if (q.get('show')) showScreen(fromQuery());
-  else { if (location.hash === '#make') { setOn(true); if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); setTimeout(function () { panel.scrollIntoView({ block: 'start' }); }, 300); } draw(); }          // #make: a show screen's "Make your own" (a hash, because the room rewrites its query)
+  else {
+    // an address that names a show or a list with nothing in it (?s=, ?show=): intel.js stepped aside for a screen that
+    // never came (SHOWING), so its keys and its address were dead; hand them back
+    if (/[?&](show|s|l)=/.test(location.search) && R.showing) R.showing(false);
+    if (location.hash === '#make') { setOn(true); if (history.replaceState) history.replaceState(null, '', location.pathname + location.search); setTimeout(function () { panel.scrollIntoView({ block: 'start' }); }, 300); } draw(); }          // #make: a show screen's "Make your own" (a hash, because the room rewrites its query)
 
   // The show the address spells out (?show=, made by the maker on this device): its items must still be in the room
   function fromQuery() {
@@ -1815,7 +1966,7 @@
     // an item that has left the room is still on the screen when a list on this device holds its copy (SAVE LISTS)
     var rows = codes.map(function (c, i) { var m = /^([a-z]+)~(.+)$/.exec(c); if (!m) return null; var x = R.byId(m[2]) || lsSnap(m[2]); return x && !isReg(x) ? { role: m[1], it: x, sg: gs.indexOf(i) >= 0 } : null; }).filter(Boolean);
     var story = null, sid = q.get('st') || '';
-    if (PACKS) PACKS.stories.forEach(function (s) { if (s.id === sid) story = s; });
+    if (PACKS && Array.isArray(PACKS.stories)) PACKS.stories.forEach(function (s) { if (s && String(s.id) === sid) story = s; });
     var video = q.get('kind') === 'video';
     return { rows: rows, video: video, title: q.get('t') || (story && story.title) || T('The Intel Room'), intro: q.get('i') || (story ? (video ? story.hook : story.intro) : ''),
       cover: (q.get('c') || '').slice(0, 40), desc: q.get('d') || (story ? story.desc : ''), gone: codes.length - rows.length };
@@ -1837,8 +1988,9 @@
       fetch(L.members.restDoc('shows/' + id), { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (doc) {
         var f = doc && doc.fields; if (!f) { fail(); return; }
         var v = function (k) { var x = f[k]; if (!x) return ''; return x.stringValue != null ? x.stringValue : x.integerValue != null ? +x.integerValue : x.booleanValue != null ? x.booleanValue : x.timestampValue != null ? Date.parse(x.timestampValue) : ''; };
-        var items = []; try { items = JSON.parse(v('items') || '[]'); } catch (e) { items = []; }
-        var rows = (Array.isArray(items) ? items : []).filter(function (o) { return o && typeof o === 'object' && typeof o.t === 'string'; }).map(function (o) {
+        var items = [], js = v('items'); try { items = JSON.parse(typeof js === 'string' && js ? js : '[]'); } catch (e) { items = []; }
+        // every copy through cleanSnap (THE ONE DOOR): a saved show is anyone's JSON
+        var rows = (Array.isArray(items) ? items.slice(0, MAXN_LIVE * 2) : []).map(cleanSnap).filter(Boolean).map(function (o) {
           var live = o._code ? R.byId(o._code) : null;
           return { role: 'on', it: live || o, sg: !!o._sg };
         }).filter(function (r) { return !isReg(r.it); }).slice(0, MAXN_LIVE);
@@ -1850,24 +2002,36 @@
     });
   }
   // One more opening, once per show per browser session, never by its maker. No name, no account, no device kept.
-  function countView(L, id, owner) {
-    var k = 'ir-seen-' + id;
-    try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { return; }
-    var me = who(L); if (me && me.uid === owner) return;
+  function countView(L, id, owner) { countOpen(L, 'shows', id, owner, 'ir-seen-' + id); }
+  // Counted only once the sign-in is known: before it, who() is empty (or a remembered account), and the maker's own open of
+  // his show counted as a stranger's. auth.known() answers once Firebase has; without it, the first sub() call.
+  function countOpen(L, coll, id, owner, k) {
     if (!L || L.off || !L.members.fb) return;
-    L.members.fb().then(function (S) { return S.F.updateDoc(S.F.doc(S.db, 'shows', id), { views: S.F.increment(1) }); }).catch(function () { });
+    try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { return; }
+    var done = false, go = function () {
+      if (done) return; done = true;
+      var me = who(L); if (me && me.uid === owner) return;
+      L.members.fb().then(function (S) { return S.F.updateDoc(S.F.doc(S.db, coll, id), { views: S.F.increment(1) }); }).catch(function () { });
+    };
+    var A = L.members.auth;
+    if (A && typeof A.known === 'function') A.known().then(go, go);
+    else if (L.members.sub) L.members.sub(go);
+    else go();
   }
 
   function showScreen(spec) {
     var rows = spec.rows, video = spec.video, title = spec.title, intro = spec.intro, cover = spec.cover, desc = spec.desc, saved = spec.saved || null;
-    var at = Math.max(0, Math.min(rows.length, +q.get('n') || 0));          // 0 is the intro card
+    var at = Math.max(0, Math.min(rows.length, Math.floor(+q.get('n') || 0)));          // 0 is the intro card (a whole number: &n=1.5 by hand drew rows[0.5], undefined, and stopped the screen)
     // READ ON OPEN, for the whole show at once: every post in it is asked for now, so its replies are there before he
     // reaches it (a reader's screen asks nothing: R.replies only asks once a creator's sign-in has been handed over)
     if (R.replies) setTimeout(function () { rows.forEach(function (r) { if (r && r.it && R.rpKey && R.rpKey(r.it)) R.replies(r.it, function () { }); }); }, 1500);
     // PRESENT or READ. Read is the show as a page: its words, then every item with its source, for a phone, a class, a
     // briefing or print. A saved show opens to read on a phone, and always on Iran Uncensored's Persian page (CFG.light):
     // present loads players from YouTube and X, and a reader inside Iran loads nothing from elsewhere without a tap.
-    var mode = q.get('v') === 'read' || q.get('v') === 'present' ? q.get('v') : (saved && (CFG.light || matchMedia('(max-width:900px)').matches) ? 'read' : 'present');
+    // On the light page a saved show always opens to read, whatever the address says: &v=present in a link someone sent
+    // would load YouTube's and X's players for a reader inside Iran before any tap. "Present it" is one tap from there.
+    var qv = q.get('v') === 'read' || (q.get('v') === 'present' && !(saved && CFG.light)) ? q.get('v') : '';
+    var mode = qv || (saved && (CFG.light || matchMedia('(max-width:900px)').matches) ? 'read' : 'present');
     document.documentElement.classList.add('ir-sh-on');
     var sh = document.createElement('div');
     sh.className = 'ir-sh'; sh.id = 'ir-sh';
@@ -1881,7 +2045,7 @@
       '<a class="ir-sh-mk" id="ir-sh-mk" href="' + esc(location.pathname + '#make') + '">' + ICON.plus + '<span>' + esc(T('Make your own')) + '</span></a></div></header>' +
       '<main class="ir-sh-stage" id="ir-sh-stage"></main>' +
       '<aside class="ir-sh-notes" id="ir-sh-pad" hidden><p class="ir-sh-nl">' + esc(saved ? T('A note from the maker') : video ? T('Your opening hook') : T('Your 30-second intro')) + '</p><p class="ir-sh-nt">' + esc(intro || T('Say what the show is about, and what you will show.')) + '</p></aside>' +
-      '<footer class="ir-sh-foot"><button type="button" class="ir-sh-nav" id="ir-sh-prev" aria-label="' + esc(T('Previous')) + '">' + ICON.prev + '</button><ol class="ir-sh-strip" id="ir-sh-strip" aria-label="' + esc(T('The rundown')) + '"></ol><button type="button" class="ir-sh-nav" id="ir-sh-next" aria-label="' + esc(T('Next')) + '">' + ICON.next + '</button>' +
+      '<footer class="ir-sh-foot"><button type="button" class="ir-sh-nav" id="ir-sh-prev" aria-label="' + esc(T('Previous')) + '">' + (RTL ? ICON.next : ICON.prev) + '</button><ol class="ir-sh-strip" id="ir-sh-strip" aria-label="' + esc(T('The rundown')) + '"></ol><button type="button" class="ir-sh-nav" id="ir-sh-next" aria-label="' + esc(T('Next')) + '">' + (RTL ? ICON.prev : ICON.next) + '</button>' +
       '<p class="ir-sh-mark" aria-hidden="true">' + (saved && saved.by ? '<span class="ir-sh-by">' + esc(T('Made by {name}', { name: saved.by })) + ' · </span>' : '') + SITE_MARK + '</p></footer>';
     document.body.appendChild(sh);
     document.title = title + ' | ' + BRAND + ' ' + T('Intel Room');
@@ -1894,9 +2058,9 @@
     // address, _sg in a saved show's copy). A run of one-item stories shares one break. An older link carries none: no breaks.
     var SEGS = (function () {
       if (!rows.some(function (r) { return r.sg; })) return null;
-      var s0 = []; rows.forEach(function (r, i) { if (!i || r.sg) s0.push(i); });
+      var s0 = [], sOf = storyFn(); rows.forEach(function (r, i) { if (!i || r.sg) s0.push(i); });
       return s0.map(function (a, k) {
-        var b = k + 1 < s0.length ? s0[k + 1] : rows.length, x = rows[a].it, h = R.storyOf ? R.storyOf(x) : null;
+        var b = k + 1 < s0.length ? s0[k + 1] : rows.length, x = rows[a].it, h = sOf(x);
         return { at: a, n: b - a, name: h && h.s && h.name ? String(h.name) : clip(cleanHead(x.t), 64) };
       });
     })();
@@ -1932,7 +2096,7 @@
     // READ: the show as a page (see mode above). Every item with its words, who said it, when, where, its counts and its
     // source; regime media (Iran Uncensored) shown and never linked; nothing loads from another site.
     function readHtml() {
-      var meta = function (x) { var w = R.where(x); return [R.when(x), x.nm || x.h || x.src, w && w !== 'No single place' ? w : ''].filter(Boolean).join(' · '); };
+      var meta = function (x) { var w = R.where(x); return [R.when(x), x.nm || x.h || x.src, w && w !== T('No single place') ? w : ''].filter(Boolean).join(' · '); };
       return '<article class="ir-rd">' +
         '<header class="ir-rd-h">' + (cover ? '<p class="ir-rd-k">' + esc(cover) + '</p>' : '') + '<h1>' + esc(title) + '</h1>' +
         (saved && saved.by ? '<p class="ir-rd-by">' + esc(T('Made by {name} in the Intel Room', { name: saved.by })) + (saved.at ? ' · ' + esc(dayOf(saved.at)) : '') + '</p>' : '') +
@@ -1943,7 +2107,7 @@
           return (sg ? '<li class="ir-rd-sg"><h2' + (FA ? ' dir="auto"' : '') + '>' + esc(sg.name) + '</h2>' + (sg.n ? '<small>' + esc(T('{n} items', { n: N(sg.n) })) + '</small>' : '') + '</li>' : '') + '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
             '<p class="ir-rd-t">' + paras(full(x)) + '</p>' + counts(x) +
             (!rg && R.repliesOn !== false && R.rpKey && R.rpKey(x) ?'<div class="ir-rd-rp" data-rdrp="' + i + '"></div>' : '') +
-            (rg ?'<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(x.u) + '" target="_blank" rel="noopener nofollow">' + esc(srcLine(x)) + '</a></p>') + '</div></li>';
+            (rg ?'<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + ' nofollow">' + esc(srcLine(x)) + '</a></p>') + '</div></li>';
         }).join('') + '</ol>') +
         '<footer class="ir-rd-f"><p>' + esc(T('Every item links to where it was first published. Check it yourself.')) + '</p>' +
         '<p class="ir-rd-acts"><button type="button" data-rd="present">' + ICON.play + '<span>' + esc(T('Present it')) + '</span></button><button type="button" data-rd="print">' + ICON.notes + '<span>' + esc(T('Print or save as PDF')) + '</span></button>' +
@@ -1989,11 +2153,11 @@
          that stays open from item to item, and any one reply put on the screen alone (rbig: arrows step, Esc closes)
        - on a screen 900px or narrower everything is one column that scrolls, sized by CSS, never fitted */
     var rpOn = false, rbAt = -1, rpCur = null;          // the replies panel (stays on across items), the reply on the screen alone, the item's replies
-    var CARD_RX2 = /^https:\/\/pbs\.twimg\.com\/card_img\/\d+\/[A-Za-z0-9_-]+\?format=(?:jpg|png|webp)$/;
+    var CARD_RX2 = /^https:\/\/pbs\.twimg\.com\/(?:card_img\/\d+\/[A-Za-z0-9_-]+|media\/[A-Za-z0-9_-]+)\?format=(?:jpg|png|webp)$/;
     function full(x) { return R.fullText ? R.fullText(x) : x.t; }
     function paras(t) { return String(t || '').split(/\n\s*\n+/).map(function (p) { return '<span class="ir-sh-pp">' + esc(p.trim()) + '</span>'; }).join(' '); }   // the space: a copy or a screen reader read "partnership.We" (22 Oct 2026)
     // the rare post whose end even the room could not get (X's 280 and the mirror both failed): say so, never pretend
-    function more(x) { var w = full(x); return w.length >= 270 && /…$/.test(w) ? '<a class="ir-sh-more" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(T('The post goes on: read the rest on X')) + '</a>' : ''; }
+    function more(x) { var w = full(x); return w.length >= 270 && /…$/.test(w) ? '<a class="ir-sh-more" href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + '">' + esc(T('The post goes on: read the rest on X')) + '</a>' : ''; }
     function initial(x) { return String(x.nm || x.h || '?').replace(/^@/, '').slice(0, 1).toUpperCase() || '?'; }
     function face(x, cls) {
       var av = R.avOf ? R.avOf(x, '400x400') : '';
@@ -2006,7 +2170,7 @@
       return '<figure class="ir-sh-post">' +
         '<figcaption class="ir-sh-ph">' + face(x, 'ir-sh-pav') + '<span class="ir-sh-pwho"><b>' + esc(x.nm || x.h) + '</b><small>' + esc([x.h, R.when(x)].filter(Boolean).join(' · ')) + '</small></span>' + R.mark(x) + '</figcaption>' +
         rf.before + '<blockquote class="ir-sh-ptx" id="ir-sh-fit2">' + paras(full(x)) + '</blockquote>' + more(x) + rf.after +
-        (cd ? '<span class="ir-sh-pcd"><span class="ir-sh-pci" style="background-image:url(' + esc(cd.i + '&name=800x419') + ')"></span>' + (cd.t || cd.dm ? '<span class="ir-sh-pct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') + '</span>' : '') +
+        (cd ? '<span class="ir-sh-pcd"><span class="ir-sh-pci" style="background-image:url(' + esc(cd.i + '&name=' + (/\/media\//.test(cd.i) ? 'medium' : '800x419')) + ')"></span>' + (cd.t || cd.dm ? '<span class="ir-sh-pct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') + '</span>' : '') +
         '</figure>';
     }
     function stage() {
@@ -2022,7 +2186,7 @@
       var r = rows[at - 1], x = r.it, k = R.rpKey ? R.rpKey(x) : '';
       var isX = x.src === 'X' && /\/status\/\d+/.test(x.u || ''), hasM = isX && !!(R.media && R.media(x).length), words = full(x);
       var own = isX && !hasM && !(/…$/.test(words) && !x.tx);          // drawn as the post itself (X's player only when the room lacks the whole text)
-      var where = R.where(x) !== 'No single place' ? R.where(x) : '';
+      var where = R.where(x) !== T('No single place') ? R.where(x) : '';          // R.where speaks the page's language (placeName goes through T)
       var rfm = hasM && R.refHtml ? R.refHtml(x, 'is-show') : { before: '', after: '' };          // beside a video: what it quotes or answers
       el.innerHTML = '<div class="ir-sh-frame" id="ir-sh-frame"></div><div class="ir-sh-info" id="ir-sh-info">' + (roleName(r) ? '<p class="ir-sh-role">' + esc(roleName(r)) + '</p>' : '') +
         (hasM ? '<p class="ir-sh-who">' + face(x, 'ir-sh-wav') + '<b>' + esc(x.nm || x.h) + '</b><small>' + esc(x.h) + '</small></p>' + rfm.before + '<p class="ir-sh-pt" id="ir-sh-fit">' + paras(words) + '</p>' + more(x) + rfm.after
@@ -2030,7 +2194,7 @@
         '<p class="ir-sh-meta">' + R.mark(x) + esc((isX ? [R.when(x), where] : [R.when(x), x.nm || x.h || x.src, where]).filter(Boolean).join(' · ')) + '</p>' +
         counts(x) + (x.hotWhy ? '<p class="ir-sh-why">' + ICON.flame + esc(x.hotWhy) + '</p>' : '') + (x.also && x.also.length ? '<p class="ir-sh-also">' + esc(T('Also carried by {list}', { list: x.also.join(T(', ')) })) + '</p>' : '') +
         '<p class="ir-sh-acts">' + (hasM && words.length > 110 ? '<button type="button" class="ir-sh-rpb ir-sh-wb" id="ir-sh-wb" title="' + esc(T('The words on the screen alone (W)')) + '">' + ICON.full + '<span>' + esc(T('Words on the screen')) + '</span></button>' : '') + (k ? '<button type="button" class="ir-sh-rpb" id="ir-sh-rpb" aria-pressed="false" aria-controls="ir-sh-rp" title="' + esc(T('Top replies (R)')) + '">' + ICON.reply + '<span>' + esc(k.slice(0, 2) === 'yt' ? T('Top comments') : T('Top replies')) + '</span><b class="num" id="ir-sh-rpn"></b></button>' : '') +
-        saveBtn(x, 'ir-svb-w ir-sh-svb') + '<a class="ir-sh-src" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(srcLine(x)) + '</a></p></div>' +
+        saveBtn(x, 'ir-svb-w ir-sh-svb') + '<a class="ir-sh-src" href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + '">' + esc(srcLine(x)) + '</a></p></div>' +
         (k ? '<aside class="ir-sh-rp" id="ir-sh-rp" aria-label="' + esc(T('Most-liked replies')) + '" hidden></aside>' : '') +
         '<div class="ir-sh-rbig" id="ir-sh-rbig" role="dialog" aria-label="' + esc(T('A reply on the screen')) + '" hidden></div>';
       // a post with a video or pictures and many words: the words get as much of the screen as the picture
@@ -2044,7 +2208,7 @@
         R.replies(x, function (e, st) {
           if (mine !== at) return;
           rpCur = { e: e, st: st, x: x, own: own };
-          var n = $('ir-sh-rpn'); if (n) n.textContent = e && e.r.length ? String(e.r.length) : '';
+          var n = $('ir-sh-rpn'); if (n) n.textContent = e && e.r.length ? N(e.r.length) : '';
           if (rpOn) replies(true);
         });
       }
@@ -2079,7 +2243,7 @@
         '<p class="ir-sh-rbh">' + (av ? av.outerHTML : '') + (who ? who.outerHTML : '') + '</p>' +
         '<blockquote class="ir-sh-rbt" id="ir-sh-rbt">' + paras(r.t) + '</blockquote>' +
         '<p class="ir-sh-rbc">' + esc(k === 'yt' ? T('A comment on') : T('Replying to')) + ' <b>' + esc(x.nm || x.h || x.src) + '</b><span class="num">' + esc(T('{n} of {m}', { n: N(rbAt + 1), m: N(list.length) })) + '</span></p>' +
-        '<div class="ir-sh-rbn"><button type="button" data-rb="-1" aria-label="' + esc(T('The reply before')) + '">' + ICON.prev + '</button><button type="button" data-rb="0">' + esc(T('Back to the post')) + '</button><button type="button" data-rb="1" aria-label="' + esc(T('The next reply')) + '">' + ICON.next + '</button></div></div>';
+        '<div class="ir-sh-rbn"><button type="button" data-rb="-1" aria-label="' + esc(T('The reply before')) + '">' + (RTL ? ICON.next : ICON.prev) + '</button><button type="button" data-rb="0">' + esc(T('Back to the post')) + '</button><button type="button" data-rb="1" aria-label="' + esc(T('The next reply')) + '">' + (RTL ? ICON.prev : ICON.next) + '</button></div></div>';
       big.hidden = false; $('ir-sh-stage').classList.add('has-rb');
       refitSoon();
     }
@@ -2135,16 +2299,17 @@
     setInterval(function () { var s0 = $('ir-sh-stage'); if (!s0) return; var kb = s0.clientWidth + 'x' + s0.clientHeight; if (kb !== lastBox) { lastBox = kb; refitSoon(); } }, 1000);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(refitSoon);
     function firstSentence(t) { var m = /^.*?[.?!](\s|$)/.exec(t); return (m ? m[0] : t).trim(); }
-    function roleName(r) { return r.role === 'on' ? '' : r.role === 'rel' ? 'Related' : ROLE[r.role] || ''; }
+    function roleName(r) { return r.role === 'on' ? '' : r.role === 'rel' ? T('Related') : Object.prototype.hasOwnProperty.call(ROLE, r.role) ? ROLE[r.role] : ''; }
     function cut(t, n) { return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; }
     function srcLine(x) { var h = String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0]; return T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : h }); }
     function counts(x) {
-      var r = R.reach(x) || {}, b = [];
-      var lk = r.likes != null ? r.likes : x.lk, vw = r.views != null ? r.views : x.vw;
-      if (lk != null) b.push('<span><b class="num">' + R.fmt(lk) + '</b> ' + esc(T('likes')) + '</span>');
-      if (x.rp != null) b.push('<span><b class="num">' + R.fmt(x.rp) + '</b> ' + esc(T('reposts')) + '</span>');
-      if (vw != null) b.push('<span><b class="num">' + R.fmt(vw) + '</b> ' + esc(T('views')) + '</span>');
-      if (x.hot != null) b.push('<span><b class="num">' + N(x.hot) + '</b> ' + esc(T('hot')) + '</span>');
+      // every count is made a number here, whatever the item says (a saved show's "hot":"<img onerror=...>" ran on open)
+      var r = R.reach(x) || {}, b = [], num = function (v) { if (v == null || v === '') return null; v = +v; return isFinite(v) ? v : null; };
+      var lk = num(r.likes != null ? r.likes : x.lk), vw = num(r.views != null ? r.views : x.vw), rp = num(x.rp), hot = num(x.hot);
+      if (lk != null) b.push('<span><b class="num">' + esc(R.fmt(lk)) + '</b> ' + esc(T('likes')) + '</span>');
+      if (rp != null) b.push('<span><b class="num">' + esc(R.fmt(rp)) + '</b> ' + esc(T('reposts')) + '</span>');
+      if (vw != null) b.push('<span><b class="num">' + esc(R.fmt(vw)) + '</b> ' + esc(T('views')) + '</span>');
+      if (hot != null) b.push('<span><b class="num">' + N(Math.round(hot) || 0) + '</b> ' + esc(T('hot')) + '</span>');
       return b.length ? '<p class="ir-sh-n">' + b.join('') + '</p>' : '';
     }
     var twLoad = null;
@@ -2186,7 +2351,10 @@
         el.appendChild(s);
         return;
       }
-      if (/\.(jpe?g|png|webp|gif)(\?|$)/i.test(x.u || '')) { el.className = 'ir-sh-frame is-img'; el.innerHTML = '<img src="' + esc(x.u) + '" alt="' + esc(x.t) + '">'; return; }
+      // a picture link is drawn as the picture only when it is the room's own item, or on X's or YouTube's picture host: a
+      // saved show is JSON anyone can write, and an <img> of any address would tell that address who opened the show
+      // (a reader inside Iran included), before any tap
+      if (/\.(jpe?g|png|webp|gif)(\?|$)/i.test(x.u || '') && (R.byId(R.code(x)) === x || /^https:\/\/(pbs\.twimg\.com|i\.ytimg\.com)\//.test(x.u))) { el.className = 'ir-sh-frame is-img'; el.innerHTML = '<img src="' + esc(x.u) + '" alt="' + esc(x.t) + '">'; return; }
       el.className = 'ir-sh-frame is-card';
       $('ir-sh-stage').classList.add('one-title');
       card(el, x, x.also && x.also.length ? T('Also carried by {list}', { list: x.also.join(T(', ')) }) : '');
@@ -2261,6 +2429,8 @@
       if (ev.ctrlKey || ev.metaKey || ev.altKey || (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName))) return;
       var k = ev.key;
       if (mode === 'read') { if (k === 'p' || k === 'P') setMode('present'); return; }          // a page scrolls; its keys are the browser's
+      // on a page that reads right to left the left arrow goes forward (the next item sits to the left)
+      if (RTL && (k === 'ArrowLeft' || k === 'ArrowRight')) k = k === 'ArrowLeft' ? 'ArrowRight' : 'ArrowLeft';
       // a reply on the screen alone: the arrows step the replies, Esc goes back to the post
       if (rbAt === -2 && (k === 'Escape' || k === 'w' || k === 'W')) { ev.preventDefault(); closeReply(); return; }
       if ((k === 'w' || k === 'W') && $('ir-sh-wb')) { showWords(); return; }
@@ -2284,7 +2454,9 @@
     $('ir-sh-stage').addEventListener('touchend', function (ev) {
       if (!sx) return; var t = ev.changedTouches[0], dx = t.clientX - sx.x, dy = t.clientY - sx.y; sx = null;
       if (rbAt === -2) return;
-      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (rbAt >= 0) showReply(rbAt + (dx < 0 ? 1 : -1)); else go(at + (dx < 0 ? 1 : -1)); }
+      // a swipe toward the start of the line steps forward: leftward on an English page, rightward on a Persian one
+      var fwd = RTL ? dx > 0 : dx < 0;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (rbAt >= 0) showReply(rbAt + (fwd ? 1 : -1)); else go(at + (fwd ? 1 : -1)); }
     }, { passive: true });
     if (mode === 'present' && rows.some(function (r) { return /^https:\/\/(www\.)?(x|twitter)\.com\//.test(r.it.u || ''); })) tw().catch(function () {});          // X's player loads once, early
     if (mode === 'read') setMode('read'); else go(at);

@@ -88,6 +88,14 @@
   function clock(ms, locale, zone) {
     var o = { hour: 'numeric', minute: '2-digit' };
     if (zone) o.timeZone = zone;
+    // 24 Oct 2026: the Persian bubble said «ساعت ۷:۰۰ به وقت شما», morning or evening unsaid. Persian gets a 12-hour
+    // clock and the part of the day as it is spoken (صبح, ظهر, عصر, شب).
+    if (/^fa/i.test(locale || '')) {
+      var h = +new Intl.DateTimeFormat('en-GB', zone ? { hour: 'numeric', hourCycle: 'h23', timeZone: zone } : { hour: 'numeric', hourCycle: 'h23' }).format(new Date(ms));
+      o.hourCycle = 'h12';
+      var t = new Intl.DateTimeFormat(locale, o).formatToParts(new Date(ms)).filter(function (p) { return p.type !== 'dayPeriod'; }).map(function (p) { return p.value; }).join('').trim();
+      return t + ' ' + (h >= 5 && h < 12 ? 'صبح' : h >= 12 && h < 15 ? 'ظهر' : h >= 15 && h < 19 ? 'عصر' : 'شب');
+    }
     return new Intl.DateTimeFormat(locale || undefined, o).format(new Date(ms));
   }
 
@@ -159,22 +167,26 @@
      a phone the button of the box a reader writes in can come to rest behind it. While the two overlap the
      bubble steps aside (it keeps its place, so nothing jumps), and it is back as soon as the button has moved on.
      The stylesheet already takes it away while a reader types. */
-  var send = document.querySelector('#fbform button[type=submit]');
+  /* 24 Oct 2026 (Armin, with a picture of the Persian Intel Room: the bubble sat over the list's last cards and its "40
+     more" button). The same rule now covers every button a reader needs at the bottom of a page: the send button, the
+     Intel Room's "Show more" and anything marked data-keepclear. Looked up on each check, since a page draws them late. */
+  var KEEP = '#fbform button[type=submit], #ir-more:not([hidden]), [data-keepclear]';
   function duck() {
-    if (!send) return;
-    var a = box.getBoundingClientRect(), b = send.getBoundingClientRect();
-    var hit = a.width > 0 && b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < a.bottom + 6 && b.bottom > a.top - 6;
+    var a = box.getBoundingClientRect(), hit = false;
+    if (a.width > 0) [].forEach.call(document.querySelectorAll(KEEP), function (el) {
+      var b = el.getBoundingClientRect();
+      if (b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < a.bottom + 6 && b.bottom > a.top - 6) hit = true;
+    });
     if (hit !== (box.className.indexOf(' duck') > -1)) box.className = hit ? box.className + ' duck' : box.className.replace(' duck', '');
   }
   function redraw() { draw(); duck(); }
   redraw();
   setInterval(redraw, 30000);
-  if (send) {
-    window.addEventListener('scroll', duck, { passive: true });
-    window.addEventListener('resize', duck);
-    window.addEventListener('hashchange', function () { setTimeout(duck, 60); });
-    document.addEventListener('click', function () { setTimeout(duck, 60); });
-    document.addEventListener('input', function () { setTimeout(duck, 60); });
-  }
+  var dk = 0, soon = function () { if (!dk) dk = setTimeout(function () { dk = 0; duck(); }, 60); };
+  window.addEventListener('scroll', soon, { passive: true });
+  window.addEventListener('resize', soon);
+  window.addEventListener('hashchange', soon);
+  document.addEventListener('click', soon);
+  document.addEventListener('input', soon);
   api.draw = draw;      /* for build/bubble-view.html, which shows the bubble as it is at a chosen moment */
 })(this);

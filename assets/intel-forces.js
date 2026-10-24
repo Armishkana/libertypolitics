@@ -138,6 +138,9 @@
 
   var D = null, FR = null, TH = {}, BYID = {}, ASSETS = [], SHIPS = [], ON = store('ir-forces') !== 'off';
   var NEWS = {}, NEAR = {}, OF_ITEM = {}, MKEY = '', FOCUS = '', NAMED_N = 0, AN = {}, AGE = null;
+  // FHELD: the ?mil= value FOCUS is held by (let go when the pill goes); KEEPF: "Go to it on the map" keeps its focus
+  // through the dialog's close event, which comes after the tap; AGAIN: the room is drawing once more after new matches
+  var FHELD = '', KEEPF = false, AGAIN = false;
   var AIM = {}, AX = {}, AYT = {};          // each asset's photos, own X posts and own YouTube videos (intel-forces-news.json im, x, yt)
   var g = null, gL = null, EL = {}, DRAWN = [], LINES = [];
   /* THE FLEET'S AGE (23 Oct 2026). The room once showed USS Theodore Roosevelt off California for three weeks after it had
@@ -145,6 +148,37 @@
      every ship says its date and its age, a fleet older than STALE days is drawn faded with the age on it, and one older
      than GONE days is not drawn at all (only listed, with the reason). The builder's own check fails at 9 days. */
   var STALE = 9, GONE = 16;
+  /* Counted in the reader's own calendar days, again on every redraw and every ten minutes (24 Oct 2026): it was counted
+     once, from noon UTC, so a reader in Tehran saw the fleet a day younger before noon UTC, and a tab left open for ten
+     hours never aged. */
+  function fleetAge() {
+    var m = D && D.fleet && /^(\d{4})-(\d\d)-(\d\d)$/.exec(D.fleet.at || '');
+    if (!m) return null;
+    var now = new Date(), t0 = new Date(+m[1], +m[2] - 1, +m[3]).getTime(), t1 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return isFinite(t0) ? Math.max(0, Math.round((t1 - t0) / 864e5)) : null;          // round: a clock change makes a day 23 or 25 hours
+  }
+  // the age changed (midnight passed): ships too old to draw leave the map, marks fade, the open tab says the new age
+  function refreshAge() {
+    var a = fleetAge();
+    if (a === AGE) return false;
+    AGE = a;
+    SHIPS.forEach(function (s) {
+      s._nomap = !!s._nopos || (AGE != null && AGE > GONE);
+      var e = EL[s.id]; if (e) e.classList.toggle('old', AGE != null && AGE > STALE);
+    });
+    return true;
+  }
+  // a link that leaves the page: only http and https, never a javascript: or data: address from a feed
+  function safeU(u) { u = String(u || '').trim(); return /^https?:\/\//i.test(u) ? u : '#'; }
+  // regime media, judged on the whole item (its address, its domain, its own mark), as intel.js does
+  function rgItem(x) { return !!(x && ((R.regime && R.regime(x)) || regime(x.u))); }
+  /* AN ANNIVERSARY IS NOT NEWS (24 Oct 2026): "43 years ago, Hezbollah terrorists attacked U.S. Marine barracks" headed
+     Hezbollah and "US bases in the region" in "In the news now". A headline that opens on how many years ago something
+     happened (or "on this day") is kept, but after the real news. Only the opening words are read: a story that mentions
+     "20 years ago" in its middle is still news. */
+  var PAST_RX = /\b\d{1,3}\s+years?\s+ago\b|\bon this day\b|\btoday in history\b|\b\d{1,3}(st|nd|rd|th)\s+anniversary\b/i;
+  var PAST_FA = /[0-9۰-۹]+\s*سال\s*پیش|[0-9۰-۹]+\s*سال\s*قبل|در\s*چنین\s*روزی|[0-9۰-۹]+\s*(?:مین|امین)\s*سالگرد/;
+  function isPast(it) { var t = nozw(String((it && it.t) || '').slice(0, 90)); return PAST_RX.test(t) || PAST_FA.test(t); }
 
   /* ------------------------------------------------------------ loading */
   function soft(u) { return u ? fetch(u, { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null); }
@@ -160,7 +194,7 @@
     R.addSpot(spot);          // the framing block works even with no forces file
     window.IRF = { ready: true, on: function () { return ON; }, drawn: function () { return DRAWN.slice(); }, named: function () { return NAMED_N; }, data: function () { return D; }, open: dossier,
       news: function (id) { return (NEWS[id] || []).slice(); }, latest: function (id) { return (AN[id] || []).slice(); },
-      cover: function (id) { return BYID[id] ? coverOf(BYID[id]).slice() : []; }, photos: function (id) { return BYID[id] ? photos(BYID[id]) : []; }, wars: wars, setWars: setWars, picker: warPicker, age: function () { return AGE; } };
+      cover: function (id) { return BYID[id] ? coverOf(BYID[id]).slice() : []; }, photos: function (id) { return BYID[id] ? photos(BYID[id]) : []; }, wars: wars, setWars: setWars, picker: warPicker, age: function () { return D ? fleetAge() : AGE; } };
     root.setAttribute('data-forces-ready', D ? '1' : '0');
   });
 
@@ -170,7 +204,7 @@
     ['gulf', 'levant', 'redsea', 'europe', 'pacific', 'southasia', 'americas'].forEach(function (k, i) {
       TH[k] = thf[k] || thn[k] || [T('Iran war'), T('Israel, Gaza and Lebanon'), T('Houthis and the Red Sea'), T('Russia and Ukraine'), T('China, Taiwan and Korea'), T('India and Pakistan'), T('Venezuela and the Americas')][i];
     });
-    if (d.fleet && /^\d{4}-\d\d-\d\d$/.test(d.fleet.at || '')) AGE = Math.floor((Date.now() - Date.parse(d.fleet.at + 'T12:00:00Z')) / 864e5);
+    AGE = fleetAge();
     d.assets.forEach(function (a) {
       if (!a || !a.id || !Array.isArray(a.ll) || !isFinite(a.ll[0]) || !isFinite(a.ll[1])) return;
       try { a._rx = a.rx ? new RegExp(cleanRx(a.rx), 'i') : null; } catch (e) { a._rx = null; }
@@ -185,13 +219,31 @@
       try { s._rx = s.rx ? new RegExp(cleanRx(s.rx), 'i') : null; } catch (e) { s._rx = null; }
       s._rxf = faRx(s.rx_fa);
       s._t = 'ship'; s.o = s.o || 'US'; s.tier = 1; s.th = s.th || (placed ? thOfSea(s.ll) : '');
+      s._nopos = !placed;
       s._nomap = !placed || (AGE != null && AGE > GONE);          // listed, never drawn: no position, or a position too old to show
       BYID[s.id] = s; SHIPS.push(s);
     });
     if (!ASSETS.length && !SHIPS.length) return;
     build();
     match();
-    R.onRender(function () { match(); drawTabCount(); chipText(); });
+    /* AFTER EVERY REDRAW (24 Oct 2026). The room filters and draws its tabs BEFORE this runs, so after a lens switch (or new
+       items) ?mil= and ?war= had been tested against the last lens's matches: ?mil=any then the Bank showed "Nothing here
+       matches". When the matches change and one of this file's filters is on, the room draws once more, at once (so the
+       framing that follows a lens switch frames the right list); the second pass finds the same matches and stops, and
+       AGAIN guards it besides, so it can never loop. The Forces tab is drawn again with the new matches. A focus held by
+       the ?mil= pill goes when the pill goes. */
+    R.onRender(function () {
+      var changed = match(), aged = refreshAge(), mil = R.filterOn('mil');
+      if (FHELD && mil !== FHELD) { FHELD = ''; FOCUS = ''; R.map.redraw(); }
+      if (changed && (mil || R.filterOn('war')) && !AGAIN && R.rendered) {
+        AGAIN = true;
+        try { R.rendered(); } finally { AGAIN = false; }
+        return;
+      }
+      if ((changed || aged) && R.tabOn() === 'forces' && $('irf-tab') && !$('irf-tab').hidden) drawTab();
+      drawTabCount(); chipText();
+    });
+    setInterval(function () { if (refreshAge()) { R.map.redraw(); if (R.tabOn() === 'forces' && $('irf-tab') && !$('irf-tab').hidden) drawTab(); } }, 6e5);
     R.addFilter({ key: 'mil', valid: function (v) { return v === 'any' || (v.indexOf('th:') === 0 && !!TH[v.slice(3)]) || (v.indexOf('g:') === 0 && !!GBY[v.slice(2)]) || !!BYID[v]; }, test: passMil, label: milLabel });
     R.addFilter({ key: 'war', valid: function (v) { return (DEFW.length && v === 'all') || String(v).split(',').every(function (k) { return !!CF[k]; }); }, test: passWar, label: warLabel });
     var oldTh = R.filterOn('mil');          // a link from before 23 Oct 2026 (?mil=th:gulf) opens the same conflict
@@ -208,13 +260,18 @@
   function cleanRx(r) { return String(r).replace(/\u0008/g, '\\b'); }
   // a site's Persian pattern (Iran Uncensored's forces file, rx_fa): matched against the text with its half spaces taken out
   function faRx(r) { if (!r) return null; try { return new RegExp(nozw(r), 'i'); } catch (e) { return null; } }
-  function thOfSea(ll) {          // a ship's theatre from where it is
+  /* A ship's theatre from where it is (24 Oct 2026). A ship in its home waters is in no conflict (''): USS Ronald Reagan in
+     port at San Diego, Bremerton or Everett had fallen into "Russia and Ukraine", and Norfolk into "Venezuela". The Gulf
+     of Aden is the Houthis' sea (Red Sea theatre), not the Iran war's. */
+  function thOfSea(ll) {
     var la = ll[0], lo = ll[1];
-    if (lo > 30 && lo < 45 && la > 10 && la < 30) return 'redsea';
-    if (lo > 44 && lo < 80 && la > -10 && la < 32) return 'gulf';
+    if (lo > 30 && lo < 44 && la > 10 && la < 30) return 'redsea';
+    if (lo >= 44 && lo < 51.5 && la > 10 && la < 16) return 'redsea';          // the Gulf of Aden, out to Socotra's west
+    if (lo >= 44 && lo < 80 && la > -10 && la < 32) return 'gulf';
     if (lo > 20 && lo <= 36 && la > 30 && la < 38) return 'levant';
-    if (lo > 95 || lo < -150) return 'pacific';
-    if (lo > -100 && lo < -30) return 'americas';
+    if (lo > 95 || lo < -165) return 'pacific';          // the western Pacific, past Midway; Hawaii is home
+    if (lo >= -100 && lo < -30 && la < 24) return 'americas';          // the Caribbean and South America, not the US coasts
+    if (lo < -30) return '';          // the US coasts, Hawaii, the western Atlantic: home waters
     return 'europe';
   }
 
@@ -270,7 +327,7 @@
   function groupsOf(a) { return GOF[a.id] || []; }
   function match() {
     var its = R.items(), key = R.lens() + ':' + its.length + ':' + (its[0] ? its[0].id : '') + ':' + (its.length ? its[its.length - 1].id : '');
-    if (key === MKEY) return;
+    if (key === MKEY) return false;
     MKEY = key; NEWS = {}; NEAR = {}; OF_ITEM = {}; GNEWS = {}; GOF = {};
     var all = ASSETS.concat(SHIPS), sites = ASSETS;
     GROUPS.forEach(function (g) { all.forEach(function (a) { if (g[4](a)) (GOF[a.id] = GOF[a.id] || []).push(g[0]); }); });
@@ -287,7 +344,7 @@
         if (hit1.indexOf(a.id) < 0 && km([p.lat, p.lon], a.ll) <= NEAR_KM) (NEAR[a.id] = NEAR[a.id] || []).push(it);
       });
     });
-    var byHot = function (x, y) { return ((y.hot || 0) - (x.hot || 0)) || String(y.d || '').localeCompare(String(x.d || '')); };
+    var byHot = function (x, y) { return (isPast(x) - isPast(y)) || ((y.hot || 0) - (x.hot || 0)) || String(y.d || '').localeCompare(String(x.d || '')); };          // an anniversary after the real news
     Object.keys(NEWS).forEach(function (k) { NEWS[k].sort(byHot); });
     Object.keys(NEAR).forEach(function (k) { NEAR[k].sort(byHot); });
     Object.keys(GNEWS).forEach(function (k) { GNEWS[k].sort(byHot); });
@@ -297,9 +354,10 @@
       var n = (NEWS[a.id] || []).length;
       e.classList.toggle('news', n > 0);
       e.classList.toggle('hot', n >= 3 || (NEWS[a.id] || []).some(function (it) { return (it.hot || 0) >= 70; }));
-      var b = e.querySelector('.irf-n'); if (b) b.textContent = n ? (n > 99 ? '99+' : String(n)) : '';
+      var b = e.querySelector('.irf-n'); if (b) b.textContent = n ? (n > 99 ? N(99) + '+' : N(n)) : '';
     });
     R.map.redraw();
+    return true;
   }
   function passMil(it, v) {
     var ids = OF_ITEM[it.id] || [];
@@ -501,7 +559,7 @@
       var lb = want && (c.a.id === FOCUS || free(lr));
       if (lb) boxes.push(lr);
       if (e._lb !== lb) { e.classList.toggle('lb', lb); e._lb = lb; }
-      var mt = c.near.length ? '+' + c.near.length : '';
+      var mt = c.near.length ? '+' + N(c.near.length) : '';
       if (e._mt !== mt) { e.querySelector('.irf-more').textContent = mt; e._mt = mt; }
       if (e._f !== (c.a.id === FOCUS)) { e.classList.toggle('focus', c.a.id === FOCUS); e._f = c.a.id === FOCUS; }
     });
@@ -730,11 +788,16 @@
     var a = BYID[CUR], el = dlg && (dlg.querySelector('#irf-ph') || dlg.querySelector('.irf-ph-on')); if (!a || !el) return;
     var sc = keepScroll(); el.outerHTML = photoHtml(a); sc();
   }
+  // newest first by date (an item with no date, or one that cannot be read, goes last); "Latest" means the newest, never
+  // the best scored (24 Oct 2026)
+  function msOf(it) { var v = Date.parse((it && it.d) || ''); return isFinite(v) ? v : -Infinity; }
+  function newest(list) { return (list || []).slice().sort(function (x, y) { var a = msOf(x), b = msOf(y); return a === b ? 0 : b > a ? 1 : -1; }); }
   function tip(m) {
-    var a = m.a, n = (NEWS[a.id] || []).length, la = coverOf(a)[0];
+    var a = m.a, n = (NEWS[a.id] || []).length, la = newest(coverOf(a))[0];
+    if (la && !isFinite(msOf(la))) la = null;          // nothing dated: no "Latest" line rather than a guess
     var sub = a._t === 'ship' ? shipWhere(a) + ' · ' + shipWhen(a) : kindName(a) + ' · ' + (OPN[a.o] || a.o) + (a.host && a.host !== 'Sea' && OPN[a.o] !== L(a, 'host') ? ' · ' + T('in {place}', { place: L(a, 'host') }) : '');
     return '<span class="tip-k" style="--pc:' + colOf(a) + '"><i class="irf-dot"></i>' + esc(a._t === 'ship' ? (a.hull || T('At sea')) : kindName(a)) + '</span>' + esc(L(a, 'n')) +
-      '<small>' + esc(sub) + '.</small>' + (la ? '<small class="irf-tip-la">' + esc(T('Latest:')) + ' ' + bd(esc(la.t)) + ' · ' + esc(agoMs(Date.parse(la.d))) + '</small>' : '') +
+      '<small>' + esc(sub) + '.</small>' + (la ? '<small class="irf-tip-la">' + esc(T('Latest:')) + ' ' + bd(esc(la.t)) + (agoMs(msOf(la)) ? ' · ' + esc(agoMs(msOf(la))) : '') + '</small>' : '') +
       '<small>' + (n ? esc(n === 1 ? T('1 story here names it.') + ' ' : T('{n} stories here name it.', { n: N(n) }) + ' ') : '') + (m.near.length ? esc(T('+{n} more on this spot.', { n: N(m.near.length) }) + ' ') : '') + esc(T('Tap for its news.')) + '</small>';
   }
   function openMark(m) {
@@ -763,7 +826,7 @@
       if ((b = t.closest('[data-irf-phon]'))) { PH_ON[CUR] = 1; redrawPh(); return; }
       if ((b = t.closest('[data-irf-item]'))) { openItem(b.getAttribute('data-irf-for'), b.getAttribute('data-irf-item')); return; }
       if ((b = t.closest('[data-irf-show]'))) { var id = b.getAttribute('data-irf-show'); closeDlg(); R.filter('mil', id); R.tab('items'); listTop(); return; }
-      if ((b = t.closest('[data-irf-fly]'))) { var a = BYID[b.getAttribute('data-irf-fly')]; if (a) { closeDlg(); FOCUS = a.id; R.map.fly(a._t === 'ship' ? 5 : 26, a.ll[1], a.ll[0]); R.map.redraw(); } return; }
+      if ((b = t.closest('[data-irf-fly]'))) { var a = BYID[b.getAttribute('data-irf-fly')]; if (a) { KEEPF = true; closeDlg(); FOCUS = a.id; FHELD = ''; R.map.fly(a._t === 'ship' ? 5 : 26, a.ll[1], a.ll[0]); R.map.redraw(); } return; }
       if ((b = t.closest('[data-irf-copy]'))) { copy(b.getAttribute('data-irf-copy'), b); return; }
       if ((b = t.closest('[data-irf-war]'))) {
         var k = b.getAttribute('data-irf-war'), on = wars(), i = on.indexOf(k), sc = keepScroll();
@@ -772,7 +835,15 @@
       }
       if ((b = t.closest('[data-irf-allwars]'))) { setWars([]); warPicker(); return; }
     });
-    dlg.addEventListener('close', function () { if (!R.filterOn('mil')) { FOCUS = ''; R.map.redraw(); } });
+    /* The close event comes AFTER the tap that closed the dialog (24 Oct 2026): "Go to it on the map" had set FOCUS and
+       this then cleared it, so the ring, the name and the lines vanished as the map arrived. KEEPF keeps that focus. A
+       focus kept because a ?mil= filter is on is held by that filter (FHELD) and goes when the pill goes (onRender). */
+    dlg.addEventListener('close', function () {
+      if (KEEPF) { KEEPF = false; return; }
+      var mil = R.filterOn('mil');
+      if (mil) { if (FOCUS) FHELD = mil; return; }
+      FOCUS = ''; R.map.redraw();
+    });
     // a photo that will not load leaves no broken box: a small one goes, a large one takes the whole strip with it
     dlg.addEventListener('error', function (ev) {
       var im = ev.target; if (!im || im.tagName !== 'IMG') return;
@@ -795,6 +866,7 @@
   function keepScroll() { var d = dlg, i = d && d.querySelector('.irf-in'), a = d ? d.scrollTop : 0, b = i ? i.scrollTop : 0; return function () { if (d) d.scrollTop = a; var j = d && d.querySelector('.irf-in'); if (j) j.scrollTop = b; }; }
   function showDlg(html) {
     var d = dialog();
+    KEEPF = false;          // a dialog opened again: its next close is an ordinary close (a page without dialog events never fired one)
     d.innerHTML = '<div class="ir-s-in irf-in">' + html + '</div>';
     if (!d.open) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
     d.scrollTop = 0; var inr = d.querySelector('.irf-in'); if (inr) inr.scrollTop = 0;
@@ -842,12 +914,12 @@
      every headline names it); what the room's stories say; then what it is. */
   // a sentence with HTML put into its {parts} (handed the sentence already through T): the words escaped first, the parts handed in already made
   function Th(t, v) { var r = esc(t); if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); }); return r; }
-  function link(u, h) { return '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + h + '</a>'; }
+  function link(u, h) { return '<a href="' + esc(safeU(u)) + '" target="_blank" rel="noopener">' + h + '</a>'; }
   function newsRow(x) {
     var ms = Date.parse(x.d), meta = esc((x.s || '') + (isFinite(ms) ? ' · ' + agoMs(ms) : ''));
     // regime media (Iran Uncensored): shown, marked, never a link: opening it would show the regime's servers who reads it
-    if (regime(x.u)) return '<li><div class="irf-it irf-nw irf-rg"><span class="irf-it-t"' + DA + '>' + esc(x.t) + '</span><small>' + meta + ' · ' + esc(T('Regime media, not linked')) + '</small></div></li>';
-    return '<li><a class="irf-it irf-nw" href="' + esc(x.u) + '" target="_blank" rel="noopener"><span class="irf-it-t"' + DA + '>' + esc(x.t) + '</span><small>' + meta + '</small></a></li>';
+    if (rgItem(x)) return '<li><div class="irf-it irf-nw irf-rg"><span class="irf-it-t"' + DA + '>' + esc(x.t) + '</span><small>' + meta + ' · ' + esc(T('Regime media, not linked')) + '</small></div></li>';
+    return '<li><a class="irf-it irf-nw" href="' + esc(safeU(x.u)) + '" target="_blank" rel="noopener"><span class="irf-it-t"' + DA + '>' + esc(x.t) + '</span><small>' + meta + '</small></a></li>';
   }
   function coordN(v) { return v >= 0 ? T('{n}°N', { n: N(Math.abs(v).toFixed(2)) }) : T('{n}°S', { n: N(Math.abs(v).toFixed(2)) }); }
   function coordE(v) { return v >= 0 ? T('{n}°E', { n: N(Math.abs(v).toFixed(2)) }) : T('{n}°W', { n: N(Math.abs(v).toFixed(2)) }); }
@@ -905,7 +977,7 @@
   }
   function market(m) {
     var p = Math.round((+m.p || 0) * 100);
-    return '<a class="irf-mk" href="' + esc(m.u) + '" target="_blank" rel="noopener"><span class="irf-mk-p"><b>' + N(p) + '%</b><small>' + esc(T('say yes')) + '</small></span><span class="irf-mk-q">' + esc(m.q) + '<small>' + esc(T('${n} bet on Polymarket', { n: fmtN(m.vol || 0) }) + (m.end ? ' · ' + T('closes {date}', { date: day(m.end) }) : '')) + '</small></span></a>';
+    return '<a class="irf-mk" href="' + esc(safeU(m.u)) + '" target="_blank" rel="noopener"><span class="irf-mk-p"><b>' + N(p) + '%</b><small>' + esc(T('say yes')) + '</small></span><span class="irf-mk-q">' + esc(m.q) + '<small>' + esc(T('${n} bet on Polymarket', { n: fmtN(m.vol || 0) }) + (m.end ? ' · ' + T('closes {date}', { date: day(m.end) }) : '')) + '</small></span></a>';
   }
   var SITE_MARK = CFG.mark || 'libertypolitics.com/intel';          // the room's own address, on what is copied for a show
   function copy(id, btn) {
@@ -914,11 +986,11 @@
     if (a.why) lines.push(L(a, 'why'));
     if (a.st) lines.push(T('Status:') + ' ' + L(a, 'st'));
     // everything the card lists, newest first: X posts, videos and articles (24 Oct 2026), each with who and when
-    var la = coverOf(a).slice(0, 10);
+    var la = newest(coverOf(a)).slice(0, 10);
     if (la.length) { lines.push(T('Latest news:')); la.forEach(function (x) {
       var who = x.src === 'X' ? (x.nm || x.h || 'X') + ', X' : x.src === 'YouTube' ? (x.h || '') + ', ' + T('YouTube') : (x.h || x.src || '');
       var qx = x.src === 'X' && x.qt && x.qt.t ? ' [' + T('Quoting {who}', { who: x.qt.nm || x.qt.h }) + ': ' + String(x.qt.t).replace(/\s+/g, ' ').slice(0, 160) + ']' : '';          // a quote never copied as if it stood alone (24 Oct 2026)
-      lines.push('- ' + x.t + qx + ' (' + who + (x.d ? ', ' + day(x.d) : '') + ')' + (regime(x.u) || (R.regime && R.regime(x)) ? '' : ' ' + x.u));
+      lines.push('- ' + x.t + qx + ' (' + who + (x.d && day(x.d) ? ', ' + day(x.d) : '') + ')' + (rgItem(x) || safeU(x.u) === '#' ? '' : ' ' + x.u));
     }); }
     lines.push(SITE_MARK + '/?mil=' + a.id);
     var txt = lines.join('\n'), done = function () { btn.textContent = T('Copied'); setTimeout(function () { btn.textContent = T('Copy for the show'); }, 1600); };
@@ -935,6 +1007,8 @@
       var links = $('ir-links'); links.parentNode.insertBefore(el, links.nextSibling);
       el.addEventListener('click', function (ev) {
         var t = ev.target, b;
+        // a conflict's list the reader opened or closed stays so through every redraw (they once all collapsed on each one)
+        if ((b = t.closest('details[data-irf-sites] > summary'))) { THOPEN[b.parentNode.getAttribute('data-irf-sites')] = !b.parentNode.open; return; }
         if ((b = t.closest('[data-irf-site]'))) { dossier(b.getAttribute('data-irf-site')); return; }
         if ((b = t.closest('#irf-on'))) { setOn(!ON); return; }
         if ((b = t.closest('[data-irf-g]'))) { var gv = 'g:' + b.getAttribute('data-irf-g'); if (!ON) setOn(true); R.filter('mil', R.filterOn('mil') === gv ? '' : gv); R.tab('items'); listTop(); return; }
@@ -950,28 +1024,37 @@
     }
     return el;
   }
-  function drawTabCount() { tabEl(); var n = $('irf-tab-n'); if (n) n.textContent = NAMED_N ? N(NAMED_N) : ''; }
+  /* "In the news now", one predicate for the list and the number on the tab (24 Oct 2026): the tab once counted every
+     named site and group in every conflict, uncapped, while its list showed the picked conflicts' only, twelve sites at
+     most, so the two disagreed. */
+  var NAMED_CAP = 12;
+  function newsNow() {
+    var ws = wars(), all = ASSETS.concat(SHIPS);
+    var named = all.filter(function (a) { return (NEWS[a.id] || []).length && inWs(a, ws); }).sort(function (x, y) { return NEWS[y.id].length - NEWS[x.id].length; });
+    var gk = GROUPS.filter(function (g) { return (GNEWS[g[0]] || []).length && all.some(function (a) { return g[4](a) && inWs(a, ws); }); }).sort(function (x, y) { return GNEWS[y[0]].length - GNEWS[x[0]].length; });
+    return { named: named.slice(0, NAMED_CAP), gk: gk };
+  }
+  function drawTabCount() { tabEl(); var n = $('irf-tab-n'); if (!n) return; var nn = D ? newsNow() : null, c = nn ? nn.named.length + nn.gk.length : 0; n.textContent = c ? N(c) : ''; }
   function listTop() { var l = root.querySelector('.ir-list'); if (l && l.getBoundingClientRect().top < 0) l.scrollIntoView({ block: 'start' }); }
   function gauge(p) {
     var lv = Math.max(0, Math.min(100, +p.lvl || 0)), ang = Math.PI * (1 - lv / 100), x = 30 + 24 * Math.cos(ang), y = 32 - 24 * Math.sin(ang);
     return '<svg class="irf-ga" viewBox="0 0 60 36" aria-hidden="true"><path class="irf-ga-b" d="M6 32A24 24 0 0 1 54 32"/><path class="irf-ga-v lv' + Math.min(4, Math.floor(lv / 20)) + '" d="M6 32A24 24 0 0 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '"/><line x1="30" y1="32" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/><circle cx="30" cy="32" r="2.6"/></svg>';
   }
   function inWs(a, ws) { return !ws.length || ws.indexOf(a.th) >= 0; }
+  var THOPEN = {};
   function ageWords(n) { return n == null ? '' : n <= 0 ? T('today') : n === 1 ? T('1 day ago') : T('{n} days ago', { n: N(n) }); }
   /* The Forces tab. War pressure moved INTO the conflict picker on 23 Oct 2026, so the gauges and the choosing are one
      place (one door); the tab says which conflicts it is showing and lists what follows from that. */
   function drawTab() {
     var el = tabEl(); if (!D) { el.innerHTML = '<p class="ir-empty">' + esc(T('The military sites could not load. Everything else in the room works.')) + '</p>'; return; }
-    var mil = R.filterOn('mil'), ws = wars();
-    var named = ASSETS.concat(SHIPS).filter(function (a) { return (NEWS[a.id] || []).length && inWs(a, ws); }).sort(function (x, y) { return NEWS[y.id].length - NEWS[x.id].length; });
+    var mil = R.filterOn('mil'), ws = wars(), nn = newsNow(), named = nn.named, gk = nn.gk;
     var html = '<div class="irf-tab-h"><p>' + (ws.length ? Th(T('Showing {what}. Pick others with the Conflicts button on the map.'), { what: '<b>' + esc(warLabel(ws.join(','))) + '</b>' }) : esc(T('Every conflict. To follow one or several, use the Conflicts button on the map.'))) + '</p>' +
       '<button type="button" class="irf-tog" id="irf-on" aria-pressed="' + (ON ? 'true' : 'false') + '"><span>' + esc(T('On the map')) + '</span></button></div>';
-    var gk = GROUPS.filter(function (g) { return (GNEWS[g[0]] || []).length && ASSETS.concat(SHIPS).some(function (a) { return g[4](a) && inWs(a, ws); }); }).sort(function (x, y) { return GNEWS[y[0]].length - GNEWS[x[0]].length; });
-    html += '<section class="irf-sec"><h3>' + esc(T('In the news now')) + '</h3>' +
+    html +='<section class="irf-sec"><h3>' + esc(T('In the news now')) + '</h3>' +
       (named.length || gk.length ? '<ul class="irf-rows">' + gk.map(function (g) {
         var LL = GNEWS[g[0]], a0 = ASSETS.concat(SHIPS).filter(g[4])[0];
         return '<li><button type="button" class="irf-row' + (mil === 'g:' + g[0] ? ' on' : '') + '" data-irf-g="' + esc(g[0]) + '">' + (a0 ? icon(a0) : '') + '<span class="irf-row-t"><b>' + esc(g[1]) + '</b><small>' + bd(esc(LL[0].t)) + '</small></span><span class="irf-row-n" title="' + esc(T('Stories about them')) + '">' + N(LL.length) + '</span></button></li>';
-      }).join('') + named.slice(0, 12).map(function (a) { return row(a, NEWS[a.id][0].t); }).join('') + '</ul>' +
+      }).join('') + named.map(function (a) { return row(a, NEWS[a.id][0].t); }).join('') + '</ul>' +
         '<button type="button" class="ir-s-b irf-any" data-irf-any aria-pressed="' + (mil === 'any' ? 'true' : 'false') + '">' + esc(mil === 'any' ? T('Show every story again') : T('Show only military news')) + '</button>'
         : '<p class="irf-note">' + esc(T('No story in this view names a military site.')) + '</p>') + '</section>';
     var sh = SHIPS.filter(function (s) { return !ws.length || ws.indexOf(s.th) >= 0; });
@@ -988,7 +1071,8 @@
     html += '<section class="irf-sec"><h3>' + esc(T('Every site, by conflict')) + '</h3>' + ths.map(function (th) {
       var list = ASSETS.filter(function (a) { return a.th === th; }).sort(function (x, y) { return prio(y) - prio(x) || String(L(x, 'n')).localeCompare(L(y, 'n')); });
       if (!list.length) return '';
-      return '<details class="irf-th"' + (ws.length === 1 ? ' open' : '') + '><summary><span>' + esc(TH[th]) + '</span><i class="num">' + N(list.length) + '</i></summary><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul></details>';
+      var op = THOPEN[th] != null ? THOPEN[th] : ws.length === 1;
+      return '<details class="irf-th" data-irf-sites="' + esc(th) + '"' + (op ? ' open' : '') + '><summary><span>' + esc(TH[th]) + '</span><i class="num">' + N(list.length) + '</i></summary><ul class="irf-rows">' + list.map(function (a) { return row(a); }).join('') + '</ul></details>';
     }).join('') + '</section>';
     html += '<section class="irf-sec irf-key"><h3>' + esc(T('Colour: who runs it')) + '</h3><ul>' + BLOCS.filter(function (b) { return ASSETS.some(function (a) { return BLOC_OF[a.o] === b[0]; }); }).map(function (b) { return '<li style="--c:' + b[2] + '"><i class="irf-dot"></i>' + esc(b[1]) + '</li>'; }).join('') +
       '</ul><p class="irf-note">' + esc(T('A gold ring means a story in the room names it. A dashed ring round a ship means the report gives the sea, not a point. Sites come from the register in our repository, each checked against Wikipedia and against the news of 2025 and 2026. Wrong or missing? Say so in the discussion.')) + '</p></section>';
