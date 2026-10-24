@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=75ee67264d) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9a2e265742) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -479,7 +479,7 @@
      able to filter it further ... 5 or 6 things that are the most trending news. I could click on one of them, which will
      filter it down even more to only ... the tweets, for example, about that"). A hot topic is a story of the last hours
      as data/show-packs.json groups it (build/show_packs.py: the news, the videos and the X posts on one event), when that
-     file was built on the same hour of the feed; otherwise the room groups the hours itself by country and topic. Its name
+     file was built on the same hour of the feed; otherwise there are none (never country buckets, 24 Oct 2026). Its name
      is the one data/show-words.json gives it, else its own headline, cut. */
   function cut(t, n) { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).replace(/[\s,:;.'"-]+\S*$/, '') + '…' : t; }
   function makeHots() {
@@ -498,14 +498,11 @@
         var sx = ds && ds.ls && rated(ds.ls) > rated(s.ls) ? Object.assign({}, s, { ls: ds.ls, lsn: ds.lsn || {}, bs: ds.bs || '' }) : s;
         if (its.length) list.push({ id: String(s.id), lead: String(s.lead), hot: +s.hot || 0, its: its, all: all, q: ds ? String(ds.q || '') : '', title: s.title || its[0].t, s: sx });
       });
-    } else {
-      var by = {};
-      LIVE.forEach(function (it) { var c = P[it.p] ? P[it.p][1] : 'global'; var k = c + '|' + ((it.tp || [])[0] != null ? it.tp[0] : ''); (by[k] = by[k] || []).push(it); });
-      Object.keys(by).forEach(function (k) {
-        var its = by[k].sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); });
-        list.push({ id: 'g' + k.replace(/[^a-z0-9]/gi, '').toLowerCase(), lead: String(its[0].id).slice(1), hot: its[0].hot || 0, its: its, all: its, q: '', title: its[0].t, s: null });
-      });
     }
+    // no fresh story file (missing, or built over 3 hours from the feed): NO Trending stories. Until 24 Oct 2026 the room
+    // grouped the hours itself by country and topic, and the live Iran page, published before it linked its story file,
+    // showed one "story" of 304 unrelated items (Armin: "when I select one of the hot topics, I see items that may not be
+    // relevant"). A bucket is not a story; Everything and All hot still work.
     list.forEach(function (h) {
       var w = WORDS && WORDS.stories && WORDS.stories[h.lead];
       // the written name, else the one build/show_packs.py chip_name() makes whole every hour, else the headline cut at a word
@@ -891,7 +888,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=75ee67264d): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9a2e265742): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2393,25 +2390,113 @@
       try { var o = f.contentDocument && f.contentDocument.querySelector('video'); if (o && !o.paused) o.pause(); } catch (e) { }
     });
   }
+  /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
+     rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
+     Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=9a2e265742,
+        loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
+        the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
+     2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
+        on the light one ("vl", about 480p) when this device's line is known to be slow, and steps down to it at the second
+        stall or a stall over 2.5 seconds (5 before the first picture).
+     3. Else X's own player (xEmbed). The speed the stream measured is kept on this device (ir-bw), so the next one starts
+        at the right size. Everything runs inside a frame that sends no Referer: X refuses its video to another site's. */
+  var HLS_RX = /^https:\/\/video\.twimg\.com\/[A-Za-z0-9_\/.-]+\.m3u8(?:\?[A-Za-z0-9=&_.-]*)?$/;
+  function hlsSrc() { var s = document.querySelector('script[src*="intel.js"]'); return s ? s.src.replace(/intel\.js(?:\?.*)?$/, 'hls.min.js') : ''; }
+  function bwGet() { var b = 0; try { b = +localStorage.getItem('ir-bw') || 0; } catch (e) { } var c = navigator.connection; return b || (c && c.downlink ? c.downlink * 1e6 : 0); }
+  function bwSet(b) { if (b > 0 && isFinite(b)) try { localStorage.setItem('ir-bw', String(Math.round(b))); } catch (e) { } }
+  function slowLine() { var c = navigator.connection, b = bwGet(); return !!(c && c.saveData) || (b > 0 && b < 3e6); }
+  function xGo(v) { var p = v.play && v.play(); if (p && p.catch) p.catch(function () { /* a browser that wants its own tap: the controls are there */ }); }
+  function xAlive(P) {
+    if (P.f.isConnected && !P.dead) return true;
+    P.dead = 1; clearTimeout(P.t); clearTimeout(P.st);
+    if (P.hls) { try { P.hls.destroy(); } catch (e) { } P.hls = null; }
+    return false;
+  }
   function xPlay(holder, r, it, fallback) {
     if (!holder || !r) return;
     var done = false, fail = function () { if (done) return; done = true; (fallback || xEmbed)(holder, it); };
-    if (!r.v) { fail(); return; }
-    var gif = r.t === 'g', f = document.createElement('iframe');
+    var gif = r.t === 'g', hl = !gif && r.hl && HLS_RX.test(r.hl) ? r.hl : '', vl = r.v && r.vl && VTW_RX.test(r.vl) ? r.vl : '';
+    if (!r.v && !hl) { fail(); return; }
+    var f = document.createElement('iframe');
     f.className = 'ir-xv-f'; f.title = T(gif ? 'Clip from {who}' : 'Video from {who}', { who: it.h || 'X' });
     f.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture'); f.setAttribute('allowfullscreen', ''); f.setAttribute('referrerpolicy', 'no-referrer');
     f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}video{display:block;width:100%;height:100%;object-fit:contain;background:#000}</style></head><body>' +
-      '<video src="' + esc(r.v) + '" poster="' + esc(pic(r, 'large')) + '" playsinline autoplay preload="auto"' + (gif ? ' muted loop' : ' controls') + '></video></body></html>';
+      '<video poster="' + esc(pic(r, 'large')) + '" playsinline preload="auto"' + (gif ? ' muted loop' : ' controls') + '></video></body></html>';
     hush(null);
     holder.innerHTML = ''; holder.appendChild(f); holder.classList.add('is-on');
     f.addEventListener('load', function () {
-      var v = null; try { v = f.contentDocument && f.contentDocument.querySelector('video'); } catch (e) { return; }
-      if (!v) return;
+      var v = null, w = null; try { w = f.contentWindow; v = f.contentDocument && f.contentDocument.querySelector('video'); } catch (e) { fail(); return; }
+      if (!v || !w) { fail(); return; }
+      var P = f._xp = { f: f, v: v, w: w, r: r, hl: hl, vl: vl, fail: fail, hls: null, mode: '', stalls: [] };
       v.addEventListener('play', function () { hush(f); });
-      v.addEventListener('error', fail);
-      if (v.error) { fail(); return; }
-      var p = v.play && v.play(); if (p && p.catch) p.catch(function () { /* a browser that wants its own tap: the controls are there */ });
-    });
+      v.addEventListener('error', function () {
+        if (!xAlive(P)) return;
+        if (P.mode === 'native') { toMp4(P); return; }
+        if (P.mode !== 'mp4') return;          // the stream's own errors are hls.js's to handle (its ERROR event below)
+        if (P.vl && P.cur !== P.vl) { P.cur = P.vl; xSrc(P, v.currentTime); } else P.fail();
+      });
+      v.addEventListener('waiting', function () {
+        if (P.mode !== 'mp4' || v.seeking || !xAlive(P)) return;
+        var now = Date.now(); P.stalls = P.stalls.filter(function (x) { return now - x < 30000; }); P.stalls.push(now);
+        clearTimeout(P.st);
+        if (P.stalls.length >= 2) xDown(P); else P.st = setTimeout(function () { if (xAlive(P) && v.readyState < 3) xDown(P); }, v.currentTime < 0.3 ? 5000 : 2500);
+      });
+      v.addEventListener('playing', function () { clearTimeout(P.st); });
+      if (hl) viaHls(P); else viaMp4(P, 0);
+    }, { once: true });
+  }
+  function viaHls(P) {
+    var v = P.v, w = P.w, d = P.f.contentDocument;
+    var mse = !!(w.MediaSource || w.ManagedMediaSource || w.WebKitMediaSource), native = !!(v.canPlayType && v.canPlayType('application/vnd.apple.mpegurl'));
+    if (!mse && native) { P.mode = 'native'; v.src = P.hl; xGo(v); return; }
+    var url = hlsSrc();
+    if (!mse || !url) { viaMp4(P, 0); return; }
+    P.mode = 'load';
+    P.t = setTimeout(function () { if (xAlive(P)) toMp4(P); }, 12000);          // the stream has not given a picture in 12 s
+    var s = d.createElement('script'); s.src = url;
+    s.onerror = function () { if (xAlive(P)) toMp4(P); };
+    s.onload = function () {
+      if (!xAlive(P)) return;
+      var H = w.Hls; if (!H || !H.isSupported || !H.isSupported()) { toMp4(P); return; }
+      var bw = bwGet(), h;
+      try {
+        h = P.hls = new H({ capLevelToPlayerSize: true, startLevel: -1, abrEwmaDefaultEstimate: bw > 0 ? bw : 1e6, testBandwidth: true, startFragPrefetch: true, maxBufferLength: 30, maxMaxBufferLength: 90, backBufferLength: 30, enableWorker: true });
+      } catch (e) { toMp4(P); return; }
+      P.mode = 'hls';
+      h.on(H.Events.MANIFEST_PARSED, function () { if (xAlive(P)) xGo(v); });
+      h.on(H.Events.FRAG_BUFFERED, function () { clearTimeout(P.t); });
+      h.on(H.Events.FRAG_LOADED, function () { bwSet(h.bandwidthEstimate); });
+      h.on(H.Events.ERROR, function (e, dt) {
+        if (!dt || !dt.fatal || !xAlive(P)) return;
+        if (dt.type === H.ErrorTypes.MEDIA_ERROR && !P.rec) { P.rec = 1; h.recoverMediaError(); return; }
+        toMp4(P);
+      });
+      h.loadSource(P.hl); h.attachMedia(v);
+    };
+    d.head.appendChild(s);
+  }
+  function toMp4(P) {
+    if (P.mode === 'mp4' || !xAlive(P)) return;
+    clearTimeout(P.t);
+    var at = P.v.currentTime || 0;
+    if (P.hls) { try { P.hls.destroy(); } catch (e) { } P.hls = null; }
+    if (!P.r.v) { P.mode = 'mp4'; P.fail(); return; }
+    viaMp4(P, at);
+  }
+  function viaMp4(P, at) {
+    P.mode = 'mp4'; P.cur = P.vl && slowLine() ? P.vl : P.r.v;
+    xSrc(P, at);
+  }
+  function xDown(P) {
+    if (!P.vl || P.cur === P.vl || !xAlive(P)) return;
+    P.cur = P.vl; P.stalls = []; bwSet(Math.min(bwGet() || 2e6, 2e6));          // this line is slow: the next video starts light
+    xSrc(P, P.v.currentTime);
+  }
+  function xSrc(P, at) {
+    var v = P.v, go = function () { v.removeEventListener('loadedmetadata', go); if (at > 0.5) { try { v.currentTime = at; } catch (e) { } } xGo(v); };
+    v.addEventListener('loadedmetadata', go);
+    v.src = P.cur;
   }
   var twP = null;
   function twJs() {
@@ -2454,8 +2539,14 @@
       })
       .catch(function () { b.remove(); gone(); });
   }
-  // The pictures, full screen: arrows, a swipe, a tap to see it at its real size, Escape or the cross to close
-  var LB = null;
+  /* The pictures, full screen (24 October 2026, Armin: "when I click on the expand button, it doesn't work. I want to see
+     a full version of the image"). Measured that day: the picture was sized by max-height:100% inside a grid, which the
+     grid never resolved, so a tall picture drew at its own height and its bottom half was cut off the screen. Now its size
+     is COMPUTED (lbFit): the whole picture always fits the screen, a small one drawn larger, shown at once from the copy
+     the card already loaded and swapped for the sharp one when that arrives, at the same size, so nothing jumps. Tap or
+     click to zoom in where you tapped (the original file loads for it), drag to look around, pinch or the wheel to zoom,
+     tap again to fit. Arrows, a swipe, Escape, the cross, or a tap beside the picture close or move it. */
+  var LB = null, LB_KMAX = 6;
   function lightbox(list, at, it) {
     if (!list || !list.length) return;
     if (!LB) {
@@ -2464,36 +2555,132 @@
         var b = ev.target.closest('button');
         if (b && b.hasAttribute('data-lb-x')) { lbClose(); return; }
         if (b && b.hasAttribute('data-lb-step')) { lbGo(LB._at + (+b.getAttribute('data-lb-step'))); return; }
-        if (ev.target.classList.contains('ir-lb-img')) { LB.classList.toggle('is-zoom'); return; }
-        if (ev.target === LB || ev.target.classList.contains('ir-lb-in')) lbClose();
       });
       LB.addEventListener('keydown', function (ev) {
         if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); lbGo(LB._at + (ev.key === 'ArrowRight' ? 1 : -1)); }
+        else if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); lbZoomAt(LB._z.k * 1.6, 0, 0); }
+        else if (ev.key === '-') { ev.preventDefault(); lbZoomAt(LB._z.k / 1.6, 0, 0); }
+        else if (ev.key === '0') { ev.preventDefault(); lbSet(1, 0, 0, true); }
         if (ev.key !== 'Tab') ev.stopPropagation();          // the room's own keys (the spotlight's arrows, F) wait behind it
       });
-      LB.addEventListener('close', function () { LB.innerHTML = ''; LB.classList.remove('is-zoom'); });
-      var sx = null;
-      LB.addEventListener('touchstart', function (ev) { sx = ev.touches.length === 1 && !LB.classList.contains('is-zoom') ? { x: ev.touches[0].clientX, y: ev.touches[0].clientY } : null; }, { passive: true });
-      LB.addEventListener('touchend', function (ev) {
-        if (!sx) return; var t = ev.changedTouches[0], dx = t.clientX - sx.x, dy = t.clientY - sx.y; sx = null;
-        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) lbGo(LB._at + (dx < 0 ? 1 : -1));
-      }, { passive: true });
+      LB.addEventListener('close', function () { LB.innerHTML = ''; LB._at = -1; LB.classList.remove('is-zoom', 'is-drag'); });
+      lbGestures();
+      window.addEventListener('resize', function () { if (LB && LB.open) lbFit(); });
     }
     LB._list = list; LB._it = it; LB._at = -1;
     lbGo(at || 0);
     if (!LB.open) { if (LB.showModal) LB.showModal(); else LB.setAttribute('open', ''); }
+    lbFit();
     var x = LB.querySelector('[data-lb-x]'); if (x) x.focus();
+  }
+  function lbBox() { return LB && LB.querySelector('.ir-lb-in'); }
+  function lbImg() { return LB && LB.querySelector('.ir-lb-img'); }
+  // the picture's size at "fit": the whole of it inside the box, never past 3 times its own pixels (a tiny one would blur)
+  function lbFit() {
+    var b = lbBox(), im = lbImg(), r = LB && LB._list && LB._list[LB._at]; if (!b || !im || !r) return;
+    var nw = r.w || im.naturalWidth, nh = r.h || im.naturalHeight, cw = b.clientWidth - 16, ch = b.clientHeight - 16;
+    if (!(nw > 0 && nh > 0 && cw > 0 && ch > 0)) return;
+    var s = Math.min(cw / nw, ch / nh, 3 * Math.max(1, (im.naturalWidth || nw) / nw));
+    im.style.width = Math.round(nw * s) + 'px'; im.style.height = Math.round(nh * s) + 'px';
+    lbSet(LB._z.k, LB._z.x, LB._z.y);
+  }
+  // the view: a zoom k (1 = fit) and an offset x, y from the middle, held so the picture never leaves an empty edge
+  function lbSet(k, x, y, anim) {
+    var b = lbBox(), im = lbImg(); if (!b || !im) return;
+    k = Math.max(1, Math.min(LB_KMAX, k || 1));
+    var mx = Math.max(0, (im.offsetWidth * k - b.clientWidth) / 2), my = Math.max(0, (im.offsetHeight * k - b.clientHeight) / 2);
+    if (k < 1.01) { k = 1; x = 0; y = 0; }
+    x = Math.max(-mx, Math.min(mx, x || 0)); y = Math.max(-my, Math.min(my, y || 0));
+    LB._z = { k: k, x: x, y: y };
+    im.classList.toggle('is-anim', !!anim && !reduced());
+    im.style.transform = k === 1 ? '' : 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(' + k.toFixed(3) + ')';
+    LB.classList.toggle('is-zoom', k > 1);
+    if (k > 1 && !LB._orig) {          // zoomed in: the file as it was posted, swapped in at the same size
+      var r = LB._list[LB._at], at = LB._at, hi = new Image(); LB._orig = 1;
+      hi.onload = function () { if (LB._at === at && lbImg()) lbImg().src = hi.src; };
+      hi.src = pic(r, 'orig');
+    }
+  }
+  // zoom to k keeping the point (px, py), measured from the box's middle, where it is on the screen
+  function lbZoomAt(k, px, py, anim) {
+    var z = LB._z, k2 = Math.max(1, Math.min(LB_KMAX, k));
+    lbSet(k2, px - (px - z.x) * k2 / z.k, py - (py - z.y) * k2 / z.k, anim);
+  }
+  function lbGestures() {
+    var pts = {}, g = null;
+    function mid() { var b = lbBox().getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }
+    function begin(ev) {
+      var ids = Object.keys(pts), c = mid(), a = pts[ids[0]], b2 = pts[ids[1]];
+      g = { n: ids.length, z: { k: LB._z.k, x: LB._z.x, y: LB._z.y }, t: Date.now(), moved: false, on: g ? g.on : ev.target, c: c,
+            x0: a.x, y0: a.y, d0: b2 ? Math.hypot(a.x - b2.x, a.y - b2.y) : 0, m0: b2 ? { x: (a.x + b2.x) / 2 - c.x, y: (a.y + b2.y) / 2 - c.y } : null };
+    }
+    LB.addEventListener('pointerdown', function (ev) {
+      if (!lbBox() || ev.target.closest('button,a') || !ev.target.closest('.ir-lb-in') || ev.button > 0) return;
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      try { LB.setPointerCapture(ev.pointerId); } catch (e) { }
+      if (Object.keys(pts).length === 1) g = null;
+      begin(ev); ev.preventDefault();
+    });
+    LB.addEventListener('pointermove', function (ev) {
+      if (!pts[ev.pointerId] || !g) return;
+      pts[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+      var ids = Object.keys(pts), a = pts[ids[0]];
+      if (Math.hypot(a.x - g.x0, a.y - g.y0) > 6) g.moved = true;
+      if (ids.length >= 2 && g.d0) {          // pinch: the point between the fingers stays under them
+        var b2 = pts[ids[1]], d = Math.hypot(a.x - b2.x, a.y - b2.y), m = { x: (a.x + b2.x) / 2 - g.c.x, y: (a.y + b2.y) / 2 - g.c.y };
+        var k = Math.max(1, Math.min(LB_KMAX, g.z.k * d / g.d0));
+        g.moved = true; lbSet(k, m.x - (g.m0.x - g.z.x) * k / g.z.k, m.y - (g.m0.y - g.z.y) * k / g.z.k);
+      } else if (g.n === 1 && LB._z.k > 1 && g.moved) {          // drag: look around the zoomed picture
+        LB.classList.add('is-drag'); lbSet(g.z.k, g.z.x + a.x - g.x0, g.z.y + a.y - g.y0);
+      }
+    });
+    function end(ev) {
+      if (!pts[ev.pointerId] || !g) return;
+      var p = pts[ev.pointerId], was = g; delete pts[ev.pointerId];
+      LB.classList.remove('is-drag');
+      if (Object.keys(pts).length) { begin(ev); g.moved = true; return; }          // one finger lifted from a pinch
+      g = null;
+      if (ev.type === 'pointercancel' || was.n !== 1) return;
+      var dx = p.x - was.x0, dy = p.y - was.y0;
+      if (!was.moved && Date.now() - was.t < 500) {          // a tap
+        if (was.on && was.on.classList && was.on.classList.contains('ir-lb-img')) {
+          if (LB._z.k > 1) lbSet(1, 0, 0, true);
+          else { var im = lbImg(), r = LB._list[LB._at], nat = Math.max(r.w || 0, im.naturalWidth || 0) / Math.max(1, im.offsetWidth);
+            lbZoomAt(Math.max(2.5, Math.min(LB_KMAX, nat)), p.x - was.c.x, p.y - was.c.y, true); }
+        } else if (LB._z.k > 1) lbSet(1, 0, 0, true);
+        else lbClose();          // a tap beside the picture
+      } else if (was.z.k === 1 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) lbGo(LB._at + (dx < 0 ? 1 : -1));          // a swipe
+    }
+    LB.addEventListener('pointerup', end); LB.addEventListener('pointercancel', end);
+    LB.addEventListener('wheel', function (ev) {
+      if (!lbBox() || !ev.target.closest('.ir-lb-in')) return;
+      ev.preventDefault();
+      var c = mid(); lbZoomAt(LB._z.k * Math.exp(-ev.deltaY * (ev.deltaMode ? 0.05 : 0.0018)), ev.clientX - c.x, ev.clientY - c.y);
+    }, { passive: false });
+    LB.addEventListener('dragstart', function (ev) { ev.preventDefault(); });
   }
   function lbGo(i) {
     var n = LB._list.length; if (i < 0 || i >= n || i === LB._at) return;
-    LB._at = i; LB.classList.remove('is-zoom');
+    LB._at = i; LB._z = { k: 1, x: 0, y: 0 }; LB._orig = 0; LB.classList.remove('is-zoom', 'is-drag');
     var r = LB._list[i], it = LB._it;
     LB.setAttribute('aria-label', T('Picture {i} of {n} from {who}', { i: N(i + 1), n: N(n), who: it.h || 'X' }));
-    LB.innerHTML = '<div class="ir-lb-in"><img class="ir-lb-img" src="' + esc(pic(r, 'large')) + '" alt="' + esc(it.t) + '"></div>' +
+    LB.innerHTML = '<div class="ir-lb-in"><img class="ir-lb-img" src="' + esc(pic(r, 'medium')) + '" alt="' + esc(it.t) + '" draggable="false"></div>' +
       (n > 1 ? '<button type="button" class="ir-lb-nav prev" data-lb-step="-1" aria-label="' + T('Previous picture') + '"' + (i ? '' : ' disabled') + '>&lsaquo;</button><button type="button" class="ir-lb-nav next" data-lb-step="1" aria-label="' + T('Next picture') + '"' + (i < n - 1 ? '' : ' disabled') + '>&rsaquo;</button>' : '') +
       '<div class="ir-lb-bar">' + (n > 1 ? '<span class="ir-lb-n num">' + T('{i} of {n}', { i: N(i + 1), n: N(n) }) + '</span>' : '') +
       '<a href="' + esc(pic(r, 'orig')) + '" target="_blank" rel="noopener">' + T('Full size') + '</a><a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + T('Open on X') + '</a>' +
       '<button type="button" class="ir-lb-x" data-lb-x aria-label="' + T('Close') + '">&times;</button></div>';
+    var im = lbImg(), hi = new Image();
+    im.addEventListener('load', function () { if (!r.w || !r.h) lbFit(); });
+    im.addEventListener('error', function () {          // the quick copy failed: the sharp one may still come; if both fail, say so
+      if (im.src !== pic(r, 'large')) { im.src = pic(r, 'large'); return; }
+      var b = lbBox(); if (b) b.innerHTML = '<p class="ir-lb-msg">' + T('This picture did not load here.') + ' <a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + T('Open on X') + '</a></p>';
+    });
+    hi.onload = function () { if (LB._at === i && lbImg() && !LB._orig) lbImg().src = hi.src; };
+    hi.src = pic(r, 'large');
+    [i - 1, i + 1].forEach(function (j) { if (j >= 0 && j < n) new Image().src = pic(LB._list[j], 'large'); });          // the next tap is instant
+    lbFit();
+    var fx = LB.querySelector('[data-lb-x]'), ae = document.activeElement;
+    if (LB.open && fx && (!ae || ae === document.body || !LB.contains(ae))) fx.focus({ preventScroll: true });          // the arrows keep working after the buttons are redrawn
   }
   function lbClose() { if (!LB) return; if (LB.open) { if (LB.close) LB.close(); else { LB.removeAttribute('open'); LB.innerHTML = ''; } } }
   function pulseAt(k) {
@@ -3228,7 +3415,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=75ee67264d'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9a2e265742'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
