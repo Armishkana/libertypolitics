@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9a334f13d0) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=dd549b8bdd) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -878,15 +878,32 @@
     return '<aside class="ir-note' + (size ? ' ' + size : '') + '"><b>' + ICO_REF.nt + esc(T('Readers added context')) + '</b><span class="ir-note-t"' + DA + '>' + esc(n.t) + '</span>' +
       (rg ? '' : '<a href="' + esc(n.u) + '" target="_blank" rel="noopener">' + esc(T('The note on X')) + '</a>') + '</aside>';
   }
-  // {before: the post it replies to, drawn above the post's words; after: the post it quotes and the note, under them}
+  // a poll on the post (po, 24 Oct 2026): the post is only its question, so its choices and votes are drawn with it
+  function pollOf(it) {
+    var o = it && it.src === 'X' && it.po, c = o && o.c;
+    return Array.isArray(c) && c.length >= 2 && c.length <= 4 && c.every(function (x) { return x && x.t && typeof x.n === 'number' && x.n >= 0; }) ? o : null;
+  }
+  function pollTotal(o) { return o.c.reduce(function (a, x) { return a + x.n; }, 0); }
+  function pollPc(o, x) { var tot = pollTotal(o); return tot ? Math.round(x.n * 100 / tot) : 0; }
+  function pollHtml(o, size) {
+    var tot = pollTotal(o), top = Math.max.apply(null, o.c.map(function (x) { return x.n; }));
+    return '<aside class="ir-poll' + (size ? ' ' + size : '') + '"><b>' + esc(T('Poll')) + '</b>' + o.c.map(function (x) {
+      var pc = pollPc(o, x);
+      return '<span class="ir-poll-r' + (tot && x.n === top ? ' is-top' : '') + '"><span class="ir-poll-bar" style="width:' + pc + '%"></span>' +
+        '<span class="ir-poll-t"' + DA + '>' + esc(x.t) + '</span><span class="ir-poll-n">' + N(pc) + '%</span></span>';
+    }).join('') + '<small>' + esc(T('{n} votes', { n: N(tot) })) + (o.f ? ' · ' + esc(T('Final results')) : '') + '</small></aside>';
+  }
+  // {before: the post it replies to, drawn above the post's words; after: its poll, the post it quotes and the note, under them}
   function refHtml(it, size) {
-    var ry = refOf(it, 'ry'), qt = refOf(it, 'qt'), nt = noteOf(it);
-    return { before: ry ? refBox(it, ry, 'ry', size) : '', after: (qt ? refBox(it, qt, 'qt', size) : '') + (nt ? noteHtml(nt, size, isRegime(it)) : '') };
+    var ry = refOf(it, 'ry'), qt = refOf(it, 'qt'), nt = noteOf(it), po = pollOf(it);
+    return { before: ry ? refBox(it, ry, 'ry', size) : '', after: (po ? pollHtml(po, size) : '') + (qt ? refBox(it, qt, 'qt', size) : '') + (nt ? noteHtml(nt, size, isRegime(it)) : '') };
   }
   // a card in a list: one line under its words, so a quote never reads as a post that stands alone
   function refLine(it) {
     var qt = refOf(it, 'qt'), ry = refOf(it, 'ry'), r = qt || ry, s = '';
     if (r) s += '<span class="ir-c-q">' + ICO_REF[qt ? 'qt' : 'ry'] + '<b>' + bd(esc(qt ? T('Quoting {who}', { who: refWho(r) }) : T('Replying to {who}', { who: refWho(r) }))) + '</b>' + (r.t ? ' <span' + DA + '>' + esc(cut(r.t, 140)) + '</span>' : '') + '</span>';
+    var po = pollOf(it);
+    if (po) s += '<span class="ir-c-q"><b>' + esc(T('Poll')) + '</b> <span' + DA + '>' + esc(cut(po.c.map(function (x) { return x.t; }).join(' / '), 140)) + '</span></span>';
     if (noteOf(it)) s += '<span class="ir-c-nt">' + ICO_REF.nt + esc(T('Readers added context')) + '</span>';
     return s;
   }
@@ -895,6 +912,8 @@
     var t = fullText(it), qt = refOf(it, 'qt'), ry = refOf(it, 'ry'), nt = noteOf(it);
     var who = function (r) { return r.nm ? r.nm + ' (' + r.h + ')' : r.h; };
     if (ry && ry.t) t = T('Replying to {who}', { who: who(ry) }) + ': ' + ry.t + '\n\n' + t;
+    var po = pollOf(it);
+    if (po) t += '\n\n' + T('Poll') + ': ' + po.c.map(function (x) { return x.t + ' ' + pollPc(po, x) + '%'; }).join(' / ');
     if (qt) t += '\n\n' + T('Quoting {who}', { who: who(qt) }) + ': ' + (qt.t || qt.u);
     if (nt) t += '\n\n' + T('Readers added context') + ': ' + nt.t;
     return t;
@@ -993,7 +1012,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9a334f13d0): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=dd549b8bdd): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2528,7 +2547,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=9a334f13d0,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=dd549b8bdd,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3422,7 +3441,7 @@
     it.id = 'L' + it.id;
     // news and YouTube are an article or a video; an X post keeps what it carries (a post, an image, a video, an article)
     it.k = it.src === 'X' ? (['post', 'image', 'video', 'article'].indexOf(it.k) >= 0 ? it.k : 'post') : it.k === 'video' ? 'video' : 'article';
-    if (it.src !== 'X') { delete it.m; delete it.sn; delete it.av; delete it.cd; delete it.tx; delete it.qt; delete it.ry; delete it.nt; }
+    if (it.src !== 'X') { delete it.m; delete it.sn; delete it.av; delete it.cd; delete it.tx; delete it.qt; delete it.ry; delete it.nt; delete it.po; }
     else if (!it.th && !it.sn && mediaOf(it).length) it.th = pic(mediaOf(it)[0], '240x240');
     if (it.src === 'News' && BING_RX.test(it.th || '')) it.th0 = it.th.replace(/&w=240&h=150&c=7$/, '');          // th: the list's size
     return it;
@@ -3559,7 +3578,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9a334f13d0'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=dd549b8bdd'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
