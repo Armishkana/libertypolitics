@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=dd549b8bdd) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=d7078be46e) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -202,9 +202,55 @@
      list (LTX) and add a block to the spotlight (SPOTX). Nothing here has words of its own, so the Iran room, which loads no
      add-on, is unchanged. An add-on that throws never breaks the room: every call into one is caught. */
   var LAYERS = [], EXT = {}, LTX = {}, SPOTX = [], RAWQ = null, BADGEX = [];
+  /* FACETS: THE ROOM'S FILTER REGISTRY (24 Oct 2026, the filters build; Armin: no way to see only the news or only the
+     commentary, and video filters with no length). Every filter dimension added from this day on is a row here, never a new
+     S field: each is registered in EXT like an add-on's filter, so the address (?form=news&len=m), its pill, pass(), Clear
+     all and the Filters button's count come with it, and window.IRoom.facets hands the same table to anything that reads
+     plain words (the ask box reads each facet's ask rows: [pattern, value, what it says]). The fields come from
+     build/intel_form.py in BOTH rooms' pipelines (intel_live.py for each feed, the deep passes): cat, which is news,
+     analysis, educational or commentary, and dur, a video's seconds. A facet nothing in the lens carries is not drawn (the
+     bank has neither). PRESETS below are named sets of these and the room's own filters. */
+  var FACETS = {
+    form: { key: 'form', name: T('News or commentary'), field: 'cat',
+      opts: [['news', T('News reports'), T('What happened, as reported')], ['take', T('Commentary and analysis'), T('What people say about it')]],
+      of: function (it) { return it.cat ? (it.cat === 'news' ? 'news' : 'take') : ''; },
+      ask: [[/\b(commentar(y|ies)|commentators?|analysis|analy[sz]\w*|opinions?|takes?|reactions?|op-?eds?|hot takes?)\b/i, 'take', T('commentary and analysis')],
+        [/\b(straight news|news reports?|reporting|just the news|news only|only news|breaking news|headlines)\b/i, 'news', T('news reports')],
+        [/تحلیل|نظر|دیدگاه|واکنش|کامنتری/, 'take', T('commentary and analysis')], [/خبر فوری|فقط خبر|گزارش خبری|اخبار/, 'news', T('news reports')]] },
+    len: { key: 'len', name: T('Video length'), field: 'dur', onlyKind: 'video',          // not drawn while another kind is picked
+      opts: [['s', T('Under 1 min'), T('Shorts and quick clips'), T('Videos under 1 min')], ['m', T('1 to 10 min'), T('Clips to play on a show'), T('Videos of 1 to 10 min')],
+        ['l', T('10 to 30 min'), T('Reports and segments'), T('Videos of 10 to 30 min')], ['xl', T('30 min or more'), T('Whole shows and streams'), T('Videos of 30 min or more')]],          // [value, button, what it is, its pill]
+      of: function (it) { var s = +it.dur || 0; if (!(s > 0) || kindOf(it) !== 'video') return ''; return s < 60 ? 's' : s < 600 ? 'm' : s < 1800 ? 'l' : 'xl'; },
+      ask: [[/\b(shorts|under (a|1|one) min\w*|less than (a|1|one) min\w*)\b/i, 's', T('under 1 minute')],
+        [/\b(short (videos?|clips?)|clips?|under (10|ten) min\w*|less than (10|ten) min\w*)\b/i, 'm', T('1 to 10 minutes')],
+        [/\b((10|ten) to (30|thirty) min\w*|half an? hour)\b/i, 'l', T('10 to 30 minutes')],
+        [/\b(long (videos?|form)|full (shows?|episodes?|interviews?)|livestreams?|streams|over (30|thirty) min\w*|more than (30|thirty) min\w*|hour long)\b/i, 'xl', T('30 minutes or more')],
+        [/زیر یک دقیقه|شورتس?/, 's', T('under 1 minute')], [/ویدیو(ی|های)? کوتاه|کلیپ/, 'm', T('1 to 10 minutes')], [/ویدیو(ی|های)? (بلند|طولانی)|برنامه(ٔ|ی)? کامل|لایو/, 'xl', T('30 minutes or more')]] }
+  };
+  Object.keys(FACETS).forEach(function (k) {
+    var f = FACETS[k];
+    f.test = function (it, v) { return f.of(it) === v; };
+    f.valid = function (v) { return f.opts.some(function (o) { return o[0] === v; }); };
+    f.label = function (v) { var o = f.opts.filter(function (x) { return x[0] === v; })[0]; return o ? o[3] || o[1] : v; };
+    EXT[k] = f;
+  });
+  /* PRESETS: one tap for what a creator preparing a show asks most (24 Oct 2026). Each keeps WHAT the room is on (topic,
+     region, place, search, story) and replaces HOW it is cut (kind, platform, the facets, heat, time, likes, credibility, the
+     order), on the last 24 hours. "The most viral commentary on Iran" is Topic or Region, then Viral commentary. A preset
+     that nothing in the room matches is greyed with its 0, never hidden. set: S fields, and ext for FACETS. */
+  var PRESETS = [
+    { key: 'viral-takes', name: T('Viral commentary'), says: T('Commentary and analysis, most viral first'), set: { ext: { form: 'take' }, sort: 'viral' } },
+    { key: 'breaking', name: T('Breaking news'), says: T('News reports of the last 6 hours, hottest first'), set: { ext: { form: 'news' }, within: 6, sort: 'hot' } },
+    { key: 'fresh-takes', name: T('Fresh commentary'), says: T('Commentary and analysis of the last 6 hours, newest first'), set: { ext: { form: 'take' }, within: 6, sort: 'new' } },
+    { key: 'clips', name: T('Clips to play'), says: T('Videos of 1 to 10 minutes, most viewed first'), set: { kind: 'video', ext: { len: 'm' }, sort: 'views' } }
+  ];
   // SAVE LISTS (24 Oct 2026, build/intel-prep.js): a control beside every card (CARDX) and in the spotlight's row of buttons
   // (SPOTA), drawn by the creator tools once they are loaded; nothing of its own here
   var CARDX = null, SPOTA = [];
+  // THE ASK BOX (24 Oct 2026, build/intel-ask.js): once that add-on is loaded it answers the search box (ASKX, true when it
+  // did; ask() below stays as the fallback until then), and hears every change to the saved views (VHOOK) to keep them on
+  // the account. Nothing of its own here.
+  var ASKX = null, VHOOK = [];
   function xcall(f, a, b, c) { try { return f(a, b, c); } catch (e) { return null; } }
   var shown = [], limit = PAGE_N, spotAt = -1, rdState = 'idle';
   // A LIST AN ADD-ON OPENS IN THE SPOTLIGHT (24 Oct 2026: a warship's or a site's own X posts, videos and articles, from
@@ -309,8 +355,13 @@
     var v = { l: N(lsN(ls, 0)), c: N(lsN(ls, 1)), r: N(lsN(ls, 2)), u: N(lsN(ls, 3)) };
     return lsN(ls, 3) ? T('Outlets that carried it: {l} left, {c} centre, {r} right, {u} not rated', v) : T('Outlets that carried it: {l} left, {c} centre, {r} right', v);
   }
+  // A split from one or two rated outlets is not a split (25 Oct 2026 audit: 26 of 44 news cards drew a "bar" from 1 or 2,
+  // 17 of them a single outlet painted as all-Left or all-Right). The bar needs SPLIT_MIN rated outlets: the same number
+  // as intel_live.py LC_SOME, whose lc field says 'thin' below it. Under it the spotlight names the outlets and says why.
+  var SPLIT_MIN = 3;
+  function spreadThin(ls) { return !!ls && lsN(ls, 0) + lsN(ls, 1) + lsN(ls, 2) < SPLIT_MIN; }
   function spreadBar(ls, cls) {
-    if (!ls || !(lsN(ls, 0) + lsN(ls, 1) + lsN(ls, 2))) return '';
+    if (!ls || !(lsN(ls, 0) + lsN(ls, 1) + lsN(ls, 2)) || spreadThin(ls)) return '';
     return '<span class="ir-sp' + (cls ? ' ' + cls : '') + '" role="img" aria-label="' + esc(spreadWords(ls)) + '" title="' + esc(spreadWords(ls)) + '">' +
       SIDES.map(function (s, i) { return lsN(ls, i) ? '<i class="ir-sp-' + s[0] + '" style="flex:' + lsN(ls, i) + '"></i>' : ''; }).join('') + '</span>';
   }
@@ -328,8 +379,9 @@
         var ns = (o.lsn && Array.isArray(o.lsn[s[0]]) ? o.lsn[s[0]] : []).map(String), six = ns.slice(0, 6).join(T(', '));
         return '<li class="ir-sp-' + s[0] + '"><b>' + esc(side[s[0]]) + ' ' + N(lsN(o.ls, i)) + '</b> ' + (ns.length ? bd(esc(ns.length > 6 ? T('{list} and {n} more', { list: six, n: N(ns.length - 6) }) : six)) : esc(T('none'))) + '</li>';
       }).join('') + '</ul>' +
+      (spreadThin(o.ls) ? '<p class="ir-s-o">' + esc(T('Too few rated outlets to show a split: {n} of the {t} that carried it are rated.', { n: N(rated), t: N(rated + lsN(o.ls, 3)) })) + '</p>' : '') +
       (o.bs ? '<p class="ir-s-bs">' + blindTag(o) + ' ' + esc(o.bs === 'L' ? T('No left-leaning outlet carried this, of the {n} rated outlets the room found. A story only one side tells is worth asking why.', { n: N(rated) }) : T('No right-leaning outlet carried this, of the {n} rated outlets the room found. A story only one side tells is worth asking why.', { n: N(rated) })) + '</p>' : '') +
-      '<p class="ir-s-o">' + esc(T(lsN(o.ls, 3) ? 'Lean is our own table, guided by the published media-bias charts. Local stations and most outlets outside the US, UK, Canada, Australia and Israel are not rated ({n} here). Think one is wrong? Say so in the discussion.' : 'Lean is our own table, guided by the published media-bias charts. Local stations and most outlets outside the US, UK, Canada, Australia and Israel are not rated. Think one is wrong? Say so in the discussion.', { n: N(lsN(o.ls, 3)) })) + '</p></section>';
+      '<p class="ir-s-o">' + esc(T(lsN(o.ls, 3) ? 'Lean comes from three published raters (AllSides, Ad Fontes Media, Media Bias/Fact Check): the side most of them give. Local stations and most outlets outside the US, UK, Canada, Australia and Israel are not rated ({n} here). Think one is wrong? Say so in the discussion.' : 'Lean comes from three published raters (AllSides, Ad Fontes Media, Media Bias/Fact Check): the side most of them give. Local stations and most outlets outside the US, UK, Canada, Australia and Israel are not rated. Think one is wrong? Say so in the discussion.', { n: N(lsN(o.ls, 3)) })) + '</p></section>';
   }
 
   /* ------------------------------------------------------------ where it was posted, and how many liked it there */
@@ -1012,7 +1064,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=dd549b8bdd): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=d7078be46e): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1592,6 +1644,43 @@
     seg('ir-likes', 'lmin', T('Likes'), LIKES, items.some(function (it) { return likesN(it) != null && own(it); }) || !!S.lmin);
     drawHot();
     drawFocus();
+    drawFacets();
+    drawPresets();
+  }
+  /* THE FACETS IN THE PANEL (FACETS): a row each under "What it is", every choice with what it would leave, and All. */
+  function drawFacets() {
+    var at = $('ir-kind'); if (!at) return;
+    Object.keys(FACETS).forEach(function (k) {
+      var f = FACETS[k], el = $('ir-f-' + k);
+      if (!el) {
+        el = document.createElement('div'); el.id = 'ir-f-' + k; el.className = 'ir-seg ir-segl ir-facet';
+        el.setAttribute('role', 'group'); el.setAttribute('aria-label', f.name);
+        var prev = at; Object.keys(FACETS).forEach(function (j) { if ($('ir-f-' + j)) prev = $('ir-f-' + j); });
+        prev.parentNode.insertBefore(el, prev.nextSibling);
+      }
+      var c = {}, any = false, on = S.ext[k] || '';
+      items.forEach(function (it) { var v = f.of(it); if (!v) return; if (own(it)) any = true; if (pass(it, 'ext:' + k)) c[v] = (c[v] || 0) + 1; });
+      el.hidden = (!any || (f.onlyKind && S.kind && S.kind !== f.onlyKind)) && !on;
+      if (el.hidden) return;
+      el.innerHTML = '<span class="ir-seg-l">' + esc(f.name) + '</span><button type="button" data-facet="' + k + '" data-v="" aria-pressed="' + !on + '">' + T('All') + '</button>' +
+        f.opts.map(function (o) {
+          var n = c[o[0]] || 0, me = on === o[0];
+          return '<button type="button" data-facet="' + k + '" data-v="' + o[0] + '" aria-pressed="' + me + '"' + (o[2] ? ' title="' + esc(o[2]) + '"' : '') + (!n && !me ? ' disabled' : '') + '>' + esc(o[1]) + ' <i class="num">' + N(n) + '</i></button>';
+        }).join('');
+    });
+  }
+  // PRESETS at the top of the panel: each says what it does and how many it leaves here; a tap shows them
+  function drawPresets() {
+    var bar = $('ir-bar'); if (!bar) return;
+    var el = $('ir-dr-pre');
+    if (!el) { el = document.createElement('section'); el.className = 'ir-dr-s ir-pre-s'; el.id = 'ir-dr-pre'; bar.insertBefore(el, bar.firstChild); }
+    el.hidden = !liveShown();
+    if (el.hidden) return;
+    el.innerHTML = '<h3>' + T('Ready-made views') + '</h3><p class="ir-dr-p">' + T('One tap. Your topic and region stay.') + '</p><div class="ir-presets" role="group" aria-label="' + esc(T('Ready-made views')) + '">' +
+      PRESETS.map(function (p) {
+        var n = presetCount(p), on = presetOn(p);
+        return '<button type="button" class="ir-preset" data-preset="' + p.key + '" aria-pressed="' + on + '"' + (!n && !on ? ' disabled' : '') + '><b>' + esc(p.name) + ' <i class="num">' + LN(n) + '</i></b><span>' + esc(p.says) + '</span></button>';
+      }).join('') + '</div>';
   }
   // The subjects, counted in what the other filters leave; the busiest first, a subject with nothing here greyed at the end
   // (never hidden, so a reader sees the room does not cover it yet). The chips WRAP: nothing runs off the right edge.
@@ -1683,6 +1772,7 @@
     if (S.heat && S.lens === 'live') b.push(T('heat {n}+', { n: N(S.heat) }));
     if (S.vmin) b.push(T('viral {n}+', { n: N(S.vmin) }));
     if (S.crmin) b.push(T('credibility {n}+', { n: N(S.crmin) }));
+    Object.keys(FACETS).forEach(function (k) { if (S.ext[k]) b.push(FACETS[k].label(S.ext[k])); });
     if (S.top) b.push(T('top picks'));
     if (S.edu) b.push(T('explainers'));
     if (S.q) b.push('"' + S.q + '"');
@@ -1723,7 +1813,7 @@
     var el = $('ir-wire'); if (!el) return;
     if (!liveShown() || liveN() < 3) { el.hidden = true; return; }
     var top = ownOf(LIVE).sort(function (a, b) { return (b.hot || 0) - (a.hot || 0); }).slice(0, 14);
-    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + N(it.hot) + '</b></span>' + mark(it, 'w-m') + '<span class="w-t"' + DA + '>' + esc(it.t) + '</span><span class="w-s">' + bd(esc(whoName(it) || it.h || it.src)) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
+    var one = function (it, dup) { return '<button type="button" data-wire="' + esc(String(it.id)) + '"' + (dup ? ' tabindex="-1"' : '') + '><span class="w-h">' + flame() + '<b class="num">' + N(it.hot) + '</b></span>' + mark(it, 'w-m') + '<span class="w-t"' + DA + '>' + esc(cut(it.t, 80)) + '</span><span class="w-s">' + bd(esc(whoName(it) || it.h || it.src)) + ' \u00b7 ' + esc(ago(Date.parse(it.d))) + '</span></button>'; };
     $('ir-wire-t').innerHTML = '<span class="w-set">' + top.map(function (it) { return one(it); }).join('') + '</span><span class="w-set" aria-hidden="true">' + top.map(function (it) { return one(it, 1); }).join('') + '</span>';
     $('ir-wire-t').style.animationDuration = Math.max(60, top.length * 9) + 's';
     el.hidden = false;
@@ -1732,13 +1822,16 @@
     var it = null; LIVE.forEach(function (x) { if (String(x.id) === id) it = x; });
     if (!it) return;
     stopTour();
-    if (S.lens !== 'live') useLens('live');
-    var i = shown.indexOf(it);
-    if (i < 0) {
-      clearAll();
-      if (it._deep) { var h = HOTS.filter(function (x) { return x.ids[it.id]; })[0]; if (h) { S.hot = h.id; render(); } }          // a found item opens inside its story
-      i = shown.indexOf(it);
+    var h = HOTS.filter(function (x) { return x.ids[it.id]; })[0] || null;          // the story it belongs to (THE WIRE, TAPPED)
+    var before = query(), here = S.lens === 'live' && pass(it);
+    if (h || !here) {
+      if (WIRE_BACK == null) WIRE_BACK = before;          // the first tap remembers where he was; a second tap keeps that
+      if (S.lens !== 'live') useLens('live', true);
+      clearS();
+      if (h) S.hot = h.id;
+      render(); if (!S.place) frameShown();
     }
+    var i = shown.indexOf(it);
     if (i >= 0) openSpot(i);
   }
   function placeOptions(list, withAll) {
@@ -1775,11 +1868,73 @@
     el.innerHTML = t ? esc(t) + (clear ? ' <button type="button" data-clear>' + T('Clear') + '</button>' : '') : '';
     if (t && !clear) sayT = setTimeout(function () { if (el.textContent === String(t)) el.innerHTML = ''; }, 6000);
   }
-  function clearAll() {
+  function clearS() {          // every filter off, in place (the ask box's blankS returns a blank copy instead)
     S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
+  }
+  function clearAll() {
+    clearS(); WIRE_BACK = null;
     say('');
     render();
+  }
+  /* PRESETS, applied (see PRESETS). What the room is on stays; how it is cut is replaced; the last 24 hours. */
+  function presetSort(p) {
+    var have = SORTS.live.map(function (s) { return s[0]; }), w = p.set.sort;
+    if (have.indexOf(w) < 0 && w === 'viral') w = 'likes';          // a feed with no viral score: the most liked instead
+    if (have.indexOf(w) < 0 && w === 'views') w = 'likes';
+    return have.indexOf(w) >= 0 ? w : have[0];
+  }
+  function presetHow(p) {
+    var s = p.set, x = {};
+    Object.keys(FACETS).forEach(function (k) { x[k] = (s.ext || {})[k] || ''; });
+    return { kind: s.kind || '', within: s.within || 0, sort: presetSort(p), ext: x };
+  }
+  function presetOn(p) {
+    if (S.lens !== 'live' || S.pf.length || S.heat || S.vmin || S.crmin || S.lmin || S.top || S.edu) return false;
+    var h = presetHow(p);
+    return S.kind === h.kind && S.within === h.within && S.sort === h.sort && Object.keys(h.ext).every(function (k) { return (S.ext[k] || '') === h.ext[k]; });
+  }
+  var HOW_KEYS = ['lens', 'pf', 'heat', 'vmin', 'crmin', 'lmin', 'top', 'edu', 'kind', 'within', 'ext'];
+  function presetCount(p) {          // what the preset would show here, counted by pass() itself, the state put back after
+    if (!liveShown()) return 0;
+    var keep = {}, h = presetHow(p), n = 0;
+    HOW_KEYS.forEach(function (k) { keep[k] = S[k]; });
+    S.lens = 'live'; S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.lmin = 0; S.top = false; S.edu = false; S.kind = h.kind; S.within = h.within;
+    S.ext = {}; Object.keys(keep.ext).forEach(function (k) { if (!FACETS[k]) S.ext[k] = keep.ext[k]; });
+    Object.keys(h.ext).forEach(function (k) { if (h.ext[k]) S.ext[k] = h.ext[k]; });
+    try { LIVE.forEach(function (it) { if (pass(it)) n++; }); } finally { HOW_KEYS.forEach(function (k) { S[k] = keep[k]; }); }
+    return n;
+  }
+  function presetOff() {
+    S.kind = ''; S.within = 0; Object.keys(FACETS).forEach(function (k) { delete S.ext[k]; }); S.sort = SORTS[S.lens][0][0]; $('ir-sort').value = S.sort;
+    say(''); render();
+  }
+  function applyPreset(key) {
+    var p = PRESETS.filter(function (x) { return x.key === key; })[0];
+    if (!p || !liveShown()) return false;
+    stopTour();
+    if (S.lens !== 'live') { var keepOn = { q: S.q, tp: S.tp.slice(), fx: S.fx.slice(), place: S.place, nowhere: S.nowhere }; useLens('live', true); Object.keys(keepOn).forEach(function (k) { S[k] = keepOn[k]; }); }
+    var h = presetHow(p);
+    S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.lmin = 0; S.top = false; S.edu = false; S.kind = h.kind; S.within = h.within; S.sort = h.sort;
+    Object.keys(h.ext).forEach(function (k) { if (h.ext[k]) S.ext[k] = h.ext[k]; else delete S.ext[k]; });
+    $('ir-sort').value = S.sort;
+    render(); if (!S.place) frameShown();
+    say(T('{name}: {what}. {n} here.', { name: p.name, what: p.says, n: LN(shown.length) }), true);
+    return true;
+  }
+  /* THE WIRE, TAPPED (24 Oct 2026; Armin: clicking a wire item does nothing visible). Measured that day on both sites: every
+     headline did open its spotlight, but (1) on a phone the strip kept moving under the finger, (2) a headline the filters
+     hid wiped every filter without a word, and (3) once the spotlight closed he was back on a list that had nothing to do
+     with what he tapped, which reads as "nothing happened". Now a tap stops the strip, takes the room to that headline's
+     story (everything on it: posts, articles, videos), opens the headline, and puts "Back to your view" beside the story's
+     pill; Back returns every filter he had. A headline in no story opens on the last 24 hours, his filters kept when they
+     let it through. */
+  var WIRE_BACK = null;
+  function wireBack() {
+    var b = WIRE_BACK; WIRE_BACK = null;
+    if (b == null) return;
+    closeSpot(); readUrl(b); render(); frameShown();
+    say(T('Back to your view.'));
   }
 
   /* ------------------------------------------------------------ the command bar, the filters panel and the pills
@@ -1792,7 +1947,8 @@
      on shows as a pill under the bar, each with its own cross, so a reader always sees why the list is what it is. */
   function nActive() {
     return S.tp.length + S.fx.length + (S.place || S.nowhere ? 1 : 0) + S.pf.length + (S.kind ? 1 : 0) + (S.heat && S.lens === 'live' ? 1 : 0) + (S.vmin ? 1 : 0) +
-      (S.within && S.lens === 'live' ? 1 : 0) + (S.crmin ? 1 : 0) + (S.lmin ? 1 : 0) + (S.top ? 1 : 0) + (S.edu ? 1 : 0) + (S.lens === 'bank' && !fullRange() ? 1 : 0);
+      (S.within && S.lens === 'live' ? 1 : 0) + (S.crmin ? 1 : 0) + (S.lmin ? 1 : 0) + (S.top ? 1 : 0) + (S.edu ? 1 : 0) + (S.lens === 'bank' && !fullRange() ? 1 : 0) +
+      Object.keys(FACETS).filter(function (k) { return S.ext[k]; }).length;          // the FACETS are filters of the panel too
   }
   function drawCmd() {
     var set = function (id, n) { var el = $(id); if (!el) return; el.textContent = n ? N(n) : ''; el.parentNode.classList.toggle('on', !!n); };
@@ -1832,8 +1988,9 @@
     if (S.lens === 'bank' && !fullRange()) p.push(['time:', $('ir-range').textContent]);
     if (S.q) p.push(['q:', '"' + S.q + '"']);
     el.innerHTML = p.map(function (x) { return '<button type="button" class="ir-pill" data-unpill="' + esc(x[0]) + '" aria-label="' + esc(T('Remove {what}', { what: x[1] })) + '"><span>' + esc(x[1]) + '</span><b aria-hidden="true">&times;</b></button>'; }).join('') +
-      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>' + T('Clear all') + '</button>' : '') + storyAbout();
-    el.hidden = !p.length;
+      (p.length > 1 ? '<button type="button" class="ir-pill ir-pill-clr" data-clear>' + T('Clear all') + '</button>' : '') +
+      (WIRE_BACK != null ? '<button type="button" class="ir-pill ir-pill-back" data-wire-back><span aria-hidden="true">' + (FA ? '→' : '←') + '</span> ' + T('Back to your view') + '</button>' : '') + storyAbout();          // THE WIRE, TAPPED
+    el.hidden = !p.length && WIRE_BACK == null;
   }
   /* WHAT A STORY IS (22 Oct 2026; Armin, on a Trending chip: "I clicked on this hot topic filter that I don't know what
      it's about"). A chip carries a name cut to fit; once it is picked, one line under the pill says the story whole: its
@@ -2138,8 +2295,8 @@
   function views() { var v = store(VKEY); return Array.isArray(v) ? v.filter(function (x) { return x && typeof x.n === 'string' && typeof x.q === 'string'; }).slice(0, 12) : []; }
   function drawViews(asking) {
     var el = $('ir-views'), v = views(), html = '';
-    if (v.length) html += '<span class="ir-v-l">' + T('Your views') + '</span>' + v.map(function (x, i) { return '<span class="ir-v"><button type="button" data-view="' + i + '">' + esc(x.n) + '</button><button type="button" class="ir-v-x" data-unview="' + i + '" aria-label="' + esc(T('Forget the view {name}', { name: x.n })) + '">&times;</button></span>'; }).join('');
-    if (asking) html += '<form class="ir-v-f" id="ir-v-f"><label class="vh" for="ir-v-n">' + T('Name this view') + '</label><input id="ir-v-n" maxlength="32" placeholder="' + T('Name it, e.g. Gaza videos this year') + '" required><button type="submit">' + T('Save') + '</button><button type="button" data-v-cancel>' + T('Cancel') + '</button></form>';
+    if (v.length) html += '<span class="ir-v-l">' + T('Your saved filters') + '</span>' + v.map(function (x, i) { return '<span class="ir-v"><button type="button" data-view="' + i + '">' + esc(x.n) + '</button><button type="button" class="ir-v-x" data-unview="' + i + '" aria-label="' + esc(T('Forget the view {name}', { name: x.n })) + '">&times;</button></span>'; }).join('');
+    if (asking) html += '<form class="ir-v-f" id="ir-v-f"><label class="vh" for="ir-v-n">' + T('Name this filter') + '</label><input id="ir-v-n" maxlength="32" placeholder="' + T('Name it, e.g. Gaza videos this year') + '" required><button type="submit">' + T('Save') + '</button><button type="button" data-v-cancel>' + T('Cancel') + '</button></form>';
     el.innerHTML = html; el.hidden = !html;
     if (asking) setTimeout(function () { var i = $('ir-v-n'); if (i) i.focus(); }, 30);
   }
@@ -2148,6 +2305,7 @@
     v.unshift({ n: name.slice(0, 32), q: query() || '?lens=' + S.lens });
     store(VKEY, v.slice(0, 12));
     drawViews();
+    VHOOK.forEach(function (f) { xcall(f); });
     say(T('Saved on this device as "{name}". Tap it any time to come back to exactly this.', { name: name }));
   }
 
@@ -2183,6 +2341,59 @@
   var ASK_MAP = Array.isArray(CFG.askMap) ? CFG.askMap.map(function (a) { return [rxOf([a[0], 'g'], 0), ' ' + a[1] + ' ']; }) : [];
   var STOP_FA = CFG.askStop ? rxOf([CFG.askStop, 'g'], 0) : null;
   var STOP = /\b(happened|happen|happening|going|at|say|said|says|told|tell|show|me|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|is|are|was|were|i|want|need|please|some|can|you|to|and|or|by|it|this|these|those|evidence|proof|proves|prove|items?|things?|stuff|posts?|anything|everything|related|showing|where|who|how|did|do|does|uses?|using|used|has|have|had|they|their|them)\b/g;
+  function askAny(text) { if (ASKX && xcall(ASKX, text) === true) return; ask(text); }          // the ask add-on first (ASKX), this reader if it is not there
+  /* THE ASK BOX'S HANDS (24 Oct 2026, build/intel-ask.js). The add-on reads plain words into a whole set of filters and
+     needs four things only the room has: a copy of the filters (snapS), the same filters with everything off (blankS: any
+     key a later filter adds to S is cleared by its type, so a new filter never has to be taught to this), how many items a
+     set would leave WITHOUT drawing it (peekS, so it can find the nearest set that leaves something), and putting a set on
+     the screen (applyS). */
+  function cpv(v) { return Array.isArray(v) ? v.slice() : v && typeof v === 'object' ? Object.assign({}, v) : v; }
+  function snapS() { var o = {}; Object.keys(S).forEach(function (k) { o[k] = cpv(S[k]); }); return o; }
+  function blankS(lens) {
+    var o = {};
+    Object.keys(S).forEach(function (k) { var v = S[k]; o[k] = Array.isArray(v) ? [] : v && typeof v === 'object' ? {} : typeof v === 'boolean' ? false : typeof v === 'number' ? 0 : ''; });
+    o.lens = LENS[lens] && (lens !== 'live' || liveShown()) ? lens : S.lens; o.sort = SORTS[o.lens][0][0]; o.from = 0; o.to = buckets.length - 1;
+    return o;
+  }
+  function peekS(ns, list) {
+    var keep = snapS(), it0 = items, L0 = LSET, out = [];
+    try {
+      if (ns.lens && ns.lens !== S.lens && LENS[ns.lens]) items = setOf(ns.lens);
+      Object.keys(ns).forEach(function (k) { S[k] = cpv(ns[k]); });
+      LSET = null;
+      for (var i = 0; i < items.length; i++) if (pass(items[i])) out.push(items[i]);
+      if (list) sortList(out);
+    } catch (e) { out = []; } finally { Object.keys(keep).forEach(function (k) { S[k] = keep[k]; }); items = it0; LSET = L0; }
+    return list ? out : out.length;
+  }
+  function applyS(ns, box) {
+    stopTour();
+    if (ns.lens && ns.lens !== S.lens) useLens(ns.lens, true);
+    Object.keys(ns).forEach(function (k) { if (k !== 'lens' && k in S) S[k] = cpv(ns[k]); });
+    if (!SORTS[S.lens].some(function (s) { return s[0] === S.sort; })) S.sort = SORTS[S.lens][0][0];
+    $('ir-from').value = S.from; $('ir-to').value = S.to; $('ir-sort').value = S.sort;
+    if (box != null) $('ir-q').value = box;
+    say(''); render();
+    if (S.place && shown.length) focusPlace(S.place); else frameShown();
+    $('ir-items').scrollTop = 0;
+    return shown.length;
+  }
+  function goQ(qs) { stopTour(); readUrl(qs); say(''); render(); if (S.place) focusPlace(S.place); else frameShown(); }
+  // the accounts and outlets in a lens, most items first: [key, name, count] (the ask box's "who" and "who posted most")
+  function accountsOf(lens) {
+    var c = {}, nm = {};
+    setOf(lens || S.lens).forEach(function (it) { if (!own(it)) return; var k = whoKey(it); if (!k) return; c[k] = (c[k] || 0) + 1; if (!nm[k]) nm[k] = whoName(it); });
+    return Object.keys(c).sort(function (a, b) { return c[b] - c[a]; }).map(function (k) { return [k, nm[k], c[k]]; });
+  }
+  function askVocab() {
+    var so = {}; Object.keys(SORTS).forEach(function (l) { so[l] = SORTS[l].map(function (s) { return s[0]; }); });
+    return { lens: S.lens, live: liveShown(), sorts: so, topics: TOPICS.map(function (t) { return [t[0], t[1]]; }), topicAsk: TOPIC_ASK, rel: REL_KEYS.length > 0,
+      places: PLACE_WORDS, place: function (k) { return k.indexOf('c:') === 0 || !!P[k]; }, focus: FOCUS.map(function (f) { return [f[0], f[1], f[2], f[3]]; }),
+      pf: PF_WORDS, pfs: PF.map(function (p) { return [p[0], p[1]]; }), kinds: KINDS.slice(), within: WITHIN, heats: HEATS, likes: LIKES, virals: VIRALS, creds: CREDS,
+      buckets: buckets.slice(), mon: MON, daysFrom: daysFrom, bLabel: bLabel, map: ASK_MAP, stopFa: STOP_FA, ext: EXT, hasEdu: BANK.some(function (it) { return it.edu; }),
+      hots: HOTS.map(function (h) { return { id: h.id, name: h.name, hot: h.hot, n: h.all.length, why: h.its[0] && h.its[0].hotWhy || '' }; }), top: hotTop().map(function (h) { return h.id; }),
+      accounts: accountsOf, name: { topic: topicName, place: placeName, country: cName, pf: pfName, focus: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : k; }, fmt: fmtN } };
+  }
   function ask(text) {
     var raw = String(text || '').trim().slice(0, 200);
     if (!raw) { clearAll(); return; }
@@ -2547,7 +2758,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=dd549b8bdd,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=d7078be46e,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -2615,7 +2826,9 @@
       var H = w.Hls; if (!H || !H.isSupported || !H.isSupported()) { toMp4(P); return; }
       var bw = bwGet(), h;
       try {
-        h = P.hls = new H({ capLevelToPlayerSize: true, startLevel: -1, abrEwmaDefaultEstimate: bw > 0 ? bw : 1e6, testBandwidth: true, startFragPrefetch: true, maxBufferLength: 30, maxMaxBufferLength: 90, backBufferLength: 30, enableWorker: true });
+        // capLevelOnFPSDrop (25 Oct 2026): a computer too busy to draw every frame (his, while it also encodes the stream)
+        // gets a lighter size instead of a video that plays slowly; the same measure as getVideoPlaybackQuality's drops
+        h = P.hls = new H({ capLevelToPlayerSize: true, capLevelOnFPSDrop: true, startLevel: -1, abrEwmaDefaultEstimate: bw > 0 ? bw : 1e6, testBandwidth: true, startFragPrefetch: true, maxBufferLength: 30, maxMaxBufferLength: 90, backBufferLength: 30, enableWorker: true });
       } catch (e) { toMp4(P); return; }
       P.mode = 'hls';
       h.on(H.Events.MANIFEST_PARSED, function () { if (xAlive(P)) xGo(v); });
@@ -3194,7 +3407,7 @@
 
   /* ------------------------------------------------------------ wiring */
   function wire() {
-    $('ir-ask').addEventListener('submit', function (ev) { ev.preventDefault(); ask($('ir-q').value); $('ir-q').blur(); });
+    $('ir-ask').addEventListener('submit', function (ev) { ev.preventDefault(); askAny($('ir-q').value); $('ir-q').blur(); });
     $('ir-q').addEventListener('search', function () { if (!$('ir-q').value) clearAll(); });
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SR) {
@@ -3204,10 +3417,18 @@
         try { rec = new SR(); } catch (e) { mic.hidden = true; return; }
         rec.lang = FA ? 'fa-IR' : document.documentElement.lang || 'en'; rec.interimResults = true; rec.maxAlternatives = 1;
         mic.classList.add('on'); say(T('Listening. Say what you are looking for.'));
-        rec.onresult = function (ev) { var s = ''; for (var i = 0; i < ev.results.length; i++) s += ev.results[i][0].transcript; $('ir-q').value = s; if (ev.results[ev.results.length - 1].isFinal) ask(s); };
+        rec.onresult = function (ev) { var s = ''; for (var i = 0; i < ev.results.length; i++) s += ev.results[i][0].transcript; $('ir-q').value = s; if (ev.results[ev.results.length - 1].isFinal) askAny(s); };
         rec.onerror = function (ev) { say(ev.error === 'not-allowed' ? T('The microphone is blocked for this site. Type it instead.') : T('I did not catch that. Try again, or type it.')); };
         rec.onend = function () { mic.classList.remove('on'); rec = null; };
         rec.start();
+      });
+    }
+    // THE WIRE, TAPPED: a finger on the strip stops it (a phone has no hover), and it moves again a moment after
+    var wireEl = $('ir-wire'), holdT = 0;
+    if (wireEl) {
+      wireEl.addEventListener('pointerdown', function () { clearTimeout(holdT); wireEl.classList.add('is-held'); });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (evn) {
+        wireEl.addEventListener(evn, function () { clearTimeout(holdT); holdT = setTimeout(function () { wireEl.classList.remove('is-held'); }, 2500); });
       });
     }
     // Anything on the page that leads to #add opens the form instead of jumping.
@@ -3234,6 +3455,17 @@
       }
       if ((b = t.closest('button[data-seg]'))) { S[b.getAttribute('data-seg')] = +b.getAttribute('data-v') || 0; render(); return; }
       if ((b = t.closest('button[data-wire]'))) { openWire(b.getAttribute('data-wire')); return; }
+      if ((b = t.closest('[data-wire-back]'))) { wireBack(); return; }
+      if ((b = t.closest('button[data-facet]'))) {          // FACETS: a choice, or the same choice again / All to take it off
+        var fk = b.getAttribute('data-facet'), fv = b.getAttribute('data-v');
+        if (!fv || S.ext[fk] === fv) delete S.ext[fk]; else S.ext[fk] = fv;
+        say(''); render(); return;
+      }
+      if ((b = t.closest('button[data-preset]'))) {
+        var pk = b.getAttribute('data-preset'), pp = PRESETS.filter(function (x) { return x.key === pk; })[0];
+        if (pp && presetOn(pp)) presetOff(); else applyPreset(pk);
+        closeDrawer(); return;
+      }
       if ((b = t.closest('button[data-hot]'))) {
         var hv = b.getAttribute('data-hot');
         if (hv && S.lens !== 'live') useLens('live', true);
@@ -3262,7 +3494,7 @@
       if ((b = t.closest('#ir-ctl'))) { openDrawer('all'); return; }
       if ((b = t.closest('#ir-save'))) { drawViews(true); return; }
       if ((b = t.closest('[data-view]'))) { var vw = views()[+b.getAttribute('data-view')]; if (vw) { readUrl(vw.q); render(); if (S.place) focusPlace(S.place); say(T('Showing your view "{name}".', { name: vw.n })); } return; }
-      if ((b = t.closest('[data-unview]'))) { var vs = views(); vs.splice(+b.getAttribute('data-unview'), 1); store(VKEY, vs); drawViews(); return; }
+      if ((b = t.closest('[data-unview]'))) { var vs = views(); vs.splice(+b.getAttribute('data-unview'), 1); store(VKEY, vs); drawViews(); VHOOK.forEach(function (f) { xcall(f); }); return; }
       if ((b = t.closest('[data-v-cancel]'))) { drawViews(); return; }
       if ((b = t.closest('#ir-copy'))) { copyNotes(); return; }
       if ((b = t.closest('#ir-tour'))) { if (tourT) stopTour(); else startTour(); return; }
@@ -3564,6 +3796,9 @@
       },
       filter: function (key, v) { if (v == null || v === '') delete S.ext[key]; else S.ext[key] = String(v); stopTour(); render(); frameShown(); },
       filterOn: function (key) { return S.ext[key] || ''; },
+      // THE ROOM'S FILTER REGISTRY (FACETS) and its one-tap views (PRESETS), for anything that reads plain words: a facet
+      // is set with filter(key, value); its ask rows are [pattern, value, what it says]. preset(key) applies one.
+      facets: FACETS, presets: PRESETS, preset: applyPreset,
       addTab: function (key, t) { LTX[key] = t; drawLinkList(); },
       tab: function (key) { LT = LTX[key] || key === 'links' ? key : 'items'; drawList(); drawLinkList(); },
       tabOn: function () { return LT; },
@@ -3573,12 +3808,17 @@
       // SAVE LISTS (24 Oct 2026, intel-prep.js): the Save button beside every card and in the spotlight's buttons; the people
       // and countries an item names (the run order groups by them); and the address handed back when a list's page closes
       addCardX: function (f) { CARDX = f; drawList(); }, addSpotAct: function (f) { SPOTA.push(f); },
-      actors: actorsOf, names: namesOf, showing: function (on) { SHOWING = !!on; if (!on) writeUrl(); } };
+      actors: actorsOf, names: namesOf, showing: function (on) { SHOWING = !!on; if (!on) writeUrl(); },
+      // THE ASK BOX (24 Oct 2026, build/intel-ask.js, see THE ASK BOX'S HANDS): it answers the search box, reads what the
+      // room understands, counts a set of filters without drawing it, puts one on the screen, and keeps the saved views
+      askWith: function (f) { ASKX = typeof f === 'function' ? f : null; }, vocab: askVocab, state: snapS, blank: blankS, peek: peekS, apply: applyS, query: query, go: goQ,
+      views: views, setViews: function (v) { store(VKEY, Array.isArray(v) ? v.slice(0, 12) : []); drawViews(); }, onViews: function (f) { VHOOK.push(f); },
+      openFilters: openDrawer, say: say };
     (root.getAttribute('data-addons') || '').split(' ').filter(Boolean).forEach(function (src, i) {          // the page's add-ons (intel.py), after the room is ready
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=dd549b8bdd'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=d7078be46e'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

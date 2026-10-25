@@ -434,7 +434,7 @@ html.ir-show .ir-hist{height:70px}
 .ir-wire-l i{width:8px;height:8px;border-radius:50%;background:#B3261E;box-shadow:0 0 0 2px rgba(179,38,30,.25);animation:irblink 1.2s ease-in-out infinite}
 .ir-wire-v{flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}
 .ir-wire-t{display:flex;width:max-content;animation:irwire 120s linear infinite}
-.ir-wire:hover .ir-wire-t,.ir-wire:focus-within .ir-wire-t{animation-play-state:paused}
+.ir-wire:hover .ir-wire-t,.ir-wire:focus-within .ir-wire-t,.ir-wire.is-held .ir-wire-t{animation-play-state:paused}          /* is-held: a finger on it (intel.js THE WIRE, TAPPED) */
 @keyframes irwire{to{transform:translateX(-50%)}}
 .w-set{display:flex}
 .ir-wire button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-right:1px solid rgba(var(--ir-gold,244,196,48),.1);background:none;color:var(--ink);font:600 var(--t2)/1.2 var(--body);white-space:nowrap;cursor:pointer}
@@ -822,13 +822,23 @@ html.ir-show .ir-sm,html.ir-show .ir-crsw,html.ir-show .ir-crmsg{display:none!im
    moving so slowly a viewer never notices them move (and not at all with reduced motion). The site's address is always
    on it. Nothing on it hides and comes back. */
 html.ir-sh-on,html.ir-sh-on body{height:100%;overflow:hidden;background:#060607}
-html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep){display:none!important}          /* ir-keep: the Save sheet and its line (SAVE LISTS) */
+html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep):not(dialog){display:none!important}          /* ir-keep: the Save sheet and its line (SAVE LISTS) */
+/* :not(dialog), 25 Oct 2026: every dialog the room opens from the show screen (the full-size picture, #ir-lb) is a child of
+   body. This rule hid it too, while showModal() still made the rest of the page dead, so a tap on a picture opened
+   NOTHING and nothing could be tapped until Escape (Armin, twice). A closed dialog is hidden by the browser anyway. */
 .ir-sh{position:fixed;inset:0;z-index:50;display:grid;grid-template-rows:auto minmax(0,1fr) auto;color:var(--ink);font-family:var(--body);overflow:hidden;isolation:isolate}
 .ir-sh-bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:radial-gradient(120% 90% at 50% 45%,#121317 0%,#070708 70%)}
 .ir-sh-bg::before{content:"";position:absolute;inset:-10%;opacity:.5;
   background-image:repeating-linear-gradient(0deg,rgba(233,217,166,.045) 0 1px,transparent 1px 72px),repeating-linear-gradient(90deg,rgba(233,217,166,.035) 0 1px,transparent 1px 72px);
   animation:ir-sh-grid 140s linear infinite alternate}
-.ir-sh-bg i{position:absolute;width:70vmax;height:70vmax;border-radius:50%;filter:blur(40px);opacity:.55}
+.ir-sh-bg i{position:absolute;width:70vmax;height:70vmax;border-radius:50%;opacity:.55}
+/* 25 Oct 2026 (Armin: a video on the show screen played, stopped, then played slowly; the same video in the spotlight did
+   not). The ground was the one thing only this screen draws: two circles 70vmax wide under a 40px blur, moving every
+   frame, so the browser re-blurred about two million pixels sixty times a second behind the video, on the PC that is also
+   encoding the stream. The gradient already fades to nothing at its edge, so the blur added no look; it is gone, and
+   while a player is on the screen the ground stands still (the video's frames are the only thing that moves). */
+.ir-sh-bg{contain:strict}
+.ir-sh:has(.ir-sh-frame iframe) .ir-sh-bg::before,.ir-sh:has(.ir-sh-frame iframe) .ir-sh-bg i{animation-play-state:paused}
 .ir-sh-bg i:first-child{left:-20vmax;top:-25vmax;background:radial-gradient(closest-side,rgba(var(--ir-gold,244,196,48),.16),rgba(var(--ir-gold,244,196,48),0));animation:ir-sh-a 90s ease-in-out infinite alternate}
 .ir-sh-bg i:last-child{right:-25vmax;bottom:-30vmax;background:radial-gradient(closest-side,rgba(208,138,60,.13),rgba(208,138,60,0));animation:ir-sh-b 110s ease-in-out infinite alternate}
 @keyframes ir-sh-grid{to{transform:translate(72px,36px)}}
@@ -840,6 +850,34 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep){display:none!important}          
 .ir-sh-brand img{width:clamp(32px,2.6vw,48px);height:auto}
 .ir-sh-brand b{color:var(--field);margin-right:6px}
 .ir-sh-title{flex:1 1 auto;min-width:0;margin:0;padding-left:clamp(12px,1.6vw,28px);border-left:1px solid var(--line);font:800 clamp(1.05rem,1.7vw,2rem)/1.05 var(--display);text-transform:uppercase;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* THE TOPIC (25 Oct 2026): what the show is about, in a few words, as large as two lines of the bar allow (fitText in
+   intel-prep.js sizes it; never cut with "..."), so a viewer who joins halfway reads it at once. The pencil beside it
+   lets the host put it in his own words. */
+.ir-sh-topic{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-content:center;column-gap:clamp(6px,.8vw,14px);row-gap:clamp(2px,.3vw,6px);height:clamp(52px,5.6vw,104px);white-space:normal;text-overflow:clip;font:inherit;text-transform:none}
+.ir-sh-tk{grid-column:1;margin:0;color:var(--field);font:800 clamp(.72rem,.72vw,.95rem)/1.1 var(--body);letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}          /* no overflow:hidden: it would let the grid fold this row to 0px high, and the topic would be measured without it */
+.ir-sh-tt{grid-column:1;margin:0;color:var(--ink);font:800 clamp(1.25rem,2.3vw,3rem)/.98 var(--display);text-transform:uppercase;letter-spacing:.01em;overflow-wrap:anywhere;text-wrap:balance}
+.ir-sh-tt[hidden]{display:none}
+.ir-sh-tpi{grid-column:1;min-width:0;height:clamp(40px,3vw,56px);padding:0 12px;border-radius:10px;border:1px solid var(--field);background:#121211;color:var(--ink);font:800 clamp(1.1rem,1.8vw,2.2rem)/1 var(--display);text-transform:uppercase}
+.ir-sh-tpe{grid-column:2;grid-row:1/3;align-self:center;display:grid;place-items:center;width:44px;height:44px;padding:0;border-radius:50%;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer;opacity:.6}
+.ir-sh-tpe:hover,.ir-sh-tpe:focus-visible{opacity:1;border-color:var(--field);color:var(--field)}
+@media(min-width:901px){.ir-sh-bar:has(.ir-sh-topic){padding-top:clamp(6px,.85vw,16px);padding-bottom:clamp(6px,.85vw,16px)}}          /* the two-line topic takes the bar's height; its padding gives it back to the stage */
+.ir-sh-tpe svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* each item names its own story when the show tells more than one, and who covered it (coverLine) */
+.ir-sh-story{margin:0;padding-left:12px;border-left:3px solid var(--field);color:var(--ink);font:800 clamp(1.05rem,1.5vw,1.9rem)/1.05 var(--display);text-transform:uppercase;letter-spacing:.02em;overflow-wrap:anywhere}
+.ir-sh-cov{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0;max-width:36rem}          /* two lines: the heading with its numbers, then the bar */
+.ir-sh-covh{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0;color:var(--dim);font:700 clamp(.85rem,.95vw,1.1rem)/1.1 var(--body);letter-spacing:.06em;text-transform:uppercase}
+.ir-sh-covh .ir-bs{text-transform:none;letter-spacing:0;font-size:clamp(.85rem,.95vw,1.1rem)}
+.ir-sp.ir-sh-spb{display:flex;order:3;flex:1 0 100%;width:100%;height:clamp(10px,.8vw,14px)}
+.ir-sh-covn{display:flex;flex-wrap:wrap;gap:4px 18px;margin:0;color:var(--dim);font-size:clamp(.9rem,1vw,1.2rem)}
+.ir-sh-covn b{color:var(--ink);font:800 1.15em/1 var(--display)}
+.ir-sh-covn span::before{content:"";display:inline-block;width:.7em;height:.7em;margin-right:6px;border-radius:2px;vertical-align:-.02em}
+.ir-sh-cvL::before{background:var(--lean-l)}.ir-sh-cvC::before{background:var(--lean-c)}.ir-sh-cvR::before{background:var(--lean-r)}
+/* is-tight (refit in intel-prep.js): the stage is too small for everything; the lines that only add colour step aside, the
+   coverage folds to its bar and one line, and the buttons stay on the screen */
+.ir-sh-stage.is-tight .ir-sh-why,.ir-sh-stage.is-tight .ir-sh-also{display:none}
+.ir-sh-stage.is-tight .ir-sh-cov{row-gap:3px}
+.ir-sh-stage.is-tight .ir-sh-n b{font-size:clamp(1.15rem,1.6vw,2rem)}
+.ir-sh-stage.is-tight .ir-sh-wb span{display:none}.ir-sh-stage.is-tight .ir-sh-wb{padding:0 14px}          /* its name stays as its tooltip; the row keeps the source link */
 .ir-sh-count{flex:none;margin:0;color:var(--field);font:800 clamp(1rem,1.5vw,1.75rem)/1 var(--display);letter-spacing:.04em}
 .ir-sh-clock{flex:none;color:var(--dim);font:700 clamp(.9rem,1.1vw,1.25rem)/1 var(--body);font-variant-numeric:tabular-nums}
 .ir-sh-tools{display:flex;gap:6px;flex:none}
@@ -1019,6 +1057,10 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep){display:none!important}          
   .ir-sh-bar{position:sticky;top:0;z-index:3;flex-wrap:wrap;gap:8px 12px;padding:10px 12px;background:rgba(6,6,7,.96)}
   .ir-sh-brand span{display:none}
   .ir-sh-title{order:5;flex-basis:100%;padding-left:0;border-left:0;white-space:normal;font-size:1.15rem}
+  .ir-sh-topic{height:auto}
+  .ir-sh-tk{display:none}          /* the bar stays on a phone screen while it scrolls: the topic alone, no label */
+  .ir-sh-tt{font-size:1.15rem;line-height:1.05}
+  .ir-sh-tpe{width:40px;height:40px}
   .ir-sh-clock{display:none}
   .ir-sh-tools{margin-left:auto}
   .ir-sh-tools span{display:none}
@@ -1470,7 +1512,7 @@ html.ir-show .ir-cmd>:not(.ir-lens){display:none!important}
   .ir-rd-rp{background:none;border-color:#ccc;color:#111}
   .ir-rd-more,.ir-rd-rp .ir-rp-no a{display:none}
 }
-@media(min-width:901px) and (max-width:1366px){.ir-sh-tools button span{display:none}.ir-sh-tools button{padding:0 10px}}
+@media(min-width:901px) and (max-width:1700px){.ir-sh-tools button span{display:none}.ir-sh-tools button{padding:0 10px}}          /* up to 1700 (was 1366): the topic needs the width more than the tools need their names (each keeps its name as a tooltip) */
 .ir-sh.is-read .ir-sh-title{visibility:hidden}
 /* WHO POSTED IT (22 Oct 2026, Armin: "make it more clear who posted it"): every card and the spotlight open on the
    author's face, name and handle (an X post) or the outlet beside its platform's mark. intel.js byline(). */
@@ -1736,6 +1778,8 @@ a.irf-nw .irf-it-t::after{content:" \2197";color:var(--dim);font-weight:500}
 .irt-act{border:1px solid var(--field,#F4C430);background:none;color:var(--field,#F4C430)}
 .irt-next{border:0;background:var(--field,#F4C430);color:var(--on-field,#111)}
 .irt-b button[hidden]{display:none}
+.irt-tip.has-main .irt-act[data-i="0"]{border:0;background:var(--field,#F4C430);color:var(--on-field,#111)}          /* a tour's last step: its first useful thing to do is the filled button */
+.irt-tip.has-main .irt-next{border:1px solid #3a3936;background:none;color:var(--ink)}
 .irt-how{display:inline-flex;align-items:center;gap:8px;min-height:40px;margin:0 0 10px;padding:0 14px 0 10px;border:1px solid #3a3936;border-radius:999px;background:none;color:var(--field);font:650 var(--t1)/1 var(--body);cursor:pointer}
 .irt-how svg,.irt-nudge svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 @media(max-width:640px){.irt-tip{padding:14px 14px 12px}.irt-b{gap:6px}.irt-b button{padding:0 14px}}
@@ -1914,3 +1958,73 @@ html.irt-on #calls{visibility:hidden}          /* the show reminder sits in the 
 .ir-b-t>b{min-width:0;overflow-wrap:anywhere}
 /* an @handle on the Persian page (intel.js handle()): it truncates inside its own line, never past the screen */
 bdi.ir-h{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+
+/* THE ASK BOX (build/intel-ask.js, 24 Oct 2026): the card that says what a question did (under the pills, which are its
+   chips), and the panel of saved filters and things to ask that opens under the search box. Logical sides only (inline
+   start and end), so the Persian page needs no flipped copy. Every control 40px or more. */
+.ira{display:grid;gap:8px;margin:0 0 10px;padding:10px 10px 10px 12px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink)}
+.ira-top{display:flex;align-items:flex-start;gap:10px}
+.ira-i{flex:none;display:grid;place-items:center;width:28px;height:28px;margin-top:2px;border-radius:50%;background:rgba(var(--ir-gold,244,196,48),.14)}
+.ira-i svg,.ira svg,.ira-pop svg{width:16px;height:16px;fill:none;stroke:var(--field);stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
+.ira-i svg path:first-child{fill:var(--field);stroke:none}
+.ira-l{flex:1;min-width:0;margin:6px 0 0;font:500 var(--t2)/1.45 var(--body);overflow-wrap:anywhere}
+.ira-l b{color:var(--field);font-weight:700}
+.ira-x{flex:none;width:40px;height:40px;margin:-4px -4px 0 0;border:0;border-radius:50%;background:none;color:var(--dim);font-size:22px;line-height:1;cursor:pointer}
+.ira-x:hover{color:var(--ink);background:var(--raise)}
+.ira-a,.ira-near,.ira-try,.ira-sv-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.ira-a button,.ira-near button,.ira-try button,.ira-f button{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--ink);font:700 var(--t1) var(--body);cursor:pointer;max-width:100%}
+.ira-a button:hover,.ira-near button:hover,.ira-try button:hover{border-color:var(--field)}
+.ira-a .ira-sv{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.ira-a .ira-sv svg{stroke:var(--on-field)}
+.ira-ok{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 4px;color:var(--field);font:700 var(--t1) var(--body)}
+.ira-ok svg{fill:var(--field)}
+.ira-near>span,.ira-left{color:var(--dim);font:600 var(--t1)/1.4 var(--body)}
+.ira-left{margin:0}
+.ira-near i{font-style:normal;color:var(--dim);font-weight:600}
+.ira-ans{display:grid;gap:6px}
+.ira-ans p{margin:0;color:var(--dim);font:600 var(--t1)/1.4 var(--body)}
+.ira-ans ol{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.ira-ans ol button,.ira-one{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--sunk,var(--raise));color:var(--ink);text-align:start;font:600 var(--t2)/1.3 var(--body);cursor:pointer}
+.ira-ans ol button:hover,.ira-one:hover{border-color:var(--field)}
+.ira-ans b{min-width:0;font-weight:700;overflow-wrap:anywhere}
+.ira-ans small{flex:none;color:var(--dim);font:600 var(--t1) var(--body)}
+.ira-one{flex-wrap:wrap}
+.ira-one b{flex:1 1 100%}
+.ira-one span{color:var(--field);font:700 var(--t1) var(--body)}
+.ira-f{display:grid;gap:6px}
+.ira-f label{color:var(--dim);font:600 var(--t1) var(--body)}
+.ira-f>span{display:flex;flex-wrap:wrap;gap:6px}
+.ira-f input{flex:1 1 12rem;min-width:0;height:42px;padding:0 12px;border-radius:12px;border:1px solid var(--field);background:var(--sunk,var(--panel));color:var(--ink);font:500 var(--t2) var(--body)}
+.ira-f button[type="submit"]{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.ira-pop{position:absolute;top:calc(100% + 6px);inset-inline:0;z-index:70;display:grid;gap:8px;max-height:min(60vh,420px);overflow:auto;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel);box-shadow:0 24px 50px -20px #000}
+.ira-pop[hidden]{display:none}
+.ira-ph{display:flex;align-items:center;gap:6px;margin:0;color:var(--dim);font:700 var(--t1)/1.3 var(--body);letter-spacing:.02em}
+.ira-pn{margin:0;color:var(--dim);font:500 var(--t1)/1.4 var(--body)}
+.ira-try button{font-weight:600;text-align:start;white-space:normal;line-height:1.25;padding-block:6px}
+.ira-chip{display:inline-flex;max-width:100%;border:1px solid var(--field-edge,var(--line));border-radius:999px;overflow:hidden}
+.ira-chip button{min-height:40px;padding:0 14px;border:0;background:var(--raise);color:var(--ink);font:700 var(--t1) var(--body);cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ira-chip button:hover{background:var(--panel)}
+.ira-chip .ira-chip-x{flex:none;min-width:40px;padding:0 10px;color:var(--dim);font-size:18px;border-inline-start:1px solid var(--line)}
+.ira-chip .ira-chip-x.is-arm{color:var(--field);font-size:var(--t1)}
+/* a shared list's page passes itself on (intel-prep.js drawListPage, shareTo) */
+.ir-lp-sh{display:grid;gap:8px;margin-top:14px;max-width:640px}
+.ir-lp-sh>p{margin:0;color:var(--dim);font:700 var(--t1) var(--body)}
+.ir-lp-sh svg,.ir-ls-sh svg{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* THE FILTERS BUILD (24 Oct 2026, intel.js FACETS and PRESETS, THE WIRE, TAPPED) */
+.ir-facet button i{font-style:normal;margin-left:4px;color:var(--dim);font-weight:500;font-variant-numeric:tabular-nums}
+.ir-facet button[aria-pressed="true"] i{color:var(--ink);opacity:.7}
+.ir-facet button:disabled{opacity:.45;cursor:default}
+.ir-presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.ir-preset{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:56px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--ink);text-align:start;cursor:pointer}
+.ir-preset b{font:700 var(--t2)/1.2 var(--body)}
+.ir-preset b i{font-style:normal;font-weight:500;color:var(--dim);font-variant-numeric:tabular-nums}
+.ir-preset span{font:400 var(--t1)/1.35 var(--body);color:var(--dim)}
+.ir-preset:hover{border-color:var(--field-edge)}
+.ir-preset[aria-pressed="true"]{border-color:var(--field);background:rgba(var(--ir-gold,244,196,48),.12)}
+.ir-preset:disabled{opacity:.45;cursor:default}
+.ir-pill-back{padding:0 14px;border-color:var(--field);background:var(--field);color:var(--on-field)}
+.ir-pill-back:hover{filter:brightness(1.08)}
+.ir-money-key{margin:-4px 0 10px;color:var(--dim);font-size:var(--t1);line-height:1.45}
+.ir-money-key b{color:var(--field)}
+.ir-money.is-thin{opacity:.6;font-weight:600}

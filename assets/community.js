@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=dd549b8bdd and assets/community-fa.js?v=dd549b8bdd, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=d7078be46e and assets/community-fa.js?v=d7078be46e, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -627,8 +627,13 @@ async function makeProfile(name, news) {
     createdAt: F.serverTimestamp(), lastPostAt: null, lastPost: '' };
   await F.setDoc(F.doc(db, 'users', user.uid), d);
   profile = Object.assign({}, d, { createdAt: null, newsAt: news ? stamp() : null });
+  tally('sign_up', { method: hasPassword(user) ? 'email' : 'google' });
+  if (news) tally('newsletter_signup', { where: 'new account' });
   return profile;
 }
+/* The visit counter (build/harden.py puts window.lpTrack on a page only where the Google tag runs, on the live address).
+   Nothing about the reader is sent: the name of what happened and how, never a name, an address or an id. */
+function tally(name, params) { try { if (window.lpTrack) window.lpTrack(name, params || {}); } catch (x) { } }
 async function saveProfile(patch) {
   await loadProfile();
   const { F, db } = S;
@@ -641,6 +646,7 @@ async function saveProfile(patch) {
     if (at !== undefined) full.newsAt = at ? F.serverTimestamp() : null;
   }
   await F.updateDoc(F.doc(db, 'users', user.uid), full);
+  if (at && full.news) tally('newsletter_signup', { where: 'account panel' });
   Object.assign(profile, full, at !== undefined ? { newsAt: at } : {});
 }
 let holdAt = 0, holdIs = false;

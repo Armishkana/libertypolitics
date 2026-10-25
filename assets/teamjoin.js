@@ -15,6 +15,13 @@
         video (the link to a 1 to 3 minute video, required), topics (keys, at least one), slots (keys of the shows they can
         come on, or 'other'), kit (true: camera, microphone and connection work), consent (true), heard (a key, or '').
       Sending it also marks the account as a creator, with its kind (users/<id>.creator and .creatorKind).
+      25 October 2026 (README.md, "Applying without an account, 25 October 2026"; rules, ninth version): NO ACCOUNT IS
+      NEEDED. 30 tagged arrivals in a week and 0 applications; the account, made after the whole form was filled, was the
+      one wall Armin never asked for. A reader who is not signed in types their email and the page writes ONE new document,
+      teamapply/o<20 letters or digits>, that nobody can read back from a page. A signed-in reader still writes
+      teamapply/<their id> with the account's address. Subjects, "what you make", the channel and "where you stand" are
+      optional now; the video, a show, the camera tick and the consent tick are still required (his bar).
+      The draft is kept in localStorage, so it survives closing the tab to go and record the video.
    What a person types reaches the page through textContent and .value, never as markup. */
 
 const D = document, $ = id => D.getElementById(id);
@@ -23,7 +30,7 @@ const KINDS = ['live', 'video', 'writer', 'none'];
 const DRAFT = 'lp-teamjoin-draft';
 const SEC = FORM ? FORM.closest('[data-loc]') : D.querySelector('[data-loc]');
 const LOC = (SEC && SEC.getAttribute('data-loc')) || undefined;
-let M = null, sending = false, pending = false, tt = s => s;
+let M = null, sending = false, tt = s => s;
 
 /* ------------------------------------------------------------------ 1. the video, loaded on tap */
 function lite(a) {
@@ -68,8 +75,17 @@ function etClock() {
 etClock();
 
 /* ------------------------------------------------------------------ 3. the form */
-function store(v) { try { if (v) sessionStorage.setItem(DRAFT, JSON.stringify(v)); else sessionStorage.removeItem(DRAFT); } catch (x) { } }
-function stored() { try { return JSON.parse(sessionStorage.getItem(DRAFT) || 'null'); } catch (x) { return null; } }
+/* The draft lives in localStorage: someone who leaves to record the video comes back to a filled form, even in a new tab. */
+const SENT = 'lp-teamjoin-sent';
+function store(v) { try { if (v) localStorage.setItem(DRAFT, JSON.stringify(v)); else { localStorage.removeItem(DRAFT); sessionStorage.removeItem(DRAFT); } } catch (x) { } }
+function stored() { try { return JSON.parse(localStorage.getItem(DRAFT) || sessionStorage.getItem(DRAFT) || 'null'); } catch (x) { return null; } }
+function sentAt() { try { const s = JSON.parse(localStorage.getItem(SENT) || 'null'); return s && s.at ? new Date(s.at) : null; } catch (x) { return null; } }
+function openId() {      /* o + 20 letters or digits: the shape the rules take for an application with no account */
+  const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', b = new Uint8Array(20);
+  (window.crypto || window.msCrypto).getRandomValues(b);
+  return 'o' + Array.from(b, x => A[x % A.length]).join('');
+}
+const EMAIL_OK = /^[^\s@<>"]+@[^\s@<>"]+\.[A-Za-z]{2,}$/;
 function say(text, bad) { const l = $('tj-msg'); l.textContent = text || ''; l.className = 'tj-msg' + (bad ? ' bad' : ''); if (text && l.scrollIntoView) { try { l.scrollIntoView({ block: 'nearest' }); } catch (x) { } } }
 function fromTag() { try { const f = (new URLSearchParams(location.search).get('from') || '').toLowerCase(); return /^[a-z0-9]{1,12}$/.test(f) ? f : ''; } catch (x) { return ''; } }
 function jsonAttr(name, dflt) { try { return JSON.parse(FORM.getAttribute(name) || 'null') || dflt; } catch (x) { return dflt; } }
@@ -95,7 +111,8 @@ const ticked = name => Array.from(FORM.querySelectorAll('input[name="' + name + 
 function read() {
   const k = FORM.querySelector('input[name="tj-kind"]:checked');
   return {
-    name: $('tj-name').value.trim(), ch: [$('tj-ch1').value, $('tj-ch2').value, $('tj-ch3').value], kind: k ? k.value : '',
+    name: $('tj-name').value.trim(), email: $('tj-email') ? $('tj-email').value.trim() : '',
+    ch: [$('tj-ch1').value, $('tj-ch2').value, $('tj-ch3').value], kind: k ? k.value : '',
     video: $('tj-video').value.trim(), topics: ticked('tj-topic'), slots: ticked('tj-slot'),
     about: $('tj-about').value.trim(), tz: $('tj-tz').value.trim(), heard: $('tj-heard').value,
     kit: $('tj-kit').checked, consent: $('tj-consent').checked
@@ -105,6 +122,7 @@ function tick(name, keys) { FORM.querySelectorAll('input[name="' + name + '"]').
 function fill(v) {
   if (!v) return;
   if (v.name) $('tj-name').value = v.name;
+  if (v.email && $('tj-email') && !$('tj-email').readOnly) $('tj-email').value = v.email;
   (v.ch || v.channels || []).forEach((c, i) => { if (i < 3 && c) $('tj-ch' + (i + 1)).value = c; });
   if (KINDS.includes(v.kind)) { const r = FORM.querySelector('input[name="tj-kind"][value="' + v.kind + '"]'); if (r) r.checked = true; }
   if (v.video) $('tj-video').value = v.video;
@@ -120,17 +138,14 @@ function fill(v) {
 function problem(v) {
   if (v.name.length < 2) return [tt('Write your name, the one people know you by.'), 'tj-name'];
   if (/[<>]/.test(v.name + v.about)) return [tt('Please leave out the < and > signs.'), /[<>]/.test(v.name) ? 'tj-name' : 'tj-about'];
-  if (!v.kind) return [tt('Pick what you make, or "Not yet".'), 'tj-kinds'];
-  const bad = v.ch.findIndex(c => c.trim() && link(c) === null);
-  if (bad >= 0) return [tt('This link does not look like an address: {link}', { link: v.ch[bad].trim().slice(0, 60) }), 'tj-ch' + (bad + 1)];
-  if (v.kind !== 'none' && !v.ch.some(c => link(c))) return [tt('Add a link to your channel or page, so it can be watched first.'), 'tj-ch1'];
+  if (!(M && M.user()) && !EMAIL_OK.test(v.email)) return [tt('Write your email, so the answer can reach you.'), 'tj-email'];
   if (!v.video) return [tt('Paste the link to your video. It is the one part of this form nobody can skip.'), 'tj-video'];
   const vl = link(v.video, 300);
   if (!vl) return [tt('This link does not look like an address: {link}', { link: v.video.slice(0, 60) }), 'tj-video'];
   if (!videoOk(vl)) return [tt('Put the video on YouTube, Google Drive, Loom, Dropbox, X, TikTok, Instagram or Vimeo, and paste that link.'), 'tj-video'];
-  if (!v.topics.length) return [tt('Pick at least one subject you would talk about.'), 'tj-topics'];
+  const bad = v.ch.findIndex(c => c.trim() && link(c) === null);
+  if (bad >= 0) return [tt('This link does not look like an address: {link}', { link: v.ch[bad].trim().slice(0, 60) }), 'tj-ch' + (bad + 1)];
   if (!v.slots.length) return [tt('Pick at least one show you could come on, or "Other times".'), 'tj-slots'];
-  if (v.about.length < 10) return [tt('Say in a sentence or two what you talk about.'), 'tj-about'];
   if (!v.kit) return [tt('Tick the box when your camera, microphone and connection work. The show needs all three.'), 'tj-kit'];
   if (!v.consent) return [tt('Tick the last box to say you are 18 or older and agree to the show being recorded and published.'), 'tj-consent'];
   return null;
@@ -145,9 +160,22 @@ function mark(id) {
 }
 
 let whoRun = 0;
+/* The email box: a signed-in reader's is the account's address, filled and fixed (the rules check it); anyone else types it. */
+function emailBox(u) {
+  const box = $('tj-email');
+  if (!box) return;
+  if (u && u.email) { box.value = u.email; box.readOnly = true; }
+  else if (box.readOnly) { box.readOnly = false; box.value = ''; }
+}
 async function who() {
   const line = $('tj-who'), u = M.user(), run = ++whoRun;      /* the reader can change twice in a moment: only the newest call writes the line */
-  if (!u) { line.textContent = tt('When you press Send, you make a free account first (or sign in). The Team mark goes on that account.'); return; }
+  emailBox(u);
+  if (!u) {
+    const at = sentAt();
+    line.textContent = at ? tt('You sent an application from this device on {date}. To change anything, send it again: the newest one counts.', { date: at.toLocaleDateString(LOC, { day: 'numeric', month: 'long' }) })
+      : tt('No account needed. Fill this in once and press Send.');
+    return;
+  }
   line.textContent = tt('Signed in as {email}. The answer comes to that address.', { email: u.email || '' });
   try {
     const { F, db } = await M.fb(), snap = await M.within(20000, F.getDoc(F.doc(db, 'teamapply', u.uid)));
@@ -165,58 +193,68 @@ async function send() {
   const v = read(), p = problem(v);
   if (p) { say(p[0], true); mark(p[1]); return; }
   mark(null);
+  store(v);      /* kept until it has gone, so a failed send loses nothing */
   const u = M.user();
-  if (!u) {
-    store(v); pending = true;
-    say(tt('Make your free account in the box that opened, then this sends by itself.'));
-    M.open('auth', { mode: 'new', why: tt('Make a free account to send your application. The Team mark goes beside this account\'s name.') });
-    return;
-  }
-  sending = true; pending = false;
+  sending = true;
   const go = $('tj-go'); go.disabled = true; say(tt('Sending...'));
   const channels = v.ch.map(c => link(c)).filter(Boolean);
+  const id = u ? u.uid : openId();      /* no account: a new document each send, which only the site can read */
   try {
     const { F, db } = await M.fb();
-    await M.within(20000, F.setDoc(F.doc(db, 'teamapply', u.uid), {
-      name: v.name, email: u.email, channels, kind: v.kind,
+    await M.within(20000, F.setDoc(F.doc(db, 'teamapply', id), {
+      name: v.name, email: u ? u.email : v.email, channels, kind: KINDS.includes(v.kind) ? v.kind : '',
       about: v.about.slice(0, 1000), tz: v.tz.replace(/[^A-Za-z0-9_+:/ -]/g, '').slice(0, 64), from: fromTag(), at: F.serverTimestamp(), status: 'new',
       video: link(v.video, 300), topics: v.topics.slice(0, 8), slots: v.slots.slice(0, 8), kit: true, consent: true, heard: v.heard
     }));
     store(null);
-    /* The account is marked a creator, with its kind. A refusal here never undoes the application. */
-    try {
-      const ref = F.doc(db, 'users', u.uid), snap = await M.within(20000, F.getDoc(ref));
-      if (snap.exists()) {
-        const mk = { creator: true, creatorKind: v.kind, email: u.email, confirmed: !!u.emailVerified };
-        if (!snap.data().channel && channels[0]) mk.channel = channels[0];
-        await M.within(20000, F.updateDoc(ref, mk));
-      }
-    } catch (x) { }
+    try { localStorage.setItem(SENT, JSON.stringify({ at: Date.now() })); } catch (x) { }
+    /* A signed-in account is marked a creator, with its kind. A refusal here never undoes the application. */
+    if (u && KINDS.includes(v.kind)) {
+      try {
+        const ref = F.doc(db, 'users', u.uid), snap = await M.within(20000, F.getDoc(ref));
+        if (snap.exists()) {
+          const mk = { creator: true, creatorKind: v.kind, email: u.email, confirmed: !!u.emailVerified };
+          if (!snap.data().channel && channels[0]) mk.channel = channels[0];
+          await M.within(20000, F.updateDoc(ref, mk));
+        }
+      } catch (x) { }
+    }
     say('');
     FORM.hidden = true;
     const done = $('tj-done'); done.hidden = false;
+    try { if (window.lpTrack) window.lpTrack('panel_apply', { kind: v.kind, from: fromTag() || 'none' }); } catch (x) { }      // the visit counter (build/harden.py); no name, no address
     try { done.focus(); done.scrollIntoView({ block: 'start' }); } catch (x) { }
   } catch (x) {
     say((x && x.code === 'permission-denied') ? tt('The site refused it. Check the links start with https:// and try again.') : tt('It did not send. Check your connection and press Send again.'), true);
   } finally { sending = false; go.disabled = false; }
 }
 
-function start(m) {
-  M = m;
-  if (typeof m.tt === 'function') tt = m.tt;
+/* What the form knows without the reader is filled the moment the page runs, never after the accounts code arrives (25 Oct
+   2026: the "how did you hear" answer from a page band waited for window.LP.members, so on a slow connection the form sat
+   unfilled, and community-test.html read it empty): the reader's clock and the band's tag. Their own draft is filled in
+   start(), in the same moment Send starts answering, so a filled-in form always has a working Send. Until then a press of
+   Send does nothing rather than reload the page with the answers in the address. */
+function prefill() {
   if (!FORM) return;
   try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; if (tz && !$('tj-tz').value) $('tj-tz').value = tz; } catch (x) { }
   const f = fromTag(), h = HEARD_OF[f];
   if (h && !$('tj-heard').value && FORM.querySelector('#tj-heard option[value="' + h + '"]')) $('tj-heard').value = h;
+  FORM.addEventListener('submit', e => { if (!M) e.preventDefault(); });
+}
+prefill();
+
+function start(m) {
+  M = m;
+  if (typeof m.tt === 'function') tt = m.tt;
+  if (!FORM) return;
   fill(stored());
   FORM.addEventListener('submit', e => { e.preventDefault(); send(); });
-  /* A mark goes once the reader changes the field it is on. */
-  FORM.addEventListener('input', e => { const x = e.target.closest('[aria-invalid="true"]'); if (x) x.removeAttribute('aria-invalid'); });
-  FORM.addEventListener('change', e => { const x = e.target.closest('[aria-invalid="true"]'); if (x) x.removeAttribute('aria-invalid'); });
-  M.sub(() => { who(); if (pending && M.user()) { M.close && M.close(); send(); } });
+  /* A mark goes once the reader changes the field it is on; the draft is kept as they type. */
+  let keep = 0;
+  FORM.addEventListener('input', e => { const x = e.target.closest('[aria-invalid="true"]'); if (x) x.removeAttribute('aria-invalid'); clearTimeout(keep); keep = setTimeout(() => store(read()), 400); });
+  FORM.addEventListener('change', e => { const x = e.target.closest('[aria-invalid="true"]'); if (x) x.removeAttribute('aria-invalid'); store(read()); });
+  M.sub(() => { who(); });
   M.fb().then(who, () => { $('tj-who').textContent = tt('The form could not reach the site. Check your connection and reload.'); });
-  /* An account panel left open with a draft from before a reload: send it once they are in. */
-  if (stored()) pending = true;
 }
 (function wait(n) {
   const m = window.LP && window.LP.members;

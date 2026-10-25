@@ -1393,6 +1393,7 @@
   // Liberty Politics only: it is the English channel's Super Chat, and Iran Uncensored (the page that hands a word table,
   // CFG.t) is Kaveh's channel, where an admin signed in saw his English income on the Persian chips
   var MONEY_HERE = !CFG.t;
+  var MONEY_THIN = 10;          // under this many shows a topic's $/h is drawn faded with ~ (24 Oct 2026, see moneyPaint)
   function moneyLoad() {
     if (!MONEY_HERE) return;
     if (MONEY) { moneyPaint(); return; }
@@ -1413,10 +1414,19 @@
       var g = by[b.getAttribute('data-t')], m = b.querySelector('.ir-money');
       if (!g) { if (m) m.parentNode.removeChild(m); if (b.hasAttribute('data-mt0')) { var t0 = b.getAttribute('data-mt0'); if (t0) b.title = t0; else b.removeAttribute('title'); b.removeAttribute('data-mt0'); } return; }
       if (!m) { m = document.createElement('b'); m.className = 'ir-money'; b.appendChild(m); }
-      m.textContent = usd(g.perHour) + '/h';
+      // 24 Oct 2026 (Armin did not know what "$22/h" meant): the key line below says it; under THIN shows the figure is one
+      // good night's luck (8 shows put Protests at $34 an hour), so it is faded and marked ~
+      var thin = (g.streams || 0) < MONEY_THIN;
+      m.classList.toggle('is-thin', thin);
+      m.textContent = (thin ? '~' : '') + usd(g.perHour) + '/h';
       if (!b.hasAttribute('data-mt0')) b.setAttribute('data-mt0', b.getAttribute('title') || '');          // the chip's own tooltip, put back on sign-out
       b.title = 'Super Chat per live hour on this topic: ' + usd(g.perHour) + ' (' + g.streams + ' shows, ' + MONEY.window + '). Median show: ' + usd(MONEY.medianPerHour) + '.';
     });
+    // WHAT "$/h" IS, said where the figures are (Topic in the filters panel): only an admin ever sees this
+    var tsec = $('ir-dr-topic'), key = $('ir-money-key');
+    if (tsec && !key) { key = document.createElement('p'); key.id = 'ir-money-key'; key.className = 'ir-money-key'; var tp0 = tsec.querySelector('.ir-dr-p'); tsec.insertBefore(key, tp0 ? tp0.nextSibling : tsec.firstChild); }
+    if (key) key.innerHTML = '<b>$/h</b> beside a topic: the Super Chat your own live shows on that topic earned per hour on air, ' + esc(MONEY.windowLabel || MONEY.window) +
+      ' (' + MONEY.streams + ' shows; a typical show ' + usd(MONEY.medianPerHour) + '/h). Read off YouTube Studio ' + esc(MONEY.readOn ? new Date(MONEY.readOn + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }) : '') + '. Only you see this. A faded ~ figure comes from under ' + MONEY_THIN + ' shows: too few to trust.';
     var line = $('ir-money-line');
     if (!line) { line = document.createElement('p'); line.id = 'ir-money-line'; line.className = 'ir-money-line'; panel.parentNode.insertBefore(line, panel); }
     var rows = (MONEY.places || []).concat(MONEY.ali ? [MONEY.ali] : []).filter(function (g) { return g.shown; })
@@ -1437,6 +1447,7 @@
     [].forEach.call(document.querySelectorAll('.ir-money'), function (m) { m.parentNode.removeChild(m); });
     [].forEach.call(document.querySelectorAll('[data-mt0]'), function (b) { var t0 = b.getAttribute('data-mt0'); if (t0) b.title = t0; else b.removeAttribute('title'); b.removeAttribute('data-mt0'); });
     var line = $('ir-money-line'); if (line) line.parentNode.removeChild(line);
+    var key = $('ir-money-key'); if (key) key.parentNode.removeChild(key);
   }
   moneyLoad();
   // for build/phone-test.html, which checks every story of the hour against the gate: nothing here changes the page
@@ -1491,7 +1502,7 @@
   // the freshest copy of a list's item: the room's own while it is still there (its counts move), else the list's
   function fresh(o) { return (o._code && R.byId(o._code)) || o; }
   function srcPool() { return ui.src ? ui.src.items.map(fresh) : []; }
-  function fromLine() { return ui.src ? T('your list "{name}"', { name: ui.src.name }) : R.filterLine ? R.filterLine() : ''; }
+  function fromLine() { return ui.src ? (ui.src.by ? T('the list "{name}" by {who}', { name: ui.src.name, who: ui.src.by }) : T('your list "{name}"', { name: ui.src.name })) : R.filterLine ? R.filterLine() : ''; }          // a shared list someone sent is theirs, not "your list"
   function makeList(name) {
     if (lists().length >= LMAX) { toast(T('You have {n} lists, the most there can be. Delete one first.', { n: N(LMAX) })); return null; }
     var l = { id: newId(), name: String(name || DEFNAME).replace(/[<>]/g, '').trim().slice(0, 60) || DEFNAME, items: [], mine: false, at: Date.now(), sv: 0, dirty: true, shared: false, uid: ME, views: 0 };
@@ -1693,13 +1704,24 @@
     if (!me) return '<div class="ir-ls-sh"><p>' + esc(T('A shared list carries its maker\'s name, so sharing needs the free account.')) + '</p><button type="button" class="ir-sv-go" data-ls="in">' + ICON.save + '<span>' + esc(T('Sign in to share it')) + '</span></button></div>';
     if (!me.v) return '<div class="ir-ls-sh"><p>' + esc(T('We sent you a link when you made the account. One tap on it and you can share.')) + '</p><button type="button" class="ir-sv-go" data-ls="check">' + ICON.save + '<span>' + esc(T('Confirm your email to share it')) + '</span></button></div>';
     if (!l.shared || l.dirty || !l.sv) return '<div class="ir-ls-sh"><p>' + esc(T('Making the link...')) + '</p></div>';
-    var url = listUrl(l.id), enc = encodeURIComponent;
+    var url = listUrl(l.id);
     return '<div class="ir-ls-sh"><p>' + esc(T('Anyone with this link can open the list, make a show from it or save a copy.')) + (l.views ? ' ' + esc(l.views === 1 ? T('opened once') : T('opened {n} times', { n: N(l.views) })) : '') + '</p>' +
       '<div class="ir-sv-link"><label class="vh" for="ir-ls-u">' + esc(T('The link')) + '</label><input id="ir-ls-u" type="text" readonly dir="ltr" value="' + esc(url) + '"><button type="button" data-ls="copy">' + ICON.copy + '<span>' + esc(T('Copy the link')) + '</span></button></div>' +
-      '<div class="ir-sv-to" role="group" aria-label="' + esc(T('Send it')) + '">' + (navigator.share ? '<button type="button" data-ls="send">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
-      '<a href="https://wa.me/?text=' + enc(l.name + '\n' + url) + '" target="_blank" rel="' + RELN + '">WhatsApp</a><a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(l.name) + '" target="_blank" rel="' + RELN + '">Telegram</a>' +
-      '<a href="' + esc(url) + '" target="_blank" rel="' + RELN + '">' + esc(T('Open it as they will')) + '</a>' +
-      '<button type="button" data-ls="unshare">' + esc(T('Stop sharing')) + '</button></div></div>';
+      shareTo(l.name, l.items.length, url, 'data-ls="send"',
+        '<a href="' + esc(url) + '" target="_blank" rel="' + RELN + '">' + esc(T('Open it as they will')) + '</a><button type="button" data-ls="unshare">' + esc(T('Stop sharing')) + '</button>') + '</div>';
+  }
+  /* SHARING A LIST (24 Oct 2026): one row of places to send it, the same for its maker and for anyone the link reaches (a
+     list's page passes itself on). The words that go with the link say what it is ("Friday show: 12 items from the Intel
+     Room"), because the site is static: every list's link shows the Intel Room's own preview card when pasted, never one
+     made for the list (README, "Save lists"). X, WhatsApp, Telegram and email open their own share pages; Send is the
+     phone's own share sheet where there is one. */
+  function shareWords(name, n) { return T('{name}: {n} items from the Intel Room', { name: name, n: N(n) }); }
+  function shareTo(name, n, url, sendAttr, extra) {
+    var enc = encodeURIComponent, w = shareWords(name, n);
+    return '<div class="ir-sv-to" role="group" aria-label="' + esc(T('Send it')) + '">' + (navigator.share ? '<button type="button" ' + sendAttr + '>' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
+      '<a href="https://wa.me/?text=' + enc(w + '\n' + url) + '" target="_blank" rel="' + RELN + '">WhatsApp</a><a href="https://t.me/share/url?url=' + enc(url) + '&text=' + enc(w) + '" target="_blank" rel="' + RELN + '">Telegram</a>' +
+      '<a href="https://x.com/intent/post?text=' + enc(w) + '&url=' + enc(url) + '" target="_blank" rel="' + RELN + '">X</a>' +
+      '<a href="mailto:?subject=' + enc(name) + '&body=' + enc(w + '\n\n' + url) + '">' + esc(T('Email')) + '</a>' + (extra || '') + '</div>';
   }
   function listText(name, its) {
     var out = [name, ''];
@@ -1725,7 +1747,7 @@
   // A show from a list: the maker opens with the list as its pool
   function makeFrom(src) {
     lsClose();
-    ui.src = { id: src.id || '', name: src.name, items: src.items.slice(), mine: !!src.mine };
+    ui.src = { id: src.id || '', name: src.name, items: src.items.slice(), mine: !!src.mine, by: !src.mineToo && src.by ? String(src.by) : '' };
     ui.sig = ''; ui.tab = 'run';
     if (st.on) draw(); else setOn(true);
     setTimeout(function () { panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); var r = panel.querySelector('[data-tab="run"]') || panel.querySelector('[data-mk="toggle"]'); if (r) r.focus({ preventScroll: true }); }, 60);
@@ -1762,7 +1784,7 @@
     }
     if (k === 'unshare') { l.shared = false; LV.sharing = ''; LV.msg = T('Not shared any more: its link opens nothing now.'); touch(l); return; }
     if (k === 'copy') { copyText(listUrl(l.id), function () { flash(b, T('Copied')); }, function () { flash(b, T('Copying is blocked here')); }); return; }
-    if (k === 'send') { navigator.share({ title: l.name, text: l.name, url: listUrl(l.id) }).catch(function () { }); return; }
+    if (k === 'send') { navigator.share({ title: l.name, text: shareWords(l.name, l.items.length), url: listUrl(l.id) }).catch(function () { }); return; }
     if (b.hasAttribute('data-ls-mv')) {
       var i = +b.getAttribute('data-i'), mv = b.getAttribute('data-ls-mv'), sel;
       if (mv === 'up') { lsMove(l, i, i - 1); sel = '[data-ls-mv="up"][data-i="' + (i - 1) + '"]'; }
@@ -1805,6 +1827,9 @@
     return js.length > 190000 ? null : js;
   }
   function parseItems(s) { try { var a = JSON.parse(typeof s === 'string' && s ? s : '[]'); return Array.isArray(a) ? a.slice(0, LITEMS * 2).map(cleanSnap).filter(function (o) { return o && o._code; }).slice(0, LITEMS) : []; } catch (e) { return []; } }          // through cleanSnap: a shared list is anyone's JSON
+  // THE ASK BOX keeps each saved filter as a savelists/ document holding one {"_filter": address} row and no item
+  // (build/intel-ask.js): never a list here, never merged, never deleted by this side
+  function isFilterDoc(x) { return typeof (x && x.items) === 'string' && x.items.indexOf('[{"_filter":') === 0; }
   function lsSyncSoon() { clearTimeout(LSY.t); if (ME) LSY.t = setTimeout(lsSync, 1200); }
   function lsSync(pull) {
     var L = LPX; if (!L || L.off || !L.members.fb || !who(L)) return;
@@ -1831,6 +1856,7 @@
     LS.lists.forEach(function (l) { mine[l.id] = l; });
     docs.forEach(function (d) {
       var x = d.data() || {}, at = x.updatedAt && x.updatedAt.toMillis ? x.updatedAt.toMillis() : 0, l = mine[d.id];
+      if (isFilterDoc(x)) return;          // a saved filter of the ask box (intel-ask.js), not a list
       seen[d.id] = 1;
       if (LS.gone.indexOf(d.id) >= 0) return;          // deleted on this device: lsPush deletes it on the account
       var r = { id: d.id, name: String(x.name || DEFNAME).slice(0, 60), items: parseItems(x.items), mine: !!x.mine, shared: !!x.shared, at: at, sv: at, dirty: false, uid: uid, views: +x.views || 0 };
@@ -1905,12 +1931,16 @@
     var its = spec.items.map(fresh), pg = document.createElement('div');
     pg.className = 'ir-sh is-read ir-lpg'; pg.id = 'ir-lp';
     var meta = function (x) { var w = R.where(x); return [R.when(x), x.nm || x.h || x.src, w && w !== T('No single place') ? w : ''].filter(Boolean).join(' · '); };
+    // anyone the link reached can pass it on (a list opened from its link is shared; its maker's own copy only once it is)
+    var lurl = listUrl(spec.id), shareable = !spec.mineToo || !!(byList(spec.id) || {}).shared;
+    var shareH = shareable && its.length ? '<div class="ir-lp-sh"><p>' + esc(T('Pass it on:')) + '</p><div class="ir-sv-link"><label class="vh" for="ir-lp-u">' + esc(T('The link')) + '</label><input id="ir-lp-u" type="text" readonly dir="ltr" value="' + esc(lurl) + '">' +
+      '<button type="button" data-lp="link">' + ICON.copy + '<span>' + esc(T('Copy the link')) + '</span></button></div>' + shareTo(spec.name, its.length, lurl, 'data-lp="send"') + '</div>' : '';
     var acts = '<button type="button" data-lp="show"' + (its.length ? '' : ' disabled') + '>' + ICON.play + '<span>' + esc(T('Make a show from this list')) + '</span></button>' +
       (spec.mineToo ? '<button type="button" data-lp="open">' + LISTI + '<span>' + esc(T('Open it in your lists')) + '</span></button>' : '<button type="button" data-lp="copy">' + BM + '<span>' + esc(T('Save a copy to my lists')) + '</span></button>');
     pg.innerHTML = '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="' + esc(T('Back to the Intel Room')) + '"><img src="' + esc(SEAL) + '" alt="" width="40" height="40"><span><b>' + esc(BRAND) + '</b> ' + esc(T('Intel Room')) + '</span></a>' +
       '<p class="ir-sh-title"' + (FA ? ' dir="auto"' : '') + '>' + esc(spec.name) + '</p><div class="ir-sh-tools ir-lp-tools">' + acts + '</div></header>' +
       '<main class="ir-sh-stage" id="ir-lp-stage"><article class="ir-rd"><header class="ir-rd-h"><p class="ir-rd-k">' + esc(T('A list from the Intel Room')) + '</p><h1' + (FA ? ' dir="auto"' : '') + '>' + esc(spec.name) + '</h1>' +
-      '<p class="ir-rd-by">' + esc([spec.by ? T('Made by {name}', { name: spec.by }) : '', spec.at ? dayOf(spec.at) : '', its.length === 1 ? T('1 item') : T('{n} items', { n: N(its.length) })].filter(Boolean).join(' · ')) + '</p></header>' +
+      '<p class="ir-rd-by">' + esc([spec.by ? T('Made by {name}', { name: spec.by }) : '', spec.at ? dayOf(spec.at) : '', its.length === 1 ? T('1 item') : T('{n} items', { n: N(its.length) })].filter(Boolean).join(' · ')) + '</p>' + shareH + '</header>' +
       (its.length ? '<ol class="ir-rd-list">' + its.map(function (x, i) {
         var rg = isReg(x);
         return '<li><span class="ir-rd-num num">' + N(i + 1) + '</span><div class="ir-rd-b"><p class="ir-rd-m">' + R.mark(x) + esc(meta(x)) + '</p>' +
@@ -1932,6 +1962,8 @@
         toast(T('Saved to your lists as "{name}"', { name: l.name }), [[T('Open your lists'), function () { leavePage(); lsOpen(l.id); }]]);
         return;
       }
+      if (k === 'link') { copyText(lurl, function () { flash(b, T('Copied')); }, function () { flash(b, T('Copying is blocked here')); }); return; }
+      if (k === 'send') { navigator.share({ title: spec.name, text: shareWords(spec.name, its.length), url: lurl }).catch(function () { }); return; }
       if (k === 'open') { leavePage(); lsOpen(spec.id); return; }
       if (k === 'show') { leavePage(); makeFrom(spec); }
     });
@@ -2037,18 +2069,19 @@
     sh.className = 'ir-sh'; sh.id = 'ir-sh';
     sh.innerHTML = '<div class="ir-sh-bg" aria-hidden="true"><i></i><i></i></div>' +
       '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="' + esc(T('Back to the Intel Room')) + '"><img src="' + esc(SEAL) + '" alt="" width="40" height="40"><span><b>' + esc(BRAND) + '</b> ' + esc(T('Intel Room')) + '</span></a>' +
-      '<p class="ir-sh-title">' + esc(title) + '</p>' +
+      '<div class="ir-sh-title ir-sh-topic" id="ir-sh-topic" title="' + esc(title) + '"><p class="ir-sh-tk">' + esc(T('On the show today')) + '</p><p class="ir-sh-tt" id="ir-sh-tt"' + (FA ? ' dir="auto"' : '') + '></p>' +
+        '<button type="button" class="ir-sh-tpe" id="ir-sh-tpe" aria-label="' + esc(T('Change the topic on the screen')) + '" title="' + esc(T('Change the topic on the screen')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg></button></div>' +
       '<p class="ir-sh-count num" id="ir-sh-count" aria-live="polite"></p><time class="ir-sh-clock num" id="ir-sh-clock"></time>' +
-      '<div class="ir-sh-tools"><button type="button" id="ir-sh-mode" aria-pressed="false">' + ICON.read + '<span>' + esc(T('Read it as a page')) + '</span></button>' +
-      '<button type="button" id="ir-sh-notes" aria-pressed="false">' + ICON.notes + '<span>' + esc(T('Host notes')) + '</span></button><button type="button" id="ir-sh-full">' + ICON.full + '<span>' + esc(T('Full screen')) + '</span></button>' +
-      (saved ? '<button type="button" id="ir-sh-send">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
+      '<div class="ir-sh-tools"><button type="button" id="ir-sh-mode" aria-pressed="false" title="' + esc(T('Read it as a page')) + '">' + ICON.read + '<span>' + esc(T('Read it as a page')) + '</span></button>' +
+      '<button type="button" id="ir-sh-notes" aria-pressed="false" title="' + esc(T('Host notes')) + ' (N)">' + ICON.notes + '<span>' + esc(T('Host notes')) + '</span></button><button type="button" id="ir-sh-full" title="' + esc(T('Full screen')) + ' (F)">' + ICON.full + '<span>' + esc(T('Full screen')) + '</span></button>' +
+      (saved ? '<button type="button" id="ir-sh-send" title="' + esc(T('Send')) + '">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
       '<a class="ir-sh-mk" id="ir-sh-mk" href="' + esc(location.pathname + '#make') + '">' + ICON.plus + '<span>' + esc(T('Make your own')) + '</span></a></div></header>' +
       '<main class="ir-sh-stage" id="ir-sh-stage"></main>' +
       '<aside class="ir-sh-notes" id="ir-sh-pad" hidden><p class="ir-sh-nl">' + esc(saved ? T('A note from the maker') : video ? T('Your opening hook') : T('Your 30-second intro')) + '</p><p class="ir-sh-nt">' + esc(intro || T('Say what the show is about, and what you will show.')) + '</p></aside>' +
       '<footer class="ir-sh-foot"><button type="button" class="ir-sh-nav" id="ir-sh-prev" aria-label="' + esc(T('Previous')) + '">' + (RTL ? ICON.next : ICON.prev) + '</button><ol class="ir-sh-strip" id="ir-sh-strip" aria-label="' + esc(T('The rundown')) + '"></ol><button type="button" class="ir-sh-nav" id="ir-sh-next" aria-label="' + esc(T('Next')) + '">' + (RTL ? ICON.prev : ICON.next) + '</button>' +
       '<p class="ir-sh-mark" aria-hidden="true">' + (saved && saved.by ? '<span class="ir-sh-by">' + esc(T('Made by {name}', { name: saved.by })) + ' · </span>' : '') + SITE_MARK + '</p></footer>';
     document.body.appendChild(sh);
-    document.title = title + ' | ' + BRAND + ' ' + T('Intel Room');
+    document.title = title + ' | ' + T('Show screen') + ' | ' + BRAND + ' ' + T('Intel Room');
     var empty = !rows.length;
     if (empty) { $('ir-sh-stage').innerHTML = '<div class="ir-sh-card"><h1>' + esc(T('This show has nothing in it')) + '</h1><p>' + esc(T('Its items have left the room since the link was made.')) + ' <a href="' + esc(location.pathname + '#make') + '">' + esc(T('Make it again in the Intel Room')) + '</a></p></div>'; }
     var narrow = matchMedia('(max-width:900px)').matches;
@@ -2072,6 +2105,59 @@
       }
       return null;
     }
+    /* THE TOPIC ON THE SCREEN (25 Oct 2026). Someone who joins the stream halfway must see at once what the show is about.
+       The bar used to carry the whole title on one line, cut with "..." when long. Now it carries the TOPIC: a few words,
+       large, never cut. In order: the host's own words (&tp=, set by the pencil beside it), a title of 48 letters or fewer, else the story that holds most
+       of the show (over 60%: its short name from show_packs.py), else the title (a long one shortened at its first break). Each item also
+       names its own story (storyLine) when the show tells more than one. */
+    var sOf0 = storyFn();
+    function storyName(x) { var h = x ? sOf0(x) : null; return h && h.s && h.name ? String(h.name) : ''; }
+    function shortTopic(t) {
+      t = String(t || '').replace(/\s+/g, ' ').trim();
+      if (t.length <= 72) return t;
+      var head = t.split(/\s*[:|–—]\s*|\s+-\s+|[?!]\s+/)[0];
+      if (head.length >= 12 && head.length <= 72) return head;
+      var o = ''; t.split(' ').some(function (w) { if ((o + ' ' + w).trim().length > 64) return true; o = (o + ' ' + w).trim(); return false; });
+      // never end on a word that leads somewhere ("... runs on and on about"): the topic reads as said, not as cut
+      for (var g = 0; g < 4 && /\s(a|an|the|and|or|but|of|for|to|in|on|at|by|with|about|from|that|which|who|as|is|are|was|its|their|his|her|this|after|over|into|across|against|while|than|because|if|when|where|says|said)$/i.test(o); g++) o = o.replace(/\s+\S+$/, '');
+      return o || cutU(t, 64);
+    }
+    function autoTopic() {
+      var t0 = String(title || '').replace(/\s+/g, ' ').trim();
+      if (t0 && t0.length <= 48) return t0;          // a title short enough to be the topic is the host's own words: it wins
+      var tally = {}, best = '', bn = 0;
+      rows.forEach(function (r) { var n = storyName(r.it); if (n) { tally[n] = (tally[n] || 0) + 1; if (tally[n] > bn) { bn = tally[n]; best = n; } } });
+      if (best && bn > rows.length * 0.6 && best.length <= 56) return best;          // one story is most of the show: its name
+      return shortTopic(title) || best || shortTopic(rows[0] ? cleanHead(rows[0].it.t) : '');          // a show with no title (the plain maker) still says what it is about
+    }
+    var TOPIC = cutU(String(q.get('tp') || '').replace(/\s+/g, ' ').trim(), 60) || autoTopic();
+    function paintTopic() { var t = $('ir-sh-tt'); if (t) { t.textContent = TOPIC; t.style.fontSize = ''; } if (typeof refitSoon === 'function') refitSoon(); }
+    function setTopic(v) {
+      v = cutU(String(v || '').replace(/\s+/g, ' ').trim(), 60);
+      var auto = autoTopic(); TOPIC = v || auto;
+      if (history.replaceState) { var u = new URLSearchParams(location.search); if (v && v !== auto) u.set('tp', v); else u.delete('tp'); history.replaceState(null, '', location.pathname + '?' + u.toString()); }
+      paintTopic();
+    }
+    // the pencil: the topic becomes a box in place (Enter or leaving the box keeps it, Escape leaves it as it was)
+    function editTopic() {
+      var t = $('ir-sh-tt'); if (!t || $('ir-sh-tpi')) return;
+      t.hidden = true;
+      var inp = document.createElement('input');
+      inp.type = 'text'; inp.id = 'ir-sh-tpi'; inp.className = 'ir-sh-tpi'; inp.maxLength = 60; inp.value = TOPIC; inp.dir = 'auto'; inp.autocomplete = 'off';
+      inp.setAttribute('aria-label', T('The topic on the screen, in a few words'));
+      t.parentNode.insertBefore(inp, t.nextSibling);
+      var done = false, end = function (keep) { if (done) return; done = true; if (keep) setTopic(inp.value); inp.remove(); t.hidden = false; paintTopic(); };
+      inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); end(true); $('ir-sh-tpe').focus(); } else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(false); $('ir-sh-tpe').focus(); } });
+      inp.addEventListener('blur', function () { end(true); });
+      inp.focus(); inp.select();
+    }
+    // the story of row i, when the show tells more than one and it is not the topic already on the bar
+    function storyLine(i) {
+      var n = '';
+      if (SEGS) { for (var k = 0; k < SEGS.length; k++) if (i >= SEGS[k].at && i < SEGS[k].at + SEGS[k].n) { n = SEGS[k].n > 1 ? SEGS[k].name : ''; break; } }
+      else n = storyName(rows[i] && rows[i].it);
+      return n && n.toLowerCase() !== TOPIC.toLowerCase() ? n : '';
+    }
     function strip() {
       $('ir-sh-strip').innerHTML = '<li><button type="button" data-go="0"' + (at === 0 ? ' aria-current="true"' : '') + '><span class="ir-sh-sn">' + esc(T('Intro')) + '</span><span class="ir-sh-stt">' + esc(title) + '</span></button></li>' +
         rows.map(function (r, i) {
@@ -2084,9 +2170,26 @@
     // the clock of the audience (Liberty Politics: US Eastern; Iran Uncensored: Tehran, CFG.clock), never the computer's own
     function clock() { try { $('ir-sh-clock').textContent = new Intl.DateTimeFormat(CLOCK.locale || 'en-US', { timeZone: CLOCK.tz, hour: 'numeric', minute: '2-digit' }).format(new Date()) + (CLOCK.label || ''); } catch (e) { $('ir-sh-clock').textContent = ''; } }
     clock(); setInterval(clock, 15000);
+    /* EVERY ITEM OPENS AS IT WAS MADE (25 Oct 2026; Armin: the top comments he opened on one item were still open on the
+       next). One function puts back everything a tap on an item can change: the replies panel, a reply or the words on the
+       screen alone, the full-size picture, the Save sheet, a playing video (stopped and let go, so the next one has the
+       line to itself) and a focused control inside the item. go() runs it, and every way of moving (the arrows and keys,
+       the buttons, a swipe, a tap in the rundown, Home and End, back from reading) goes through go(). */
+    function resetItem() {
+      rpOn = false; rpCur = null; closeReply();
+      [].forEach.call($('ir-sh-stage').querySelectorAll('iframe.ir-xv-f'), function (f) {
+        var P = f._xp; if (!P) return; P.dead = 1;
+        try { if (P.hls) P.hls.destroy(); } catch (e) { } P.hls = null;
+        try { P.v.pause(); P.v.removeAttribute('src'); P.v.load(); } catch (e) { }
+      });
+      var lb = document.getElementById('ir-lb'); if (lb && lb.open) { try { lb.close(); } catch (e) { lb.removeAttribute('open'); } }
+      if (typeof closePick === 'function') closePick();
+      var a = document.activeElement; if (a && a !== document.body && $('ir-sh-stage').contains(a) && a.blur) a.blur();
+    }
     function go(i) {
       at = Math.max(0, Math.min(rows.length, i));
       if (mode === 'read') return;
+      resetItem();
       $('ir-sh-count').textContent = at === 0 ? T('Intro') : T('{n} of {m}', { n: N(at), m: N(rows.length) });
       $('ir-sh-prev').disabled = at === 0; $('ir-sh-next').disabled = at === rows.length;
       if (!empty) stage();
@@ -2110,7 +2213,7 @@
             (rg ?'<p class="ir-rd-rg">' + esc(T('Regime media: not linked.')) + '</p>' : '<p class="ir-rd-s"><a href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + ' nofollow">' + esc(srcLine(x)) + '</a></p>') + '</div></li>';
         }).join('') + '</ol>') +
         '<footer class="ir-rd-f"><p>' + esc(T('Every item links to where it was first published. Check it yourself.')) + '</p>' +
-        '<p class="ir-rd-acts"><button type="button" data-rd="present">' + ICON.play + '<span>' + esc(T('Present it')) + '</span></button><button type="button" data-rd="print">' + ICON.notes + '<span>' + esc(T('Print or save as PDF')) + '</span></button>' +
+        '<p class="ir-rd-acts"><button type="button" data-rd="present">' + ICON.play + '<span>' + esc(T('Open the show screen')) + '</span></button><button type="button" data-rd="print">' + ICON.notes + '<span>' + esc(T('Print or save as PDF')) + '</span></button>' +
         '<a class="ir-sh-mk" href="' + esc(location.pathname + '#make') + '">' + ICON.plus + '<span>' + esc(T('Make a show of your own')) + '</span></a></p>' +
         '<p class="ir-rd-mark">' + esc(T('Made in the Intel Room: the news and the evidence of the last 24 hours on one map, free for anyone.')) + ' <a href="' + esc(location.pathname) + '">' + esc(SITE_MARK) + '</a></p></footer></article>';
     }
@@ -2136,7 +2239,8 @@
       mode = m;
       sh.classList.toggle('is-read', m === 'read');
       var mb = $('ir-sh-mode'); mb.setAttribute('aria-pressed', m === 'read' ? 'true' : 'false');
-      mb.innerHTML = (m === 'read' ? ICON.play + '<span>' + esc(T('Present it')) + '</span>' : ICON.read + '<span>' + esc(T('Read it as a page')) + '</span>');
+      mb.title = m === 'read' ? T('Open the show screen') : T('Read it as a page');
+      mb.innerHTML = (m === 'read' ? ICON.play + '<span>' + esc(T('Open the show screen')) + '</span>' : ICON.read + '<span>' + esc(T('Read it as a page')) + '</span>');
       if (history.replaceState) { var u = new URLSearchParams(location.search); u.set('v', m); history.replaceState(null, '', location.pathname + '?' + u.toString()); }
       if (m === 'read') { closeReply(); $('ir-sh-stage').innerHTML = readHtml(); readReplies(); $('ir-sh-stage').scrollTop = 0;$('ir-sh-count').textContent = rows.length === 1 ? T('1 item') : T('{n} items', { n: N(rows.length) }); }
       else { $('ir-sh-stage').innerHTML = ''; if (empty) $('ir-sh-stage').innerHTML = '<div class="ir-sh-card"><h1>' + esc(T('This show has nothing in it')) + '</h1></div>'; go(at); }
@@ -2155,7 +2259,7 @@
     var rpOn = false, rbAt = -1, rpCur = null;          // the replies panel (stays on across items), the reply on the screen alone, the item's replies
     var CARD_RX2 = /^https:\/\/pbs\.twimg\.com\/(?:card_img\/\d+\/[A-Za-z0-9_-]+|media\/[A-Za-z0-9_-]+)\?format=(?:jpg|png|webp)$/;
     function full(x) { return R.fullText ? R.fullText(x) : x.t; }
-    function paras(t) { return String(t || '').split(/\n\s*\n+/).map(function (p) { return '<span class="ir-sh-pp">' + esc(p.trim()) + '</span>'; }).join(' '); }   // the space: a copy or a screen reader read "partnership.We" (22 Oct 2026)
+    function paras(t) { return String(t || '').split(/\n\s*\n+/).map(function (p) { return '<span class="ir-sh-pp"' + (FA ? ' dir="auto"' : '') + '>' + esc(p.trim()) + '</span>'; }).join(' '); }          // dir=auto on the Persian page: an English post reads left to right, its full stop at its end   // the space: a copy or a screen reader read "partnership.We" (22 Oct 2026)
     // the rare post whose end even the room could not get (X's 280 and the mirror both failed): say so, never pretend
     function more(x) { var w = full(x); return w.length >= 270 && /…$/.test(w) ? '<a class="ir-sh-more" href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + '">' + esc(T('The post goes on: read the rest on X')) + '</a>' : ''; }
     function initial(x) { return String(x.nm || x.h || '?').replace(/^@/, '').slice(0, 1).toUpperCase() || '?'; }
@@ -2188,11 +2292,12 @@
       var own = isX && !hasM && !(/…$/.test(words) && !x.tx);          // drawn as the post itself (X's player only when the room lacks the whole text)
       var where = R.where(x) !== T('No single place') ? R.where(x) : '';          // R.where speaks the page's language (placeName goes through T)
       var rfm = hasM && R.refHtml ? R.refHtml(x, 'is-show') : { before: '', after: '' };          // beside a video: what it quotes or answers
-      el.innerHTML = '<div class="ir-sh-frame" id="ir-sh-frame"></div><div class="ir-sh-info" id="ir-sh-info">' + (roleName(r) ? '<p class="ir-sh-role">' + esc(roleName(r)) + '</p>' : '') +
+      var sl = storyLine(at - 1);
+      el.innerHTML = '<div class="ir-sh-frame" id="ir-sh-frame"></div><div class="ir-sh-info" id="ir-sh-info">' + (sl ? '<p class="ir-sh-story"' + (FA ? ' dir="auto"' : '') + '>' + esc(sl) + '</p>' : '') + (roleName(r) ? '<p class="ir-sh-role">' + esc(roleName(r)) + '</p>' : '') +
         (hasM ? '<p class="ir-sh-who">' + face(x, 'ir-sh-wav') + '<b>' + esc(x.nm || x.h) + '</b><small>' + esc(x.h) + '</small></p>' + rfm.before + '<p class="ir-sh-pt" id="ir-sh-fit">' + paras(words) + '</p>' + more(x) + rfm.after
           : '<h2 id="ir-sh-fit">' + paras(words) + '</h2>') +
         '<p class="ir-sh-meta">' + R.mark(x) + esc((isX ? [R.when(x), where] : [R.when(x), x.nm || x.h || x.src, where]).filter(Boolean).join(' · ')) + '</p>' +
-        counts(x) + (x.hotWhy ? '<p class="ir-sh-why">' + ICON.flame + esc(x.hotWhy) + '</p>' : '') + (x.also && x.also.length ? '<p class="ir-sh-also">' + esc(T('Also carried by {list}', { list: x.also.join(T(', ')) })) + '</p>' : '') +
+        counts(x) + coverLine(x) + (x.hotWhy ? '<p class="ir-sh-why">' + ICON.flame + esc(x.hotWhy) + '</p>' : '') + (x.also && x.also.length ? '<p class="ir-sh-also">' + esc(T('Also carried by {list}', { list: x.also.join(T(', ')) })) + '</p>' : '') +
         '<p class="ir-sh-acts">' + (hasM && words.length > 110 ? '<button type="button" class="ir-sh-rpb ir-sh-wb" id="ir-sh-wb" title="' + esc(T('The words on the screen alone (W)')) + '">' + ICON.full + '<span>' + esc(T('Words on the screen')) + '</span></button>' : '') + (k ? '<button type="button" class="ir-sh-rpb" id="ir-sh-rpb" aria-pressed="false" aria-controls="ir-sh-rp" title="' + esc(T('Top replies (R)')) + '">' + ICON.reply + '<span>' + esc(k.slice(0, 2) === 'yt' ? T('Top comments') : T('Top replies')) + '</span><b class="num" id="ir-sh-rpn"></b></button>' : '') +
         saveBtn(x, 'ir-svb-w ir-sh-svb') + '<a class="ir-sh-src" href="' + esc(href(x.u)) + '" target="_blank" rel="' + RELN + '">' + esc(srcLine(x)) + '</a></p></div>' +
         (k ? '<aside class="ir-sh-rp" id="ir-sh-rp" aria-label="' + esc(T('Most-liked replies')) + '" hidden></aside>' : '') +
@@ -2268,30 +2373,46 @@
       if (!any) return box.scrollHeight > box.clientHeight + 1 || box.scrollWidth > box.clientWidth + 1;
       return bot - top > box.clientHeight + 1 || box.scrollWidth > box.clientWidth + 1;
     }
-    function fitText(t, box, hi, lo) {
+    // fol: what must stay SMALLER than t, sized with it (a quoted post's words at FOL of the post's own). 25 Oct 2026: a
+    // quote kept its fixed size up to 40px while the post that quoted it was squeezed to 18px beside it.
+    var FOL = 0.72;
+    function fitText(t, box, hi, lo, fol) {
       if (!t || !box || !t.offsetParent) return;
       t.classList.remove('is-scroll');
       hi = Math.max(lo, Math.round(hi));
-      t.style.fontSize = hi + 'px';
+      var size = function (m) { t.style.fontSize = m + 'px'; if (fol) [].forEach.call(fol, function (e) { e.style.fontSize = Math.max(14, Math.round(m * FOL)) + 'px'; }); };
+      size(hi);
       if (!spills(box)) return;
       var a = lo, b = hi;
-      for (var n = 0; n < 12 && b - a > 0.5; n++) { var m = (a + b) / 2; t.style.fontSize = m + 'px'; if (spills(box)) b = m; else a = m; }
-      t.style.fontSize = Math.floor(a) + 'px';
+      for (var n = 0; n < 12 && b - a > 0.5; n++) { var m = (a + b) / 2; size(m); if (spills(box)) b = m; else a = m; }
+      size(Math.floor(a));
       if (spills(box)) t.classList.add('is-scroll');
     }
     var narrowQ = matchMedia('(max-width:900px)'), fitT = 0;
     function refit() {
-      var all = sh.querySelectorAll('#ir-sh-fit,#ir-sh-fit2,#ir-sh-rbt,.ir-sh-ct,.ir-sh-open h1');
+      var all = sh.querySelectorAll('#ir-sh-fit,#ir-sh-fit2,#ir-sh-rbt,.ir-sh-ct,.ir-sh-open h1,#ir-sh-tt,.ir-sh-stage .ir-ref-t');
       if (narrowQ.matches) { [].forEach.call(all, function (t) { t.style.fontSize = ''; t.classList.remove('is-scroll'); }); return; }
       var H = window.innerHeight, W = window.innerWidth, u = Math.min(H, W * 0.6);
-      var pt = $('ir-sh-fit2'); if (pt) fitText(pt, pt, u * 0.1, 18);
-      var f = $('ir-sh-fit'), info = $('ir-sh-info'); if (f && info) fitText(f, info, f.tagName === 'H2' ? u * 0.072 : u * 0.05, 15);
+      var pt = $('ir-sh-fit2'); if (pt) fitText(pt, pt, u * 0.1, 18, sh.querySelectorAll('.ir-sh-post .ir-ref-t'));
+      var f = $('ir-sh-fit'), info = $('ir-sh-info'), stg = $('ir-sh-stage');
+      if (f && info) {
+        // TIGHT (25 Oct 2026): when even the smallest size spills (a 720p window, a long post, the coverage under it), the
+        // extra lines step aside (why it is hot, who else carried it, the coverage words) before the buttons are pushed
+        // off the screen: what he must be able to tap stays on it
+        var fitInfo = function () { fitText(f, info, f.tagName === 'H2' ? u * 0.072 : u * 0.05, 15, sh.querySelectorAll('.ir-sh-info .ir-ref-t')); };
+        stg.classList.remove('is-tight'); fitInfo();
+        if (f.classList.contains('is-scroll') || spills(info)) { stg.classList.add('is-tight'); fitInfo(); }
+      }
       var rb = $('ir-sh-rbt'); if (rb) fitText(rb, rb, u * 0.095, 18);
       var ct = sh.querySelector('.ir-sh-ct'), fr = $('ir-sh-frame'); if (ct && fr) fitText(ct, fr, u * 0.075, 18);
       var oh = sh.querySelector('.ir-sh-open h1'), op = $('ir-sh-stage'); if (oh && op) fitText(oh, op, u * 0.11, 24);
+      var tt = $('ir-sh-tt'), tb = $('ir-sh-topic'); if (tt && tb && !tt.hidden && mode !== 'read') fitText(tt, tb, u * 0.05, 18);          // the topic: as large as two lines of the bar allow
     }
     function refitSoon() { clearTimeout(fitT); fitT = setTimeout(refit, 40); }          // a timer, not a frame: a page in a background tab gets no frames
-    if (window.ResizeObserver) new ResizeObserver(refitSoon).observe($('ir-sh-stage'));
+    // The topic is watched too (25 Oct 2026): its box and its words change size without the stage changing (the Persian
+    // font arriving after document.fonts.ready had already settled, the bar's tools taking their width), and the topic
+    // stayed at the size fitted before, three lines in a two-line bar (Iran Uncensored phone test, part stage).
+    if (window.ResizeObserver) { var shRO = new ResizeObserver(refitSoon); ['ir-sh-stage', 'ir-sh-topic', 'ir-sh-tt'].forEach(function (id) { if ($(id)) shRO.observe($(id)); }); }
     window.addEventListener('resize', refitSoon);
     // and a backstop once a second: a browser that paints no frames (a background tab, some streaming apps' browser
     // sources) reports neither a resize nor a ResizeObserver change, and the text kept its old size (measured 18 Oct 2026)
@@ -2302,6 +2423,21 @@
     function roleName(r) { return r.role === 'on' ? '' : r.role === 'rel' ? T('Related') : Object.prototype.hasOwnProperty.call(ROLE, r.role) ? ROLE[r.role] : ''; }
     function cut(t, n) { return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; }
     function srcLine(x) { var h = String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0]; return T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : h }); }
+    /* WHO COVERED THIS STORY, on the screen (25 Oct 2026): of the outlets that carried it, how many lean left, centre and
+       right (intel_live.py spread(), our own lean table; the page only draws what the file says), and a Blindspot names
+       the silent side. Drawn only from five rated outlets up, so a bar of one or two never reads as a verdict to the
+       audience; nothing where the feed has no spread (Iran Uncensored's room). */
+    function coverLine(x) {
+      var o = R.spread ? R.spread(x) : null; if (!o || !Array.isArray(o.ls)) return '';
+      var n = function (i) { return Math.max(0, +o.ls[i] || 0); }, rated = n(0) + n(1) + n(2);
+      if (rated < 5) return '';
+      var sides = [['L', T('Left')], ['C', T('Centre')], ['R', T('Right')]];
+      var bar = '<span class="ir-sp ir-sh-spb" aria-hidden="true">' + sides.map(function (s, i) { return n(i) ? '<i class="ir-sp-' + s[0] + '" style="flex:' + n(i) + '"></i>' : ''; }).join('') + '</span>';
+      var key = sides.map(function (s, i) { return '<span class="ir-sh-cv' + s[0] + '">' + esc(s[1]) + ' <b class="num">' + N(n(i)) + '</b></span>'; }).join('');
+      var bs = o.bs === 'L' || o.bs === 'R' ? '<span class="ir-bs">' + esc(o.bs === 'L' ? T('Left silent') : T('Right silent')) + '</span>' : '';
+      return '<div class="ir-sh-cov" role="img" aria-label="' + esc(T('Outlets that carried it: {l} left, {c} centre, {r} right', { l: N(n(0)), c: N(n(1)), r: N(n(2)) })) + '">' +
+        '<p class="ir-sh-covh">' + esc(o === x ? T('Who covered it') : T('Who covered this story')) + bs + '</p>' + bar + '<p class="ir-sh-covn">' + key + '</p></div>';
+    }
     function counts(x) {
       // every count is made a number here, whatever the item says (a saved show's "hot":"<img onerror=...>" ran on open)
       var r = R.reach(x) || {}, b = [], num = function (v) { if (v == null || v === '') return null; v = +v; return isFinite(v) ? v : null; };
@@ -2408,6 +2544,7 @@
         else copyText(url, copied, function () { if (sp) sp.textContent = url; });
         return;
       }
+      if (b.id === 'ir-sh-tpe') { editTopic(); return; }
       if (b.id === 'ir-sh-rpb') { replies(!rpOn); return; }
       if (b.hasAttribute('data-rp-close')) { replies(false); var rb0 = $('ir-sh-rpb'); if (rb0) rb0.focus(); return; }
       if (b.hasAttribute('data-rp')) { showReply(+b.getAttribute('data-rp')); return; }
@@ -2459,6 +2596,7 @@
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (rbAt >= 0) showReply(rbAt + (fwd ? 1 : -1)); else go(at + (fwd ? 1 : -1)); }
     }, { passive: true });
     if (mode === 'present' && rows.some(function (r) { return /^https:\/\/(www\.)?(x|twitter)\.com\//.test(r.it.u || ''); })) tw().catch(function () {});          // X's player loads once, early
+    paintTopic();
     if (mode === 'read') setMode('read'); else go(at);
     sh.setAttribute('data-ready', '1');
   }
