@@ -236,7 +236,10 @@ async function send() {
    Send does nothing rather than reload the page with the answers in the address. */
 function prefill() {
   if (!FORM) return;
-  try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; if (tz && !$('tj-tz').value) $('tj-tz').value = tz; } catch (x) { }
+  /* data-tz-skip (the Iran site, 25 Oct 2026): zones never filled in by themselves, because the zone says where the reader is.
+     A reader inside Iran may apply for the Persian show by voice, and the form must not tell anyone they are in Iran. */
+  try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone, skip = (FORM.dataset.tzSkip || '').split(' ');
+    if (tz && skip.indexOf(tz) < 0 && !$('tj-tz').value) $('tj-tz').value = tz; } catch (x) { }
   const f = fromTag(), h = HEARD_OF[f];
   if (h && !$('tj-heard').value && FORM.querySelector('#tj-heard option[value="' + h + '"]')) $('tj-heard').value = h;
   FORM.addEventListener('submit', e => { if (!M) e.preventDefault(); });

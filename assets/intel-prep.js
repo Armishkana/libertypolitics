@@ -2406,7 +2406,16 @@
       var rb = $('ir-sh-rbt'); if (rb) fitText(rb, rb, u * 0.095, 18);
       var ct = sh.querySelector('.ir-sh-ct'), fr = $('ir-sh-frame'); if (ct && fr) fitText(ct, fr, u * 0.075, 18);
       var oh = sh.querySelector('.ir-sh-open h1'), op = $('ir-sh-stage'); if (oh && op) fitText(oh, op, u * 0.11, 24);
-      var tt = $('ir-sh-tt'), tb = $('ir-sh-topic'); if (tt && tb && !tt.hidden && mode !== 'read') fitText(tt, tb, u * 0.05, 18);          // the topic: as large as two lines of the bar allow
+      var tt = $('ir-sh-tt'), tb = $('ir-sh-topic'); if (tt && tb && !tt.hidden && mode !== 'read') {
+        fitText(tt, tb, u * 0.05, 18);          // the topic: as large as two lines of the bar allow
+        // 25 Oct 2026: the bar centres its rows, so a topic of three lines can measure as fitting while its last line hangs
+        // below the bar (a 60-letter Persian topic at 1920x1080, phone-test "the topic is cut"). The topic's OWN box must sit
+        // inside the bar: step down a pixel at a time until it does, never below the floor.
+        var ins = function () { var a = tt.getBoundingClientRect(), b = tb.getBoundingClientRect(); return a.bottom <= b.bottom + 1 && a.top >= b.top - 1; };
+        // No step cap below the floor (25 Oct 2026): a 40-step cap stopped at 33px from a 73px start and left the last line
+        // hanging under the bar; the 18px floor alone bounds the loop.
+        for (var fs = parseFloat(getComputedStyle(tt).fontSize); fs > 18 && !ins(); ) { fs -= 1; tt.style.fontSize = fs + 'px'; }
+      }
     }
     function refitSoon() { clearTimeout(fitT); fitT = setTimeout(refit, 40); }          // a timer, not a frame: a page in a background tab gets no frames
     // The topic is watched too (25 Oct 2026): its box and its words change size without the stage changing (the Persian
@@ -2417,7 +2426,10 @@
     // and a backstop once a second: a browser that paints no frames (a background tab, some streaming apps' browser
     // sources) reports neither a resize nor a ResizeObserver change, and the text kept its old size (measured 18 Oct 2026)
     var lastBox = '';
-    setInterval(function () { var s0 = $('ir-sh-stage'); if (!s0) return; var kb = s0.clientWidth + 'x' + s0.clientHeight; if (kb !== lastBox) { lastBox = kb; refitSoon(); } }, 1000);
+    // 25 Oct 2026: the topic's own box is in the key too, and the look is four times a second: in a browser that paints no
+    // frames the Persian font arrived after the fit, the topic grew to three lines in its two-line bar, and nothing refitted
+    // it before the phone test looked (fa/news/, "the topic is cut", three runs in a row)
+    setInterval(function () { var s0 = $('ir-sh-stage'); if (!s0) return; var t0 = $('ir-sh-tt'), kb = s0.clientWidth + 'x' + s0.clientHeight + (t0 ? '|' + t0.offsetWidth + 'x' + t0.offsetHeight : ''); if (kb !== lastBox) { lastBox = kb; refitSoon(); } }, 250);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(refitSoon);
     function firstSentence(t) { var m = /^.*?[.?!](\s|$)/.exec(t); return (m ? m[0] : t).trim(); }
     function roleName(r) { return r.role === 'on' ? '' : r.role === 'rel' ? T('Related') : Object.prototype.hasOwnProperty.call(ROLE, r.role) ? ROLE[r.role] : ''; }
