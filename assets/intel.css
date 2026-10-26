@@ -1430,6 +1430,9 @@ html.ir-show .ir-cmd>:not(.ir-lens){display:none!important}
 .ir-sv-open a:hover span{text-decoration:underline}
 .ir-sv-say{margin:0;color:var(--field);font:600 var(--t2)/1.4 var(--body)}
 .ir-sv-say:empty{display:none}
+.ir-sv-note{margin:6px 0 0;color:var(--dim);font-size:var(--t1);line-height:1.45}
+/* the link to the terms beside every box (build/consent.py): a tap target of 40px like every other control */
+.consent-note a{display:inline-flex;align-items:center;min-height:40px}
 .ir-sv-mine{border-top:1px solid var(--line);padding-top:8px}
 .ir-sv-mine summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--ink);font:700 var(--t2) var(--body)}
 .ir-sv-mine ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}

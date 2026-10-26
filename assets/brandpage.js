@@ -513,7 +513,7 @@ function commentBox(about, title, hint, open) {
       body.append(c);
     });
     if (hint) body.append(el('p', 'bp-sub', hint, { style: 'margin:8px 0' }));
-    const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make it better? What do you love?', 'aria-label': title });
+    const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make it better? What do you love?', 'aria-label': title, 'data-consent': 'none:brandkit' });
     const send = el('button', 'bp-btn main', 'Send to me', { type: 'button' });
     const line = el('p', 'bp-msg', said || '', { role: 'status', 'aria-live': 'polite' });
     send.addEventListener('click', async () => {
@@ -1233,10 +1233,10 @@ function paintSent() {
   };
   SENT_KINDS.forEach(([k, t]) => { const b = el('button', 'bp-chip', t, { type: 'button', 'data-kind': k, 'aria-pressed': 'false' }); b.addEventListener('click', () => setKind(k)); kinds.append(b); });
   const drop = el('div', 'bp-drop');
-  const input = el('input', null, null, { type: 'file', accept: 'image/*', multiple: '', id: 'bp-sent-file', tabindex: '-1', 'aria-hidden': 'true' });
+  const input = el('input', null, null, { type: 'file', accept: 'image/*', multiple: '', id: 'bp-sent-file', tabindex: '-1', 'aria-hidden': 'true', 'data-consent': 'none:brandkit' });
   const pick = ibtn('bp-btn main', 'image', 'Choose pictures');
   pick.id = 'bp-sent-pick';
-  const note = el('textarea', 'short', null, { rows: '2', maxlength: '600', placeholder: 'What should I take from these? You can leave this empty.', 'aria-label': 'A note with the pictures' });
+  const note = el('textarea', 'short', null, { rows: '2', maxlength: '600', placeholder: 'What should I take from these? You can leave this empty.', 'aria-label': 'A note with the pictures', 'data-consent': 'none:brandkit' });
   const line = msg('');
   line.id = 'bp-sent-line';
   const holder = el('div');
@@ -1277,7 +1277,7 @@ function paintSent() {
   const chk = el('details', 'bp-more', null, { id: 'bp-bannercheck', style: 'margin-top:16px' });
   chk.append(el('summary', null, 'Check a banner before you put it up'));
   chk.append(el('p', 'bp-sub', 'Pick a banner from your phone or computer and see what a phone, a computer and a TV will show. It stays on your device: nothing is sent.', { style: 'margin:8px 0 0' }));
-  const cin = el('input', null, null, { type: 'file', accept: 'image/*', tabindex: '-1', 'aria-hidden': 'true', style: 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none' });
+  const cin = el('input', null, null, { type: 'file', accept: 'image/*', tabindex: '-1', 'aria-hidden': 'true', style: 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none', 'data-consent': 'none:brandkit' });
   const cbtn = ibtn('bp-btn', 'eye', 'Choose a banner');
   const cout = el('div');
   cbtn.addEventListener('click', () => cin.click());
@@ -1360,7 +1360,7 @@ function paintBetter() {
     b.addEventListener('click', () => { ST.ptype = k; kinds.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); });
     kinds.append(b);
   });
-  const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make this page better, for you or for anyone on the team?', 'aria-label': 'Make this page better for the whole team' });
+  const ta = el('textarea', 'short', null, { rows: '3', maxlength: '1500', placeholder: 'What would make this page better, for you or for anyone on the team?', 'aria-label': 'Make this page better for the whole team', 'data-consent': 'none:brandkit' });
   const send = el('button', 'bp-btn main', 'Send to me', { type: 'button' });
   const line = el('p', 'bp-msg', '', { role: 'status', 'aria-live': 'polite' });
   const mineBox = el('div', 'bp-mynotes');
@@ -1472,7 +1472,7 @@ function field(k, label, help, draft) {
   box.append(el('b', null, label));
   if (help) box.append(el('small', null, help));
   const saved = ST.mine[k];
-  const ta = el('textarea', null, null, { rows: '4', maxlength: '3000' });
+  const ta = el('textarea', null, null, { rows: '4', maxlength: '3000', 'data-consent': 'none:brandkit' });
   ta.value = saved ? saved.v : draft || '';
   const state = el('span', 'bp-state', saved ? 'Saved.' : '');
 
@@ -1556,7 +1556,7 @@ function wordCard(w, f) {
   if (f.why) card.append(el('p', 'bp-why', T(f.why)));
   const saved = ST.mine[k];
   const long = f.text.length > 160 || f.text.includes('\n');
-  const ta = el('textarea', long ? null : 'short', null, { rows: long ? '7' : '2', 'aria-label': `${w.p}: ${f.label}` });
+  const ta = el('textarea', long ? null : 'short', null, { rows: long ? '7' : '2', 'aria-label': `${w.p}: ${f.label}`, 'data-consent': 'none:brandkit' });
   ta.value = saved ? saved.v : f.text;
   const state = el('span', 'bp-state', saved ? 'Your version, saved.' : '');
   const upd = () => {

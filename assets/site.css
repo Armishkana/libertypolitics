@@ -1283,6 +1283,9 @@ html[lang="fa"] .hi-q{quotes:"\00AB" "\00BB"}
 .hi-x:hover{background:var(--raise);color:var(--ink)}
 .hi-go:focus-visible,.hi-x:focus-visible{outline:2px solid var(--field);outline-offset:2px}
 @media print{.hi{display:none}}
+
+/* the link to the terms beside every box that takes something (build/consent.py, 26 October 2026): a 40px tap target */
+.consent-note a{display:inline-flex;align-items:center;min-height:40px}
 /* THE LOOK OF 14 OCTOBER 2026. This file is added after site.css by the build (render.py, extras): the site still
    loads one stylesheet. Where both files speak, this one decides.
 

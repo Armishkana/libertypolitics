@@ -596,11 +596,11 @@ function run() {
     if (!B) return;
     if (!B.form) {
       const f = el('form', 'q-form', null, { novalidate: '' }), n = ++uid;
-      const ta = el('textarea', null, null, { id: 'q-t' + n, rows: '4', maxlength: String(MAXLEN), placeholder: m.ask || '' });
+      const ta = el('textarea', null, null, { id: 'q-t' + n, rows: '4', maxlength: String(MAXLEN), placeholder: m.ask || '', 'data-consent': 'terms' });
       f.append(el('label', null, tt('What did you do?'), { for: 'q-t' + n }), ta);
       let link = null;
       if (m.proof === 'link' || m.proof === 'either') {
-        link = el('input', null, null, { id: 'q-u' + n, type: 'url', inputmode: 'url', maxlength: '400', autocomplete: 'off', placeholder: 'https://' });
+        link = el('input', null, null, { id: 'q-u' + n, type: 'url', inputmode: 'url', maxlength: '400', autocomplete: 'off', placeholder: 'https://', 'data-consent': 'terms' });
         f.append(el('label', null, m.proof === 'either' ? tt('Link to your own post, if you made one') : tt('Link to your proof'), { for: 'q-u' + n }), link);
       }
       /* THE HOST'S YES IS NOT THE GUEST'S YES (14 October 2026). A mission whose data says "confirm" puts one box under the
@@ -615,7 +615,10 @@ function run() {
       f.append(el('p', 'q-hint', tt('Leave out anything private about anyone. A report is a post: other readers can see it.')));
       const go = el('button', 'btn btn-key', tt('Send report'), { type: 'submit' }), no = el('button', 'q-text', tt('Not now'), { type: 'button' });
       const row = el('div', 'q-btns'); row.append(go, no);
-      f.append(row);
+      /* What sending means, and the link to the terms (data/consent.json; build/consent.py stops the build without it). */
+      const tl = el('p', 'q-hint consent-note');
+      tl.append(tt('What you post here can be shown, quoted and shared on the site and on the shows.') + ' ', el('a', null, tt('The terms'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + 'terms/', target: '_blank', rel: 'noopener' }));
+      f.append(row, tl);
       B.form = f; B.ta = ta; B.link = link; B.go = go; B.ok = ok;
       box.insertBefore(f, B.say);
       let t = 0;

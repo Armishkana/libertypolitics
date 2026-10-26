@@ -997,7 +997,7 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, function () { fallback(txt); done(); });
     else { fallback(txt); done(); }
   }
-  function fallback(t) { var ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { /* nothing to do */ } ta.remove(); }
+  function fallback(t) { var ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) { /* nothing to do */ } ta.remove(); }      // data-consent: 'none:clipboard'
 
   /* ------------------------------------------------------------ the Forces tab */
   function tabEl() {

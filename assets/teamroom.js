@@ -426,7 +426,7 @@ function acts(n, box) {
 }
 function noteForm(parent) {
   const form = el('form', 'tr-form', null, { novalidate: '' }), msg = line();
-  const ta = el('textarea', null, null, { maxlength: String(R.max), dir: 'auto', required: '', id: parent ? 'tr-r-' + parent : 'tr-new' });
+  const ta = el('textarea', null, null, { maxlength: String(R.max), dir: 'auto', required: '', id: parent ? 'tr-r-' + parent : 'tr-new', 'data-consent': 'none:team' });
   const count = el('span', 'tr-count', '');
   let kind = 'missing';
   if (!parent) {
@@ -439,7 +439,7 @@ function noteForm(parent) {
     form.append(pick);
   }
   const lab = el('label'); lab.append(D.createTextNode(parent ? tt('Your reply') : tt('What do you need? Say where it will be used and what size, if you know.')), ta, count);
-  const link = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '400', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', dir: 'ltr' });
+  const link = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '400', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', dir: 'ltr', 'data-consent': 'none:team' });
   const ll = el('label'); ll.append(D.createTextNode(tt('A link to an example (optional)')), link);
   const go = el('button', 'btn btn-key', parent ? tt('Send reply') : tt('Send to the room'), { type: 'submit' });
   ta.addEventListener('input', () => { count.textContent = ta.value.length > R.max - 200 ? tt('{n} left', { n: R.max - ta.value.length }) : ''; });

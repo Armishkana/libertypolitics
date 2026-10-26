@@ -1057,10 +1057,16 @@
   function curNote() { if (ui.myNote != null) return ui.myNote.trim(); return PLAIN || !ui.pack ? '' : introText(); }
   function curCover() { return PLAIN || !ui.pack ? '' : ((chosen('covers') || {}).t || ''); }
   function curDesc() { return PLAIN || !ui.pack || !chosen('descs') ? '' : fullDesc(chosen('descs').t); }
+  // What saving a show means, and the link to the terms (data/consent.json; build/consent.py stops both builds when a box
+  // that takes words carries no data-consent). The page's own root and language folder lead to terms/.
+  function termsLine() {
+    var H = document.documentElement, base = (H.getAttribute('data-root') || '') + (H.getAttribute('data-lang') ? H.getAttribute('data-lang') + '/' : '');
+    return '<p class="ir-sv-note consent-note">' + esc(T('What you post here can be shown, quoted and shared on the site and on the shows.')) + ' <a href="' + esc(base + 'terms/') + '" target="_blank" rel="noopener">' + esc(T('The terms')) + '</a></p>';
+  }
   // Iran Uncensored's maker: the title and the note are the creator's own words (PLAIN)
   function wordsHtml() {
     return '<div class="ir-sv-f ir-sv-words"><label for="ir-sv-t">' + esc(T('Title')) + '</label><input id="ir-sv-t" type="text" maxlength="120" dir="auto" autocomplete="off" value="' + esc(ui.myTitle != null ? ui.myTitle : curTitle()) + '" placeholder="' + esc(T('Name the show')) + '">' +
-      '<label for="ir-sv-n">' + esc(T('A note for whoever presents it')) + '</label><textarea id="ir-sv-n" rows="3" maxlength="1200" dir="auto" placeholder="' + esc(T('What the show is about, in a few lines. It shows beside the screen and on the page.')) + '">' + esc(ui.myNote != null ? ui.myNote : curNote()) + '</textarea></div>';
+      '<label for="ir-sv-n">' + esc(T('A note for whoever presents it')) + '</label><textarea id="ir-sv-n" data-consent="terms" rows="3" maxlength="1200" dir="auto" placeholder="' + esc(T('What the show is about, in a few lines. It shows beside the screen and on the page.')) + '">' + esc(ui.myNote != null ? ui.myNote : curNote()) + '</textarea>' + termsLine() + '</div>';
   }
   function firstLine(t) { var m = /^.*?[.?!](\s|$)/.exec(t); return (m ? m[0] : t).trim(); }
   // THE NOTES ON HOW PEOPLE CHANGE IT. When a creator commits a show (opens its screen or copies its package), one record goes
@@ -1219,7 +1225,7 @@
     var h = '<section class="ir-sv" aria-labelledby="ir-sv-h"><h4 class="ir-sv-h" id="ir-sv-h">' + ICON.link + '<span>' + esc(T('Save it and send the link')) + '</span></h4>' +
       '<p class="ir-sv-p">' + esc(T('One link for the whole show. Whoever opens it can present it, read it as a page with every source, or make their own.')) + '</p>';
     if (!PLAIN) h += '<div class="ir-sv-f"><label for="ir-sv-t">' + esc(T('Title')) + '</label><input id="ir-sv-t" type="text" maxlength="120" dir="auto" autocomplete="off" value="' + esc(ui.myTitle != null ? ui.myTitle : curTitle()) + '">' +
-      '<label for="ir-sv-n">' + esc(T('A note for whoever presents it')) + '</label><textarea id="ir-sv-n" rows="3" maxlength="1200" dir="auto">' + esc(ui.myNote != null ? ui.myNote : curNote()) + '</textarea></div>';
+      '<label for="ir-sv-n">' + esc(T('A note for whoever presents it')) + '</label><textarea id="ir-sv-n" data-consent="terms" rows="3" maxlength="1200" dir="auto">' + esc(ui.myNote != null ? ui.myNote : curNote()) + '</textarea>' + termsLine() + '</div>';
     if (!LPX) h += '<p class="ir-sv-say">' + esc(T('Saving works on the live site.')) + '</p>';
     else if (!me) h += '<div class="ir-sv-row"><button type="button" class="ir-sv-go" data-sv="in">' + ICON.save + '<span>' + esc(T('Sign in to save it')) + '</span></button><small>' + esc(T('Free. A saved show carries its maker\'s name, so it needs an account.')) + '</small></div>';
     else if (!me.v) h += '<div class="ir-sv-row"><button type="button" class="ir-sv-go" data-sv="check">' + ICON.save + '<span>' + esc(T('Confirm your email to save it')) + '</span></button><small>' + esc(T('We sent you a link when you made the account. One tap on it and you can save.')) + '</small></div>';
@@ -1320,7 +1326,7 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { fallback(t) ? done() : fail(); }); else if (fallback(t)) done(); else fail();
   }
   function fallback(t) {
-    try { var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e) { return false; }
+    try { var ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); var ok = document.execCommand('copy'); ta.remove(); return ok; } catch (e) { return false; }      // data-consent: 'none:clipboard'
   }
   function flash(b, txt) {
     // a button with no words of its own says what happened in its label, then gets its own label back (it was always "Copy

@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=1bec8431b4; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=d56aab7bed; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -45,6 +45,14 @@
 
 const D = document, H = D.documentElement;
 const ROOT = H.getAttribute('data-root') || './';
+/* What posting means, and the link to the terms (data/consent.json; community.js termsNote is the same line). Under the
+   gathering form, the photo wall and the profile editor. Every box here carries data-consent on the line that draws it,
+   or both builds stop (build/consent.py). */
+function termsLine() {
+  const p = el('p', 'mb-hint consent-note');
+  p.append(tt('What you post here can be shown, quoted and shared on the site and on the shows.') + ' ', el('a', null, tt('The terms'), { href: ROOT + BASE + 'terms/', target: '_blank', rel: 'noopener' }));
+  return p;
+}
 const SITE = (window.LPSITE && typeof window.LPSITE === 'object') ? window.LPSITE : {};
 const BASE = typeof SITE.base === 'string' ? SITE.base : '';
 const K = (window.LP && window.LP.members) || null;
@@ -1031,7 +1039,7 @@ function coverPicker(g, line, kindOf) {
     grid.append(b);
   });
   const id = 'mb-' + Math.random().toString(36).slice(2, 9);
-  const file = el('input', null, null, { type: 'file', id, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-cover': '' });
+  const file = el('input', null, null, { type: 'file', id, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-cover': '', 'data-consent': 'terms' });
   file.addEventListener('change', async () => {
     const f = file.files && file.files[0];
     if (!f) return;
@@ -1056,7 +1064,7 @@ function detailFields(g, line, kindOf) {
   let join = g.join === 'ask' ? 'ask' : g.join === 'open' ? 'open' : '';
   const venue = el('input', null, null, { type: 'text', maxlength: '80', autocomplete: 'organization', 'data-mb-venue': '' }); venue.value = g.venue || '';
   const addr = el('input', null, null, { type: 'text', maxlength: '160', autocomplete: 'street-address', 'data-mb-address': '' }); addr.value = g.address || '';
-  const home = el('textarea', null, null, { maxlength: String(L.place), rows: '2', autocomplete: 'street-address', 'data-mb-home': '' }); home.value = g.homeText || '';
+  const home = el('textarea', null, null, { maxlength: String(L.place), rows: '2', autocomplete: 'street-address', 'data-mb-home': '', 'data-consent': 'terms' }); home.value = g.homeText || '';
   const pick = el('div', 'mb-chips mb-big', null, { role: 'group', 'aria-label': tt('Where is it?') });
   const pubBox = el('div', 'mb-sub'), homeBox = el('div', 'mb-sub');
   const joinPick = el('div', 'mb-chips', null, { role: 'group', 'aria-label': tt('Who can come?') });
@@ -1075,10 +1083,10 @@ function detailFields(g, line, kindOf) {
   const wf = el('div', 'mb-f'); wf.append(el('span', 'mb-l', tt('Where is it?')));
   if (!IU) wf.append(pick, el('p', 'mb-hint', tt('Meeting people you have not met before? Pick a public place the first time.')));
   out.append(wf, pubBox, homeBox);
-  const about = el('textarea', null, null, { maxlength: '1000', rows: '5', 'data-mb-about': '' }); about.value = g.about || '';
+  const about = el('textarea', null, null, { maxlength: '1000', rows: '5', 'data-mb-about': '', 'data-consent': 'terms' }); about.value = g.about || '';
   const cnt = el('span', 'mb-count'), upd = () => { cnt.textContent = dig(1000 - about.value.length); }; about.addEventListener('input', upd); upd();
   const af = field(tt('Tell people why they should come'), about, IU ? tt('What happens there, who it is for, what to bring.') : tt('What you will talk about or watch, who is coming, the food, the mood. Write it like you are inviting a friend.')); af.append(cnt);
-  const video = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-mb-video': '' }); video.value = g.video || '';
+  const video = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-mb-video': '', 'data-consent': 'terms' }); video.value = g.video || '';
   const pic = coverPicker(g, line, kindOf);
   out.append(af, pic.node, field(tt('A video about it'), video, tt('Optional. A YouTube, TikTok, Instagram or X link: a clip of the place, an invite, your last night.')));
   paint();
@@ -1133,7 +1141,7 @@ async function initNew(box) {
     const at = el('input', null, null, { type: 'datetime-local' });
     const city = el('input', null, null, { type: 'text', maxlength: String(L.city), autocomplete: 'address-level2', 'data-mb-city': '' });
     const lineIn = el('input', null, null, { type: 'text', maxlength: String(L.line), autocomplete: 'off', 'data-mb-line': '' });
-    const link = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
+    const link = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-consent': 'terms' });
     /* POST IT AGAIN (16 October 2026): ?again=<id> of the host's own gathering fills the form with it (the words, the kind,
        the place, the seats, the picture, the home address) and leaves only the day to pick. After a night nobody came to, and
        after a good one ("Host the next one"): a table that meets again is how a group forms. */
@@ -1202,7 +1210,7 @@ async function initNew(box) {
     form.append(field(tt('Link to its own page'), link, tt('Optional. Your event page somewhere else, if it has one.')));
     form.append(t1.node, t2.node); if (t3) form.append(t3.node);
     const go = el('button', 'btn btn-key', IU ? tt('Post the event') : tt('Post the gathering'), { type: 'submit' });
-    form.append(go, line, safety());
+    form.append(go, line, safety(), termsLine());
     body.append(form);
     form.addEventListener('submit', async ev => {
       ev.preventDefault();
@@ -1449,7 +1457,7 @@ async function initOne(box) {
     let stars = 0;
     const row = el('div', 'mb-stars', null, { role: 'group', 'aria-label': tt('How was it, from 1 to 5?') });
     for (let i = 1; i <= 5; i++) { const s = btn('mb-star', dig(i), () => { stars = i; row.querySelectorAll('button').forEach((x, j) => x.setAttribute('aria-pressed', String(j + 1 === i))); }); s.setAttribute('aria-pressed', 'false'); row.append(s); }
-    const note = el('textarea', null, null, { maxlength: String(DATA.limits.note), rows: '3' });
+    const note = el('textarea', null, null, { maxlength: String(DATA.limits.note), rows: '3', 'data-consent': 'terms' });
     const send = btn('btn btn-key', tt('Send'), async () => {
       if (!stars) { say(line, tt('Pick a number from 1 to 5.'), true); return; }
       send.disabled = true; say(line, tt('Sending.'));
@@ -1506,7 +1514,7 @@ async function initOne(box) {
     const pref = F.doc(db, 'gatherings', id, 'place', 'p');
     let ptext = ''; try { const p = await F.getDoc(pref); ptext = p.exists() ? p.data().text : ''; } catch (x) { }
     if (isPublic(G)) {
-      const ta = el('textarea', null, null, { maxlength: String(DATA.limits.place), rows: '2' }); ta.value = ptext;
+      const ta = el('textarea', null, null, { maxlength: String(DATA.limits.place), rows: '2', 'data-consent': 'terms' }); ta.value = ptext;
       const saveP = btn('btn btn-line', tt('Save the note'), async () => {
         say(line, tt('Saving.'));
         try { await within(20000, F.setDoc(pref, { text: ta.value.trim().slice(0, DATA.limits.place), at: F.serverTimestamp() })); say(line, tt('Saved.')); } catch (e) { say(line, words(e), true); }
@@ -1597,7 +1605,7 @@ async function initOne(box) {
       const form = el('div', 'mb-form'), pl = el('p', 'mb-say', '', { role: 'status', 'aria-live': 'polite' });
       let pic = '', small = '';
       const fid = 'mb-' + Math.random().toString(36).slice(2, 9);
-      const file = el('input', null, null, { type: 'file', id: fid, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-night': '' });
+      const file = el('input', null, null, { type: 'file', id: fid, accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-night': '', 'data-consent': 'terms' });
       const prev = el('div', 'mb-shot-prev');
       file.addEventListener('change', async () => {
         const f = file.files && file.files[0]; if (!f) return;
@@ -1609,7 +1617,7 @@ async function initOne(box) {
         }
         catch (e) { pic = ''; small = ''; say(pl, e && e.code === 'mb/toobig' ? tt('That picture could not be made small enough. Try another one.') : tt('That file is not a picture.'), true); }
       });
-      const vid = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
+      const vid = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '300', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-consent': 'terms' });
       const ok = tick(tt('Everyone in it is fine with being posted.'));
       const post = btn('btn btn-key', tt('Post it'), async () => {
         let V = vid.value.trim(); if (V && !/^https?:\/\//i.test(V)) V = 'https://' + V; V = V.replace(/^http:/i, 'https:');
@@ -1639,7 +1647,7 @@ async function initOne(box) {
       });
       form.append(el('h3', null, tt('Post your photos and videos')), el('label', 'mb-l', tt('A photo'), { for: fid }), file, prev,
         field(tt('Or a video link'), vid, tt('YouTube, TikTok, Instagram or X.')), ok.node, post, pl,
-        el('p', 'mb-hint', tt('Everyone can see what you post here. Only post people who said yes to it.')));
+        el('p', 'mb-hint', tt('Everyone can see what you post here. Only post people who said yes to it.')), termsLine());
       sec.append(form);
     }
     if (posts.length || can) body.append(sec);
@@ -1765,6 +1773,8 @@ function picOf(p, uid, name, own) {
   const av = p && p.avatar && DATA.avatars.find(a => a.id === p.avatar);
   const photoOk = p && p.pic && (own || same(p.picOk, p.picAt));
   if (photoOk) box.append(el('img', null, null, { src: p.pic, alt: '', width: '128', height: '128' }));
+  /* someone on the team whose own account has no photo yet: the real one in data/team-faces.json, with its proof (26 October 2026) */
+  else if (DATA.teamFaces && DATA.teamFaces[uid]) box.append(el('img', null, null, { src: ROOT + DATA.teamFaces[uid], alt: '', width: '128', height: '128' }));
   else if (av) box.append(el('img', null, null, { src: ROOT + av.src, alt: '', width: '128', height: '128' }));
   else box.append(face(name, uid));
   return box;
@@ -2095,7 +2105,7 @@ async function initMember(box) {
       };
       paintGrid();
       // their own photo: one big button, the file box hidden inside it
-      const file = el('input', 'mb-file', null, { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-file': '' });
+      const file = el('input', 'mb-file', null, { type: 'file', accept: 'image/jpeg,image/png,image/webp,image/gif', 'data-mb-file': '', 'data-consent': 'terms' });
       const drop = el('label', 'mb-drop');
       svgIn(drop, UP); drop.append(el('b', null, tt('Upload a photo')), el('span', 'mb-hint', tt('You choose which part shows. It is made small before it leaves your phone.')), file);
       /* 16 October 2026: a chosen photo opens in the chooser (cropper above); Use this part makes the picture, and the
@@ -2138,7 +2148,7 @@ async function initMember(box) {
       show(photo ? mine : drawn);
       form.append(set);
       // the line
-      const bio = el('textarea', null, null, { maxlength: String(DATA.limits.bio), rows: '3', placeholder: tt('For example: I care about free speech, and I like to host.') }); bio.value = (P && P.bio) || '';
+      const bio = el('textarea', null, null, { maxlength: String(DATA.limits.bio), rows: '3', placeholder: tt('For example: I care about free speech, and I like to host.'), 'data-consent': 'terms' }); bio.value = (P && P.bio) || '';
       const cnt = el('span', 'mb-count'), upd = () => { const n = bio.value.length; cnt.textContent = dig(n) + ' / ' + dig(DATA.limits.bio); cnt.classList.toggle('near', DATA.limits.bio - n < 20); };
       bio.addEventListener('input', upd); upd();
       const bf = field(tt('One line about you'), bio, tt('What you care about, or what you would bring to a table. Never your address or your phone number.')); bf.append(cnt);
@@ -2147,7 +2157,7 @@ async function initMember(box) {
       const bar = el('div', 'mb-ed-bar'), save = el('button', 'btn btn-key', tt('Save'), { type: 'submit' });
       const cancel = btn('btn btn-line', tt('Cancel'), () => { editing = ''; try { history.replaceState(null, '', location.pathname + location.search); } catch (x) { } draw().catch(() => { }); });
       bar.append(save, cancel, line);
-      form.append(bar);
+      form.append(termsLine(), bar);
       form.addEventListener('submit', async ev => {
         ev.preventDefault();
         if (!useCrop()) return;

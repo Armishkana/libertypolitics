@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=1bec8431b4) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=d56aab7bed) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -1064,7 +1064,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=1bec8431b4): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=d56aab7bed): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2758,7 +2758,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=1bec8431b4,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=d56aab7bed,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3145,7 +3145,7 @@
     else fallbackCopy(txt, done);
   }
   function fallbackCopy(txt, done) {
-    var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';      // data-consent: 'none:clipboard'
     document.body.appendChild(ta); ta.select();
     try { document.execCommand('copy'); done(); } catch (e) { say(T('Copying is blocked in this browser. Select the list and copy it by hand.')); }
     document.body.removeChild(ta);
@@ -3256,18 +3256,25 @@
     /^https:\/\/(signal\.group|signal\.me)\//i, /^https:\/\/(www\.)?(m\.me|messenger\.com)\//i, /^https:\/\/(www\.)?instagram\.com\/direct\//i,
     /^https:\/\/(www\.|m\.)?facebook\.com\/(messages|groups)\//i, /^https:\/\/(discord\.gg|(www\.)?discord(app)?\.com\/invite)\//i,
     /^https:\/\/(www\.)?(x|twitter)\.com\/(messages|i\/chat)\b/i, /^https:\/\/([a-z0-9-]+\.)?(eitaa\.com|rubika\.ir|ble\.ir|splus\.ir|igap\.net|soroush-app\.ir)\b/i];
+  // The terms every box here points at (data/consent.json; build/consent.py stops both builds when a box has no data-consent):
+  // the page's own root and, on the Iran site, its language folder.
+  function termsHref() {
+    var H = document.documentElement;
+    return esc((H.getAttribute('data-root') || '') + (H.getAttribute('data-lang') ? H.getAttribute('data-lang') + '/' : '') + 'terms/');
+  }
   function addSimpleHtml() {
     return '<form class="ir-a ir-a-simple" id="ir-a" novalidate>' +
       '<div class="ir-a-top"><p class="ir-a-k"><span class="ir-a-badge">' + T('Scout') + '</span><span id="ir-a-xp">' + T('+{n} XP when it is accepted', { n: N(XP.find) }) + '</span></p><button class="ir-s-x" type="button" data-a-x aria-label="' + T('Close') + '">&times;</button></div>' +
       '<h2 id="ir-add-h">' + T('Bring a public post') + '</h2>' +
       '<p class="ir-a-lede">' + T('Seen something public that the news missed? Send the link and one line. I check it before it goes anywhere.') + '</p>' +
       '<div class="ir-a-f"><label for="ir-a-url">' + T('The link') + '</label>' +
-      '<div class="ir-a-row"><input id="ir-a-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" dir="ltr" maxlength="400" placeholder="https://x.com/..."><button type="button" class="ir-a-paste" id="ir-a-paste" hidden>' + T('Paste') + '</button></div>' +
+      '<div class="ir-a-row"><input id="ir-a-url" data-consent="terms" type="url" inputmode="url" autocomplete="off" spellcheck="false" dir="ltr" maxlength="400" placeholder="https://x.com/..."><button type="button" class="ir-a-paste" id="ir-a-paste" hidden>' + T('Paste') + '</button></div>' +
       '<div class="ir-a-prev" id="ir-a-prev" hidden></div></div>' +
       '<div class="ir-a-f"><label for="ir-a-what">' + T('One line: what it shows') + '</label>' +
-      '<textarea id="ir-a-what" rows="2" maxlength="300" placeholder="' + T('For example: workers on strike outside the refinery, filmed today') + '"></textarea></div>' +
+      '<textarea id="ir-a-what" data-consent="terms" rows="2" maxlength="300" placeholder="' + T('For example: workers on strike outside the refinery, filmed today') + '"></textarea></div>' +
       '<p class="ir-a-fine ir-a-safe">' + T("Only the link and one line. Don't write where you are, who you are, or anyone's name. Links to private chats and groups are refused. If you're inside Iran, don't send anything: your safety comes first.") + '</p>' +
       '<input type="hidden" id="ir-a-date"><select id="ir-a-place" hidden><option value=""></option></select><input id="ir-a-where" hidden><input type="checkbox" id="ir-a-edu" hidden><input type="checkbox" id="ir-a-gr" hidden><details id="ir-a-more" hidden></details>' +
+      '<p class="ir-a-fine consent-note">' + T('What you post here can be shown, quoted and shared on the site and on the shows.') + ' <a href="' + termsHref() + '" target="_blank" rel="noopener">' + T('The terms') + '</a></p>' +
       '<p class="ir-a-msg" id="ir-a-msg" aria-live="polite"></p>' +
       '<div class="ir-a-act"><button type="submit" class="ir-a-send" id="ir-a-send">' + T('Send') + '</button><button type="button" class="ir-s-b" data-a-x>' + T('Cancel') + '</button></div>' +
       '</form><div class="ir-a-done" id="ir-a-done" hidden></div>';
@@ -3281,13 +3288,13 @@
       '<h2 id="ir-add-h">Add to the Intel Room</h2>' +
       '<p class="ir-a-lede">Evidence nobody can find does nothing. Send the link, say what it shows, and I check it. Once it is on the map it carries your name, and anyone can use it.</p>' +
       '<div class="ir-a-f"><label for="ir-a-url">The link</label>' +
-      '<div class="ir-a-row"><input id="ir-a-url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link: x.com, youtube.com, a news site, a PDF"><button type="button" class="ir-a-paste" id="ir-a-paste" hidden>Paste</button></div>' +
+      '<div class="ir-a-row"><input id="ir-a-url" data-consent="terms" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="Paste a link: x.com, youtube.com, a news site, a PDF"><button type="button" class="ir-a-paste" id="ir-a-paste" hidden>Paste</button></div>' +
       '<div class="ir-a-prev" id="ir-a-prev" hidden></div></div>' +
       '<fieldset class="ir-a-who"><legend>Whose is it?</legend>' +
       '<label><input type="radio" name="ir-who" value="find" checked><span><b>I found it</b><small>Someone else\'s clip, post, article, document or data</small><i class="num">+' + XP.find + ' XP</i></span></label>' +
       '<label><input type="radio" name="ir-who" value="mine"><span><b>I made it</b><small>My own video, article or research. Everyone who uses the room sees it, and so do the audiences of the creators who show the room on their streams: more people see your work</small><i class="num">+' + XP.mine + ' XP</i></span></label></fieldset>' +
       '<div class="ir-a-f"><label for="ir-a-what">What does it show? <small>One line, in your own words</small></label>' +
-      '<textarea id="ir-a-what" rows="2" maxlength="300" placeholder="Example: Hamas gunmen firing from inside a school in Khan Younis, filmed by a resident"></textarea></div>' +
+      '<textarea id="ir-a-what" data-consent="terms" rows="2" maxlength="300" placeholder="Example: Hamas gunmen firing from inside a school in Khan Younis, filmed by a resident"></textarea></div>' +
       '<details class="ir-a-more" id="ir-a-more"><summary>When, where and the topic <small>Optional. It goes up faster with them</small></summary>' +
       '<div class="ir-a-grid"><div class="ir-a-f"><label for="ir-a-date">When it happened</label><input id="ir-a-date" type="date" max="' + today + '"></div>' +
       '<div class="ir-a-f"><label for="ir-a-place">Where</label><select id="ir-a-place"><option value="">Not sure, or no one place</option>' + places + '<option value="other">Somewhere else</option></select><input id="ir-a-where" maxlength="60" placeholder="Where? City and country" hidden></div></div>' +
@@ -3297,7 +3304,7 @@
       '<label class="ir-a-chk"><input type="checkbox" id="ir-a-gr"><span><b>It shows graphic violence</b> So it is marked before anyone opens it</span></label></details>' +
       '<p class="ir-a-msg" id="ir-a-msg" aria-live="polite"></p>' +
       '<div class="ir-a-act"><button type="submit" class="ir-a-send" id="ir-a-send">Send it in</button><a class="ir-a-talk" href="#discussion" data-a-x>Rather argue about it? The discussion</a></div>' +
-      '<p class="ir-a-fine">Once checked, the link, your line and your name are public. Never send anything that shows a private person\'s face, name or home without their yes, and nothing that tells where someone inside Iran is.</p>' +
+      '<p class="ir-a-fine consent-note">Once checked, the link, your line and your name are public, on the room and on the shows (<a href="' + termsHref() + '" target="_blank" rel="noopener">the terms</a>). Never send anything that shows a private person\'s face, name or home without their yes, and nothing that tells where someone inside Iran is.</p>' +
       '</form><div class="ir-a-done" id="ir-a-done" hidden></div>';
   }
   function af() {
@@ -3818,7 +3825,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=1bec8431b4'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=d56aab7bed'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

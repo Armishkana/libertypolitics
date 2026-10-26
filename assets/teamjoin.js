@@ -13,7 +13,8 @@
       admin can read (firestore.rules, "the team: applications"). Its fields, which build/teamapply.py reads by name:
         name, email, channels (up to 3 links), kind (live|video|writer|none), about, tz, from (the ?from= tag), at, status,
         video (the link to a 1 to 3 minute video, required), topics (keys, at least one), slots (keys of the shows they can
-        come on, or 'other'), kit (true: camera, microphone and connection work), consent (true), heard (a key, or '').
+        come on, or 'other'), kit (true: camera, microphone and connection work), consent (true), heard (a key, or ''),
+        release (the version of the release they ticked, data/consent.json; required since 26 October 2026, rules tenth version).
       Sending it also marks the account as a creator, with its kind (users/<id>.creator and .creatorKind).
       25 October 2026 (README.md, "Applying without an account, 25 October 2026"; rules, ninth version): NO ACCOUNT IS
       NEEDED. 30 tagged arrivals in a week and 0 applications; the account, made after the whole form was filled, was the
@@ -115,7 +116,7 @@ function read() {
     ch: [$('tj-ch1').value, $('tj-ch2').value, $('tj-ch3').value], kind: k ? k.value : '',
     video: $('tj-video').value.trim(), topics: ticked('tj-topic'), slots: ticked('tj-slot'),
     about: $('tj-about').value.trim(), tz: $('tj-tz').value.trim(), heard: $('tj-heard').value,
-    kit: $('tj-kit').checked, consent: $('tj-consent').checked
+    kit: $('tj-kit').checked, consent: $('tj-consent').checked, release: !!($('tj-release') && $('tj-release').checked)
   };
 }
 function tick(name, keys) { FORM.querySelectorAll('input[name="' + name + '"]').forEach(i => { i.checked = (keys || []).includes(i.value); }); }
@@ -133,6 +134,7 @@ function fill(v) {
   if (v.heard && FORM.querySelector('#tj-heard option[value="' + v.heard + '"]')) $('tj-heard').value = v.heard;
   if (typeof v.kit === 'boolean') $('tj-kit').checked = v.kit;
   if (typeof v.consent === 'boolean') $('tj-consent').checked = v.consent;
+  if (typeof v.release === 'boolean' && $('tj-release')) $('tj-release').checked = v.release;
 }
 /* What is wrong with the form: one sentence and the field to go to, or null when it can be sent. */
 function problem(v) {
@@ -147,7 +149,10 @@ function problem(v) {
   if (bad >= 0) return [tt('This link does not look like an address: {link}', { link: v.ch[bad].trim().slice(0, 60) }), 'tj-ch' + (bad + 1)];
   if (!v.slots.length) return [tt('Pick at least one show you could come on, or "Other times".'), 'tj-slots'];
   if (!v.kit) return [tt('Tick the box when your camera, microphone and connection work. The show needs all three.'), 'tj-kit'];
-  if (!v.consent) return [tt('Tick the last box to say you are 18 or older and agree to the show being recorded and published.'), 'tj-consent'];
+  if (!v.consent) return [tt('Tick the box to say you are 18 or older and agree to the show being recorded and published.'), 'tj-consent'];
+  /* The release (data/consent.json, panel/release/; Armin's note of 26 October 2026): no application is sent without it. Its
+     sentence comes with the box, in the page's language, so it needs no line in community-strings.json. */
+  if (!v.release) return [($('tj-release') && $('tj-release').getAttribute('data-missing')) || 'Tick the box to agree to the release.', 'tj-release-l'];
   return null;
 }
 function mark(id) {
@@ -204,7 +209,8 @@ async function send() {
     await M.within(20000, F.setDoc(F.doc(db, 'teamapply', id), {
       name: v.name, email: u ? u.email : v.email, channels, kind: KINDS.includes(v.kind) ? v.kind : '',
       about: v.about.slice(0, 1000), tz: v.tz.replace(/[^A-Za-z0-9_+:/ -]/g, '').slice(0, 64), from: fromTag(), at: F.serverTimestamp(), status: 'new',
-      video: link(v.video, 300), topics: v.topics.slice(0, 8), slots: v.slots.slice(0, 8), kit: true, consent: true, heard: v.heard
+      video: link(v.video, 300), topics: v.topics.slice(0, 8), slots: v.slots.slice(0, 8), kit: true, consent: true, heard: v.heard,
+      release: $('tj-release').getAttribute('data-release')      /* the version of the release they ticked; the time is 'at' */
     }));
     store(null);
     try { localStorage.setItem(SENT, JSON.stringify({ at: Date.now() })); } catch (x) { }

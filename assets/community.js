@@ -24,7 +24,7 @@ const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=1bec8431b4 and assets/community-fa.js?v=1bec8431b4, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=d56aab7bed and assets/community-fa.js?v=d56aab7bed, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -1255,6 +1255,16 @@ function pwField(auto) {
   return input;
 }
 
+/* What posting means, and the link to the terms (data/consent.json, build/consent.py; 26 October 2026, Armin: "include the
+   agreement for us to use their videos ... so that, legally, they can't come after us"). Under every box a reader types into,
+   and under the button that makes an account. account: the account line instead of the posting line. The build stops when a
+   box in this file has no data-consent on the line that draws it (consent.check). */
+function termsNote(account) {
+  const p = el('p', 'sheet-hint consent-note');
+  p.append((account ? tt('Making an account means you agree to the terms for what you post.') : tt('What you post here can be shown, quoted and shared on the site and on the shows.')) + ' ',
+    el('a', null, tt('The terms'), { href: root + (SITE.terms || (typeof SITE.base === 'string' ? SITE.base : '') + 'terms/'), target: '_blank', rel: 'noopener' }));
+  return p;
+}
 /* Create your account, or sign in. One tap moves between the two and keeps the email typed so far. */
 function viewAuth(opts) {
   let mode = opts.mode || (store.get(KEY.seen) ? 'in' : 'new');
@@ -1321,6 +1331,7 @@ function viewAuth(opts) {
       }));
     }
     form.append(go, line);
+    if (mode === 'new') form.append(termsNote(true));
     if (note) tell(line, note, bad);
     form.addEventListener('submit', async ev => {
       ev.preventDefault();
@@ -1388,7 +1399,7 @@ function viewName(opts) {
   if (ML) name.setAttribute('dir', 'auto');
   lab.append(news, el('span', null, tt('Email me news from Liberty Politics')));
   const go = el('button', 'btn btn-key sheet-go', tt('Continue'), { type: 'submit' });
-  form.append(field(tt('Name shown with your posts'), name, tt('Your own name or a handle. Your Google name and photo are not shown to anyone.')), lab, el('p', 'sheet-hint news-hint', NEWS_HINT), go, line);
+  form.append(field(tt('Name shown with your posts'), name, tt('Your own name or a handle. Your Google name and photo are not shown to anyone.')), lab, el('p', 'sheet-hint news-hint', NEWS_HINT), go, line, termsNote(true));
   form.addEventListener('submit', async ev => {
     ev.preventDefault();
     const nm = name.value.trim().replace(/\s+/g, ' ');
@@ -1545,7 +1556,7 @@ function viewAccount() {
     if (!user.emailVerified) form.append(btn('sheet-text', tt('Send the confirmation link again'), () => show('check', { resend: true })));
     const creator = el('input', null, null, { type: 'checkbox', role: 'switch' }); creator.checked = !!p.creator;
     const cl = el('label', 'sheet-check sw'); cl.append(creator, el('span', null, tt('I make political videos')));
-    const channel = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' }); channel.value = p.channel || '';
+    const channel = el('input', null, null, { type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-consent': 'terms' }); channel.value = p.channel || '';
     const cf = field(tt('Link to your channel'), channel, tt('YouTube, X, Instagram, TikTok or your own site. The show may write to you about the live panel.'));
     cf.hidden = !creator.checked;
     creator.addEventListener('change', () => { cf.hidden = !creator.checked; });
@@ -1924,7 +1935,7 @@ function sentPost(b, post, made) {
   const p = el('p'); p.append(tt('You make videos? Come on the live show, on the team.') + ' ', el('a', null, tt('Apply with a video'), { href: b.f.getAttribute('data-panel') || CFG.panel, target: '_blank', rel: 'noopener' }));
   box.append(p);
   if (profile && profile.channel) { box.append(el('p', 'fbhint', tt('Your channel is saved as {channel}. You can change it under your name at the top of the page.', { channel: profile.channel.replace(/^https:\/\//, '') }))); return; }
-  const f = el('div', 'fbrow'), id = 'fbchan', input = el('input', null, null, { id, type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false' });
+  const f = el('div', 'fbrow'), id = 'fbchan', input = el('input', null, null, { id, type: 'url', inputmode: 'url', maxlength: '200', placeholder: 'https://', autocapitalize: 'off', spellcheck: 'false', 'data-consent': 'terms' });
   const line = el('p', 'fbhint', '', { role: 'status', 'aria-live': 'polite' });
   const save = btn('btn btn-line', tt('Save my channel'), async () => {
     let ch = input.value.trim();
@@ -2787,7 +2798,7 @@ function hang(li, p) {
 /* The box for a reply. p is the post the thread hangs from; to is the reply being answered, when it is one. */
 function replyBox(p, to) {
   const f = el('form', 'reply-f', null, { novalidate: '' }), id = 're-' + p.id, name = (to || p).name;
-  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: tt('Answer {name} in your own words.', { name }) });
+  const ta = el('textarea', 'reply-in', null, { id, rows: '3', maxlength: String(MAX), placeholder: tt('Answer {name} in your own words.', { name }), 'data-consent': 'terms' });
   if (ML) {
     /* The box may open with a name in it ("@Dariush "): its direction follows what the reader types after that. */
     const pre = (T.replying && T.replying.pre) || '', aim = () => ta.setAttribute('dir', dirOf(langOf(ta.value.indexOf(pre) === 0 ? ta.value.slice(pre.length) : ta.value)));
@@ -2802,7 +2813,7 @@ function replyBox(p, to) {
   ta.addEventListener('input', () => { if (T.replying && T.replying.id === p.id) T.replying.text = ta.value; });
   /* Ctrl and Enter (Command and Enter on a Mac) sends, the way it does everywhere people argue. */
   ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); go.click(); } });
-  f.append(el('label', 'vh', tt('Your reply to {name}', { name }), { for: id }), ta, acts, line);
+  f.append(el('label', 'vh', tt('Your reply to {name}', { name }), { for: id }), ta, acts, line, termsNote());
   if (T.replying.msg) { line.textContent = T.replying.msg; line.className = 'said-msg' + (T.replying.bad ? ' bad' : ''); }
   f.addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -3121,7 +3132,7 @@ function modTools(box) {
   const waitH = el('h2', 'mod-h', 'Waiting for you'), waitL = el('ul', 'votes mod-list', null, { id: 'mod-wait' });
   const newH = el('h2', 'mod-h', 'Newest'), newL = el('ul', 'votes mod-list', null, { id: 'mod-new' });
   const pplH = el('h2', 'mod-h', 'People'), pplL = el('ul', 'votes mod-list', null, { id: 'mod-people' });
-  const copy = btn('btn btn-line', 'Copy emails'), csvBox = el('textarea', 'mod-csv', null, { readonly: '', rows: '6', 'aria-label': 'Names and emails, comma separated' });
+  const copy = btn('btn btn-line', 'Copy emails'), csvBox = el('textarea', 'mod-csv', null, { readonly: '', rows: '6', 'aria-label': 'Names and emails, comma separated', 'data-consent': 'none:admin' });
   csvBox.hidden = true;
   const again = btn('btn btn-line', 'Load again', load);
   const top = el('div', 'row mod-top'); top.append(again);
@@ -3402,14 +3413,14 @@ function start() {
     ready: () => fb().then(() => true), emu: EMU, off: OFF,
     /* What teamroom.js (the team page) is handed: Firebase once it is loaded, the signed-in reader, a call when
        that changes, and the same words, faces and dates the discussion uses. */
-    room: { fb: () => fb(), user: () => user, auth: AUTH, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500 },
+    room: { fb: () => fb(), user: () => user, auth: AUTH, sub: f => { subs.push(f); }, inRoom, tt, dig, el, btn, tell, words, ago, face, within, rtl: RTL, lang: LANG, max: 1500, terms: termsNote },
     /* What quests.js (the mission board) is handed: the same words, who is signed in (the id and the name, as kept on
        this device), a call when that changes, one public document, sending a report, and the reader's own reports. */
-    quests: { tt, dig, who: () => me && { uid: me.uid, name: me.name }, sub: f => { subs.push(f); }, doc: questDoc, report: questReport, mine: questMine, off: OFF, quiet: QUIET, max: MAX },
+    quests: { tt, dig, terms: termsNote, who: () => me && { uid: me.uid, name: me.name }, sub: f => { subs.push(f); }, doc: questDoc, report: questReport, mine: questMine, off: OFF, quiet: QUIET, max: MAX },
     /* What members.js (profiles, the front question, the gatherings board) is handed: Firebase once it is loaded, who is
        signed in, a call when that changes, the panel, the same words, faces and dates, and its two hooks (above viewAccount). */
     members: { fb: () => fb(), user: () => user, auth: AUTH, who: () => me && Object.assign({}, me), sub: f => { subs.push(f); }, open: openSheet,
-      tt, dig, el, btn, tell, words, ago, niceDate, face, faceKnow, faceGiven: (n, u) => facesData().then(() => givenFace(n, u)), within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
+      tt, dig, el, btn, tell, words, ago, niceDate, face, faceKnow, terms: termsNote, faceGiven: (n, u) => facesData().then(() => givenFace(n, u)), within, pathOf, account: f => { acctHooks.push(f); }, drop: f => { dropHooks.push(f); },
       rest: what => restBase(what), plain: restPlain, looksLikeAddress, httpErr,
       /* For profiles and the team page (16 October 2026): every live post when the saved copy is proven (else null, and
          members.js asks the database), the team's account ids, the reserved-name test, the way to a profile. */
