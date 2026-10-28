@@ -202,6 +202,98 @@
     var sk = d.createElement('style'); sk.textContent = box.skin || ''; d.head.appendChild(sk);
     var sc = d.createElement('script'); sc.textContent = box.js; d.body.appendChild(sc);
     say(d.getElementById('fbkBar') ? 'on' : 'failed');
+    try { screens(); } catch (e) { }
+  }
+
+  // ---- THE SHOW SCREEN, AND ANY OTHER FULL-SCREEN LAYER THAT MARKS ITSELF ---------------------------------------
+  // One home for why and how: the header of ownerfb.py, "THE SHOW SCREEN". A layer that carries data-fbk-screen puts the
+  // rest of the page away (intel.css hides every child of the body but itself), the box with it. While one is drawn:
+  // the box is kept on screen, the html element carries data-fbk-viewon (the box's own contract for a view: its row sits
+  // on the layer's bottom bar, data-fbk-foot), one Feedback button goes in the layer's tools bar (data-fbk-door), and
+  // every note written there is labelled with the layer's name and what was on it when he opened the box (data-fbk-at).
+  var SCREEN_CSS =
+    // kept on screen: ids outrank the room's "every child of the body but the show" rule
+    'html body>#ownerFbkHost,html body>#fbkViewA{display:block!important}' +
+    '@media print{html body>#ownerFbkHost,html body>#fbkViewA{display:none!important}}' +
+    // the row gets its own strip above the layer's bottom bar, so it never covers the item or the rundown
+    'html[data-fbk-viewon] [data-fbk-screen] [data-fbk-foot]{margin-top:var(--fbk-row,50px)}' +
+    'html[data-fbk-viewon] [data-fbk-screen][data-fbk-footless]{padding-bottom:var(--fbk-row,50px);box-sizing:border-box}' +
+    'html[data-fbk-viewon]:fullscreen [data-fbk-screen][data-fbk-footless]{padding-bottom:0}' +
+    // full screen is what an audience sees: the row steps aside, his Feedback button in the top bar still opens the box
+    'html[data-fbk-viewon]:fullscreen #fbkBar:not(.trayopen){display:none!important}' +
+    'html[data-fbk-viewon]:fullscreen [data-fbk-screen] [data-fbk-foot]{margin-top:0}' +
+    // MEASURED at 360: one more button pushed the screen's tools bar 7px past the edge. On a phone the row's own
+    // "Note on this view" is the door; the top button comes back only in full screen, where the row steps aside.
+    '@media (max-width:900px){html:not(:fullscreen) .fbk-sdoor{display:none!important}}' +
+    '.fbk-sdoor svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}';
+  var PEN = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>';
+  var scrStyled = false, scrOwned = false, scrSnap = '', scrObs = null, rowObs = null;
+  function plainLine(s, n) { return String(s || '').replace(/[\r\n\t]+/g, ' ').replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, n); }
+  function screenEl() {
+    var s = d.querySelectorAll('[data-fbk-screen]');
+    for (var i = 0; i < s.length; i++) if (s[i].isConnected && s[i].getClientRects().length) return s[i];
+    return null;
+  }
+  function screenCtx() {
+    var s = screenEl(); if (!s) return '';
+    var name = plainLine(s.getAttribute('data-fbk-screen'), 40) || 'screen', at = plainLine(s.getAttribute('data-fbk-at'), 260);
+    return 'THE ' + name.toUpperCase() + (at ? ', on ' + at : '');
+  }
+  // ownerfb.py makes the box ask these two for a view note's label (what Claude reads) and its line on his screen.
+  W.__fbkViewLabel = function () { return screenEl() ? (scrSnap || screenCtx()) : ''; };
+  W.__fbkViewShow = function () { var s = screenEl(); return s ? 'the ' + (plainLine(s.getAttribute('data-fbk-screen'), 40) || 'screen') : ''; };
+  // What was on the screen when he opened the box, not when he finished typing (he may have moved on by then). Taken on the
+  // press itself: this listens on the window, ahead of the box's own listener on the document.
+  W.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-fbk-view],#fbkBarAdd,#fbkDrNew') : null;
+    if (t && screenEl()) scrSnap = screenCtx();
+  }, true);
+  function rowHeight() {
+    var b = d.getElementById('fbkBar'), H = d.documentElement;
+    if (!b || b.classList.contains('trayopen')) return;
+    var h = Math.round(b.offsetHeight || 0);
+    if (h > 0 && h < 140) { var v = h + 'px'; if (H.style.getPropertyValue('--fbk-row') !== v) H.style.setProperty('--fbk-row', v); }
+  }
+  function screens() {
+    if (!mounted) return;
+    var s = screenEl(), H = d.documentElement, was = scrOwned;
+    if (!scrObs && W.MutationObserver) {
+      scrObs = new MutationObserver(function () { try { screens(); } catch (e) { } });
+      scrObs.observe(d.body, { childList: true });
+      scrObs.observe(H, { attributes: true, attributeFilter: ['class'] });
+      // MEASURED: the box re-reads the bottom bar only when the bar's inner box changes, and a resize or full screen
+      // changes its padding instead, so the row stayed where the old bar had been and covered 24px of the item.
+      var later = 0, again = function () { W.clearTimeout(later); later = W.setTimeout(function () { if (scrOwned && typeof W.__fbkViewStep === 'function') { try { W.__fbkViewStep(); } catch (e) { } } rowHeight(); }, 120); };
+      W.addEventListener('resize', again);
+      d.addEventListener('fullscreenchange', again);
+    }
+    if (s) {
+      if (!scrStyled) { scrStyled = true; var st = d.createElement('style'); st.id = 'ownerFbkScreen'; st.textContent = SCREEN_CSS; d.head.appendChild(st); }
+      // the view's own contract: an empty selector means no single card, so the row's button writes about the screen
+      if (!H.hasAttribute('data-fbk-viewon')) { H.setAttribute('data-fbk-viewon', ''); scrOwned = true; }
+      var door = s.querySelector('[data-fbk-door]');
+      if (door && !door.querySelector('.fbk-sdoor')) {
+        var b = d.createElement('button');
+        b.type = 'button'; b.className = 'fbk-sdoor'; b.setAttribute('data-fbk-view', '');
+        b.title = 'A note for Claude about this screen. Only you see this button.';
+        b.innerHTML = PEN + '<span>Feedback</span>';
+        var last = door.lastElementChild;
+        door.insertBefore(b, last && last.tagName === 'A' ? last : null);          // before the screen's own call to action, which stays last
+      }
+      if (!rowObs && W.ResizeObserver) { var bar = d.getElementById('fbkBar'); if (bar) { rowObs = new ResizeObserver(rowHeight); rowObs.observe(bar); } }
+      rowHeight();
+      // A layer can put its own bottom bar away (the show screen read as a page): the row then sits on the bottom edge,
+      // and the layer keeps that strip free instead. The layer's own class changes say when; nothing here names a mode.
+      if (!s.__fbkWatched && W.MutationObserver) { s.__fbkWatched = 1; scrObs.observe(s, { attributes: true, attributeFilter: ['class'] }); }
+      var ft = s.querySelector('[data-fbk-foot]'), footless = !(ft && ft.getClientRects().length);
+      if (footless !== s.hasAttribute('data-fbk-footless')) {
+        if (footless) s.setAttribute('data-fbk-footless', ''); else s.removeAttribute('data-fbk-footless');
+        if (scrOwned && was === scrOwned && typeof W.__fbkViewStep === 'function') { try { W.__fbkViewStep(); } catch (e) { } }
+      }
+    } else if (scrOwned) {
+      H.removeAttribute('data-fbk-viewon'); scrOwned = false;
+    }
+    if (was !== scrOwned && typeof W.__fbkViewStep === 'function') { try { W.__fbkViewStep(); } catch (e) { } }
   }
   function check() {
     if (mounted || checking || !M) return;

@@ -2073,18 +2073,25 @@
     document.documentElement.classList.add('ir-sh-on');
     var sh = document.createElement('div');
     sh.className = 'ir-sh'; sh.id = 'ir-sh';
+    // THE OWNER'S FEEDBACK BOX ON THE SHOW SCREEN (28 Oct 2026; Armin: "There's nowhere for me to provide feedback" on the
+    // show screens). Three markers and nothing else: they draw nothing and do nothing for anyone. Only ownerfb.js reads them,
+    // and only once his own account is signed in (one home: the header of ownerfb.py, "THE SHOW SCREEN").
+    //   data-fbk-screen  this full-screen layer is a view; its name goes on his notes ("THE SHOW SCREEN ...")
+    //   data-fbk-door    the tools bar his Feedback button goes in;   data-fbk-foot  the bottom bar the box's row sits on
+    //   data-fbk-at      what is on the screen now (go() and setMode keep it), so each note says which item it was about
+    sh.setAttribute('data-fbk-screen', 'show screen');
     sh.innerHTML = '<div class="ir-sh-bg" aria-hidden="true"><i></i><i></i></div>' +
       '<header class="ir-sh-bar"><a class="ir-sh-brand" href="' + esc(location.pathname) + '" aria-label="' + esc(T('Back to the Intel Room')) + '"><img src="' + esc(SEAL) + '" alt="" width="40" height="40"><span><b>' + esc(BRAND) + '</b> ' + esc(T('Intel Room')) + '</span></a>' +
       '<div class="ir-sh-title ir-sh-topic" id="ir-sh-topic" title="' + esc(title) + '"><p class="ir-sh-tk">' + esc(T('On the show today')) + '</p><p class="ir-sh-tt" id="ir-sh-tt"' + (FA ? ' dir="auto"' : '') + '></p>' +
         '<button type="button" class="ir-sh-tpe" id="ir-sh-tpe" aria-label="' + esc(T('Change the topic on the screen')) + '" title="' + esc(T('Change the topic on the screen')) + '"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg></button></div>' +
       '<p class="ir-sh-count num" id="ir-sh-count" aria-live="polite"></p><time class="ir-sh-clock num" id="ir-sh-clock"></time>' +
-      '<div class="ir-sh-tools"><button type="button" id="ir-sh-mode" aria-pressed="false" title="' + esc(T('Read it as a page')) + '">' + ICON.read + '<span>' + esc(T('Read it as a page')) + '</span></button>' +
+      '<div class="ir-sh-tools" data-fbk-door><button type="button" id="ir-sh-mode" aria-pressed="false" title="' + esc(T('Read it as a page')) + '">' + ICON.read + '<span>' + esc(T('Read it as a page')) + '</span></button>' +
       '<button type="button" id="ir-sh-notes" aria-pressed="false" title="' + esc(T('Host notes')) + ' (N)">' + ICON.notes + '<span>' + esc(T('Host notes')) + '</span></button><button type="button" id="ir-sh-full" title="' + esc(T('Full screen')) + ' (F)">' + ICON.full + '<span>' + esc(T('Full screen')) + '</span></button>' +
       (saved ? '<button type="button" id="ir-sh-send" title="' + esc(T('Send')) + '">' + ICON.share + '<span>' + esc(T('Send')) + '</span></button>' : '') +
       '<a class="ir-sh-mk" id="ir-sh-mk" href="' + esc(location.pathname + '#make') + '">' + ICON.plus + '<span>' + esc(T('Make your own')) + '</span></a></div></header>' +
       '<main class="ir-sh-stage" id="ir-sh-stage"></main>' +
       '<aside class="ir-sh-notes" id="ir-sh-pad" hidden><p class="ir-sh-nl">' + esc(saved ? T('A note from the maker') : video ? T('Your opening hook') : T('Your 30-second intro')) + '</p><p class="ir-sh-nt">' + esc(intro || T('Say what the show is about, and what you will show.')) + '</p></aside>' +
-      '<footer class="ir-sh-foot"><button type="button" class="ir-sh-nav" id="ir-sh-prev" aria-label="' + esc(T('Previous')) + '">' + (RTL ? ICON.next : ICON.prev) + '</button><ol class="ir-sh-strip" id="ir-sh-strip" aria-label="' + esc(T('The rundown')) + '"></ol><button type="button" class="ir-sh-nav" id="ir-sh-next" aria-label="' + esc(T('Next')) + '">' + (RTL ? ICON.prev : ICON.next) + '</button>' +
+      '<footer class="ir-sh-foot" data-fbk-foot><button type="button" class="ir-sh-nav" id="ir-sh-prev" aria-label="' + esc(T('Previous')) + '">' + (RTL ? ICON.next : ICON.prev) + '</button><ol class="ir-sh-strip" id="ir-sh-strip" aria-label="' + esc(T('The rundown')) + '"></ol><button type="button" class="ir-sh-nav" id="ir-sh-next" aria-label="' + esc(T('Next')) + '">' + (RTL ? ICON.prev : ICON.next) + '</button>' +
       '<p class="ir-sh-mark" aria-hidden="true">' + (saved && saved.by ? '<span class="ir-sh-by">' + esc(T('Made by {name}', { name: saved.by })) + ' · </span>' : '') + SITE_MARK + '</p></footer>';
     document.body.appendChild(sh);
     document.title = title + ' | ' + T('Show screen') + ' | ' + BRAND + ' ' + T('Intel Room');
@@ -2192,8 +2199,14 @@
       if (typeof closePick === 'function') closePick();
       var a = document.activeElement; if (a && a !== document.body && $('ir-sh-stage').contains(a) && a.blur) a.blur();
     }
+    function fbkAt() {          // data-fbk-at (see the markers where sh is made): plain digits and English, read only by his box
+      var x = at > 0 && rows[at - 1] ? rows[at - 1].it : null;
+      sh.setAttribute('data-fbk-at', mode === 'read' ? 'reading it as a page, ' + rows.length + ' items' : !x ? 'the intro card' :
+        'item ' + at + ' of ' + rows.length + ': ' + [x.nm || x.h || x.src, clip(cleanHead(x.t || ''), 110), x.u].filter(Boolean).join(' | '));
+    }
     function go(i) {
       at = Math.max(0, Math.min(rows.length, i));
+      try { fbkAt(); } catch (e) { }
       if (mode === 'read') return;
       resetItem();
       $('ir-sh-count').textContent = at === 0 ? T('Intro') : T('{n} of {m}', { n: N(at), m: N(rows.length) });
@@ -2248,6 +2261,7 @@
       mb.title = m === 'read' ? T('Open the show screen') : T('Read it as a page');
       mb.innerHTML = (m === 'read' ? ICON.play + '<span>' + esc(T('Open the show screen')) + '</span>' : ICON.read + '<span>' + esc(T('Read it as a page')) + '</span>');
       if (history.replaceState) { var u = new URLSearchParams(location.search); u.set('v', m); history.replaceState(null, '', location.pathname + '?' + u.toString()); }
+      try { fbkAt(); } catch (e) { }
       if (m === 'read') { closeReply(); $('ir-sh-stage').innerHTML = readHtml(); readReplies(); $('ir-sh-stage').scrollTop = 0;$('ir-sh-count').textContent = rows.length === 1 ? T('1 item') : T('{n} items', { n: N(rows.length) }); }
       else { $('ir-sh-stage').innerHTML = ''; if (empty) $('ir-sh-stage').innerHTML = '<div class="ir-sh-card"><h1>' + esc(T('This show has nothing in it')) + '</h1></div>'; go(at); }
     }
@@ -2582,6 +2596,9 @@
     document.addEventListener('fullscreenchange', function () { var s2 = $('ir-sh-full').querySelector('span'); if (s2) s2.textContent = document.fullscreenElement ? T('Leave full screen') : T('Full screen'); });
     document.addEventListener('keydown', function (ev) {
       if (ev.ctrlKey || ev.metaKey || ev.altKey || (ev.target && /^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName))) return;
+      // typing in a writing box that is not a form field (his feedback box is one: a contenteditable) never moves the show:
+      // "f" went full screen, "n" opened the notes and the arrows changed the item under his cursor
+      if (ev.target && (ev.target.isContentEditable || (ev.target.closest && ev.target.closest('#ownerFbkHost,#fbkViewA,[contenteditable]')))) return;
       var k = ev.key;
       if (mode === 'read') { if (k === 'p' || k === 'P') setMode('present'); return; }          // a page scrolls; its keys are the browser's
       // on a page that reads right to left the left arrow goes forward (the next item sits to the left)
