@@ -281,6 +281,7 @@ a.mb-tag:hover,a.mb-tag:focus-visible{background:color-mix(in oklab,var(--field)
 .mb-more{justify-self:inherit}
 .mb-pic-host{background:var(--panel)}
 .mb-pic-host img{object-fit:contain;padding:14%}
+.mb-pic-host.mb-pic-full img{object-fit:cover;padding:0}
 .mb-act{display:grid;gap:var(--s3);min-width:0}
 .mb-actbar .mb-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px}
 .mb-actbar .mb-chip span,.mb-actbar .mb-chip b{display:inline;margin:0;font-size:.95rem;opacity:1}

@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=b18ba8ae30; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=0ca16e26f0; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -1809,8 +1809,10 @@ async function postsOf(uid, F, db) {
 }
 /* The site's own account wears the site's mark, as it does on every post. */
 function hostPic() {
-  const box = el('div', 'mb-pic mb-pic-host');
-  box.append(el('img', null, null, { src: ROOT + (SITE.mark || 'assets/seal.png'), alt: '', width: '128', height: '128' }));
+  /* Liberty Politics wears the cream stamp cut to its own ring, filling the circle (Armin, 27 October 2026, note mmp4v2bu).
+     A site that sets its own mark (Iran Uncensored) keeps it, inset as before. */
+  const full = !SITE.mark, box = el('div', 'mb-pic mb-pic-host' + (full ? ' mb-pic-full' : ''));
+  box.append(el('img', null, null, { src: ROOT + (SITE.mark || 'assets/seal-face.png'), alt: '', width: '128', height: '128' }));
   return box;
 }
 /* One list of everything: {kind: post | reply | mission | gathering, ms, ...}, newest first. */
@@ -1911,9 +1913,12 @@ async function initCrew(box) {
     return li;
   }
   if (hostId) ul.append(cardFor(hostId, w(DATA.host.name), w(DATA.host.bio), hostPic(), 'host', rows ? mine(hostId).length : null));
+  /* The person who hosts the show (members.json words.host.person, Armin's own account): marked Host and right after the
+     site's card, never ranked by how much he posted (Armin on panel/, 27 October 2026: "Why didn't you include me?"). */
+  const person = DATA.host && DATA.host.person;
   people.filter(x => x.name && !(x.P && x.P.hidden))
-    .sort((a, b) => (b.n || 0) - (a.n || 0) || a.name.localeCompare(b.name))
-    .forEach(x => ul.append(cardFor(x.id, x.name, x.P && x.P.bio, picOf(x.P, x.id, x.name, false), 'team', x.n)));
+    .sort((a, b) => (b.id === person) - (a.id === person) || (b.n || 0) - (a.n || 0) || a.name.localeCompare(b.name))
+    .forEach(x => ul.append(cardFor(x.id, x.name, x.P && x.P.bio, picOf(x.P, x.id, x.name, false), x.id === person ? 'host' : 'team', x.n)));
   body.append(ul);
   if (ul.children.length < 2) body.append(el('p', 'mb-hint', tt('Nobody else is on the team yet.')));
   /* The way onto it: the join form on panel/ (teamjoin.js, the Team session's). Liberty Politics only: Iran Uncensored has
