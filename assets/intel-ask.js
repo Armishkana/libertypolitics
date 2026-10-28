@@ -48,7 +48,26 @@
 
   /* ------------------------------------------------------------------ reading the words */
   // words that carry no filter in English; a word here never becomes the search
-  var STOP = /(^|\s)(happened|happen|happening|going|at|say|said|says|told|tell|show|showing|me|us|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|whats|is|are|was|were|i|im|want|need|please|some|can|could|you|to|and|or|by|it|its|this|these|those|evidence|proof|items?|things?|stuff|anything|everything|related|where|who|how|did|do|does|has|have|had|they|their|them|there|here|just|only|really|very|more|less|than|over|under|around|regarding|concerning|latest|news|look|looking|see|let|lets|my|our|we|be|been|being|will|would|should|best|good|great|new|stories|story|content|something|people|talking|discuss\w*|cover\w*|topic|topics|top|most|right|now|but|not|no|so|like|also|both|either|into|onto|per|via|vs|versus)(?=\s|$)/g;
+  var STOP = /(^|\s)(happened|happen|happening|going|at|say|said|says|told|tell|show|showing|me|us|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|whats|is|are|was|were|i|im|want|need|please|some|can|could|you|to|and|or|by|it|its|this|these|those|evidence|proof|items?|things?|stuff|anything|everything|related|where|who|how|did|do|does|has|have|had|they|their|them|there|here|just|only|really|very|more|less|than|over|under|around|regarding|concerning|latest|news|look|looking|see|let|lets|my|our|we|be|been|being|will|would|should|best|good|great|new|stories|story|content|something|people|talking|discuss\w*|cover\w*|topic|topics|top|most|right|now|but|not|no|so|like|also|both|either|into|onto|per|via|vs|versus|shows|shown|showed|prove[sd]?|proving|demonstrat\w*|argu(e|es|ed|ing)|doesn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|didn'?t|don'?t|can'?t|won'?t|never|commit|commits|committed|committing|doing|done|make|makes|made|actually|uses|using)(?=\s|$)/g;
+  // THE CLAIMS (29 October 2026; his ask "show me stuff that shows israel does not commit genocide" came back as the words
+  // "shows commit genocide" over Israel only: 1 item, while the bank holds 157 on the genocide claim). A bank tag that names
+  // a claim ("The genocide claim", "Blood libels debunked") is the room's evidence ON that claim, so the claim's own word
+  // reaches it whatever verbs surround it, and asking AGAINST a claim (not, isn't, debunk, myth, lie) goes to the bank,
+  // where that evidence lives, rather than to the last 24 hours, which mostly carry the accusation. Read from the bank's own
+  // tags (vocab().tags), never from a list here: a new claim tag teaches this box by existing.
+  var CLAIMTAG = /\b(claims?|libels?|debunk\w*|myths?|hoax\w*|lies|staged|fake\w*)\b/;
+  var AGAINST = /\b(not|no|isn'?t|aren'?t|wasn'?t|weren'?t|doesn'?t|didn'?t|don'?t|never|false(ly)?|fake|myths?|lies|lie|lying|hoax\w*|debunk\w*|disprov\w*|refut\w*|rebut\w*|against|counter\w*|wrong(ly)?|untrue|baseless|accus\w*|allegations?|alleged|so-?called)\b/;
+  var CLAIMSAY = /\b(commit\w*|carr(y|ies|ying|ied) out|engag\w* in|claims?|claimed|accus\w*|allegations?|alleged|so-?called|myths?|lies|lie|lying|hoax\w*|debunk\w*|disprov\w*|refut\w*|rebut\w*|false(ly)?|untrue|baseless)\b/;
+  var CLAIMSYN = { famine: '|starv\\w*|hunger', genocide: '|genocidal' };
+  function claimsOf(V) {
+    return (V.tags || []).filter(function (g) { return CLAIMTAG.test(String(g).toLowerCase()); }).map(function (g) {
+      var w = sigWords(g).filter(function (x) { return !CLAIMTAG.test(x) && !SOFT.test(' ' + x + ' '); })[0];
+      return w ? { tag: g, w: w, rx: new RegExp('\\b(' + w.slice(0, Math.max(4, w.length - 1)) + '\\w*' + (CLAIMSYN[w] || '') + ')\\b') } : null;
+    }).filter(Boolean);
+  }
+  // who DOES something in the sentence ("israel does", "iran's", "qatar funds") is what the items are about, not where they
+  // happened: the region row reads a place or a name in the headline, so it would keep 33 of the 157 genocide-claim items
+  var ACTOR = /(?:^|\s)([a-z]{3,})(?:'s)?\s+(?:does|did|do|is|was|are|were|has|have|had|isn'?t|wasn'?t|aren'?t|doesn'?t|didn'?t|don'?t|never|not|commit\w*|kill\w*|starv\w*|target\w*|bomb\w*|fund\w*|pays?|paid|lie[sd]?|lying|want\w*|uses?|used|block\w*|shoot\w*|shot|attack\w*|invad\w*|occup\w*|genocid\w*)(?=\s|$)/g;
   // a word that describes a kind of piece rather than its subject: when no filter takes it, it is said, never searched
   var SOFT = /(^|\s)(commentary|commentaries|analysis|analyses|opinions?|takes?|hot takes?|reactions?|rants?|explain\w*|breakdowns?|discussions?|debates?|coverage|content|footage|updates?)(?=\s|$)/;
   function norm(raw, V) {
@@ -92,6 +111,12 @@
     if (intent === 'trending') eat(/\b(trending|hot right now|happening right now|going on|the big(gest)? stor(y|ies)|top stories|hot topics right now|right now)\b/);
     if (intent === 'why') eat(/\b(hot|trending|viral|big|everywhere)\b/);
     if (intent === 'who') eat(/\b(posts?|posted|posting|tweets?|tweeted)\b/);          // "who posted" asks for people, not for posts only
+    // 1a. who does something in the sentence, and a claim the bank holds evidence on (THE CLAIMS, above)
+    var actors = [], am; ACTOR.lastIndex = 0;
+    while ((am = ACTOR.exec(t))) { actors.push(am[1]); ACTOR.lastIndex = am.index + am[0].length - 1; }
+    var claim = null;
+    claimsOf(V).some(function (c) { var cm = c.rx.exec(t); if (!cm) return false; claim = { tag: c.tag, w: c.w, against: AGAINST.test(t) }; t = t.replace(gl(c.rx), ' '); return true; });
+    if (claim) { eat(CLAIMSAY); if (claim.against) eat(AGAINST); }
 
     // 1b. a filter that declares its own words (the room's registry: IRoom.addFilter({ key, ask: [[pattern, value, said]] }))
     // (read before the time words, so "breaking news" is the news filter and not only "today")
@@ -145,6 +170,11 @@
     else if (has(LIVEW) && V.live) { lens = 'live'; }
     if (has(LIVEW)) { timed = true; eat(LIVEW); }
     if (lens === 'readers' && (bank || has(LIVEW))) lens = V.live ? 'live' : 'bank';
+    // "what is trending" is a question about the last 24 hours, whichever tab it was asked from (its words were eaten above)
+    if (intent === 'trending' && V.live && !bank) lens = 'live';
+    // asked against a claim, with no time said: the bank, where the evidence on it lives (THE CLAIMS)
+    var toBank = false;
+    if (claim && claim.against && !timed && lens !== 'bank' && V.sorts.bank) { lens = 'bank'; toBank = true; }
     if (Object.keys(extSet).length && V.live && !bank && lens !== 'live') lens = 'live';          // the room's facets cut the last 24 hours
     ns = R.blank(lens);
     Object.keys(extSet).forEach(function (k) { ns.ext[k] = extSet[k]; });
@@ -242,7 +272,7 @@
     // "who" and "us" are a question and a pronoun far more often than the WHO and the US: only in capitals do they name them
     if (!/\bWHO\b/.test(raw)) eat(/\bwho\b/);
     if (!/\bU\.?S\.?\b|\bUSA\b/.test(raw)) eat(/\bus\b/);
-    var fxs = [];
+    var fxs = [], actorOf = [];
     // a named place first (Gaza City, Tehran, a campus), so the region row does not eat its name ("gaza" of Gaza City)
     for (var i0 = 0; i0 < (V.places || []).length; i0++) {
       var pw0 = V.places[i0]; if (pw0[1].indexOf('c:') === 0 || !pw0[0].test(t) || !V.place(pw0[1])) continue;
@@ -264,7 +294,10 @@
         else if (pc && ((f[2] || []).indexOf(cn) >= 0)) named = true;
         if (named) hit = mm[0];
       }
-      if (hit) { fxs.push(f[0]); t = t.replace(hit, ' '); }
+      if (hit) {
+        fxs.push(f[0]); t = t.replace(hit, ' ');
+        if (actors.some(function (a) { return a === nm || (r2 && r2.test(' ' + a + ' ')); })) actorOf.push({ fx: f[0], name: f[1] });
+      }
     });
     for (var i = 0; i < (V.places || []).length && !ns.place; i++) {
       var pw = V.places[i]; if (!pw[0].test(t)) continue;
@@ -287,11 +320,14 @@
     t = t.replace(/\s+/g, ' ');
     t.split(' ').forEach(function (w) { if (w && SOFT.test(' ' + w + ' ')) soft.push(w); });
     var rest = (' ' + t + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim();
-    ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !/^\d+$/.test(w); }).slice(0, 3).join(' ');
+    ns.q = (claim ? [claim.w] : []).concat(rest.split(' ').filter(function (w) { return w.length > 2 && !/^\d+$/.test(w) && (!claim || w !== claim.w); })).slice(0, 3).join(' ');
+    // a place named only as who did something leaves the place row when it would hide most of what the words find (askIt)
+    if (ns.place && actors.some(function (a) { return (V.places || []).some(function (pw) { return pw[1] === ns.place && pw[0].test(' ' + a + ' '); }); })) actorOf.push({ place: ns.place, name: ns.place.indexOf('c:') === 0 ? ns.place.slice(2) : V.name.place(ns.place) });
     soft.forEach(function (w) { if (left.length < 3) left.push(T('"{w}" (no filter for that yet)', { w: w })); });
+    if (!want && claim && lens === 'bank' && canSort('top')) want = 'top';          // evidence on a claim: the strongest first
     if (want) ns.sort = want;
     if (sorts.indexOf(ns.sort) < 0) ns.sort = sorts[0] || ns.sort;
-    return { ns: ns, did: did, left: left, intent: intent, raw: raw };
+    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf };
   }
 
   /* ------------------------------------------------------------------ saying what a set of filters is, in one line */
@@ -394,7 +430,7 @@
     var html = '<div class="ira-top"><span class="ira-i">' + SPARK + '</span><p class="ira-l"' + (FA ? ' dir="auto"' : '') + '>' + (same && C.note ? '<b>' + esc(C.note) + '</b> ' : '') + esc(line) + '</p>' +
       '<button type="button" class="ira-x" data-ira="x" aria-label="' + esc(T('Close')) + '">&times;</button></div>';
     if (same && C.ans) html += C.ans;
-    if (same && C.near.length) html += '<div class="ira-near"><span>' + esc(T('Or try:')) + '</span>' + C.near.map(function (o, i) { return '<button type="button" data-ira-near="' + i + '">' + esc(T('without {what}', { what: o.let.join(T(' and ')) })) + ' <i class="num">' + N(o.n) + '</i></button>'; }).join('') + '</div>';
+    if (same && C.near.length) html += '<div class="ira-near"><span>' + esc(T('Or try:')) + '</span>' + C.near.map(function (o, i) { return '<button type="button" data-ira-near="' + i + '">' + esc(o.label || T('without {what}', { what: o.let.join(T(' and ')) })) + ' <i class="num">' + N(o.n) + '</i></button>'; }).join('') + '</div>';
     if (same && C.left && C.left.length) html += '<p class="ira-left">' + esc(T('Not used: {what}.', { what: C.left.join(T(', ')) })) + '</p>';
     if (C.saving) {
       html += '<form class="ira-f" autocomplete="off"><label for="ira-n">' + esc(T('Name this filter')) + '</label><span><input id="ira-n" type="text" maxlength="32" dir="auto" value="' + esc(C.name) + '" required>' +
@@ -415,7 +451,7 @@
     if (k === 'nosave') { C.saving = false; draw(); return; }
     if (k === 'adjust') { if (R.openFilters) R.openFilters('all'); return; }
     if (k === 'undo') { var p = C.prev; C.prev = null; closeCard(); if (p) R.apply(p.st, p.box); return; }
-    if (b.hasAttribute('data-ira-near')) { var o = C.near[+b.getAttribute('data-ira-near')]; if (o) put(o.ns, { note: T('Let go of {what}.', { what: o.let.join(T(' and ')) }), keepPrev: true }); return; }
+    if (b.hasAttribute('data-ira-near')) { var o = C.near[+b.getAttribute('data-ira-near')]; if (o) put(o.ns, { note: o.let ? T('Let go of {what}.', { what: o.let.join(T(' and ')) }) : '', keepPrev: true }); return; }
     if (b.hasAttribute('data-ira-hot')) { var st = R.state(); st.hot = b.getAttribute('data-ira-hot'); if (st.lens !== 'live') { var bl = R.blank('live'); bl.hot = st.hot; st = bl; } put(st, { keepPrev: true }); return; }
     if (b.hasAttribute('data-ira-who')) { var sw = R.state(); sw.who = b.getAttribute('data-ira-who'); put(sw, { keepPrev: true }); return; }
     if (b.hasAttribute('data-ira-open')) { var it = OPEN[+b.getAttribute('data-ira-open')]; if (it && R.open) R.open(it); return; }
@@ -501,15 +537,36 @@
     // the lens a reader is in, not the one the last answer moved them to on its own ("nothing today, so the bank")
     var base = AUTO && R.lens() === AUTO.to ? AUTO.from : '';
     AUTO = null;
-    var p = read(raw, base), ns = p.ns, n = R.peek(ns), o = { box: raw, left: p.left };
-    if (!n) {
+    var p = read(raw, base), ns = p.ns, o = { box: raw, left: p.left }, withs = [];
+    // a place named only as who did something ("israel does not ...") narrows nothing it was asked to: when it would hide
+    // more than half of what the rest finds, it comes off, and the narrow set stays one tap away (THE CLAIMS). Run again
+    // on the other tab's set when nothing here moves the answer there.
+    function widen(x) {
+      (p.actor || []).forEach(function (a) {
+        var wide = JSON.parse(JSON.stringify(x));
+        if (a.fx) wide.fx = wide.fx.filter(function (k) { return k !== a.fx; }); else if (a.place) wide.place = '';
+        var nN = R.peek(x), nW = R.peek(wide);
+        if (nW > 0 && nN < nW * 0.5) { if (nN > 0) withs.push({ ns: x, label: T('only those naming {place}', { place: a.name }), n: nN }); x = wide; }
+      });
+      return x;
+    }
+    ns = widen(ns);
+    if (p.toBank) AUTO = { from: base || R.lens(), to: 'bank' };          // the next ask reads from the tab the reader chose
+    if (p.claim && p.toBank) o.from = T('The bank: the evidence on {claim}.', { claim: FA ? p.claim.tag : p.claim.tag.charAt(0).toLowerCase() + p.claim.tag.slice(1) });
+    var n = R.peek(ns);
+    if (n) {
+      // a thin answer is never the only answer: a set a few words wider that finds five times as much is one tap away
+      var qw = String(ns.q || '').split(' ').filter(Boolean), each = qw.length > 1 ? qw.map(function (w) { var x = JSON.parse(JSON.stringify(ns)); x.q = qw.filter(function (y) { return y !== w; }).join(' '); return { label: T('the words "{q}"', { q: w }), ns: x }; }) : [];
+      var wider = n <= 3 ? each.concat(drops(ns)).map(function (d) { d.n = R.peek(d.ns); return d; }).filter(function (d) { return d.n >= Math.max(n * 5, 10) && !isBlank(d.ns); }).slice(0, 2).map(function (d) { return { ns: d.ns, let: [d.label], n: d.n }; }) : [];
+      o.near = withs.concat(wider).slice(0, 3);
+    } else {
       var near = nearest(ns);
       if (near) {
         if (near.best.ns.lens !== ns.lens) AUTO = { from: ns.lens, to: near.best.ns.lens };
-        ns = near.best.ns;
+        ns = near.best.to ? widen(near.best.ns) : near.best.ns;
         o.note = T('Nothing matched all of it.');
         o.from = near.best.to ? T('Closest: the same in {where}.', { where: near.best.to === 'live' ? T('the last 24 hours') : T('the bank') }) : T('Closest: without {what}.', { what: near.best.let.join(T(' and ')) });
-        o.near = near.also;
+        o.near = withs.concat(near.also).slice(0, 3);
       } else {
         o.note = T('Nothing here matches that yet.');
         o.from = T('Try fewer words, or a place or a topic.');

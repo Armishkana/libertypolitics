@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=0ca16e26f0) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=11c6ca48fe) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -809,7 +809,11 @@
     if (S.sort === 'viral') by = num(function (i) { return i._v; });
     if (S.sort === 'likes') by = num(likesOf);
     if (S.sort === 'views') by = num(viewsOf);
-    return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || by(x, y); });      // an unlabelled post goes last, whatever the order
+    // searched words: an item whose own headline says them comes before one that only carries them in a note or a tag (29 Oct
+    // 2026: "genocide" put general Gaza items above "In-depth debunk of the genocide allegations"), then the order picked
+    var qt = S.q ? S.q.toLowerCase().split(/\s+/).filter(Boolean) : [], tier = function (it) { var h = String(it.t || '').toLowerCase(); return qt.every(function (w) { return h.indexOf(w) >= 0; }) ? 0 : 1; };
+    if (qt.length) a.forEach(function (it) { it._qt = tier(it); });
+    return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || (qt.length ? x._qt - y._qt : 0) || by(x, y); });      // an unlabelled post goes last, whatever the order
   }
 
   /* ------------------------------------------------------------ everything that redraws */
@@ -1212,7 +1216,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=0ca16e26f0): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=11c6ca48fe): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2537,7 +2541,7 @@
   }
   function askVocab() {
     var so = {}; Object.keys(SORTS).forEach(function (l) { so[l] = SORTS[l].map(function (s) { return s[0]; }); });
-    return { lens: S.lens, live: liveShown(), sorts: so, topics: TOPICS.map(function (t) { return [t[0], t[1]]; }), topicAsk: TOPIC_ASK, rel: REL_KEYS.length > 0,
+    return { lens: S.lens, live: liveShown(), sorts: so, topics: TOPICS.map(function (t) { return [t[0], t[1]]; }), topicAsk: TOPIC_ASK, rel: REL_KEYS.length > 0, tags: (topics || []).slice(),
       places: PLACE_WORDS, place: function (k) { return k.indexOf('c:') === 0 || !!P[k]; }, focus: FOCUS.map(function (f) { return [f[0], f[1], f[2], f[3]]; }),
       pf: PF_WORDS, pfs: PF.map(function (p) { return [p[0], p[1]]; }), kinds: KINDS.slice(), within: winList(), winSay: winSay, heats: HEATS, likes: LIKES, virals: VIRALS, creds: CREDS,
       buckets: buckets.slice(), mon: MON, daysFrom: daysFrom, bLabel: bLabel, map: ASK_MAP, stopFa: STOP_FA, ext: EXT, hasEdu: BANK.some(function (it) { return it.edu; }),
@@ -2908,7 +2912,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=0ca16e26f0,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=11c6ca48fe,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3983,7 +3987,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=0ca16e26f0'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=11c6ca48fe'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
