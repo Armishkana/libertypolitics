@@ -43,7 +43,7 @@
 (function () {
   var R = window.IRoom, root = document.getElementById('ir');
   if (!R || !root || document.getElementById('irt-b')) return;
-  var V = 2, SEEN = 'ir-tour-seen';
+  var V = 3, SEEN = 'ir-tour-seen';
   var CFG = (function () { var el = document.getElementById('ir-cfg'); if (!el) return {}; try { var c = JSON.parse(el.textContent); return c && typeof c === 'object' ? c : {}; } catch (e) { return {}; } })();
   var SITE = document.getElementById('ir-cfg') ? 'iu' : 'lp';
   var TT = CFG.t && typeof CFG.t === 'object' ? CFG.t : null, FA = CFG.lang === 'fa', RTL = !!CFG.rtl;
@@ -92,7 +92,7 @@
       act: { label: T('Show me'), run: askExample }, covers: ['ir-ask', 'ir-q', 'ir-mic', '.ir-go', 'ira-pop'] },
     { k: 'asked', at: ['#ira'], when: function () { return shown($('ira')); }, opt: true, v: 2, e: '✅', h: T('Here is what it understood'),
       p: T('Each chip is one filter: tap its x to drop it. Save this filter keeps the set. Next time, tap the empty search box and your saved filters are there.'), covers: ['ira'] },
-    { k: 'lens', at: ['#ir-lens'], e: '🕐', h: T('Pick what to look at'), p: T('Last 24 hours is today. The Bank is older things I kept. From readers is what people sent in. The number is how many things are in each.'), covers: ['lens=*', 'ir-time'] },
+    { k: 'lens', at: ['#ir-lens'], v: 3, e: '🕐', h: T('Pick what to look at'), p: T('Last 24 hours is today: tap it again to pick the time, from the last hour to the last 7 days and more. The Bank is older things I kept. From readers is what people sent in. The number is how many things are in each.'), covers: ['lens=*', 'ir-time', 'ir-win', '.ir-win-*'] },
     { k: 'hot', at: ['#ir-hotrow'], e: '🔥', h: T('The hottest stories'), p: T('Each button is one story people are talking about. The first number says how hot it is (100 is the hottest). The last number says how many things you can look at.'),
       act: { label: T('Show me'), run: function () {          // the ask step's own demo is undone first (its Undo), so the story opens on the whole room
         var u = q('#ira [data-ira="undo"]'); if (u && shown(u)) { u.click(); setTimeout(function () { clickEl(firstShown(['#ir-hots .ir-hs'])); }, 120); } else clickEl(firstShown(['#ir-hots .ir-hs']));
@@ -106,7 +106,7 @@
           (fc.length ? ' ' + T('Also in Filters: {facets}.', { facets: list(fc) }) : '');
       },
       covers: ['open=*', 'ir-drawer', 'ir-dr-pre', 'ir-dr-topic', 'ir-topics', 'ir-dr-region', 'ir-fx', 'in:ir-pf', 'ir-pf', 'in:ir-kind', 'ir-kind', 'ir-f-*',
-        'in:ir-within', 'ir-within', 'ir-heat', 'ir-likes', 'ir-viral', 'ir-cred', 'in:ir-save', 'in:ir-pics', 'ir-pics', 'ir-views'] },
+        'in:ir-heat', 'ir-heat', 'ir-likes', 'ir-viral', 'ir-cred', 'in:ir-save', 'in:ir-pics', 'ir-pics', 'ir-views'] },
     { k: 'map', at: ['#ir-mapbox'], e: '🌍', h: T('The map'), p: T('Each circle is a place where things are happening. A bigger circle means more. Tap a circle to see what happened there. Lines join places in the same story.'),
       covers: ['ir-main', 'ir-mapbox', 'ir-zoom', 'z=*', 'ir-lk', 'ir-proj', 'ltab=links'] },
     { k: 'labels', at: ['#ir-items .ir-card .ir-c-x', '#ir-items .ir-card .ir-by'], e: '🏷️', h: T('On each card'), p: T('The round picture is who posted it, and its badge says where. Hot means people are talking about it now. Viral means more likes than usual.') },

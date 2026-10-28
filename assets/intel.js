@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=e107d6f1be) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=b18ba8ae30) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -109,7 +109,21 @@
     bank: [['new', T('Newest first')], ['old', T('Oldest first')], ['top', T('Top picks first')], ['viral', T('Most viral')], ['likes', T('Most liked')], ['views', T('Most viewed')]], readers: [['new', T('Newest first')]] };
   var HEATS = [[0, T('Any heat')], [40, T('Warm 40+')], [70, T('Hot 70+')], [90, T('On fire 90+')]];
   var VIRALS = [[0, T('Any reach')], [50, T('Top half')], [75, T('Top quarter')], [90, T('Top 10%')]];
-  var WITHIN = [[0, T('24 hours')], [12, T('12 h')], [6, T('6 h')], [3, T('3 h')], [1, T('1 h')]];
+  /* THE TIME PICKER (28 Oct 2026). Armin, a note on the room: "there need to be multiple options for the time available, like:
+     past year, 6 months, 3 months, 1 month, 1 week, 24 hours, past 3 days, past 12 hours, past 6 hours, past 3 hours, past 1
+     hour". One control, where the time already was: tap Last 24 hours (once it is the lens on) and its menu opens (drawWin);
+     the old "Within" row of the Filters panel is gone with it, so time has ONE door. S.within is the window in hours, 0 the
+     whole feed (Last 24 hours). Up to 24 hours it cuts the live feed; past 24 hours the room reads its memory
+     (data-archive: build/intel_archive.py keeps every day it has seen since 14 Oct 2026) and the window is offered only
+     once that memory covers all of it, plus "Since <its first day>" for everything kept; the menu says when the next one
+     fills, so no button promises a year the room does not hold. A long window takes the same number of strongest items
+     from every one of its days (WIN_BUDGET items in all), so a month is spread over the month, never drowned by its last
+     day. The address carries it as ?within=6h, 3d, 7d, 30d, 3m, 6m, 12m or all (the old ?within=6 still reads). */
+  var WITHIN = [[1, T('Last hour')], [3, T('Last 3 hours')], [6, T('Last 6 hours')], [12, T('Last 12 hours')], [0, T('Last 24 hours')], [72, T('Last 3 days')],
+    [168, T('Last 7 days')], [720, T('Last 30 days')], [2160, T('Last 3 months')], [4320, T('Last 6 months')], [8760, T('Last 12 months')]];
+  var WIN_ALL = 87600;          // "Since <the first day kept>": everything the memory holds
+  var WIN_KEY = { 1: '1h', 3: '3h', 6: '6h', 12: '12h', 0: '24h', 72: '3d', 168: '7d', 720: '30d', 2160: '3m', 4320: '6m', 8760: '12m', 87600: 'all' };
+  var WIN_BUDGET = { 72: 500, 168: 800, 720: 1000, 2160: 1100, 4320: 1200, 8760: 1200, 87600: 1200 };
   // How credible the SOURCE is, 0 to 100, from the room's own table (intel_live.py for news and video, intel_x.py for X)
   var CREDS = [[0, T('Any source')], [50, N('50+')], [70, N('70+')], [85, N('85+')]];
   // A floor on the likes an item has on its own platform (views on Telegram do not count as likes).
@@ -423,14 +437,18 @@
     // ranked among what a reader can see (own); a found item gets its place in that same ranking
     all.forEach(function (it) { var m = mainCount(it); if (m != null && own(it)) (by[pfOf(it)] = by[pfOf(it)] || []).push(m); });
     Object.keys(by).forEach(function (p) { by[p].sort(function (a, b) { return a - b; }); VN[p] = by[p].length; });
-    all.forEach(function (it) {
-      var m = mainCount(it), a = by[pfOf(it)];
-      delete it._v;
-      if (m == null || !a || a.length < 8) return;
-      var lo = 0, hi = a.length;
-      while (lo < hi) { var mid = (lo + hi) >> 1; if (a[mid] < m) lo = mid + 1; else hi = mid; }
-      it._v = Math.max(0, Math.min(100, Math.round(100 * lo / (a.length - 1))));
-    });
+    VBY = by;
+    all.forEach(viralOne);
+  }
+  // one item's place in that ranking; an item of the room's memory (a window past 24 hours) is placed without moving it
+  var VBY = {};
+  function viralOne(it) {
+    var m = mainCount(it), a = VBY[pfOf(it)];
+    delete it._v;
+    if (m == null || !a || a.length < 8) return;
+    var lo = 0, hi = a.length;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (a[mid] < m) lo = mid + 1; else hi = mid; }
+    it._v = Math.max(0, Math.min(100, Math.round(100 * lo / (a.length - 1))));
   }
   function viralWhy(it) {
     if (it._v == null) return '';
@@ -465,7 +483,92 @@
   function reduced() { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
 
   /* ------------------------------------------------------------ the three lenses */
-  function setOf(l) { return l === 'live' ? LIVE : l === 'readers' ? RD : BANK; }
+  function setOf(l) { return l === 'live' ? liveSet() : l === 'readers' ? RD : BANK; }
+
+  /* THE ROOM'S MEMORY (see THE TIME PICKER). ARCH: the small index (data-archive: when, the first moment kept, the newest
+     hour folded, and the days each file holds); ARCH_D: day -> its items, read only when a window past 24 hours is wanted
+     (the week file for 3 and 7 days, the year file too beyond); WSET: each long window's set, made once per read. */
+  var ARCH = null, ARCH_D = {}, ARCH_GOT = { week: 0, year: 0 }, ARCH_WAIT = {}, WSET = {}, WQ = {}, BYID = {};
+  function archUrl(tier) { var u = root.getAttribute('data-archive') || ''; return u ? u.replace(/-at\.json(\?.*)?$/, '-' + tier + '.json') : ''; }
+  function archFrom() { return ARCH ? Date.parse(ARCH.from) || 0 : 0; }
+  // the memory is usable when it reaches the live feed (no hole between its newest hour and the feed's oldest)
+  function archOk() { var last = ARCH ? Date.parse(ARCH.last) || 0 : 0; return !!(ARCH && archFrom() && last && LIVE_AT && last >= LIVE_AT - 24 * 3600000); }
+  function winTiers(w) { return w > 168 ? ['week', 'year'] : ['week']; }
+  function winFull(w) { return w <= 24 || (archOk() && archFrom() <= Date.now() - w * 3600000); }
+  // the windows offered now: the feed's own, the long ones the memory covers, and everything kept when that is longer still
+  function winList() {
+    var out = WITHIN.filter(function (o) { return winFull(o[0]); });
+    if (archOk()) {
+      var top = out[out.length - 1][0] || 24, span = Date.now() - archFrom();
+      if (top < 8760 && span > (top + 12) * 3600000) out.push([WIN_ALL, T('Since {date}', { date: dayName(ARCH.from) })]);
+    }
+    return out;
+  }
+  // the windows not covered yet, with the day each one fills (said under the menu, never offered as a button)
+  function winLater() {
+    if (!archOk()) return [];
+    return WITHIN.filter(function (o) { return o[0] > 24 && !winFull(o[0]); }).map(function (o) { return [o[1], dayName(new Date(archFrom() + o[0] * 3600000).toISOString())]; });
+  }
+  function dayName(iso) { var p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? N(+p[2]) + ' ' + MONV[+p[1] - 1] + (p[0] !== String(new Date().getUTCFullYear()) ? ' ' + N(p[0]) : '') : ''; }
+  function winLabel(w) { if (w === WIN_ALL && ARCH) return T('Since {date}', { date: dayName(ARCH.from) }); var o = WITHIN.filter(function (x) { return x[0] === w; })[0]; return o ? o[1] : LENS.live; }
+  // the window in a sentence: "the last 7 days", "since 14 Oct"
+  function winSay(w) { var l = winLabel(w); return w === WIN_ALL ? l.charAt(0).toLowerCase() + l.slice(1) : T('the {when}', { when: l.charAt(0).toLowerCase() + l.slice(1) }); }
+  function winOf(v) {          // ?within=: a key (6h, 7d, all) or the old number of hours
+    v = String(v || '').toLowerCase();
+    for (var h in WIN_KEY) if (WIN_KEY[h] === v) return +h;
+    var n = +v; return n && WIN_KEY[n] && n <= 12 ? n : 0;
+  }
+  function archReady(w) { return winTiers(w).every(function (t) { return ARCH_GOT[t] === 2 || ARCH_GOT[t] === -1; }); }
+  function archLoad(w) {
+    if (!archOk()) return Promise.resolve(false);
+    return Promise.all(winTiers(w).map(function (t) {
+      if (ARCH_WAIT[t]) return ARCH_WAIT[t];
+      var u = archUrl(t); if (!u) { ARCH_GOT[t] = -1; return Promise.resolve(false); }
+      ARCH_GOT[t] = 1;
+      return (ARCH_WAIT[t] = fetch(u, { cache: 'no-cache' }).then(function (r) { if (!r.ok) throw r; return r.json(); }).then(function (doc) {
+        var days = doc && doc.days && typeof doc.days === 'object' ? doc.days : {};
+        Object.keys(days).forEach(function (d) {
+          if (!/^\d{4}-\d\d-\d\d$/.test(d) || !Array.isArray(days[d])) return;
+          ARCH_D[d] = days[d].filter(function (it) { return it && it.u && it.t && it.d && it.id; }).map(function (it) { it = normLive(it); it._arch = 1; viralOne(it); return it; });
+        });
+        ARCH_GOT[t] = 2; WSET = {};
+        return true;
+      }).catch(function () { ARCH_GOT[t] = -1; WSET = {}; return false; }));
+    }));
+  }
+  function strength(a, b) { return (b.hot || 0) - (a.hot || 0) || (b.lk || 0) - (a.lk || 0) || (b.vw || 0) - (a.vw || 0); }
+  // the set a window shows: up to 24 hours the live feed (pass() cuts it); past that, the feed and the memory by day, the
+  // feed's copy of an item first (its counts are fresher), the same number of the strongest from every day
+  function liveSet() {
+    var w = S.within;
+    if (!(w > 24) || !archReady(w)) return LIVE;
+    if (WSET[w]) return WSET[w];
+    var cut = w === WIN_ALL ? 0 : Date.now() - w * 3600000, by = {}, have = {}, deep = [];
+    var put = function (it) {
+      var ms = Date.parse(it.d || ''); if (!(ms >= cut) || have[it.id]) return;
+      have[it.id] = 1; var d = new Date(ms).toISOString().slice(0, 10); (by[d] = by[d] || []).push(it);
+    };
+    LIVE.forEach(function (it) { if (it._deep) deep.push(it); else put(it); });
+    Object.keys(ARCH_D).forEach(function (d) { ARCH_D[d].forEach(put); });
+    var days = Object.keys(by), most = 0, budget = WIN_BUDGET[w] || 1000;
+    days.forEach(function (d) { by[d].sort(strength); most = Math.max(most, by[d].length); });
+    var q = 1;          // the most a day may give with the window under its budget
+    for (var k = most; k >= 1; k--) { var t = 0; days.forEach(function (d) { t += Math.min(k, by[d].length); }); if (t <= budget) { q = k; break; } }
+    var out = [], inOut = {};
+    days.sort().forEach(function (d) { for (var i = 0; i < by[d].length && i < q; i++) { out.push(by[d][i]); inOut[by[d][i].id] = 1; } });
+    // the hour's stories stay whole (their Trending chips count every item, and a chip opens all of them, in any window)
+    var inStory = {}; HOTS.forEach(function (h) { h.all.forEach(function (it) { inStory[it.id] = 1; }); });
+    LIVE.forEach(function (it) { if (!it._deep && !inOut[it.id] && inStory[it.id] && have[it.id]) out.push(it); });
+    out.forEach(function (it) { if (!BYID[it.id]) BYID[it.id] = it; });
+    WQ[w] = q;
+    return (WSET[w] = out.concat(deep));
+  }
+  // how many own items a window holds, as its menu row and the tab say it (null: not read yet)
+  function winCount(w) {
+    if (w > 24) { if (!archReady(w)) return null; var keep = S.within; S.within = w; var n = ownOf(liveSet()).length; S.within = keep; return n; }
+    var c = w ? Date.now() - w * 3600000 : 0;
+    return LIVE.filter(function (it) { return own(it) && (!c || Date.parse(it.d || '') > c); }).length;
+  }
   /* WHAT A READER CAN SEE (24 Oct 2026). A found item (_deep, EVERY TRENDING STORY IS A SHOW) lives only inside its story:
      pass() hides it everywhere else. Every count, the wire, the place menu, the kind buttons and the platforms count only
      these (own), or a found item pass() lets through; before this the wire was 9 found items in 14 that opened nothing, and
@@ -494,18 +597,61 @@
     var el = $('ir-lens'), html = '';
     ['live', 'bank', 'readers'].forEach(function (l) {
       if (l === 'live' && !liveShown()) return;
-      var n = ownOf(setOf(l)).length, on = S.lens === l;
+      var on = S.lens === l, wn = l === 'live' && on ? winCount(S.within) : null;
+      var n = l === 'live' && on ? wn : ownOf(setOf(l)).length;
       var sub = l === 'live' ? (LIVE_AT ? T('updated {t}', { t: ago(LIVE_AT) }) : '') : l === 'readers' ? (rdState === 'loading' ? T('loading') : T('being checked')) : T('checked');
-      html += '<button type="button" role="tab" class="ir-lens-' + l + '" data-lens="' + l + '" aria-selected="' + on + '">' +
-        (l === 'live' ? '<i class="ir-live-dot" aria-hidden="true"></i>' : '') + '<b>' + LENS[l] + '</b> <span class="num">' + N(n) + '</span><small>' + esc(sub) + '</small></button>';
+      // the live tab names its window and opens the time menu once it is on (THE TIME PICKER)
+      html += '<button type="button" role="tab" class="ir-lens-' + l + '" data-lens="' + l + '" aria-selected="' + on + '"' +
+        (l === 'live' ? ' aria-haspopup="menu" aria-controls="ir-win" aria-expanded="' + (WIN_OPEN ? 'true' : 'false') + '"' + (on ? ' title="' + esc(T('Pick the time')) + '"' : '') : '') + '>' +
+        (l === 'live' ? '<i class="ir-live-dot" aria-hidden="true"></i>' : '') + '<b>' + (l === 'live' && on ? esc(winLabel(S.within)) : LENS[l]) + '</b> <span class="num">' + (n == null ? '&hellip;' : N(n)) + '</span>' +
+        (l === 'live' && on ? '<i class="ir-win-v" aria-hidden="true"></i>' : '') + '<small>' + esc(sub) + '</small></button>';
     });
     el.innerHTML = html; el.hidden = false;
     $('ir-kick-l').textContent = S.lens === 'live' && liveFresh() ? T('Live') : '';
+    drawWin();
+  }
+  /* The time menu (THE TIME PICKER): every window offered, each with what it holds, the one on marked; under it, when the
+     longer ones fill. It opens under the bar, in the page's flow (nothing slides over the map). */
+  var WIN_OPEN = false;
+  function drawWin() {
+    var el = $('ir-win'); if (!el) return;
+    if (!WIN_OPEN || S.lens !== 'live') { el.hidden = true; el.innerHTML = ''; WIN_OPEN = WIN_OPEN && S.lens === 'live'; return; }
+    var later = winLater();
+    el.innerHTML = '<p class="ir-win-h">' + T('Show the news of the') + '</p><div class="ir-win-g">' + winList().map(function (o) {
+      var c = winCount(o[0]), on = S.within === o[0];
+      return '<button type="button" class="ir-win-o" role="menuitemradio" aria-checked="' + on + '" data-win="' + WIN_KEY[o[0]] + '"><span>' + esc(o[1]) + '</span><b class="num">' + (c == null ? '&hellip;' : N(c)) + '</b></button>';
+    }).join('') + '</div>' +
+      (later.length ? '<p class="ir-win-n">' + esc(T('The room keeps every day it sees, since {date}. Longer times open as it fills them: {list}.', { date: dayName(ARCH.from), list: later.map(function (x) { return T('{when} on {date}', { when: x[0], date: x[1] }); }).join(T(', ')) })) + '</p>' : '');
+    el.hidden = false;
+  }
+  function openWin(on, focus) {
+    WIN_OPEN = on == null ? !WIN_OPEN : !!on;
+    if (WIN_OPEN) {          // read the memory now, so the long windows' counts fill in while the menu is open
+      var lst = winList(), w = lst.length ? lst[lst.length - 1][0] : 0;
+      if (w > 24 && !archReady(w)) archLoad(w).then(function () { if (WIN_OPEN) drawLens(); if (S.lens === 'live' && S.within > 24) render(true); });
+    }
+    drawLens();
+    if (WIN_OPEN) { var wm = $('ir-win'), wr = wm.getBoundingClientRect(); if (wr.bottom > (window.innerHeight || 0) && wm.scrollIntoView) wm.scrollIntoView({ block: 'nearest' }); }
+    if (WIN_OPEN && focus) { var b = $('ir-win').querySelector('[aria-checked="true"]') || $('ir-win').querySelector('button'); if (b) b.focus(); }
+    else if (!WIN_OPEN && focus) { var lb = $('ir-lens').querySelector('[data-lens="live"]'); if (lb) lb.focus(); }
+  }
+  function pickWin(w) {
+    WIN_OPEN = false;
+    if (S.lens !== 'live') useLens('live', true);
+    S.within = w;
+    stopTour(); say('');
+    if (w > 24 && !archReady(w)) archLoad(w).then(function () { if (S.lens === 'live' && S.within === w) { render(); frameShown(); } });
+    render(); frameShown();
+    var lb = $('ir-lens').querySelector('[data-lens="live"]'); if (lb) lb.focus();
   }
   function liveNote() {
     var el = $('ir-livenote');
     if (S.lens === 'live') {
-      el.innerHTML = T('The last 24 hours, read every hour from public news and video feeds{last}. <b>Hot</b> is measured: how many different outlets carry a story, or how fast a video is being watched. ', { last: LIVE_AT ? T(', last {t}', { t: esc(ago(LIVE_AT)) }) : '' }) +
+      var w = S.within, mem = '';
+      if (w > 24) mem = !archReady(w) ? T('Reading {when} from what the room keeps.', { when: winSay(w) }) + ' ' :
+        T('{when}: the strongest {n} of every day, from the memory the room keeps of every day it has seen since {date}. The newest counts come from the live feed.', { when: winLabel(w), n: N(WQ[w] || 0), date: dayName(ARCH.from) }) + ' ' +
+        (winTiers(w).some(function (t) { return ARCH_GOT[t] === -1; }) ? T('Some older days could not be read just now: this shows the days that were.') + ' ' : '');
+      el.innerHTML = (mem ? '<b>' + esc(mem) + '</b>' : '') + T('The last 24 hours, read every hour from public news and video feeds{last}. <b>Hot</b> is measured: how many different outlets carry a story, or how fast a video is being watched. ', { last: LIVE_AT ? T(', last {t}', { t: esc(ago(LIVE_AT)) }) : '' }) +
         // say it when X is missing, so a host does not hunt for posts that are not coming (18 Oct 2026: none for a day)
         (LIVE.length && !LIVE.some(function (it) { return it.src === 'X'; }) ? T('X posts are paused for now; news and video still arrive every hour. ') : '') +
         T('<b>Blindspot</b> marks a story one side of the media carried and the other did not. ') + T('Seen something that should be here? <a href="#add">Add it</a>.');
@@ -669,6 +815,7 @@
   /* ------------------------------------------------------------ everything that redraws */
   function render(keepSpot) {
     LSET = null;
+    items = setOf(S.lens);          // the live lens's set follows its window (THE TIME PICKER), whichever path changed it
     var base = items.filter(function (it) { return pass(it, 'link'); });
     LINKS = S.lens === 'readers' || !G ? [] : buildLinks(base);
     if (S.link) { var L0 = linkByKey(S.link); if (L0) LSET = L0.ids; else S.link = ''; }
@@ -1057,14 +1204,15 @@
     // 22 Oct 2026 (his: "it doesn't have enough tweets"): how many of what is listed are X posts, the thing he puts on air,
     // so a story's chip shows at once whether it holds 3 posts or 30.
     var nxp = S.lens === 'live' ? shown.filter(function (it) { return it.src === 'X'; }).length : 0;
-    $('ir-count').innerHTML = '<b class="num">' + N(n) + '</b> ' + w + (n === nOwn() ? (S.lens === 'bank' ? T(' in the bank') : S.lens === 'live' ? T(' in 24 hours') : T(' waiting')) : T(' match')) +
+    var whole = S.lens === 'live' && S.within ? n === winCount(S.within) : n === nOwn();
+    $('ir-count').innerHTML = '<b class="num">' + N(n) + '</b> ' + w + (whole ? (S.lens === 'bank' ? T(' in the bank') : S.lens === 'live' ? (S.within ? T(' in {when}', { when: winSay(S.within) }) : T(' in 24 hours')) : T(' waiting')) : T(' match')) +
       (nxp ? ' <span class="ir-xn">· ' + T('{n} on X', { n: N(nxp) }) + '</span>' : '') +
       (nn ? ' <span class="ir-newn" title="' + T('Since your last visit to the room on this device') + '">' + T('{n} new', { n: N(nn) }) + '</span>' : '');
     $('ir-copy').hidden = !n; $('ir-tour').hidden = !n;
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=e107d6f1be): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=b18ba8ae30): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1356,7 +1504,7 @@
     if (S.lens !== 'readers') ['video', 'post', 'article', 'doc'].forEach(function (k) {
       if (items.some(function (it) { return kindOf(it) === k && (own(it) || pass(it)); })) sh += '<span><svg viewBox="-8 -8 16 16" aria-hidden="true"><path d="' + SHAPE[k] + '"/></svg>' + KIND_N[k] + '</span>';
     });
-    var head = S.lens === 'live' ? '<i class="lg-live"></i> ' + T('Last 24 hours') + ' · <b class="num">' + N(n) + '</b> ' + (n === 1 ? T('story') : T('stories')) + (LIVE_AT ? ' · ' + T('updated {t}', { t: esc(ago(LIVE_AT)) }) : '')
+    var head = S.lens === 'live' ? '<i class="lg-live"></i> ' + esc(winLabel(S.within)) + ' · <b class="num">' + N(n) + '</b> ' + (n === 1 ? T('story') : T('stories')) + (LIVE_AT ? ' · ' + T('updated {t}', { t: esc(ago(LIVE_AT)) }) : '')
       : S.lens === 'readers' ? '<i class="lg-rd"></i> ' + T('Sent by readers, being checked') + ' · <b class="num">' + N(n) + '</b>'
       : '<i class="lg-bank"></i> ' + T('The bank') + ' · <b class="num">' + N(n) + '</b> ' + (n === 1 ? T('item') : T('items')) + (fullRange() ? '' : ' · ' + esc($('ir-range').textContent));
     el.innerHTML = '<span class="lg-h">' + head + '</span>' + (sh ? '<span class="lg-k">' + sh + '<span class="lg-c">' + T('Colour: where it was posted') + '</span></span>' : '');
@@ -1638,7 +1786,6 @@
       return '<button class="ir-chip ir-pfc" type="button" data-pf="' + p + '" aria-pressed="' + (S.pf.indexOf(p) >= 0) + '" style="--pc:' + pfColor(p) + '"><b class="ir-pfd" aria-hidden="true"></b><span>' + esc(pfName(p)) + ' <i>' + N(pc[p] || 0) + '</i>' + (sub ? '<small>' + sub + '</small>' : '') + '</span></button>';
     }).join('');
     seg('ir-heat', 'heat', T('Heat'), HEATS, S.lens === 'live');
-    seg('ir-within', 'within', T('Within'), WITHIN, S.lens === 'live');
     seg('ir-viral', 'vmin', T('Viral'), VIRALS, items.some(function (it) { return it._v != null && own(it); }) || !!S.vmin);
     seg('ir-cred', 'crmin', T('Credible'), CREDS, items.some(function (it) { return crOf(it) != null && own(it); }) || !!S.crmin);
     seg('ir-likes', 'lmin', T('Likes'), LIKES, items.some(function (it) { return likesN(it) != null && own(it); }) || !!S.lmin);
@@ -1759,8 +1906,8 @@
     var b = [];
     if (S.lens === 'live') {
       var h = S.hot && S.hot !== 'all' && S.hot !== 'blind' ? hotById(S.hot) : null;
-      b.push(h ? T('Hot topic: {name}', { name: h.name }) : S.hot === 'all' ? T('Hot topics') : S.hot === 'blind' ? T('Blindspots') : T('Last 24 hours'));
-      if (S.within) b.push(T('last {n} h', { n: N(S.within) }));
+      b.push(h ? T('Hot topic: {name}', { name: h.name }) : S.hot === 'all' ? T('Hot topics') : S.hot === 'blind' ? T('Blindspots') : winLabel(S.within));
+      if (S.within && (h || S.hot)) b.push(winLabel(S.within));
     } else if (S.lens === 'bank') b.push(fullRange() ? T('The bank, all time') : T('The bank, {when}', { when: S.days ? T('the past 30 days') : bLabel(S.from) + (S.to !== S.from ? T(' to ') + bLabel(S.to) : '') }));
     else b.push(T('From readers'));
     if (S.fx.length) b.push(S.fx.map(function (k) { return FOCUS[FXI[k]][1]; }).join(T(' or ')));
@@ -1869,7 +2016,7 @@
     if (t && !clear) sayT = setTimeout(function () { if (el.textContent === String(t)) el.innerHTML = ''; }, 6000);
   }
   function clearS() {          // every filter off, in place (the ask box's blankS returns a blank copy instead)
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
+    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
   }
   function clearAll() {
@@ -1947,7 +2094,7 @@
      on shows as a pill under the bar, each with its own cross, so a reader always sees why the list is what it is. */
   function nActive() {
     return S.tp.length + S.fx.length + (S.place || S.nowhere ? 1 : 0) + S.pf.length + (S.kind ? 1 : 0) + (S.heat && S.lens === 'live' ? 1 : 0) + (S.vmin ? 1 : 0) +
-      (S.within && S.lens === 'live' ? 1 : 0) + (S.crmin ? 1 : 0) + (S.lmin ? 1 : 0) + (S.top ? 1 : 0) + (S.edu ? 1 : 0) + (S.lens === 'bank' && !fullRange() ? 1 : 0) +
+      (S.crmin ? 1 : 0) + (S.lmin ? 1 : 0) + (S.top ? 1 : 0) + (S.edu ? 1 : 0) + (S.lens === 'bank' && !fullRange() ? 1 : 0) +
       Object.keys(FACETS).filter(function (k) { return S.ext[k]; }).length;          // the FACETS are filters of the panel too
   }
   function drawCmd() {
@@ -1978,7 +2125,6 @@
     if (S.nowhere) p.push(['place:', T('No single place')]); else if (S.place) p.push(['place:', S.place.indexOf('c:') === 0 ? cName(S.place.slice(2)) : S.place.split(',').map(placeName).join(T(', '))]);
     S.pf.forEach(function (x) { p.push(['pf:' + x, T('On {pf}', { pf: pfName(x) })]); });
     if (S.kind) p.push(['kind:', kn(S.kind)]);
-    if (S.within && S.lens === 'live') p.push(['within:', T('Last {n} h', { n: N(S.within) })]);
     if (S.heat && S.lens === 'live') p.push(['heat:', T('Heat {n}+', { n: N(S.heat) })]);
     if (S.lmin) p.push(['lmin:', T('{n}+ likes', { n: fmtN(S.lmin) })]);
     if (S.vmin) p.push(['vmin:', T('Viral {n}+', { n: N(S.vmin) })]);
@@ -2236,7 +2382,7 @@
     if (S.kind) q.push('kind=' + S.kind);
     if (S.pf.length) q.push('pf=' + S.pf.map(encodeURIComponent).join('.'));
     if (S.heat && S.lens === 'live') q.push('heat=' + S.heat);
-    if (S.within && S.lens === 'live') q.push('within=' + S.within);
+    if (S.within && S.lens === 'live') q.push('within=' + WIN_KEY[S.within]);
     if (S.vmin) q.push('viral=' + S.vmin);
     if (S.crmin) q.push('cred=' + S.crmin);
     if (S.lmin) q.push('likes=' + S.lmin);
@@ -2274,7 +2420,10 @@
     S.top = u.get('top') === '1'; S.edu = u.get('edu') === '1';
     S.pf = (u.get('pf') || '').split('.').filter(function (x) { return PFC[x]; });
     var pick = function (list, v) { v = +v || 0; return list.some(function (o) { return o[0] === v; }) ? v : 0; };
-    S.heat = pick(HEATS, u.get('heat')); S.within = pick(WITHIN, u.get('within')); S.vmin = pick(VIRALS, u.get('viral')); S.crmin = pick(CREDS, u.get('cred'));
+    S.heat = pick(HEATS, u.get('heat')); S.within = winOf(u.get('within'));
+    if (S.within > 24 && !winFull(S.within) && S.within !== WIN_ALL) S.within = archOk() ? WIN_ALL : 0;          // a window the memory does not cover yet opens on everything kept
+    if (S.within === WIN_ALL && !winList().some(function (o) { return o[0] === WIN_ALL; })) S.within = 0;
+    if (S.within > 24 && S.lens === 'live') archLoad(S.within).then(function () { if (S.lens === 'live' && S.within > 24) { render(); frameShown(); } }); S.vmin = pick(VIRALS, u.get('viral')); S.crmin = pick(CREDS, u.get('cred'));
     S.lmin = pick(LIKES, u.get('likes'));
     S.fx = (u.get('focus') || '').split('.').filter(function (k, i, a) { return FXI[k] != null && a.indexOf(k) === i; });
     S.link = (u.get('link') || '').slice(0, 80); S.with = (u.get('with') || '').slice(0, 40);
@@ -2353,13 +2502,14 @@
     var o = {};
     Object.keys(S).forEach(function (k) { var v = S[k]; o[k] = Array.isArray(v) ? [] : v && typeof v === 'object' ? {} : typeof v === 'boolean' ? false : typeof v === 'number' ? 0 : ''; });
     o.lens = LENS[lens] && (lens !== 'live' || liveShown()) ? lens : S.lens; o.sort = SORTS[o.lens][0][0]; o.from = 0; o.to = buckets.length - 1;
+    o.within = o.lens === 'live' ? S.within : 0;          // the time picked on the bar stays, as the lens does (THE TIME PICKER)
     return o;
   }
   function peekS(ns, list) {
     var keep = snapS(), it0 = items, L0 = LSET, out = [];
     try {
-      if (ns.lens && ns.lens !== S.lens && LENS[ns.lens]) items = setOf(ns.lens);
       Object.keys(ns).forEach(function (k) { S[k] = cpv(ns[k]); });
+      items = setOf(LENS[S.lens] ? S.lens : keep.lens);          // after the window is set: the live set follows it
       LSET = null;
       for (var i = 0; i < items.length; i++) if (pass(items[i])) out.push(items[i]);
       if (list) sortList(out);
@@ -2389,7 +2539,7 @@
     var so = {}; Object.keys(SORTS).forEach(function (l) { so[l] = SORTS[l].map(function (s) { return s[0]; }); });
     return { lens: S.lens, live: liveShown(), sorts: so, topics: TOPICS.map(function (t) { return [t[0], t[1]]; }), topicAsk: TOPIC_ASK, rel: REL_KEYS.length > 0,
       places: PLACE_WORDS, place: function (k) { return k.indexOf('c:') === 0 || !!P[k]; }, focus: FOCUS.map(function (f) { return [f[0], f[1], f[2], f[3]]; }),
-      pf: PF_WORDS, pfs: PF.map(function (p) { return [p[0], p[1]]; }), kinds: KINDS.slice(), within: WITHIN, heats: HEATS, likes: LIKES, virals: VIRALS, creds: CREDS,
+      pf: PF_WORDS, pfs: PF.map(function (p) { return [p[0], p[1]]; }), kinds: KINDS.slice(), within: winList(), winSay: winSay, heats: HEATS, likes: LIKES, virals: VIRALS, creds: CREDS,
       buckets: buckets.slice(), mon: MON, daysFrom: daysFrom, bLabel: bLabel, map: ASK_MAP, stopFa: STOP_FA, ext: EXT, hasEdu: BANK.some(function (it) { return it.edu; }),
       hots: HOTS.map(function (h) { return { id: h.id, name: h.name, hot: h.hot, n: h.all.length, why: h.its[0] && h.its[0].hotWhy || '' }; }), top: hotTop().map(function (h) { return h.id; }),
       accounts: accountsOf, name: { topic: topicName, place: placeName, country: cName, pf: pfName, focus: function (k) { return FXI[k] != null ? FOCUS[FXI[k]][1] : k; }, fmt: fmtN } };
@@ -2456,7 +2606,7 @@
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
     if (want) ns.sort = want;
-    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.within = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to; S.days = ns.days;
+    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to; S.days = ns.days;
     if (!SORTS[S.lens].some(function (s) { return s[0] === S.sort; })) S.sort = SORTS[S.lens][0][0];
     $('ir-from').value = S.from; $('ir-to').value = S.to;
     render();
@@ -2758,7 +2908,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=e107d6f1be,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=b18ba8ae30,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3444,6 +3594,11 @@
       if (!a) return;
       ev.preventDefault(); openAdd(a);
     });
+    // the time menu closes on a tap anywhere else, and on Esc
+    document.addEventListener('click', function (ev) {
+      if (!WIN_OPEN || !ev.target.closest || ev.target.closest('#ir-win') || ev.target.closest('[data-lens="live"]')) return;
+      openWin(false);
+    });
     root.addEventListener('click', function (ev) {
       var t = ev.target.closest ? ev.target : ev.target.parentNode;
       var b;
@@ -3454,7 +3609,9 @@
       if ((b = t.closest('[data-ltab]'))) { LT = b.getAttribute('data-ltab'); drawLinkList(); drawList(); drawLinkList(); return; }
       if ((b = t.closest('[data-ltype]'))) { LTYPE = b.getAttribute('data-ltype'); drawLinkList(); return; }
       if ((b = t.closest('[data-link]'))) { pickLink(b.getAttribute('data-link')); return; }
-      if ((b = t.closest('button[data-lens]'))) { useLens(b.getAttribute('data-lens')); say(''); return; }
+      if ((b = t.closest('button[data-win]'))) { pickWin(winOf(b.getAttribute('data-win'))); return; }
+      // the live tab, once it is on, opens the time menu (THE TIME PICKER); any other lens closes it
+      if ((b = t.closest('button[data-lens]'))) { if (b.getAttribute('data-lens') === 'live' && S.lens === 'live') { openWin(null, ev.detail === 0); return; } WIN_OPEN = false; useLens(b.getAttribute('data-lens')); say(''); return; }
       if ((b = t.closest('button[data-pf]'))) {
         var pv = b.getAttribute('data-pf');
         if (pv === '') S.pf = []; else { var pa = S.pf.indexOf(pv); if (pa >= 0) S.pf.splice(pa, 1); else S.pf.push(pv); }
@@ -3594,6 +3751,7 @@
     ad.addEventListener('close', function () { if (location.hash === '#add' && history.replaceState) history.replaceState(null, '', location.pathname + location.search); });
     document.addEventListener('keydown', function (ev) {
       if (SHOWING) return;          // the show screen has its own keys
+      if (WIN_OPEN && ev.key === 'Escape') { openWin(false, true); return; }
       // typing in a box (the search, a form inside a dialog) never moves anything
       var typing = ev.target && (/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName) || ev.target.isContentEditable);
       // the arrow that points at the Next button moves forward: on a right-to-left page Next is drawn on the left
@@ -3691,8 +3849,9 @@
                G ? soft(root.getAttribute('data-geo')) : Promise.resolve(null),
                soft(liveUrl, { cache: 'no-cache' }), soft(reachUrl, { cache: 'no-cache' }),
                soft(root.getAttribute('data-packs'), { cache: 'no-cache' }), soft(root.getAttribute('data-words'), { cache: 'no-cache' }),
-               soft(root.getAttribute('data-deep'), { cache: 'no-cache' })]).then(function (res) {
+               soft(root.getAttribute('data-deep'), { cache: 'no-cache' }), soft(root.getAttribute('data-archive'), { cache: 'no-cache' })]).then(function (res) {
     D = res[0]; BANK = D.items; P = D.places; topics = D.topics;
+    if (res[7] && Date.parse(res[7].from) && Date.parse(res[7].last)) ARCH = res[7];          // the memory's index (THE TIME PICKER); without it the windows stop at 24 hours
     if (CFG.live === 'news' && res[2] && (res[2].schema !== CFG.schema || !Array.isArray(res[2].topics))) res[2] = null;          // an unknown shape is refused; the headlines the page came with stay
     if (CFG.live === 'news' && res[2]) NEWS_TK = res[2].topics.map(String);
     if (res[2] && Array.isArray(res[2].items)) { LIVE_AT = Date.parse(res[2].at) || 0; LIVE = res[2].items.filter(function (it) { return it && it.u && it.t; }).map(normLive); }
@@ -3756,7 +3915,6 @@
     else flyTo(V.mode === 'globe' ? 1.25 : 3, 36, 31);
     // What intel-prep.js (the creator tools and the show screen) is handed: the items (the last hours, the bank, one by its
     // id: L for the last hours, B for the bank, R for a reader's find), and the room's own words and marks for them.
-    var BYID = {};
     LIVE.forEach(function (it) { BYID[it.id] = it; }); BANK.forEach(function (it) { BYID['B' + it.id] = it; it._code = 'B' + it.id; });
     window.IRoom = { shown: function () { return shown.slice(); }, lens: function () { return S.lens; }, said: function () { return $('ir-said').textContent; },
       live: function () { return LIVE.slice(); }, bank: function () { return BANK.slice(); }, liveAt: function () { return LIVE_AT; },
@@ -3825,7 +3983,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=e107d6f1be'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=b18ba8ae30'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

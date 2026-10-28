@@ -66,6 +66,12 @@
   }
   // the biggest of the room's own steps that is not above n (10K+ likes for "15,000 likes")
   function stepAtMost(list, n) { var v = 0; (list || []).forEach(function (o) { if (o[0] && o[0] <= n && o[0] > v) v = o[0]; }); return v; }
+  // the shortest window past 24 hours that holds n hours, else the longest the room offers (0: the last 24 hours)
+  function stepAtLeast(list, n) {
+    var long = (list || []).filter(function (o) { return o[0] > 24; }).map(function (o) { return o[0]; }).sort(function (a, b) { return a - b; });
+    for (var i = 0; i < long.length; i++) if (long[i] >= n) return long[i];
+    return long.length ? long[long.length - 1] : 0;
+  }
   function sigWords(s) {
     return String(s || '').toLowerCase().replace(/\u200c/g, '').split(/[^a-z0-9\u0600-\u06ff]+/).map(function (w) { return w.replace(/'s$/, ''); })
       .filter(function (w) { return w.length >= 4 && !/^(says|said|after|over|with|from|into|amid|about|will|that|this|their|they|what|when|where|have|been|more|than|most|just|news|live|watch|breaking|update|video|videos|post|posts|report|reports|calls|call|new)$/.test(w); });
@@ -102,12 +108,20 @@
       }
     });
     // 2. time, and which of the room's lenses that means
-    var lens = base || V.lens, ns, n = V.buckets.length - 1, m, bank = null, within = 0;
+    var lens = base || V.lens, ns, n = V.buckets.length - 1, m, bank = null, within = 0, timed = false;
     var LIVEW = /\b(today|tonight|this morning|this evening|right now|now|breaking|latest|newest|recent|recently|just in|live|last 24 hours|past 24 hours|24 hours|this week|past week|last week|this weekend|last few days|past few days|these days|lately|current|currently|fresh)\b/;
     if ((m = /\b(?:last|past|in the last|in the past|within)\s+(\d+)\s*(?:hours?|hrs?|h)\b/.exec(t)) || (m = /\b(?:last|past) (hour)\b/.exec(t))) {
       var hrs = m[1] === 'hour' ? 1 : +m[1];
       if (hrs < 24) { within = stepAtMost(V.within, Math.max(1, hrs)) || 0; if (!within) within = (V.within.filter(function (o) { return o[0]; }).sort(function (a, b) { return a[0] - b[0]; })[0] || [0])[0]; }
-      t = t.replace(m[0], ' ');
+      else within = hrs <= 24 ? 0 : stepAtLeast(V.within, hrs);
+      timed = true; t = t.replace(m[0], ' ');
+      if (V.live) lens = 'live';
+    }
+    // days and weeks: the room's time picker past 24 hours (intel.js THE TIME PICKER), the shortest window that holds them
+    else if ((m = /\b(?:last|past|in the last|in the past|within)\s+(\d+|few|couple of)\s*(days?|weeks?)\b/.exec(t)) || (m = /\b(this|past|last) (week)\b/.exec(t))) {
+      var nn = m[2] === 'week' ? 1 : /^\d+$/.test(m[1]) ? +m[1] : 3, hh = nn * (/^week/.test(m[2]) ? 168 : 24);
+      within = hh <= 24 ? 0 : stepAtLeast(V.within, hh);
+      timed = true; t = t.replace(m[0], ' ');
       if (V.live) lens = 'live';
     }
     if (has(/since (the )?(october 7|oct 7|7 oct(ober)?|the massacre)/)) { bank = { from: 1, to: n, said: T('since 7 October') }; eat(/since (the )?(october 7(th)?|oct 7|7 oct(ober)?|the massacre)/); }
@@ -129,14 +143,14 @@
     }
     if (bank && V.sorts.bank) lens = 'bank';
     else if (has(LIVEW) && V.live) { lens = 'live'; }
-    if (has(LIVEW)) eat(LIVEW);
+    if (has(LIVEW)) { timed = true; eat(LIVEW); }
     if (lens === 'readers' && (bank || has(LIVEW))) lens = V.live ? 'live' : 'bank';
     if (Object.keys(extSet).length && V.live && !bank && lens !== 'live') lens = 'live';          // the room's facets cut the last 24 hours
     ns = R.blank(lens);
     Object.keys(extSet).forEach(function (k) { ns.ext[k] = extSet[k]; });
     if (ns.lens !== lens) lens = ns.lens;
     if (bank && lens === 'bank') { ns.from = bank.from; ns.to = bank.to; ns.days = bank.days || 0; did.push(bank.said); }
-    if (within && lens === 'live') ns.within = within;
+    if ((within || timed) && lens === 'live') ns.within = within;          // "today" is the last 24 hours, whatever the bar was on
     var sorts = V.sorts[lens] || [];
     var canSort = function (s) { return sorts.indexOf(s) >= 0; };
 
@@ -304,7 +318,7 @@
     if (ns.heat && ns.lens === 'live') parts.push(T('at heat {n}+', { n: N(ns.heat) }));
     if (ns.top && ns.lens === 'bank') parts.push(T('top picks only'));
     if (ns.edu) parts.push(T('explainers only'));
-    if (ns.lens === 'live') parts.push(ns.within ? T('from the last {n} hours', { n: N(ns.within) }) : T('from the last 24 hours'));
+    if (ns.lens === 'live') parts.push(ns.within ? T('from {when}', { when: V.winSay ? V.winSay(ns.within) : ns.within }) : T('from the last 24 hours'));
     (extra || []).forEach(function (x) { parts.push(x); });
     var line = T('{n} {what}', { n: N(n), what: noun }) + (parts.length ? ' ' + parts.join(T(', ')) : '') + '.';
     var so = { hot: T(' Hottest first.'), viral: T(' Most viral first.'), likes: T(' Most liked first.'), views: T(' Most viewed first.'), top: T(' Top picks first.'), old: T(' Oldest first.') }[ns.sort];
@@ -323,7 +337,7 @@
     if (ns.vmin) add(T('viral only'), function (x) { x.vmin = 0; });
     if (ns.crmin) add(T('credible sources only'), function (x) { x.crmin = 0; });
     if (ns.heat) add(T('heat {n}+', { n: N(ns.heat) }), function (x) { x.heat = 0; });
-    if (ns.within) add(T('the last {n} hours', { n: N(ns.within) }), function (x) { x.within = 0; });
+    if (ns.within) add(V.winSay ? V.winSay(ns.within) : String(ns.within), function (x) { x.within = 0; });
     if (ns.lens === 'bank' && (ns.from !== 0 || ns.to !== V.buckets.length - 1 || ns.days)) add(T('the time'), function (x) { x.from = 0; x.to = V.buckets.length - 1; x.days = 0; });
     if (ns.top) add(T('top picks only'), function (x) { x.top = false; });
     if (ns.pf && ns.pf.length) add(T('{pf} only', { pf: ns.pf.map(nm.pf).join(T(' and ')) }), function (x) { x.pf = []; });
