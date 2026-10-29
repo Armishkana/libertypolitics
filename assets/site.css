@@ -1996,16 +1996,35 @@ span.coal-face{display:inline-flex;align-items:center;justify-content:center;fon
 .coal-ways-l{max-width:66ch;font-size:.95rem}
 .coal-ways-list{list-style:none;margin:var(--s3) 0 0;padding:0;display:grid;gap:var(--s2)}
 @media(min-width:720px){.coal-ways-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.coal-way{display:flex;align-items:center;gap:var(--s3);width:100%;min-height:56px;padding:10px 14px;border-radius:var(--r2);border:1px solid var(--line);background:var(--sunk);color:inherit;font:inherit;text-align:left;cursor:pointer;flex-wrap:wrap}
+.coal-way{display:grid;gap:6px;width:100%;min-height:56px;padding:12px 14px;border-radius:var(--r2);border:1px solid var(--line);background:var(--sunk);color:inherit;font:inherit;text-align:left;cursor:pointer;height:100%;align-content:start}
 .coal-way:hover{border-color:var(--field)}
-.coal-way.is-bad{opacity:.7}
-.coal-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 200px;min-width:0}
+.coal-way.is-best{border-color:var(--field);background:color-mix(in srgb,var(--field) 7%,var(--sunk))}
+.coal-way.is-remote .coal-chips{opacity:.75}
+.coal-way-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.coal-best{font-size:.76rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--bg);background:var(--field);padding:3px 8px;border-radius:999px}
+.coal-like{display:inline-block;font-size:.76rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid currentColor}
+.coal-like.is-likely{color:var(--ga)}
+.coal-like.is-possible{color:var(--gb)}
+.coal-like.is-unlikely{color:var(--gd)}
+.coal-like.is-remote{color:var(--gf)}
+.coal-way-name{font-size:1.02rem;line-height:1.3;color:var(--dim)}
+.coal-way-name b{font-family:var(--display);font-weight:800;font-size:1.12rem;color:var(--ink);letter-spacing:.01em}
+.coal-way-pm{font-size:.82rem;color:var(--dim)}
+.coal-way-body{display:flex;align-items:center;gap:var(--s3);margin-top:2px}
+.coal-chips{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto;min-width:0}
 .coal-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 8px;border-radius:999px;font-size:.82rem;font-weight:600;background:color-mix(in srgb,var(--pc) 22%,transparent);border:1px solid color-mix(in srgb,var(--pc) 70%,transparent)}
 .coal-chip.is-have{background:transparent;border-style:dashed;color:var(--dim)}
+.coal-chip.is-outside{background:transparent;border-style:dotted}
+.coal-chip-o{font-size:.76rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
 .coal-chip .num{font-weight:800}
-.coal-way-n{font:900 1.6rem/1 var(--display);color:var(--field);margin-left:auto}
-.coal-way-bad{flex-basis:100%;font-size:.78rem;font-weight:700;color:var(--gd)}
+.coal-way-n{font:900 1.6rem/1 var(--display);color:var(--field);margin-left:auto;flex:none}
+.coal-way-why{font-size:.84rem;line-height:1.4;color:var(--ink);opacity:.85}
+.coal-now{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:6px}
+.coal-now-t{font-family:var(--display);font-weight:800;font-size:1.2rem;color:var(--ink)}
+.coal-now-q{font-family:var(--body);font-weight:500;font-size:.95rem;color:var(--dim)}
+.coal-say .coal-now{display:flex}
 .coal-ways-list .btn{width:100%}
+.coal-more-li{grid-column:1/-1}
 .coal-src{margin-top:var(--s5);font-size:.85rem;max-width:80ch}
 .coal-src a{color:var(--dim)}
 .coal-teaser{display:block;margin-top:var(--s3);font-weight:700;color:var(--field)}

@@ -28,9 +28,10 @@
   function join(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-  // A stated red line this government breaks. wont-sit-with: the party and a target both in government (or the
+  // A stated red line this government touches. wont-sit-with: the party and a target both in government (or the
   // target keeping it alive from outside, when the party refused that too). only-with: the party is in, and none
-  // of the parties it said it governs with are. soft: a condition that is shown, never counted as broken.
+  // of the parties it said it governs with are. soft: a condition about who leads, broken only when a target is
+  // the biggest party in the government, so it would hold the prime minister (broken() decides).
   function clashes(set, outs) {
     outs = outs || [];
     var hit = [];
@@ -44,7 +45,89 @@
     });
     return hit;
   }
-  function hard(list) { return list.filter(function (r) { return !r.soft; }); }
+  function lead(set) { return set.slice().sort(function (a, b) { return (P[b].seats - P[a].seats) || (ids.indexOf(a) - ids.indexOf(b)); })[0]; }
+  function broken(r, set) { return !r.soft || r.targets.indexOf(lead(set)) >= 0; }
+  function hard(list, set) { return list.filter(function (r) { return broken(r, set); }); }
+
+  // ---------------------------------------------------------------- what a government is called, and how likely it is
+  // Every name is computed from the register, never typed per option: outside votes make it a Minority Government,
+  // the two biggest parties together a Unity Government, a government without the party in power (C.incumbent) a
+  // Change Government, anything else is named after its prime minister. "with ..." names who crosses from another
+  // bloc; a whole bloc is named as one (C.blocWords) when every party of it joins.
+  var BIG2 = ids.slice().sort(function (a, b) { return P[b].seats - P[a].seats; }).slice(0, 2);
+  function surname(i) { var w = P[i].leader.split(' '); return w[w.length - 1]; }
+  function label(i) { return (P[i].the ? 'the ' : '') + P[i].name; }
+  function group(list) {
+    var done = {}, parts = [];
+    list.forEach(function (i) {
+      if (done[i]) return;
+      var b = P[i].bloc, all = ids.filter(function (x) { return P[x].bloc === b; });
+      if (all.length > 1 && all.every(function (x) { return list.indexOf(x) >= 0; })) {
+        all.forEach(function (x) { done[x] = 1; });
+        parts.push((C.blocWords || {})[b] || 'the ' + b + ' parties');
+      } else { done[i] = 1; parts.push(label(i)); }
+    });
+    return join(parts);
+  }
+  function name(G, O) {
+    var L = lead(G), camp = P[L].camp || L, cross = G.filter(function (i) { return (P[i].camp || i) !== camp; }), title;
+    if (O.length) title = 'Minority Government';
+    else if (BIG2.every(function (i) { return G.indexOf(i) >= 0; })) { title = 'Unity Government'; cross = G.filter(function (i) { return BIG2.indexOf(i) < 0; }); }
+    else if (C.incumbent && P[C.incumbent] && G.indexOf(C.incumbent) < 0) title = 'Change Government';
+    else title = surname(L) + ' Government';
+    var q = [];
+    if (cross.length) q.push('with ' + group(cross));
+    if (O.length) q.push('backed from outside by ' + group(O));
+    return { title: title, qual: q.join(', '), pm: surname(L) };
+  }
+  // How far apart a cabinet is, left to right, from the bloc words the parties carry (blocs off this line, such as
+  // the ultra-Orthodox or the Arab parties, are not placed on it). Four steps or more apart costs a lot.
+  var AXIS = { 'Far-left': 0, 'Left': 1, 'Centre-left': 2, 'Center-left': 2, 'Centre': 3, 'Center': 3, 'Centre-right': 4, 'Center-right': 4, 'Right': 5, 'Far-right': 6 };
+  function spread(G) {      // only between parties that ran in different blocs: a bloc that ran together has already agreed
+    var best = null, on = G.filter(function (i) { return AXIS[P[i].bloc] != null; });
+    on.forEach(function (x) { on.forEach(function (y) {
+      var d = AXIS[P[y].bloc] - AXIS[P[x].bloc];
+      if (d > 0 && (P[x].camp || x) !== (P[y].camp || y) && (!best || d > best.n)) best = { n: d, lo: P[x].bloc, hi: P[y].bloc };
+    }); });
+    return best;
+  }
+  function bw(b) { return 'the ' + b.toLowerCase().replace('-', ' '); }
+  var TIER = { likely: 'Likely', possible: 'Possible', unlikely: 'Unlikely', remote: 'Very unlikely' };
+  // For a government: every stated red line it breaks counts hard against it (by leader, so one leader's two lines
+  // count once and a bit), every leader on record as open to it counts for it, and mixing blocs, needing outside
+  // votes and adding parties cost a little. The reasons are the same facts in words, against first.
+  function judge(G, O) {
+    var broke = hard(clashes(G, O), G), plus = [], who = {}, camps = {};
+    (C.redLines || []).forEach(function (r) {
+      var inG = function (t) { return G.indexOf(t) >= 0; };
+      if (r.kind === 'open-to' && (G.indexOf(r.party) >= 0 || O.indexOf(r.party) >= 0) && r.targets.some(inG)) plus.push(r);
+      else if (r.kind === 'outside-support' && O.indexOf(r.party) >= 0 && r.targets.some(inG)) plus.push(r);
+    });
+    broke.forEach(function (r) { who[r.party] = 1; });
+    G.forEach(function (i) { camps[P[i].camp || i] = 1; });
+    var n = Object.keys(who).length, nc = Object.keys(camps).length, L = lead(G), sp = spread(G), far = sp && sp.n >= 4 ? sp.n - 3 : 0;
+    var score = -100 * n - 20 * (broke.length - n) - 40 * far + 6 * plus.length - 15 * (nc - 1) - (O.length ? 8 : 0) - 3 * G.length;
+    var tier = n === 0 && !far ? (plus.length && nc <= 2 ? 'likely' : 'possible') : n + (far ? 1 : 0) <= 1 ? 'unlikely' : 'remote';
+    var why = [], seen = {};
+    broke.forEach(function (r) {
+      var k = r.party + (r.soft ? 's' : r.kind);
+      if (seen[k]) return;
+      seen[k] = 1;
+      var inG = r.targets.filter(function (t) { return G.indexOf(t) >= 0; }), inO = r.targets.filter(function (t) { return O.indexOf(t) >= 0; });
+      if (r.soft) why.push(surname(r.party) + ' won’t serve under ' + surname(L));
+      else if (r.kind === 'only-with') why.push(surname(r.party) + ' backs only ' + group(r.targets));
+      else why.push(surname(r.party) + ' ruled out ' + (inG.length ? group(inG) : 'relying on ' + group(inO)));
+    });
+    if (far) why.push('Joins ' + bw(sp.lo) + ' and ' + bw(sp.hi));
+    plus.forEach(function (r) {
+      var k = r.party + r.kind;
+      if (seen[k]) return;
+      seen[k] = 1;
+      why.push(r.kind === 'outside-support' ? label(r.party).replace(/^t/, 'T') + ' offered to back it from outside' : surname(r.party) + ' is open to it');
+    });
+    if (!why.length) why.push('No leader has ruled it out');
+    return { score: score, tier: tier, why: why, broke: n };
+  }
 
   // ---------------------------------------------------------------- the chamber
   var last = [];
@@ -84,19 +167,25 @@
     box.classList.toggle('is-maj', g >= MAJ);
     box.classList.toggle('is-min', g < MAJ && t >= MAJ);
     var big = gov.slice().sort(function (a, b) { return P[b].seats - P[a].seats; })[0];
-    var lead = big ? ' The biggest party in it is ' + esc(P[big].name) + ', led by ' + esc(P[big].leader) + '.' : '';
+    var biggest = big ? ' The biggest party in it is ' + esc(P[big].name) + ', led by ' + esc(P[big].leader) + '.' : '';
     var s;
     if (!gov.length && !out.length) s = 'Tap a party to start a government. No party has ' + MAJ + ' on its own.';
-    else if (g >= MAJ) s = '<b>A majority.</b> ' + g + ' seats, ' + (g - MAJ ? (g - MAJ) + ' more than it needs' : 'not one to spare') + '. ' + (ALL - g) + ' seats would sit in opposition.' + lead;
-    else if (t >= MAJ) s = '<b>A minority government that can survive.</b> ' + g + ' seats inside, and ' + o + ' from ' + esc(join(names(out))) + ' outside, make ' + t + ': enough to beat a vote of no confidence, as long as they keep voting with it.' + lead;
+    else if (g >= MAJ) s = '<b>A majority.</b> ' + g + ' seats, ' + (g - MAJ ? (g - MAJ) + ' more than it needs' : 'not one to spare') + '. ' + (ALL - g) + ' seats would sit in opposition.' + biggest;
+    else if (t >= MAJ) s = '<b>A minority government that can survive.</b> ' + g + ' seats inside, and ' + o + ' from ' + esc(join(names(out))) + ' outside, make ' + t + ': enough to beat a vote of no confidence, as long as they keep voting with it.' + biggest;
     else s = '<b>' + (MAJ - t) + ' seat' + (MAJ - t === 1 ? '' : 's') + ' short.</b> ' + (o ? g + ' in government and ' + o + ' outside make ' + t + '.' : g + ' seats so far.') + ' Add a party, or see the ways to reach ' + MAJ + ' below.';
+    if (gov.length && t >= MAJ) {
+      var nm = name(gov, g >= MAJ ? [] : out), jd = judge(gov, g >= MAJ ? [] : out);
+      s = '<span class="coal-now"><span class="coal-now-t">' + esc(nm.title) + (nm.qual ? ' <span class="coal-now-q">' + esc(nm.qual) + '</span>' : '') + '</span>'
+        + '<span class="coal-like is-' + jd.tier + '">' + TIER[jd.tier] + '</span></span>' + s;
+    }
     SAY.innerHTML = s;
     var hit = clashes(gov, out);
     WARN.innerHTML = hit.map(function (r) {
-      return '<li class="' + (r.soft ? 'is-soft' : '') + '"><span aria-hidden="true">' + (r.soft ? '◐' : '⚠') + '</span> <span><b>' + (r.soft ? 'A condition' : 'Breaks a red line') + ':</b> '
+      var b = broken(r, gov);
+      return '<li class="' + (b ? '' : 'is-soft') + '"><span aria-hidden="true">' + (b ? '⚠' : '◐') + '</span> <span><b>' + (b ? 'Breaks a red line' : 'A condition, kept here') + ':</b> '
         + esc(r.says) + ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener">Source</a></span></li>';
     }).join('');
-    box.classList.toggle('is-bad', hard(hit).length > 0);
+    box.classList.toggle('is-bad', hard(hit, gov).length > 0);
     RESET.hidden = !(gov.length || out.length);
     SHARE.hidden = !gov.length;
   }
@@ -119,42 +208,66 @@
   function same(a, b) { return a.length === b.length && a.every(function (x) { return b.indexOf(x) >= 0; }); }
   function preset(id) { return (C.presets || []).filter(function (p) { return p.id === id; })[0]; }
 
-  // ---------------------------------------------------------------- every smallest team that makes a majority
+  // ---------------------------------------------------------------- every government that can reach a majority
+  // Majority teams: every smallest set of parties that, added to what the reader picked, makes the line. Minority
+  // teams: the same, with the parties the reader marked Outside, plus any party on record as offering outside
+  // support to the leader who would be prime minister, voting from outside. Each is named and judged, and the likeliest comes first.
+  function minimal(list, tot) { return list.every(function (i) { return tot - P[i].seats < MAJ; }); }
+  function subsets(arr, fn) { for (var m = 0; m < (1 << arr.length); m++) { var x = []; for (var k = 0; k < arr.length; k++) if (m & (1 << k)) x.push(arr[k]); fn(x); } }
   function ways() {
-    var g = sum(gov), rest = ids.filter(function (i) { return gov.indexOf(i) < 0; }), found = [];
+    var g = sum(gov), o = sum(out), found = [];
     if (g >= MAJ) {
-      WAYSL.textContent = 'This government already has ' + MAJ + '. Try taking a party out to see who it can do without.';
+      WAYSL.textContent = 'This government already has ' + MAJ + '. Take a party out to see who it can do without.';
       WAYS.innerHTML = '';
       return;
     }
-    var n = rest.length;
-    for (var m = 1; m < (1 << n); m++) {
-      var add = [], s = g;
-      for (var k = 0; k < n; k++) if (m & (1 << k)) { add.push(rest[k]); s += P[rest[k]].seats; }
-      if (s < MAJ) continue;
-      var minimal = add.every(function (i) { return s - P[i].seats < MAJ; });
-      if (!minimal) continue;
-      var all = gov.concat(add), camps = {};
-      all.forEach(function (i) { camps[P[i].camp || i] = 1; });
-      found.push({ add: add, total: s, bad: hard(clashes(all)).length > 0, camps: Object.keys(camps).length });
+    var rest = ids.filter(function (i) { return gov.indexOf(i) < 0; });
+    subsets(rest, function (add) {
+      var s = g + sum(add);
+      if (add.length && s >= MAJ && minimal(add, s)) found.push({ add: add, outs: [], total: s });
+    });
+    if (g + o < MAJ) {
+      var offers = {};
+      (C.redLines || []).forEach(function (r) { if (r.kind === 'outside-support' && gov.indexOf(r.party) < 0 && out.indexOf(r.party) < 0) offers[r.party] = (offers[r.party] || []).concat(r.targets); });
+      subsets(Object.keys(offers), function (extra) {
+        if (!extra.length && !out.length) return;
+        var O = out.concat(extra), left = rest.filter(function (i) { return O.indexOf(i) < 0; });
+        subsets(left, function (add) {
+          var G = gov.concat(add), sg = sum(G), tot = sg + sum(O);
+          if (!G.length || sg >= MAJ || tot < MAJ || !minimal(add.concat(extra), tot)) return;
+          if (!extra.every(function (x) { return offers[x].indexOf(lead(G)) >= 0; })) return;      // they offered to back that prime minister, nobody else
+          found.push({ add: add, outs: extra, total: tot, inside: sg });
+        });
+      });
     }
-    // a team that breaks no stated red line first; then the fewest blocs mixed (the blocs the parties ran in), the
-    // fewest parties, and the slimmest majority
-    found.sort(function (a, b) { return (a.bad - b.bad) || (a.camps - b.camps) || (a.add.length - b.add.length) || (a.total - b.total); });
-    var good = found.filter(function (f) { return !f.bad; }).length;
-    var lead = gov.length ? 'Add one of these to ' + esc(join(names(gov))) + ' to reach ' + MAJ + '.' : 'Every smallest team of parties that makes ' + MAJ + '. Tap one to try it.';
-    WAYSL.innerHTML = lead + ' <span class="num">' + found.length + '</span> in all. '
-      + (found.length === good ? 'None breaks a red line a leader has stated.'
-        : !good ? '<b>Every one of them breaks a red line</b> a leader has stated.'
-        : '<b>Only <span class="num">' + good + '</span> break no red line</b> a leader has stated, and they come first.');
-    var shown = showAll ? found : found.slice(0, 6);
-    WAYS.innerHTML = shown.map(function (f) {
-      var chips = gov.concat(f.add).map(function (i) {
-        return '<span class="coal-chip' + (gov.indexOf(i) >= 0 ? ' is-have' : '') + '" style="--pc:' + P[i].color + '">' + esc(P[i].name) + ' <span class="num">' + P[i].seats + '</span></span>';
-      }).join('');
-      return '<li><button type="button" class="coal-way' + (f.bad ? ' is-bad' : '') + '" data-add="' + f.add.join(',') + '"><span class="coal-chips">' + chips + '</span>'
-        + '<span class="coal-way-n num">' + f.total + '</span>' + (f.bad ? '<span class="coal-way-bad">Breaks a red line</span>' : '') + '</button></li>';
-    }).join('') + (found.length > 6 ? '<li><button type="button" class="btn btn-line coal-more">' + (showAll ? 'Show fewer' : 'Show all ' + found.length) + '</button></li>' : '');
+    found.forEach(function (f) {
+      var G = gov.concat(f.add), O = f.inside != null ? out.concat(f.outs) : [];
+      f.O = O; f.name = name(G, O); f.j = judge(G, O);
+    });
+    found.sort(function (a, b) { return (b.j.score - a.j.score) || (a.total - b.total); });
+    var clean = found.filter(function (f) { return !f.j.broke; }).length, top = found[0];
+    var intro = !gov.length ? '' : (g + o >= MAJ ? 'To govern without outside votes, add one of these to ' : 'Add one of these to ') + esc(join(names(gov))) + '.';
+    WAYSL.innerHTML = (intro ? intro + ' ' : '') + '<span class="num">' + found.length + '</span> ways' + (showAll ? '' : ', shown here as the likeliest of each kind') + ', ranked by what the leaders have said on the record. '
+      + (!found.length ? '' : clean === found.length ? 'None breaks a red line a leader has stated.'
+        : !clean ? '<b>Every one breaks a red line a leader has stated</b>, so the top one needs the fewest leaders to go back on their word.'
+        : '<b><span class="num">' + clean + '</span> break no stated red line.</b>');
+    // first view: the likeliest of each kind (Unity, Minority, Change, ...), so the kinds can be compared; all on request
+    var kin = {}, shown = [];
+    found.forEach(function (f) { var t = f.name.title; kin[t] = (kin[t] || 0) + 1; if (kin[t] === 1) shown.push(f); });
+    if (showAll) shown = found;
+    WAYS.innerHTML = shown.map(function (f, k) {
+      var have = gov.concat(f.add).map(function (i) { return chip(i, gov.indexOf(i) >= 0, false); }).join('')
+        + f.O.map(function (i) { return chip(i, out.indexOf(i) >= 0, true); }).join('');
+      return '<li><button type="button" class="coal-way is-' + f.j.tier + (k === 0 ? ' is-best' : '') + '" data-add="' + f.add.join(',') + '" data-out="' + f.outs.join(',') + '">'
+        + '<span class="coal-way-top">' + (k === 0 ? '<span class="coal-best">Likeliest here</span>' : '') + '<span class="coal-like is-' + f.j.tier + '">' + TIER[f.j.tier] + '</span></span>'
+        + '<span class="coal-way-name"><b>' + esc(f.name.title) + '</b>' + (f.name.qual ? ' <span>' + esc(f.name.qual) + '</span>' : '') + '</span>'
+        + '<span class="coal-way-pm">' + esc(f.name.pm) + ' as prime minister' + (!showAll && kin[f.name.title] > 1 ? ' · the likeliest of ' + kin[f.name.title] + ' like it' : '') + '</span>'
+        + '<span class="coal-way-body"><span class="coal-chips">' + have + '</span><span class="coal-way-n num">' + f.total + '</span></span>'
+        + '<span class="coal-way-why">' + esc(f.j.why.slice(0, 3).join(' · ')) + '</span></button></li>';
+    }).join('') + (found.length > shown.length || showAll ? '<li class="coal-more-li"><button type="button" class="btn btn-line coal-more">' + (showAll ? 'Show one of each kind' : 'Show all ' + found.length + ' ways') + '</button></li>' : '');
+  }
+  function chip(i, have, outside) {
+    return '<span class="coal-chip' + (have ? ' is-have' : '') + (outside ? ' is-outside' : '') + '" style="--pc:' + P[i].color + '">' + esc(P[i].name) + ' <span class="num">' + P[i].seats + '</span>' + (outside ? '<span class="coal-chip-o">outside</span>' : '') + '</span>';
   }
 
   // ---------------------------------------------------------------- the address
@@ -196,6 +309,7 @@
       gov = pr.gov.slice(); out = (pr.out || []).slice();
     } else if (b.classList.contains('coal-way')) {
       b.getAttribute('data-add').split(',').forEach(function (x) { if (P[x] && gov.indexOf(x) < 0) { gov.push(x); out = out.filter(function (y) { return y !== x; }); } });
+      (b.getAttribute('data-out') || '').split(',').forEach(function (x) { if (P[x] && gov.indexOf(x) < 0 && out.indexOf(x) < 0) out.push(x); });
       var st = box.querySelector('.coal-stage');
       if (st && st.getBoundingClientRect().top < 0) st.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     } else if (b.classList.contains('coal-more')) {
