@@ -2207,6 +2207,9 @@
     function go(i) {
       at = Math.max(0, Math.min(rows.length, i));
       try { fbkAt(); } catch (e) { }
+      // the intro card prints the title big, so the bar's topic steps aside while it is on screen (29 Oct 2026: the same
+      // words twice, a quarter of a phone screen); the pencil stays, and every other slide keeps the topic on the bar
+      sh.classList.toggle('at-intro', at === 0 && mode !== 'read');
       if (mode === 'read') return;
       resetItem();
       $('ir-sh-count').textContent = at === 0 ? T('Intro') : T('{n} of {m}', { n: N(at), m: N(rows.length) });
@@ -2256,7 +2259,7 @@
     }
     function setMode(m) {
       mode = m;
-      sh.classList.toggle('is-read', m === 'read');
+      sh.classList.toggle('is-read', m === 'read'); sh.classList.toggle('at-intro', at === 0 && m !== 'read');
       var mb = $('ir-sh-mode'); mb.setAttribute('aria-pressed', m === 'read' ? 'true' : 'false');
       mb.title = m === 'read' ? T('Open the show screen') : T('Read it as a page');
       mb.innerHTML = (m === 'read' ? ICON.play + '<span>' + esc(T('Open the show screen')) + '</span>' : ICON.read + '<span>' + esc(T('Read it as a page')) + '</span>');
@@ -2516,7 +2519,7 @@
       var rb = $('ir-sh-rbt'); if (rb) fitText(rb, rb, u * 0.095, 18);
       var ct = sh.querySelector('.ir-sh-ct'), fr = $('ir-sh-frame'); if (ct && fr) fitText(ct, fr, u * 0.075, 18);
       var oh = sh.querySelector('.ir-sh-open h1'), op = sh.querySelector('.ir-sh-oh'); if (oh && op) fitText(oh, op, u * (sh.querySelector('.ir-sh-open.no-pics') ? 0.1 : 0.09) * Math.min(1, Math.max(0.6, Math.sqrt(40 / Math.max(1, oh.textContent.length)))), 24);          // a long title steps down, so the card is never all title          // the intro's title fits its own column, beside the pictures (29 Oct 2026)
-      var tt = $('ir-sh-tt'), tb = $('ir-sh-topic'); if (tt && tb && !tt.hidden && mode !== 'read') {
+      var tt = $('ir-sh-tt'), tb = $('ir-sh-topic'); if (tt && tb && !tt.hidden && mode !== 'read' && !sh.classList.contains('at-intro')) {          // hidden on the intro card: nothing to measure
         fitText(tt, tb, u * 0.05, 18);          // the topic: as large as two lines of the bar allow
         // 25 Oct 2026: the bar centres its rows, so a topic of three lines can measure as fitting while its last line hangs
         // below the bar (a 60-letter Persian topic at 1920x1080, phone-test "the topic is cut"). The topic's OWN box must sit

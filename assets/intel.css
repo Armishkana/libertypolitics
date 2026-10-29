@@ -862,6 +862,7 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep):not(dialog){display:none!importan
 .ir-sh-tpe:hover,.ir-sh-tpe:focus-visible{opacity:1;border-color:var(--field);color:var(--field)}
 @media(min-width:901px){.ir-sh-bar:has(.ir-sh-topic){padding-top:clamp(6px,.85vw,16px);padding-bottom:clamp(6px,.85vw,16px)}}          /* the two-line topic takes the bar's height; its padding gives it back to the stage */
 .ir-sh-tpe svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ir-sh.at-intro .ir-sh-tk,.ir-sh.at-intro .ir-sh-tt{display:none}          /* the intro card carries the title big: the bar does not say it again (the pencil stays) */
 /* each item names its own story when the show tells more than one, and who covered it (coverLine) */
 .ir-sh-story{margin:0;padding-left:12px;border-left:3px solid var(--field);color:var(--ink);font:800 clamp(1.05rem,1.5vw,1.9rem)/1.05 var(--display);text-transform:uppercase;letter-spacing:.02em;overflow-wrap:anywhere}
 .ir-sh-cov{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0;max-width:36rem}          /* two lines: the heading with its numbers, then the bar */
@@ -1103,6 +1104,7 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep):not(dialog){display:none!importan
   .ir-sh-tk{display:none}          /* the bar stays on a phone screen while it scrolls: the topic alone, no label */
   .ir-sh-tt{font-size:1.15rem;line-height:1.05}
   .ir-sh-tpe{width:40px;height:40px}
+  .ir-sh.at-intro .ir-sh-topic:not(:has(.ir-sh-tpi)){order:0;flex-basis:auto;margin-left:auto}          /* on the intro the pencil alone moves up beside the brand, so the title is not a row of its own */
   .ir-sh-clock{display:none}
   .ir-sh-tools{margin-left:auto}
   .ir-sh-tools span{display:none}

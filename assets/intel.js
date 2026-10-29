@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=165bbb8c6b) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=6f34e93eab) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -855,10 +855,16 @@
     if (QW[k] == null) {
       var all = BANK.concat(LIVE), n = 0;
       for (var i = 0; i < all.length; i++) { var w = wsOf(all[i]); if (alts.some(function (a) { return qHas(w, a); })) n++; }
-      QW[k] = Math.min(3, Math.log(1 + (all.length + 1) / (n + 1))) * (QMETA.test(alts[0]) ? 0.35 : 1);
+      QW[k] = Math.min(3, Math.log(1 + (all.length + 1) / (n + 1))) * (QMETA.test(alts[0]) ? 0.35 : 1) * (qSubject(alts[0]) ? 2 : 1);
     }
     return QW[k];
   }
+  // a word that names one of the room's actors (ACTORS: a person, force or body, never a country) is what the question is
+  // ABOUT, so it weighs double (29 Oct 2026, "houthi attacks on ships": with every rare word capped at the same weight,
+  // two headlines with only "attack" and "ship" outranked the one about the Houthis). Countries stay single: "double
+  // standards on israel" is about the double standards. The stemmer cuts a final i, s or e (Houthi -> houth), so those
+  // are put back before the actor's own pattern is asked.
+  function qSubject(w) { return ['', 'i', 's', 'e'].some(function (x) { var ws = ' ' + w + x + ' '; return (ACTORS || []).some(function (a) { return a[2].test(ws); }); }); }
   function qScore(it, q) {
     var w = wsOf(it), h = hsOf(it), sc = 0;
     // the word itself counts in full, a word of the same meaning (QSYN) at 0.6; in the headline in full, elsewhere at 0.7
@@ -1304,7 +1310,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=165bbb8c6b): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=6f34e93eab): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -3008,7 +3014,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=165bbb8c6b,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=6f34e93eab,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -4086,7 +4092,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=165bbb8c6b'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=6f34e93eab'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
