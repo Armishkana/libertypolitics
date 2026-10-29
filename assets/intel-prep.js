@@ -20,6 +20,7 @@
   var R = window.IRoom, root = document.getElementById('ir');
   if (!R || !root) return;
   var $ = function (id) { return document.getElementById(id); };
+  var nr = function (u) { return R.noRef ? R.noRef(u) : u; };          // X's picture host wants no Referer (intel.js, xNoRef)
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
   // Iran Uncensored's room hands its own name, address and stamp in the same #ir-cfg intel.js reads (site-iu/build/news.py)
@@ -2288,7 +2289,7 @@
     function initial(x) { return String(x.nm || x.h || '?').replace(/^@/, '').slice(0, 1).toUpperCase() || '?'; }
     function face(x, cls) {
       var av = R.avOf ? R.avOf(x, '400x400') : '';
-      return av ? '<span class="' + cls + '" style="background-image:url(' + esc(av) + ')"></span>' : '<span class="' + cls + ' is-mono">' + esc(initial(x)) + '</span>';
+      return av ? '<span class="' + cls + '" style="background-image:url(' + esc(nr(av)) + ')"></span>' : '<span class="' + cls + ' is-mono">' + esc(initial(x)) + '</span>';
     }
     // an X post of words, drawn as the post: the author, the whole text as large as the stage allows, its link card
     function postCard(x) {
@@ -2297,7 +2298,7 @@
       return '<figure class="ir-sh-post">' +
         '<figcaption class="ir-sh-ph">' + face(x, 'ir-sh-pav') + '<span class="ir-sh-pwho"><b>' + esc(x.nm || x.h) + '</b><small>' + esc([x.h, R.when(x)].filter(Boolean).join(' · ')) + '</small></span>' + R.mark(x) + '</figcaption>' +
         rf.before + '<blockquote class="ir-sh-ptx" id="ir-sh-fit2">' + paras(full(x)) + '</blockquote>' + more(x) + rf.after +
-        (cd ? '<span class="ir-sh-pcd"><span class="ir-sh-pci" style="background-image:url(' + esc(cd.i + '&name=' + (/\/media\//.test(cd.i) ? 'medium' : '800x419')) + ')"></span>' + (cd.t || cd.dm ? '<span class="ir-sh-pct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') + '</span>' : '') +
+        (cd ? '<span class="ir-sh-pcd"><span class="ir-sh-pci" style="background-image:url(' + esc(nr(cd.i + '&name=' + (/\/media\//.test(cd.i) ? 'medium' : '800x419'))) + ')"></span>' + (cd.t || cd.dm ? '<span class="ir-sh-pct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') + '</span>' : '') +
         '</figure>';
     }
     /* THE INTRO CARD (29 Oct 2026; Armin, 28 Oct: "Look at this first screen. It's absolutely boring! ... images on it and
@@ -2368,8 +2369,8 @@
       var face = function (x, big) { return R.whoFace ? R.whoFace(x, big) : face0(x); };
       var tile = function (c, n) {
         var x = c.x, lead = !n, nm = whoN(x), hl = lead ? leadLine(x) : '';
-        var img = c.v.k === 'pic' ? '<span class="ir-sh-ti' + (R.yt(x.u) ? ' is-yt' : '') + '" style="background-image:url(' + esc(c.v.u) + ')"></span>'
-          : '<span class="ir-sh-ti is-av"><i style="background-image:url(' + esc(c.v.u) + ')"></i></span>';
+        var img = c.v.k === 'pic' ? '<span class="ir-sh-ti' + (R.yt(x.u) ? ' is-yt' : '') + '" style="background-image:url(' + esc(nr(c.v.u)) + ')"></span>'
+          : '<span class="ir-sh-ti is-av"><i style="background-image:url(' + esc(nr(c.v.u)) + ')"></i></span>';
         return '<button type="button" class="ir-sh-tile' + (lead ? ' is-lead' : '') + '" data-go="' + (c.i + 1) + '" aria-label="' + esc(T('{n} of {m}', { n: N(c.i + 1), m: N(rows.length) }) + ': ' + nm) + '">' + img +
           (lead && tag ? '<span class="ir-sh-tag">' + esc(tag) + '</span>' : '') +
           '<span class="ir-sh-tno num" aria-hidden="true">' + (c.vid ? SV.play : '') + N(c.i + 1) + '</span>' +
@@ -2577,7 +2578,7 @@
       return twLoad; }
     function card(el, x, why) {
       // the story's photo, a link card's picture or its place above the words (18 Oct 2026: no item without a picture)
-      var v = R.vis && !x.sn ? R.vis(x, true) : null, im = v && (v.k === 'pic' || v.k === 'loc') ? '<span class="ir-sh-ci" style="background-image:url(' + (v.k === 'loc' ? v.u : esc(v.u)) + ')"></span>' : '';
+      var v = R.vis && !x.sn ? R.vis(x, true) : null, im = v && (v.k === 'pic' || v.k === 'loc') ? '<span class="ir-sh-ci" style="background-image:url(' + (v.k === 'loc' ? v.u : esc(nr(v.u))) + ')"></span>' : '';
       el.innerHTML = '<div class="ir-sh-card">' + im + '<p class="ir-sh-ck">' + R.mark(x) + esc(x.h || x.src) + ' · ' + esc(R.when(x)) + '</p><p class="ir-sh-ct">' + esc(x.t) + '</p>' + (why ? '<p class="ir-sh-cw">' + esc(why) + '</p>' : '') + '</div>';
     }
     function frame(el, x) {
@@ -2613,7 +2614,7 @@
       // a picture link is drawn as the picture only when it is the room's own item, or on X's or YouTube's picture host: a
       // saved show is JSON anyone can write, and an <img> of any address would tell that address who opened the show
       // (a reader inside Iran included), before any tap
-      if (/\.(jpe?g|png|webp|gif)(\?|$)/i.test(x.u || '') && (R.byId(R.code(x)) === x || /^https:\/\/(pbs\.twimg\.com|i\.ytimg\.com)\//.test(x.u))) { el.className = 'ir-sh-frame is-img'; el.innerHTML = '<img src="' + esc(x.u) + '" alt="' + esc(x.t) + '">'; return; }
+      if (/\.(jpe?g|png|webp|gif)(\?|$)/i.test(x.u || '') && (R.byId(R.code(x)) === x || /^https:\/\/(pbs\.twimg\.com|i\.ytimg\.com)\//.test(x.u))) { el.className = 'ir-sh-frame is-img'; el.innerHTML = '<img referrerpolicy="no-referrer" src="' + esc(x.u) + '" alt="' + esc(x.t) + '">'; return; }
       el.className = 'ir-sh-frame is-card';
       $('ir-sh-stage').classList.add('one-title');
       card(el, x, x.also && x.also.length ? T('Also carried by {list}', { list: x.also.join(T(', ')) }) : '');

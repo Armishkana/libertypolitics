@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=6f34e93eab) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=3b30a04375) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -47,7 +47,24 @@
   function LN(n) { n = n != null && isFinite(+n) ? +n : 0; return FA ? N(n.toLocaleString('en-US').replace(/,/g, '\u066C')) : n.toLocaleString('en-US'); }
   // a picture's address as CSS: url("...") with its quotes, backslashes and line breaks made harmless. Inside a style="..."
   // attribute it still goes through esc(), so its own quotes reach the CSS as quotes.
-  function cssUrl(u) { return 'url("' + String(u == null ? '' : u).replace(/[\\"]/g, '\\$&').replace(/[\n\r\f]/g, ' ') + '")'; }
+  function cssUrl(u) { xNoRef(u); return 'url("' + String(u == null ? '' : u).replace(/[\\"]/g, '\\$&').replace(/[\n\r\f]/g, ' ') + '")'; }
+  /* X'S PICTURE HOST REFUSES A PAGE FROM ANOTHER SITE (measured 29 Oct 2026: pbs.twimg.com answers 351 Forbidden to any
+     Referer that is not x.com or twitter.com, ours and localhost included, and 200 with none; every X picture, avatar and
+     card in the room went blank, and two publishes stopped on the full-size picture). The page itself cannot send no
+     Referer (Firebase's key is held to the site's address), so every request to that host goes without one: an <img>
+     carries XNR (referrerpolicy="no-referrer"), a new Image() sets it, and a CSS background, which has no such switch, is
+     fetched first by a preload that sends none (inserted at once, so it is in flight before any style can ask for it, and
+     the background then takes that copy). cssUrl() is the one door every background here goes through; the show screen
+     (intel-prep.js) passes its own through IRoom.noRef. */
+  var XNR_RX = /^https:\/\/pbs\.twimg\.com\//, XNR = ' referrerpolicy="no-referrer"', XNR_DONE = {};
+  function xNoRef(u) {
+    u = String(u == null ? '' : u);
+    if (!XNR_RX.test(u) || XNR_DONE[u] || !document.head) return;
+    XNR_DONE[u] = 1;
+    var l = document.createElement('link'); l.rel = 'preload'; l.as = 'image'; l.referrerPolicy = 'no-referrer'; l.href = u;
+    document.head.appendChild(l);
+  }
+  function xImage(u) { var im = new Image(); im.referrerPolicy = 'no-referrer'; im.src = u; return im; }          // a picture fetched ahead, without a Referer
   function rxOf(a, i) { try { return new RegExp(a[i], a[i + 1] || ''); } catch (e) { return /(?!)/; } }          // a pattern handed as [source, flags]
   function cName(c) { return CFG.countries && CFG.countries[c] || c; }          // a country as this page names it
   var GOLD = CFG.gold || '244,196,48', GOLDH = CFG.goldHex || '#F4C430';          // the room's gold on the canvas (Iran Uncensored: its sun gold)
@@ -1310,7 +1327,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=6f34e93eab): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=3b30a04375): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2978,13 +2995,13 @@
     var who = it.h || 'X', h = '';
     vids.forEach(function (r) {
       var d = fmtDur(r.s || it.dur), gif = r.t === 'g';
-      h += '<div class="ir-xv" style="--ar:' + arOf(r) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (h ? '' : ' fetchpriority="high"') + '>' +
+      h += '<div class="ir-xv" style="--ar:' + arOf(r) + '"><img' + XNR + ' src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (h ? '' : ' fetchpriority="high"') + '>' +
         '<button type="button" class="ir-xv-play" data-xplay="' + md.indexOf(r) + '" aria-label="' + esc(T(gif ? 'Play the clip from {who} here' : 'Play the video from {who} here', { who: who }) + (d ? T(', {d} long', { d: N(d) }) : '')) + '">' + PLAY_SVG + '<span class="num">' + esc(gif ? 'GIF' : d ? N(d) : T('Play')) + '</span></button></div>';
     });
     if (ph.length) {
       h += '<div class="ir-xp ir-xp-n' + ph.length + '"' + (ph.length === 1 ? ' style="--ar:' + arOf(ph[0]) + '"' : '') + '>' + ph.map(function (r, j) {
         // two pictures side by side: each shown whole on its own blurred copy (intel.css), so a screenshot of text is never cut
-        return '<button type="button" data-lb="' + j + '"' + (ph.length === 2 ? ' style="--bg:' + esc(cssUrl(pic(r, big ? 'large' : 'medium'))) + '"' : '') + ' aria-label="' + esc(T('See picture {i} of {n} from {who} full size', { i: N(j + 1), n: N(ph.length), who: who })) + '"><img src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (j < 2 ? ' fetchpriority="high"' : ' loading="lazy"') + '><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
+        return '<button type="button" data-lb="' + j + '"' + (ph.length === 2 ? ' style="--bg:' + esc(cssUrl(pic(r, big ? 'large' : 'medium'))) + '"' : '') + ' aria-label="' + esc(T('See picture {i} of {n} from {who} full size', { i: N(j + 1), n: N(ph.length), who: who })) + '"><img' + XNR + ' src="' + esc(pic(r, big ? 'large' : 'medium')) + '" alt="" decoding="async"' + (j < 2 ? ' fetchpriority="high"' : ' loading="lazy"') + '><span class="ir-xp-z">' + ZOOM_SVG + '</span></button>';
       }).join('') + '</div>';
     }
     return '<div class="ir-xm' + (it.sn ? ' is-sn' : '') + '">' + h + (it.sn ? '<button type="button" class="ir-xm-sn" data-xsn>' + (it.g ? T('Graphic footage. Show it') : T('X marks this as possibly sensitive. Show it')) + '</button>' : '') + '</div>';
@@ -3014,7 +3031,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=6f34e93eab,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=3b30a04375,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3141,7 +3158,7 @@
   function xEmbed(holder, it) {
     var rg = isRegime(it), id = rg ? '' : tweetId(it.u), md = mediaOf(it), r = md.filter(function (x) { return x.t !== 'p'; })[0] || md[0];          // a regime post: its picture, never a link or X's player (THE REGIME RULE)
     holder.classList.add('is-embed'); holder.classList.remove('is-on');
-    holder.innerHTML = (r ? '<img src="' + esc(pic(r, 'large')) + '" alt="" decoding="async">' : '') +
+    holder.innerHTML = (r ? '<img' + XNR + ' src="' + esc(pic(r, 'large')) + '" alt="" decoding="async">' : '') +
       (rg ? '' : '<a class="ir-xv-out" href="' + esc(it.u) + '" target="_blank" rel="noopener">' + PLAY_SVG + '<span>' + T('Watch it on X') + '</span></a>') +
       (rg ? '' : '<p class="ir-xm-msg" aria-live="polite">' + (id ? T('Loading X\'s own player') : T('This one plays on X')) + '</p>');
     if (!id) return;
@@ -3219,7 +3236,7 @@
     im.style.transform = k === 1 ? '' : 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px) scale(' + k.toFixed(3) + ')';
     LB.classList.toggle('is-zoom', k > 1);
     if (k > 1 && !LB._orig) {          // zoomed in: the file as it was posted, swapped in at the same size
-      var r = LB._list[LB._at], at = LB._at, hi = new Image(); LB._orig = 1;
+      var r = LB._list[LB._at], at = LB._at, hi = new Image(); hi.referrerPolicy = 'no-referrer'; LB._orig = 1;
       hi.onload = function () { if (LB._at === at && lbImg()) lbImg().src = hi.src; };
       hi.src = pic(r, 'orig');
     }
@@ -3287,12 +3304,12 @@
     LB._at = i; LB._z = { k: 1, x: 0, y: 0 }; LB._orig = 0; LB.classList.remove('is-zoom', 'is-drag');
     var r = LB._list[i], it = LB._it;
     LB.setAttribute('aria-label', T('Picture {i} of {n} from {who}', { i: N(i + 1), n: N(n), who: it.h || 'X' }));
-    LB.innerHTML = '<div class="ir-lb-in"><img class="ir-lb-img" src="' + esc(pic(r, 'medium')) + '" alt="' + esc(it.t) + '" draggable="false"></div>' +
+    LB.innerHTML = '<div class="ir-lb-in"><img class="ir-lb-img"' + XNR + ' src="' + esc(pic(r, 'medium')) + '" alt="' + esc(it.t) + '" draggable="false"></div>' +
       (n > 1 ? '<button type="button" class="ir-lb-nav prev" data-lb-step="-1" aria-label="' + T('Previous picture') + '"' + (i ? '' : ' disabled') + '>&lsaquo;</button><button type="button" class="ir-lb-nav next" data-lb-step="1" aria-label="' + T('Next picture') + '"' + (i < n - 1 ? '' : ' disabled') + '>&rsaquo;</button>' : '') +
       '<div class="ir-lb-bar">' + (n > 1 ? '<span class="ir-lb-n num">' + T('{i} of {n}', { i: N(i + 1), n: N(n) }) + '</span>' : '') +
       '<a href="' + esc(pic(r, 'orig')) + '" target="_blank" rel="noopener">' + T('Full size') + '</a>' + (isRegime(it) ? '' : '<a href="' + esc(it.u) + '" target="_blank" rel="noopener">' + T('Open on X') + '</a>') +
       '<button type="button" class="ir-lb-x" data-lb-x aria-label="' + T('Close') + '">&times;</button></div>';
-    var im = lbImg(), hi = new Image();
+    var im = lbImg(), hi = new Image(); hi.referrerPolicy = 'no-referrer';
     im.addEventListener('load', function () { if (!r.w || !r.h) lbFit(); });
     im.addEventListener('error', function () {          // the quick copy failed: the sharp one may still come; if both fail, say so
       if (im.src !== pic(r, 'large')) { im.src = pic(r, 'large'); return; }
@@ -3300,7 +3317,7 @@
     });
     hi.onload = function () { if (LB._at === i && lbImg() && !LB._orig) lbImg().src = hi.src; };
     hi.src = pic(r, 'large');
-    [i - 1, i + 1].forEach(function (j) { if (j >= 0 && j < n) new Image().src = pic(LB._list[j], 'large'); });          // the next tap is instant
+    [i - 1, i + 1].forEach(function (j) { if (j >= 0 && j < n) xImage(pic(LB._list[j], 'large')); });          // the next tap is instant
     lbFit();
     var fx = LB.querySelector('[data-lb-x]'), ae = document.activeElement;
     if (LB.open && fx && (!ae || ae === document.body || !LB.contains(ae))) fx.focus({ preventScroll: true });          // the arrows keep working after the buttons are redrawn
@@ -4022,7 +4039,7 @@
     // What intel-prep.js (the creator tools and the show screen) is handed: the items (the last hours, the bank, one by its
     // id: L for the last hours, B for the bank, R for a reader's find), and the room's own words and marks for them.
     LIVE.forEach(function (it) { BYID[it.id] = it; }); BANK.forEach(function (it) { BYID['B' + it.id] = it; it._code = 'B' + it.id; });
-    window.IRoom = { shown: function () { return shown.slice(); }, lens: function () { return S.lens; }, said: function () { return $('ir-said').textContent; },
+    window.IRoom = { noRef: function (u) { xNoRef(u); return u; }, shown: function () { return shown.slice(); }, lens: function () { return S.lens; }, said: function () { return $('ir-said').textContent; },
       live: function () { return LIVE.slice(); }, bank: function () { return BANK.slice(); }, liveAt: function () { return LIVE_AT; },
       byId: function (id) { return BYID[id] || RD.filter(function (it) { return it.id === id; })[0] || null; },
       topics: function () { return TOPICS.map(function (t) { return t[1]; }); }, topicsOn: function () { return S.tp.map(topicName); }, subjects: tkOf,
@@ -4092,7 +4109,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=6f34e93eab'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=3b30a04375'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
