@@ -48,7 +48,7 @@
 
   /* ------------------------------------------------------------------ reading the words */
   // words that carry no filter in English; a word here never becomes the search
-  var STOP = /(^|\s)(happened|happen|happening|going|at|say|said|says|told|tell|show|showing|me|us|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|whats|is|are|was|were|i|im|want|need|please|some|can|could|you|to|and|or|by|it|its|this|these|those|evidence|proof|items?|things?|stuff|anything|everything|related|where|who|how|did|do|does|has|have|had|they|their|them|there|here|just|only|really|very|more|less|than|over|under|around|regarding|concerning|latest|news|look|looking|see|let|lets|my|our|we|be|been|being|will|would|should|best|good|great|new|stories|story|content|something|people|talking|discuss\w*|cover\w*|topic|topics|top|most|right|now|but|not|no|so|like|also|both|either|into|onto|per|via|vs|versus|shows|shown|showed|prove[sd]?|proving|demonstrat\w*|argu(e|es|ed|ing)|doesn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|didn'?t|don'?t|can'?t|won'?t|never|commit|commits|committed|committing|doing|done|make|makes|made|actually|uses|using)(?=\s|$)/g;
+  var STOP = /(^|\s)(happened|happen|happening|going|at|say|said|says|told|tell|show|showing|me|us|give|find|get|all|any|the|a|an|of|about|on|for|in|from|with|that|which|what|whats|is|are|was|were|i|im|want|need|please|some|can|could|you|to|and|or|by|it|its|this|these|those|evidence|proof|items?|things?|stuff|anything|everything|related|where|who|how|did|do|does|has|have|had|they|their|them|there|here|just|only|really|very|more|less|than|over|under|around|regarding|concerning|latest|news|look|looking|see|let|lets|my|our|we|be|been|being|will|would|should|best|good|great|new|stories|story|content|something|people|talking|discuss\w*|cover\w*|topic|topics|top|most|right|now|but|not|no|so|like|also|both|either|into|onto|per|via|vs|versus|shows|shown|showed|prove[sd]?|proving|demonstrat\w*|argu(e|es|ed|ing)|doesn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|didn'?t|don'?t|can'?t|won'?t|never|commit|commits|committed|committing|doing|done|make|makes|made|actually|uses|using|out|breaking|thousands|hundreds|millions|dozens|many|numerous|lots)(?=\s|$)/g;
   // THE CLAIMS (29 October 2026; his ask "show me stuff that shows israel does not commit genocide" came back as the words
   // "shows commit genocide" over Israel only: 1 item, while the bank holds 157 on the genocide claim). A bank tag that names
   // a claim ("The genocide claim", "Blood libels debunked") is the room's evidence ON that claim, so the claim's own word
@@ -62,7 +62,10 @@
   function claimsOf(V) {
     return (V.tags || []).filter(function (g) { return CLAIMTAG.test(String(g).toLowerCase()); }).map(function (g) {
       var w = sigWords(g).filter(function (x) { return !CLAIMTAG.test(x) && !SOFT.test(' ' + x + ' '); })[0];
-      return w ? { tag: g, w: w, rx: new RegExp('\\b(' + w.slice(0, Math.max(4, w.length - 1)) + '\\w*' + (CLAIMSYN[w] || '') + ')\\b') } : null;
+      if (!w) return null;
+      var ws = String(g).toLowerCase().split(/[^a-z]+/), nx = ws[ws.indexOf(w) + 1] || '';
+      if (/^(libels?|myths?|hoax\w*)$/.test(nx)) return { tag: g, w: w, rx: new RegExp('\\b(' + w + ' ' + nx.replace(/s$/, '') + 's?)\\b') };
+      return { tag: g, w: w, rx: new RegExp('\\b(' + w.slice(0, Math.max(4, w.length - 1)) + '\\w*' + (CLAIMSYN[w] || '') + ')\\b') };
     }).filter(Boolean);
   }
   // who DOES something in the sentence ("israel does", "iran's", "qatar funds") is what the items are about, not where they
@@ -97,9 +100,9 @@
   }
 
   function read(raw, base) {
-    var V = R.vocab(), t = norm(raw, V), did = [], left = [], intent = '';
+    var V = R.vocab(), t = norm(raw, V).replace(/\b(far|hard|alt|radical)[- ](right|left)\b/g, '$1_$2').replace(/\b(?:october 7(?:th)?|oct\.? 7(?:th)?|7(?:th)? (?:of )?october|7 oct)\b(?!\s*,?\s*20\d\d)/g, 'oct7').replace(/\b(right|left)[- ]wing\b/g, '$1_wing'), did = [], left = [], intent = '';
     var has = function (r) { return r.test(t); };
-    var eat = function (r) { t = t.replace(gl(r), ' '); };
+    var eat = function (r) { var w = new RegExp('(?:' + r.source + ')[a-z0-9\\u0600-\\u06ff\\u200c]*', r.flags.indexOf('g') >= 0 ? r.flags : r.flags + 'g'); t = t.replace(w, ' '); };
     // 1. the shape of a question
     if (has(/\b(what'?s|what is|what are|whats)? ?(trending|hot right now|happening right now|going on|the big(gest)? stor(y|ies)|top stories|hot topics right now)\b/) && !has(/\bwho\b/)) intent = 'trending';
     if (has(/\bwhat should i (talk about|cover|do a show on)\b/)) intent = 'trending';
@@ -115,7 +118,8 @@
     var actors = [], am; ACTOR.lastIndex = 0;
     while ((am = ACTOR.exec(t))) { actors.push(am[1]); ACTOR.lastIndex = am.index + am[0].length - 1; }
     var claim = null;
-    claimsOf(V).some(function (c) { var cm = c.rx.exec(t); if (!cm) return false; claim = { tag: c.tag, w: c.w, against: AGAINST.test(t) }; t = t.replace(gl(c.rx), ' '); return true; });
+    var nWords = t.split(/\s+/).filter(Boolean).length;
+    if (nWords <= 14) claimsOf(V).some(function (c) { var cm = c.rx.exec(t); if (!cm) return false; var near = t.split(/\s+/).filter(Boolean), at0 = t.slice(0, cm.index).split(/\s+/).filter(Boolean).length, win = near.slice(Math.max(0, at0 - 6), at0 + 7).join(' '); claim = { tag: c.tag, w: c.w, said: cm[0].trim(), against: AGAINST.test(win) }; t = t.replace(gl(c.rx), ' '); return true; });
     if (claim) { eat(CLAIMSAY); if (claim.against) eat(AGAINST); }
 
     // 1b. a filter that declares its own words (the room's registry: IRoom.addFilter({ key, ask: [[pattern, value, said]] }))
@@ -134,7 +138,7 @@
     });
     // 2. time, and which of the room's lenses that means
     var lens = base || V.lens, ns, n = V.buckets.length - 1, m, bank = null, within = 0, timed = false;
-    var LIVEW = /\b(today|tonight|this morning|this evening|right now|now|breaking|latest|newest|recent|recently|just in|live|last 24 hours|past 24 hours|24 hours|this week|past week|last week|this weekend|last few days|past few days|these days|lately|current|currently|fresh)\b/;
+    var LIVEW = /\b(today|tonight|this morning|this evening|right now|now|breaking(?! (?:the|a|an|his|her|their|its|our|of|up|down|into|out|through|point|silence|bad)\b)|latest|newest|recent|recently|just in|live|last 24 hours|past 24 hours|24 hours|this week|past week|last week|this weekend|last few days|past few days|these days|lately|current|currently|fresh)\b/;
     if ((m = /\b(?:last|past|in the last|in the past|within)\s+(\d+)\s*(?:hours?|hrs?|h)\b/.exec(t)) || (m = /\b(?:last|past) (hour)\b/.exec(t))) {
       var hrs = m[1] === 'hour' ? 1 : +m[1];
       if (hrs < 24) { within = stepAtMost(V.within, Math.max(1, hrs)) || 0; if (!within) within = (V.within.filter(function (o) { return o[0]; }).sort(function (a, b) { return a[0] - b[0]; })[0] || [0])[0]; }
@@ -149,13 +153,20 @@
       timed = true; t = t.replace(m[0], ' ');
       if (V.live) lens = 'live';
     }
-    if (has(/since (the )?(october 7|oct 7|7 oct(ober)?|the massacre)/)) { bank = { from: 1, to: n, said: T('since 7 October') }; eat(/since (the )?(october 7(th)?|oct 7|7 oct(ober)?|the massacre)/); }
+    if (has(/since (the )?(oct7|october 7|oct 7|7 oct(ober)?|the massacre)/)) { bank = { from: 1, to: n, said: T('since 7 October') }; eat(/since (the )?(oct7|october 7(th)?|oct 7|7 oct(ober)?|the massacre)/); }
     else if (has(/\b(this month)\b/) && !V.live) { bank = { from: n, to: n, said: T('from this month') }; eat(/\bthis month\b/); }
     else if (has(/\b(past|last) (30 days|month)\b/)) { bank = { from: V.daysFrom(30), to: n, days: 30, said: T('from the past 30 days') }; eat(/\b(past|last) (30 days|month)\b/); }
     else if (has(/\b(past|last) (12 months|year)\b|\bthis year\b/)) { bank = { from: Math.max(1, n - 11), to: n, said: T('from the past year') }; eat(/\b(past|last) (12 months|year)\b|\bthis year\b/); }
     else if ((m = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* (20\d\d)\b/.exec(t))) {
       var bi = V.buckets.indexOf(m[2] + '-' + ('0' + (V.mon.map(function (x) { return x.toLowerCase(); }).indexOf(m[1]) + 1)).slice(-2));
       if (bi > 0) bank = { from: bi, to: bi, said: T('from {when}', { when: V.bLabel(bi) }) };
+      t = t.replace(m[0], ' ');
+    } else if ((m = /\b(in|during|since|after|last|this|early|late|mid|of|from)\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\b(?!\s*\d)/.exec(t))) {
+      // a month with no year is the latest one the bank holds ("in January" in October 2026 is January 2026). Only after a
+      // word like "in": "may" and "march" alone are a verb far more often than a month.
+      var mk = ('0' + (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].indexOf(m[2].slice(0, 3)) + 1)).slice(-2), bj = -1;
+      V.buckets.forEach(function (b, i) { if (i > 0 && /^\d{4}-\d\d$/.test(b) && b.slice(5) === mk) bj = i; });
+      if (bj > 0) bank = /^(since|after)$/.test(m[1]) ? { from: bj, to: n, said: T('since {when}', { when: V.bLabel(bj) }) } : { from: bj, to: bj, said: T('from {when}', { when: V.bLabel(bj) }) };
       t = t.replace(m[0], ' ');
     } else if ((m = /\b(?:since|after) (20\d\d)\b/.exec(t))) {
       var a0 = V.buckets.indexOf(m[1] + '-01'); bank = { from: a0 > 0 ? a0 : 1, to: n, said: T('since {when}', { when: N(m[1]) }) }; t = t.replace(m[0], ' ');
@@ -166,7 +177,11 @@
       if (f >= 0) bank = { from: f, to: l, said: +y < 2023 ? T('from before October 2023') : T('from {when}', { when: N(y) }) };
       t = t.replace(m[0], ' ');
     }
+    // "top picks" are the bank's own marked items, whichever tab it was asked from (its "top" is not an order)
+    var wantTop = has(/\btop picks?\b/) && !!V.sorts.bank;
+    if (wantTop) eat(/\btop picks?\b/);
     if (bank && V.sorts.bank) lens = 'bank';
+    else if (wantTop && !has(LIVEW)) lens = 'bank';
     else if (has(LIVEW) && V.live) { lens = 'live'; }
     if (has(LIVEW)) { timed = true; eat(LIVEW); }
     if (lens === 'readers' && (bank || has(LIVEW))) lens = V.live ? 'live' : 'bank';
@@ -185,10 +200,17 @@
     var canSort = function (s) { return sorts.indexOf(s) >= 0; };
 
     // 3. where it was posted
-    (V.pf || []).forEach(function (pw) { if (has(pw[0])) { if (ns.pf.indexOf(pw[1]) < 0) ns.pf.push(pw[1]); eat(pw[0]); } });
+    var pfGuess = false;
+    (V.pf || []).forEach(function (pw) {
+      var pm = rx(pw[0]).exec(t); if (!pm) return;
+      if (ns.pf.indexOf(pw[1]) < 0) ns.pf.push(pw[1]);
+      if (!/(?:^|\b(?:on|from|in|via|at|only)|(?:^|\s)(?:در|از|تو|توی|روی|فقط))\s*$/.test(t.slice(0, pm.index)) && !/^\s*(?:on|from|in)\b/.test(pm[0])) pfGuess = true;
+      eat(pw[0]);
+    });
     if (has(/\btweets?\b/)) { if (ns.pf.indexOf('X') < 0) ns.pf.push('X'); eat(/\btweets?\b/); }
     if (has(/\b(news sites?|news outlets?|the press|newspapers?)\b/) && (V.pfs || []).some(function (p) { return p[0] === 'News'; })) { if (ns.pf.indexOf('News') < 0) ns.pf.push('News'); eat(/\b(news sites?|news outlets?|the press|newspapers?)\b/); }
 
+    var t3 = t;          // every word left here is part of what was asked: choose() reads them all, whatever a guess below eats
     // video length said in words but no filter took it: say so rather than search for "10 minutes"
     var LEN = /\b(?:(?:under|less than|shorter than|below|up to|max(?:imum)?|over|more than|longer than|at least)\s*\d+\s*(?:min(?:ute)?s?|m)\b|\d+\s*min(?:ute)?s? (?:or less|or shorter|or more|max|long)|short (?:videos?|clips?)|shorts\b|long[- ]form|full (?:interviews?|episodes?))/;
     if (has(LEN)) {
@@ -205,7 +227,7 @@
     // 5. orders and floors
     var want = '';
     if (has(/\b(viral|going viral|blowing up|spreading fast)\b/)) {
-      if (V.virals && V.virals.length > 1) ns.vmin = 50;
+      if (V.virals && V.virals.length > 1 && has(/\bviral\b/)) ns.vmin = 50;
       if (canSort('viral')) want = 'viral';
       eat(/\b(viral|going viral|blowing up|spreading fast)\b/);
     }
@@ -226,19 +248,30 @@
     if (has(/\b(newest|most recent) first\b|\bnewest\b/) && canSort('new')) { want = 'new'; eat(/\b(newest|most recent)( first)?\b/); }
     if (has(/\boldest\b/) && canSort('old')) { want = 'old'; eat(/\boldest( first)?\b/); }
     if (has(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream)( sources?| outlets?)?\b/) && V.creds && V.creds.length > 1) { ns.crmin = 70; eat(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream)( sources?| outlets?)?\b/); }
-    if (has(/\btop picks?\b/) && lens === 'bank') { ns.top = true; eat(/\btop picks?\b/); }
+    if (wantTop && lens === 'bank') ns.top = true;
     if (has(/\bexplainers?\b/) && V.hasEdu) { ns.edu = true; eat(/\bexplainers?\b/); }
 
     // 6. what it is
-    if (has(/\b(videos?|clips?|footage|interviews?|vlogs?|livestreams?|streams?)\b/)) { ns.kind = 'video'; eat(/\b(videos?|clips?|footage|interviews?|vlogs?|livestreams?|streams?)\b/); }
-    else if (has(/\b(articles?|news reports?|reports?|op-?eds?|columns?)\b/)) { ns.kind = 'article'; eat(/\b(articles?|news reports?|reports?|op-?eds?|columns?)\b/); }
-    else if (has(/\b(documents?|pdfs?|papers?|data)\b/)) { ns.kind = 'doc'; eat(/\b(documents?|pdfs?|papers?|data)\b/); }
-    else if (has(/\b(posts?)\b/)) { ns.kind = 'post'; eat(/\bposts?\b/); }
+    // a kind said outright ("videos", "articles") is eaten; one read from a noun ("footage", "a report", "an interview") is a
+    // guess: it stays in the words too, and choose() also tries the question without it
+    // and a plural is asked for only where it is the thing wanted: first, at the end, or before "about", "from", "on"...
+    // ("videos about Iran", "hostage videos"); in the middle of a sentence it is the subject ("Hamas documents show ...")
+    var kindGuess = false;
+    var asked = function (w) { var r = new RegExp('(?:^\\s*|\\b(?:me|any|only|just|some|all|latest|newest|recent|new|top|best|most liked|most viewed|liked|viewed|watched|viral|hot|good|short|long|full|more)\\s+)' + w + '\\b|\\b' + w + '(?=\\s*$|\\s+(?:about|on|of|from|that|which|with|showing|where|in|for|by|related|today|tonight|this|last|over|under|only)\\b)'); return r.test(t); };
+    if (has(/\b(videos|clips|vlogs|livestreams)\b/)) { ns.kind = 'video'; if (asked('(?:videos|clips|vlogs|livestreams)')) eat(/\b(videos?|clips?|vlogs?|livestreams?)\b/); else kindGuess = true; }
+    else if (has(/\b(video|clip|footage|interviews?|streams?|vlog|livestream)\b/)) { ns.kind = 'video'; kindGuess = true; eat(/\b(video|clip)\b/); }
+    else if (has(/\b(articles|op-?eds|columns)\b/)) { ns.kind = 'article'; if (asked('(?:articles|op-?eds|columns)')) eat(/\b(articles?|op-?eds?|columns?)\b/); else kindGuess = true; }
+    else if (has(/\b(article|op-?ed|column|reports?|news reports?)\b/)) { ns.kind = 'article'; kindGuess = true; eat(/\b(article|op-?ed|column)\b/); }
+    else if (has(/\b(documents|pdfs|papers)\b/)) { ns.kind = 'doc'; if (asked('(?:documents|pdfs|papers)')) eat(/\b(documents?|pdfs?|papers?)\b/); else kindGuess = true; }
+    else if (has(/\b(document|pdf|paper)\b/)) { ns.kind = 'doc'; kindGuess = true; }          // "data" is the bank's subject Data and numbers, not a kind of file
+    else if (has(/\bposts\b/)) { ns.kind = 'post'; if (asked('posts')) eat(/\bposts\b/); else kindGuess = true; }
     eat(/\b(only|just)\b/);
     // a length is a video's: say videos, so the line and the pills read as asked
-    if (!ns.kind && Object.keys(ns.ext).some(function (k) { return ext[k] && ext[k].field === 'dur'; })) ns.kind = 'video';
+    // (a length read from a word like "clip" is itself a guess, so the kind it brings is one too: choose() tries without both)
+    if (!ns.kind && Object.keys(ns.ext).some(function (k) { return ext[k] && ext[k].field === 'dur'; })) { ns.kind = 'video'; kindGuess = true; }
 
     // 7. a Trending story named by its own words, and the room's two story views
+    var hotGuess = false;
     if (lens === 'live') {
       if (has(/\bblind ?spots?\b|\bone side (ignored|missed)\b|\bnot (being )?(covered|reported)\b/)) { ns.hot = 'blind'; eat(/\bblind ?spots?\b|\bone side (ignored|missed)\b|\bnot (being )?(covered|reported)\b/); }
       else if (intent === 'trending' || has(/\bhot topics\b|\bhot stories\b|\ball hot\b/)) { ns.hot = 'all'; eat(/\bhot topics\b|\bhot stories\b|\ball hot\b/); }
@@ -249,7 +282,7 @@
           var sc = hit.length + (sw.length && hit.length === sw.length ? 0.5 : 0);
           if (hit.length >= 2 && sc > bs) { bs = sc; best = { h: h, hit: hit }; }
         });
-        if (best) { ns.hot = best.h.id; best.hit.forEach(function (w) { t = t.replace(new RegExp('(^|\\s)' + w + 's?(?=\\s|$)', 'g'), ' '); }); }
+        if (best) { hotGuess = true; ns.hot = best.h.id; best.hit.forEach(function (w) { t = t.replace(new RegExp('(^|\\s)' + w + 's?(?=\\s|$)', 'g'), ' '); }); }
       }
     }
     // 8. one account or outlet: "@handle", or "from Fox News", "by Trump"
@@ -290,7 +323,10 @@
         var pc = w ? (V.places || []).filter(function (pw) { return pw[1].indexOf('c:') === 0 && pw[0].test(' ' + w + ' '); })[0] : null, cn = pc ? pc[1].slice(2) : '';
         var stem = function (s) { return String(s || '').toLowerCase().slice(0, 4); };
         var named = w.length >= 3 && [f[1]].concat(f[2] || []).some(function (s) { return stem(s) === stem(w); });
-        if (pc && (f[2] || []).length > 1 && (f[2] || []).indexOf(cn) >= 0) named = false;
+        // a name of two words or more ("Islamic Republic", "Gaza Strip") names the region, never a person in it (29 Oct 2026:
+        // "the Islamic Republic massacred" left "islamic" to the Islam topic and "republic" to the search, and found nothing)
+        if (/\s/.test(w) || /^(irgc|mullahs?|ayatollahs?)$/.test(w)) named = true;
+        else if (pc && (f[2] || []).length > 1 && (f[2] || []).indexOf(cn) >= 0) named = false;
         else if (pc && ((f[2] || []).indexOf(cn) >= 0)) named = true;
         if (named) hit = mm[0];
       }
@@ -319,15 +355,24 @@
     var soft = [];
     t = t.replace(/\s+/g, ' ');
     t.split(' ').forEach(function (w) { if (w && SOFT.test(' ' + w + ' ')) soft.push(w); });
-    var rest = (' ' + t + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim();
-    ns.q = (claim ? [claim.w] : []).concat(rest.split(' ').filter(function (w) { return w.length > 2 && !/^\d+$/.test(w) && (!claim || w !== claim.w); })).slice(0, 3).join(' ');
+    var rest = (' ' + t + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9_\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim();
+    ns.q = (claim ? [claim.w] : []).concat(rest.split(' ').filter(function (w) { return (w.length > 2 || (w.length === 2 && /[\u0600-\u06ff]/.test(w))) && !/^\d+$/.test(w) && (!claim || w !== claim.w); })).slice(0, 5).join(' ');
     // a place named only as who did something leaves the place row when it would hide most of what the words find (askIt)
     if (ns.place && actors.some(function (a) { return (V.places || []).some(function (pw) { return pw[1] === ns.place && pw[0].test(' ' + a + ' '); }); })) actorOf.push({ place: ns.place, name: ns.place.indexOf('c:') === 0 ? ns.place.slice(2) : V.name.place(ns.place) });
     soft.forEach(function (w) { if (left.length < 3) left.push(T('"{w}" (no filter for that yet)', { w: w })); });
     if (!want && claim && lens === 'bank' && canSort('top')) want = 'top';          // evidence on a claim: the strongest first
     if (want) ns.sort = want;
     if (sorts.indexOf(ns.sort) < 0) ns.sort = sorts[0] || ns.sort;
-    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf };
+    // the words reading: what was asked, less the words that asked for an order, a kind said outright, or one account
+    var tw = t3.replace(/\b(viral|going viral|blowing up|spreading fast|most liked|liked|likes|most viewed|most watched|views|watched|hottest|biggest|top picks?|top|best|strongest|most important|hot|newest|most recent|oldest|first|credible|reliable|trusted|trustworthy|reputable|explainers?|only|just|on fire)\b/g, ' ');
+    if (ns.kind && !kindGuess) tw = tw.replace(/\b(videos?|clips?|vlogs?|livestreams?|articles?|op-?eds?|columns?|documents?|pdfs?|papers?|posts)\b/g, ' ');
+    if (ns.who) tw = tw.replace(/(^|\s)@[a-z0-9_]+|\b(?:from|by|posted by|said by|according to)\s+\S+(\s+\S+){0,3}/g, ' ');
+    tw = tw.replace(LEN, ' ');
+    if (!/\bWHO\b/.test(raw)) tw = tw.replace(/\bwho\b/g, ' ');
+    var allw = (' ' + (V.stopFa ? tw.replace(V.stopFa, ' ') : tw) + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9_\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim().split(' ')
+      .filter(function (w, i, a) { return (w.length > 2 || /^(uk|un|eu)$/.test(w) || (w.length === 2 && /[\u0600-\u06ff]/.test(w))) && !/^\d+$/.test(w) && a.indexOf(w) === i && (!claim || w !== claim.w); });
+    var allq = (claim ? [claim.said || claim.w] : []).concat(allw.filter(function (w) { return !claim || w !== claim.said; })).slice(0, 6).join(' ');
+    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, allq: allq, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess };
   }
 
   /* ------------------------------------------------------------------ saying what a set of filters is, in one line */
@@ -347,13 +392,14 @@
     if (ns.who) { var acc = V.accounts(ns.lens).filter(function (a) { return a[0] === ns.who; })[0]; parts.push(T('from {who}', { who: acc ? acc[1] : ns.who })); }
     if (ns.pf && ns.pf.length) parts.push(T('on {pf}', { pf: ns.pf.map(nm.pf).join(T(' or ')) }));
     Object.keys(ns.ext || {}).forEach(function (k) { var f = V.ext[k]; if (!f) return; var lb = null; try { lb = f.label ? f.label(ns.ext[k]) : null; } catch (e) { lb = null; } lb = String(lb || ns.ext[k]); parts.push(!FA && /^[A-Z][a-z]/.test(lb) ? lb.charAt(0).toLowerCase() + lb.slice(1) : lb); });          // a pill's name inside a sentence: "commentary and analysis"
-    if (ns.q) parts.push(T('that mention "{q}"', { q: ns.q }));
+    if (ns.q) parts.push(ns.qm === 'best' ? T('best matches for "{q}"', { q: ns.q }) : ns.qm === 'rank' ? T('closest to "{q}" first', { q: ns.q }) : ns.qm === 'any' ? T('that mention any of "{q}"', { q: ns.q }) : T('that mention "{q}"', { q: ns.q }));
     if (ns.lmin) parts.push(T('with {n}+ likes', { n: nm.fmt(ns.lmin) }));
     if (ns.vmin) parts.push(ns.vmin >= 90 ? T('in the top 10% for reach') : ns.vmin >= 75 ? T('in the top quarter for reach') : T('viral (the top half for reach)'));
     if (ns.crmin) parts.push(T('from credible sources ({n}+)', { n: N(ns.crmin) }));
     if (ns.heat && ns.lens === 'live') parts.push(T('at heat {n}+', { n: N(ns.heat) }));
     if (ns.top && ns.lens === 'bank') parts.push(T('top picks only'));
     if (ns.edu) parts.push(T('explainers only'));
+    if (ns.lens === 'bank' && V.buckets && (ns.from > 0 || ns.to < V.buckets.length - 1)) parts.push(ns.from === ns.to ? T('from {when}', { when: V.bLabel(ns.from) }) : T('from {a} to {b}', { a: V.bLabel(ns.from), b: V.bLabel(ns.to) }));
     if (ns.lens === 'live') parts.push(ns.within ? T('from {when}', { when: V.winSay ? V.winSay(ns.within) : ns.within }) : T('from the last 24 hours'));
     (extra || []).forEach(function (x) { parts.push(x); });
     var line = T('{n} {what}', { n: N(n), what: noun }) + (parts.length ? ' ' + parts.join(T(', ')) : '') + '.';
@@ -368,7 +414,6 @@
   function drops(ns) {
     var V = R.vocab(), nm = V.name, out = [], cp = function () { return JSON.parse(JSON.stringify(ns)); };
     var add = function (label, fn) { var x = cp(); fn(x); out.push({ label: label, ns: x }); };
-    if (ns.q) add(T('the words "{q}"', { q: ns.q }), function (x) { x.q = ''; });
     if (ns.lmin) add(T('{n}+ likes', { n: nm.fmt(ns.lmin) }), function (x) { x.lmin = 0; });
     if (ns.vmin) add(T('viral only'), function (x) { x.vmin = 0; });
     if (ns.crmin) add(T('credible sources only'), function (x) { x.crmin = 0; });
@@ -384,6 +429,9 @@
     (ns.fx || []).forEach(function (k) { add(nm.focus(k), function (x) { x.fx = x.fx.filter(function (y) { return y !== k; }); }); });
     (ns.tp || []).forEach(function (k) { add(nm.topic(k), function (x) { x.tp = x.tp.filter(function (y) { return y !== k; }); }); });
     if (ns.hot) add(T('the story'), function (x) { x.hot = ''; });
+    // the words are what was asked about: let go of last (29 Oct 2026: they went first, and "videos of staged footage" became
+    // every video of Gaza)
+    if (ns.q) add(T('the words "{q}"', { q: ns.q }), function (x) { x.q = ''; x.qm = ''; });
     return out;
   }
   // a set with nothing switched on is not a near answer: it is the whole room
@@ -391,13 +439,14 @@
   function otherLens(ns) {
     var V = R.vocab(), other = ns.lens === 'live' ? 'bank' : V.live ? 'live' : '';
     if (!other || !V.sorts[other]) return null;
-    var o = R.blank(other); ['q', 'tp', 'fx', 'place', 'kind', 'pf', 'who', 'lmin', 'vmin', 'crmin', 'ext'].forEach(function (k) { if (ns[k] != null) o[k] = JSON.parse(JSON.stringify(ns[k])); });
+    var o = R.blank(other); ['q', 'qm', 'tp', 'fx', 'place', 'kind', 'pf', 'who', 'lmin', 'vmin', 'crmin', 'ext'].forEach(function (k) { if (ns[k] != null) o[k] = JSON.parse(JSON.stringify(ns[k])); });
     var on = R.peek(o);
     return on > 0 && !isBlank(o) ? { ns: o, let: [], to: other, n: on } : null;
   }
   function nearest(ns) {
     var V = R.vocab(), one = drops(ns).map(function (d) { d.n = R.peek(d.ns); return d; }).filter(function (d) { return d.n > 0 && !isBlank(d.ns); });
-    var ol = otherLens(ns);          // the same filters in the other lens beat letting one of them go
+    var timed = (ns.lens === 'bank' && (ns.from > 0 || ns.to < (V.buckets || []).length - 1 || ns.days)) || (ns.lens === 'live' && ns.within);
+    var ol = timed ? null : otherLens(ns);          // the same filters in the other lens beat letting one of them go; never against a time that was said
     if (ol) return { best: ol, also: one.slice(0, 2).map(function (d) { return { ns: d.ns, let: [d.label], n: d.n }; }) };
     if (one.length) return { best: { ns: one[0].ns, let: [one[0].label], n: one[0].n }, also: one.slice(1, 3).map(function (d) { return { ns: d.ns, let: [d.label], n: d.n }; }) };
     // nothing one step away: let go in order until something is found
@@ -536,8 +585,74 @@
     hidePop();
     // the lens a reader is in, not the one the last answer moved them to on its own ("nothing today, so the bank")
     var base = AUTO && R.lens() === AUTO.to ? AUTO.from : '';
-    AUTO = null;
+    var pl = plan(raw, base);
+    AUTO = pl.auto;
+    put(pl.ns, pl.o);
+    if (pl.intent) { C.ans = answer(pl.intent, R.state()); if (C.ans) draw(); }
+    return true;
+  }
+  /* TWO READINGS, TWO TABS, KEEP THE BEST (29 Oct 2026, after Armin's second failed question in a day). A topic, region or
+     place read from a word ("Islamic" as Islam, "ICJ" as The Hague, "Francesca" as France) is a guess, and every guess
+     only ever narrowed: a wrong one emptied the answer, and the tab he happened to be on (the last 24 hours) answered
+     questions about evidence the bank holds. So a question is read twice: as filters (what read() made of it) and as
+     words (the same with the guessed topic, region and place taken off and every word searched, best matches first), and
+     each in both tabs unless a time was said. The winner is the one whose first three items carry most of what was
+     asked (IRoom.rel, the room's own weighed score). A question about proof or evidence leans to the bank, and the tab
+     the reader is on wins a tie. */
+  var EVID = /\b(proof|proves?|evidence|debunk\w*|rebut\w*|refut\w*|accus\w*|counter\w*|claims?|myths?|lies|lied|history|historical|documents?|data|numbers|statistics|stats|reports?|study|studies|research|sources?|examples?|quotes?|footage|explain\w*|was there|did|does|is it true)\b/i;
+  var SOCIAL = /\b(liked|likes|views|viewed|viral|trending|tweets?|tweeted|posts|on x|reactions?|people (?:are )?saying|right now|today|tonight)\b/i;
+  function choose(p, ns, base, o, withs) {
+    if (!R.rel || !p.allq) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
+    var V = R.vocab(), cp = function (x) { return JSON.parse(JSON.stringify(x)); }, here = ns.lens, cands = [];
+    var A = cp(ns); if (A.q && !A.qm) A.qm = 'best';
+    cands.push({ ns: A, pref: 0.03 });
+    var guessed = (ns.tp || []).length || (ns.fx || []).length || ns.place || Object.keys(ns.ext || {}).length || (p.kindGuess && ns.kind) || p.hotGuess || (p.pfGuess && (ns.pf || []).length);
+    if (guessed || p.allq !== ns.q) { var B = cp(ns); B.tp = []; B.fx = []; B.place = ''; B.ext = {}; if (p.kindGuess) B.kind = ''; if (p.hotGuess) B.hot = ''; if (p.pfGuess) B.pf = []; B.q = p.allq; B.qm = 'best'; cands.push({ ns: B, pref: p.allq.split(' ').length >= 5 ? 0.08 : 0.02 }); }
+    var other = here === 'live' ? 'bank' : here === 'bank' && V.live ? 'live' : '';
+    if (other && V.sorts[other] && !p.timed && !p.toBank && !p.intent && !(ns.hot && !p.hotGuess) && !ns.who && !(/^(likes|views|viral)$/.test(p.want || '') && (V.sorts[other] || []).indexOf(p.want) < 0) && !ns.lmin && !ns.vmin) {
+      cands.slice().forEach(function (c) {
+        var x = R.blank(other);
+        ['q', 'qm', 'tp', 'fx', 'place', 'kind', 'pf', 'lmin', 'vmin', 'crmin', 'ext', 'sort'].forEach(function (k) { if (c.ns[k] != null) x[k] = cp(c.ns[k]); });
+        if ((V.sorts[other] || []).indexOf(x.sort) < 0) x.sort = (V.sorts[other] || [])[0] || x.sort;
+        cands.push({ ns: x, pref: c.pref - 0.01 });
+      });
+    }
+    var bankW = V.sorts.bank ? Math.min(1, R.peek(R.blank('bank')) / 200) : 0;
+    var ev = EVID.test(p.raw), so = SOCIAL.test(p.raw), W = [0.6, 0.25, 0.15], best = null, aw = p.allq.split(' ').filter(Boolean);
+    var wt = aw.map(function (w) { return R.qw ? R.qw(w) : 1; }), wsum = wt.reduce(function (a, b) { return a + b; }, 0) || 1;
+    // how much of the question an item answers: each word by its weight; a word a filter of this reading stands for
+    // ("Harvard" read as the campus place) counts half for every item the filter lets through
+    // (a place or region read from a name, Harvard or the Islamic Republic, stands for its word better than a topic does: 0.6, 0.45)
+    var relC = function (it, c) {
+      var inQ = ' ' + (c.ns.q || '') + ' ', facet = (c.ns.tp || []).length || (c.ns.fx || []).length || c.ns.place || c.ns.kind, s0 = 0;
+      aw.forEach(function (w, i) { var r = R.rel(it, w); if (facet && inQ.indexOf(' ' + w + ' ') < 0) r = Math.max(r, c.ns.place || (c.ns.fx || []).length ? 0.6 : 0.45); s0 += wt[i] * r; });
+      return s0 / wsum;
+    };
+    cands.forEach(function (c) {
+      var list = R.peek(c.ns, true); c.n = list.length; if (!c.n) return;
+      var ws = 0; c.q = 0; for (var k = 0; k < 3 && k < list.length; k++) { c.q += W[k] * relC(list[k], c); ws += W[k]; }
+      c.q = c.q / ws + 0.03 * Math.log(Math.min(c.n, 8)) / Math.LN2;          // more of the same quality is a little better
+      // with no time said, the curated bank answers by default and the last 24 hours answer what is social or recent ("most
+      // liked", "on X", "trending"); a question about proof or evidence leans to the bank harder
+      c.score = c.q + c.pref + (c.ns.lens === 'bank' ? bankW * (ev ? 0.15 : so ? 0 : 0.08) : (so ? 0.15 : 0)) + (c.ns.lens === here ? 0.02 : 0);
+      if (!best || c.score > best.score) best = c;
+    });
+    if (!best) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
+    // the filters it read stay one tap away when the words won
+    var a0 = cands[0];
+    if (best !== a0 && a0.n > 0 && guessed && best.ns.lens === a0.ns.lens) withs.push({ ns: a0.ns, label: T('narrowed to {what}', { what: [].concat((a0.ns.tp || []).map(V.name.topic), (a0.ns.fx || []).map(V.name.focus), a0.ns.place ? [a0.ns.place.indexOf('c:') === 0 ? V.name.country(a0.ns.place.slice(2)) : V.name.place(a0.ns.place)] : []).join(T(', ')) }), n: a0.n });
+    if (best.ns.lens !== here) { o.moved = { from: base || here, to: best.ns.lens }; o.from = best.ns.lens === 'bank' ? T('Found in the bank.') : T('Found in the last 24 hours.'); }
+    // the best there is carries under half of what was asked: say so, never pass it off as the answer
+    var top0 = R.peek(best.ns, true)[0];
+    if (top0 && R.rel(top0, p.allq) < 0.5) { o.note = T('Nothing here has all of "{q}".', { q: p.allq.replace(/_/g, ' ') }); o.from = T('The closest:'); }
+    return best.ns;
+  }
+  /* What a question becomes, without putting it on the screen: askIt shows it, and build/ask-test.html runs every question
+     of build/ask-cases.json through it before either site is published (29 Oct 2026). */
+  function plan(raw, base) {
+    var AUTO = null;
     var p = read(raw, base), ns = p.ns, o = { box: raw, left: p.left }, withs = [];
+    var cp = function (x) { return JSON.parse(JSON.stringify(x)); };
     // a place named only as who did something ("israel does not ...") narrows nothing it was asked to: when it would hide
     // more than half of what the rest finds, it comes off, and the narrow set stays one tap away (THE CLAIMS). Run again
     // on the other tab's set when nothing here moves the answer there.
@@ -551,6 +666,21 @@
       return x;
     }
     ns = widen(ns);
+    ns = choose(p, ns, base, o, withs);
+    // THE WORDS NEVER EMPTY A GOOD ANSWER (29 Oct 2026). Every word had to be in an item; a question in a whole sentence
+    // ("proof that the Islamic Republic massacred thousands of Iranians in January") found nothing while the place and the
+    // month it named held the very items. Under three found with every word: what the other filters found with the closest
+    // first (qm rank) when that is a short list, else any of the words (qm any). The narrow set stays one tap away.
+    if (ns.q && (!ns.qm || ns.qm === 'best')) {
+      var n0 = R.peek(ns), wq = cp(ns); wq.q = ''; var framed = !isBlank(wq);
+      if (n0 < 3) {
+        var rk = cp(ns); rk.qm = 'rank'; var nR = framed ? R.peek(rk) : 0;
+        var an = cp(ns); an.qm = 'any'; var nA = ns.q.indexOf(' ') > 0 && ns.qm !== 'best' ? R.peek(an) : 0;
+        var pick = n0 > 0 && nR > n0 && nR <= 30 ? rk : nA > n0 && (n0 === 0 || nA <= 60) ? an : null;
+        if (pick) { if (n0 > 0) withs.push({ ns: ns, label: T('only those with every word'), n: n0 }); ns = pick; }
+      }
+    }
+    if (o.moved) { AUTO = o.moved; delete o.moved; }
     if (p.toBank) AUTO = { from: base || R.lens(), to: 'bank' };          // the next ask reads from the tab the reader chose
     if (p.claim && p.toBank) o.from = T('The bank: the evidence on {claim}.', { claim: FA ? p.claim.tag : p.claim.tag.charAt(0).toLowerCase() + p.claim.tag.slice(1) });
     var n = R.peek(ns);
@@ -572,11 +702,10 @@
         o.from = T('Try fewer words, or a place or a topic.');
       }
     }
-    put(ns, o);
-    if (p.intent) { C.ans = answer(p.intent, R.state()); if (C.ans) draw(); }
-    return true;
+    return { ns: ns, o: o, auto: AUTO, intent: p.intent, read: p };
   }
   R.askWith(askIt);
+  R.askPlan = function (raw, base) { return plan(String(raw || '').trim().slice(0, 200), base || ''); };
 
   /* ------------------------------------------------------------------ saved filters and things to try, under the box */
   var form = $('ir-ask'), box = $('ir-q'), pop = document.createElement('div');

@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=11c6ca48fe) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=9d58614be8) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -209,7 +209,7 @@
      into an empty room. FACES: the same file names each YouTube channel's picture and each outlet's web address, so every
      card shows who posted it by its own face (WHO POSTED IT, below). */
   var DEEP = null, DEEP_FRESH = false, FACE_YT = {}, FACE_DOM = {}, SHOW_MIN = 20;
-  var S = { lens: 'bank', q: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, days: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '', ext: {} };
+  var S = { lens: 'bank', q: '', qm: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, days: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '', ext: {} };
   /* ADD-ONS (23 Oct 2026, the Forces layer, build/intel-forces.js, Liberty Politics only). An add-on loaded after the room
      is ready can draw its own marks over the map (LAYERS: draw, hit by position, hit by element, its tip, what a tap does),
      add a filter that lives in the address and has a pill like every other (EXT: key, test, label, valid), add a tab to the
@@ -792,12 +792,99 @@
       var b = bucketOf(it); if (b < S.from || b > S.to) return false;
       if (S.days && !(String(it.d || '') >= dayCut())) return false;
     }
-    if (S.q) {
-      var w = words(it), terms = S.q.toLowerCase().split(/\s+/).filter(Boolean);
-      for (var i = 0; i < terms.length; i++) if (w.indexOf(terms[i]) < 0) return false;
+    if (S.q && S.qm === 'best' && skip !== 'q') { var sc0 = qScore(it); if (!(sc0 > 0 && sc0 >= qCut())) return false; }
+    else if (S.q && S.qm !== 'rank' && skip !== 'q') {
+      var w = wsOf(it), tq = qTerms(), hit = 0;
+      for (var i = 0; i < tq.length; i++) { if (tq[i].some(function (a) { return qHas(w, a); })) hit++; else if (!S.qm) return false; }
+      if (!hit) return false;
     }
     return true;
   }
+  /* SEARCHED WORDS (29 Oct 2026, Armin: "Show me proof that the Islamic Republic massacred thousands of Iranians in January"
+     found nothing, because "massacred" had to appear letter for letter). A word now matches its own forms (massacred finds
+     massacre, Iranians finds Iran, protesters finds protest) and the few words this room's news uses for the same thing
+     (QSYN). S.qm says how many of the words an item must carry: '' every one, 'any' at least one, 'rank' none, where the
+     words only put the closest first inside what the other filters found, 'best' (the ask box's own) every item that
+     scores at least half of the best item's score. A word weighs more the fewer items carry it (a rare word like "Himmler"
+     decides more than "Israel"), and counts in full in a headline and 0.7 in a note or tags; sortList puts the highest
+     score first. intel-ask.js compares whole readings of a question with rel(), the same score over the same weights. */
+  var QSYN = [['massacr', 'slaughter', 'kill', 'murder', 'executed', 'execution', 'crackdown', 'bloodbath', 'death'], ['protest', 'uprising', 'demonstrat', 'unrest'],
+    ['starv', 'famine', 'hunger', 'malnutrition'], ['hostag', 'captive', 'abduct', 'kidnap'], ['rocket', 'missile'], ['nuclear', 'nuke', 'uranium', 'enrich'],
+    ['propaganda', 'disinformation', 'misinformation'], ['against', 'anti']];
+  // words about a claim rather than its subject ("rebuttals", "evidence", "debunk"): they still count, at a third
+  var QMETA = /^(rebut|refut|debunk|accus|alleg|claim|evidenc|proof|myth|hoax|fake|false|prove|lie|lying|lies|example|source|report|stor)/;
+  // a word matches where a word starts ("hind" is not inside "behind", "aid" not inside "said"); Persian, written with
+  // attached prefixes, matches anywhere
+  // Persian is written several ways: Arabic and Persian forms of the same letter, and a half-space inside a word
+  // ("اعدام‌ها") that one writer types and another does not; both sides are read in one spelling
+  function faNorm(s) { return String(s).replace(/\u200c/g, '').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/\u0629/g, '\u0647').replace(/[\u0623\u0625\u0622]/g, '\u0627').replace(/[\u064b-\u0652]/g, ''); }
+  function wsOf(it) { return it._ws || (it._ws = ' ' + faNorm(words(it)).replace(/[^a-z0-9\u0590-\u06ff]+/g, ' ') + ' '); }
+  function hsOf(it) { return it._hs || (it._hs = ' ' + faNorm(String(it.t || '').toLowerCase()).replace(/[^a-z0-9\u0590-\u06ff]+/g, ' ') + ' '); }
+  function qHas(s, a) {
+    if (a.length <= 2) return s.indexOf(' ' + a + ' ') >= 0;
+    if (!/^[a-z0-9 ]+$/.test(a)) return s.indexOf(a) >= 0;
+    for (var i = s.indexOf(' ' + a); i >= 0; i = s.indexOf(' ' + a, i + 1)) { if (s.indexOf(' ', i + 1 + a.length) - (i + 1 + a.length) <= 5) return true; }
+    return false;
+  }
+  var QPHRASE = { oct7: ['october 7', '7 october', 'oct 7', '7th october', 'october 7th', 'oct7'] };
+  function qStem(w) {
+    // a Persian plural or the ezafe ending reads as its word (اعدام‌ها, معترضان, زندانیان); never a short word like ایران
+    if (/[\u0600-\u06ff]/.test(w)) { w = faNorm(w); var f = /(?:هایی|های|ها|ات|ان)$/.exec(w); return f && w.length - f[0].length >= 4 ? w.slice(0, w.length - f[0].length) : w; }
+    if (!/^[a-z']+$/.test(w)) return w;
+    w = w.replace(/'s?$/, '');
+    var cut2 = function (re, min) { var m = re.exec(w); return m && w.length - m[0].length >= min ? w.slice(0, w.length - m[0].length) : null; };
+    var r = cut2(/ians?$/, 4) || cut2(/(isms?|ists?|ics?)$/, 5) || (w.length >= 7 && cut2(/ers?$/, 4)) || cut2(/ings?$/, 4) || cut2(/(ied|ies)$/, 4) || cut2(/ed$/, 4) || (w === 'jews' ? 'jew' : null) || ((!/(ss|us|is)$/.test(w) || w.length >= 7) && cut2(/s$/, 4)) || w;
+    if (r.length >= 6 && /[^aeiou]i$/.test(r)) r = r.slice(0, -1);          // Israeli, Pakistani, Iraqi: the country's own name
+    if (r.length >= 6 && /[^aeiou]e$/.test(r)) r = r.slice(0, -1);          // massacre, genocide, hostage: every form of them
+    return r;
+  }
+  var QX = {}, QW = {}, QC = { k: '', v: 0 };
+  function qTerms(q) {
+    q = q == null ? S.q : q;
+    if (QX[q]) return QX[q];
+    var seen = {}, t = faNorm(String(q || '').toLowerCase()).split(/[^a-z0-9_\u0590-\u06ff]+/).filter(function (w) { return w && !(/^[a-z0-9_]+$/.test(w) && w.length < 3 && !/^(uk|un|eu)$/.test(w)); }).map(function (w) {
+      if (QPHRASE[w]) { var ph = QPHRASE[w].slice(); ph.own = true; return ph; }
+      var st = qStem(w).replace(/_/g, ' '), g = QSYN.filter(function (x) { return x.some(function (a) { return st.indexOf(a) === 0 || a.indexOf(st) === 0 && st.length >= 4; }); })[0];
+      return g ? [st].concat(g.filter(function (a) { return a !== st; })) : [st];
+    }).filter(function (alts) { var k = alts.join('|'); if (seen[k]) return false; seen[k] = 1; return true; });
+    return (QX[q] = t);
+  }
+  // how much a word decides: rare across everything the room holds weighs more (an inverse document frequency)
+  function qWeight(alts) {
+    var k = alts.join('|');
+    if (QW[k] == null) {
+      var all = BANK.concat(LIVE), n = 0;
+      for (var i = 0; i < all.length; i++) { var w = wsOf(all[i]); if (alts.some(function (a) { return qHas(w, a); })) n++; }
+      QW[k] = Math.min(3, Math.log(1 + (all.length + 1) / (n + 1))) * (QMETA.test(alts[0]) ? 0.35 : 1);
+    }
+    return QW[k];
+  }
+  function qScore(it, q) {
+    var w = wsOf(it), h = hsOf(it), sc = 0;
+    // the word itself counts in full, a word of the same meaning (QSYN) at 0.6; in the headline in full, elsewhere at 0.7
+    qTerms(q).forEach(function (alts) {
+      var own = alts[0], syn = alts.own ? [] : alts.slice(1); if (alts.own) own = alts;
+      var m = Array.isArray(own) ? (own.some(function (a) { return qHas(h, a); }) ? 1 : own.some(function (a) { return qHas(w, a); }) ? 0.7 : 0) : qHas(h, own) ? 1 : syn.some(function (a) { return qHas(h, a); }) ? 0.6 : qHas(w, own) ? 0.7 : syn.some(function (a) { return qHas(w, a); }) ? 0.42 : 0;
+      if (m) sc += m * qWeight(alts);
+    });
+    return sc;
+  }
+  // the score an item needs in 'best': half of the best score among what every other filter lets through
+  function qCut() {
+    var k = JSON.stringify(Object.assign({}, S, { sort: '' })) + '|' + items.length;
+    if (QC.k === k) return QC.v;
+    var best = 0;
+    for (var i = 0; i < items.length; i++) if (pass(items[i], 'q')) { var sc = qScore(items[i]); if (sc > best) best = sc; }
+    QC.k = k; QC.v = best * 0.5;
+    return QC.v;
+  }
+  // 0 to 1: how much of a question's words an item carries, weighed
+  function relOf(it, q) {
+    var tq = qTerms(q), tot = 0; tq.forEach(function (alts) { tot += qWeight(alts); });
+    return tot ? qScore(it, q) / tot : 0;
+  }
+  function qwOf(w) { var t = qTerms(w); return t.length ? qWeight(t[0]) : 0; }
+  function qwOf(w) { var t = qTerms(w); return t.length ? qWeight(t[0]) : 0; }
   function sortList(a) {
     var by = function (x, y) { return (y.d || y.sent || '').toString().localeCompare((x.d || x.sent || '').toString()); };
     if (S.lens === 'readers') by = function (x, y) { return (y.ms || 0) - (x.ms || 0); };
@@ -811,9 +898,10 @@
     if (S.sort === 'views') by = num(viewsOf);
     // searched words: an item whose own headline says them comes before one that only carries them in a note or a tag (29 Oct
     // 2026: "genocide" put general Gaza items above "In-depth debunk of the genocide allegations"), then the order picked
-    var qt = S.q ? S.q.toLowerCase().split(/\s+/).filter(Boolean) : [], tier = function (it) { var h = String(it.t || '').toLowerCase(); return qt.every(function (w) { return h.indexOf(w) >= 0; }) ? 0 : 1; };
-    if (qt.length) a.forEach(function (it) { it._qt = tier(it); });
-    return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || (qt.length ? x._qt - y._qt : 0) || by(x, y); });      // an unlabelled post goes last, whatever the order
+    // and since the same day the best match first, whatever the words asked for (SEARCHED WORDS, above)
+    var qt = !!S.q;
+    if (qt) a.forEach(function (it) { it._qt = qScore(it); });
+    return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || (qt ? y._qt - x._qt : 0) || by(x, y); });      // an unlabelled post goes last, whatever the order
   }
 
   /* ------------------------------------------------------------ everything that redraws */
@@ -1216,7 +1304,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=11c6ca48fe): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=9d58614be8): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2020,7 +2108,7 @@
     if (t && !clear) sayT = setTimeout(function () { if (el.textContent === String(t)) el.innerHTML = ''; }, 6000);
   }
   function clearS() {          // every filter off, in place (the ask box's blankS returns a blank copy instead)
-    S.q = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
+    S.q = ''; S.qm = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
   }
   function clearAll() {
@@ -2064,7 +2152,7 @@
     var p = PRESETS.filter(function (x) { return x.key === key; })[0];
     if (!p || !liveShown()) return false;
     stopTour();
-    if (S.lens !== 'live') { var keepOn = { q: S.q, tp: S.tp.slice(), fx: S.fx.slice(), place: S.place, nowhere: S.nowhere }; useLens('live', true); Object.keys(keepOn).forEach(function (k) { S[k] = keepOn[k]; }); }
+    if (S.lens !== 'live') { var keepOn = { q: S.q, qm: S.qm, tp: S.tp.slice(), fx: S.fx.slice(), place: S.place, nowhere: S.nowhere }; useLens('live', true); Object.keys(keepOn).forEach(function (k) { S[k] = keepOn[k]; }); }
     var h = presetHow(p);
     S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.lmin = 0; S.top = false; S.edu = false; S.kind = h.kind; S.within = h.within; S.sort = h.sort;
     Object.keys(h.ext).forEach(function (k) { if (h.ext[k]) S.ext[k] = h.ext[k]; else delete S.ext[k]; });
@@ -2171,7 +2259,7 @@
     else if (k === 'kind') S.kind = ''; else if (k === 'within') S.within = 0; else if (k === 'heat') S.heat = 0; else if (k === 'lmin') S.lmin = 0;
     else if (k === 'vmin') S.vmin = 0; else if (k === 'crmin') S.crmin = 0; else if (k === 'top') S.top = false; else if (k === 'edu') S.edu = false;
     else if (k === 'time') { S.from = 0; S.to = buckets.length - 1; S.days = 0; $('ir-from').value = 0; $('ir-to').value = S.to; }
-    else if (k === 'q') { S.q = ''; $('ir-q').value = ''; }
+    else if (k === 'q') { S.q = ''; S.qm = ''; $('ir-q').value = ''; }
     say(''); render();
     if (k === 'link' || k === 'with') frameShown();
   }
@@ -2381,6 +2469,7 @@
     var q = [];
     if (S.lens !== defLens) q.push('lens=' + S.lens);
     if (S.q) q.push('q=' + encodeURIComponent(S.q));
+    if (S.q && S.qm) q.push('qm=' + S.qm);
     if (S.tp.length) q.push('topic=' + S.tp.join('.'));
     if (S.nowhere) q.push('place=global'); else if (S.place) q.push('place=' + encodeURIComponent(S.place));
     if (S.kind) q.push('kind=' + S.kind);
@@ -2415,7 +2504,7 @@
     S.ext = {};
     Object.keys(EXT).forEach(function (xk) { var xv = u.get(xk); if (xv && xcall(EXT[xk].valid, xv)) S.ext[xk] = xv; });
     useLens(u.get('lens') || defLens, true);
-    S.q = (u.get('q') || '').slice(0, 120);
+    S.q = (u.get('q') || '').slice(0, 120); S.qm = /^(any|rank|best)$/.test(u.get('qm') || '') ? u.get('qm') : '';
     S.tp = (u.get('topic') || '').split('.').filter(function (k, i, a) { return (k === 'rel' || TOPN[k]) && a.indexOf(k) === i; });
     var p = u.get('place') || '';
     S.place = ''; S.nowhere = false;
@@ -2490,6 +2579,13 @@
   // Iran Uncensored hands its own places and subjects for the ask box (en and fa words), and a map that turns the Persian a
   // reader types ("ویدیوهای امروز") into the words below ("videos today"), so one reader serves both languages.
   if (Array.isArray(CFG.askPlaces)) PLACE_WORDS = CFG.askPlaces.map(function (a) { return [rxOf(a, 0), a[2]]; });
+  // a pattern written /\bfrance|french|paris\b/ holds "\bfrance" on its own, which matched "Francesca" (29 Oct 2026: "francesca
+  // albanese" was read as France). Every place pattern is made whole: its alternatives inside one group, the edges kept.
+  function whole(re) {
+    var s = re.source, a = /^\\b/.test(s), z = /\\b$/.test(s);
+    return new RegExp((a ? '\\b' : '') + '(?:' + s.replace(/^\\b/, '').replace(/\\b$/, '') + ')' + (z ? '\\b' : ''), re.flags);
+  }
+  PLACE_WORDS = PLACE_WORDS.map(function (p) { return [whole(p[0]), p[1]]; });
   if (Array.isArray(CFG.askTopics)) TOPIC_ASK = CFG.askTopics.map(function (a) { return [rxOf(a, 0), a[2]]; });
   var ASK_MAP = Array.isArray(CFG.askMap) ? CFG.askMap.map(function (a) { return [rxOf([a[0], 'g'], 0), ' ' + a[1] + ' ']; }) : [];
   var STOP_FA = CFG.askStop ? rxOf([CFG.askStop, 'g'], 0) : null;
@@ -2610,7 +2706,7 @@
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
     if (want) ns.sort = want;
-    S.q = ns.q; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to; S.days = ns.days;
+    S.q = ns.q; S.qm = ''; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to; S.days = ns.days;
     if (!SORTS[S.lens].some(function (s) { return s[0] === S.sort; })) S.sort = SORTS[S.lens][0][0];
     $('ir-from').value = S.from; $('ir-to').value = S.to;
     render();
@@ -2912,7 +3008,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=11c6ca48fe,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=9d58614be8,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3980,14 +4076,14 @@
       actors: actorsOf, names: namesOf, showing: function (on) { SHOWING = !!on; if (!on) writeUrl(); },
       // THE ASK BOX (24 Oct 2026, build/intel-ask.js, see THE ASK BOX'S HANDS): it answers the search box, reads what the
       // room understands, counts a set of filters without drawing it, puts one on the screen, and keeps the saved views
-      askWith: function (f) { ASKX = typeof f === 'function' ? f : null; }, vocab: askVocab, state: snapS, blank: blankS, peek: peekS, apply: applyS, query: query, go: goQ,
+      askWith: function (f) { ASKX = typeof f === 'function' ? f : null; }, vocab: askVocab, state: snapS, blank: blankS, peek: peekS, rel: relOf, qw: qwOf, qw: qwOf, apply: applyS, query: query, go: goQ,
       views: views, setViews: function (v) { store(VKEY, Array.isArray(v) ? v.slice(0, 12) : []); drawViews(); }, onViews: function (f) { VHOOK.push(f); },
       openFilters: openDrawer, say: say };
     (root.getAttribute('data-addons') || '').split(' ').filter(Boolean).forEach(function (src, i) {          // the page's add-ons (intel.py), after the room is ready
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=11c6ca48fe'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=9d58614be8'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
