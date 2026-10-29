@@ -2297,13 +2297,103 @@
         (cd ? '<span class="ir-sh-pcd"><span class="ir-sh-pci" style="background-image:url(' + esc(cd.i + '&name=' + (/\/media\//.test(cd.i) ? 'medium' : '800x419')) + ')"></span>' + (cd.t || cd.dm ? '<span class="ir-sh-pct">' + (cd.dm ? '<small>' + esc(cd.dm) + '</small>' : '') + esc(cd.t || '') + '</span>' : '') + '</span>' : '') +
         '</figure>';
     }
+    /* THE INTRO CARD (29 Oct 2026; Armin, 28 Oct: "Look at this first screen. It's absolutely boring! ... images on it and
+       also less text and be more visual", and on 29 Oct, on a screenshot of it: "the first page still looks ugly as shit").
+       It was a label, a giant title, a stock sentence and six headlines cut with "...", four of them the same Obama quote.
+       Now it is a title card drawn from the show's OWN material, for every show on both sites (never one show):
+       - the title, sized to its own column by refit(), and no sentence under it
+       - the pictures of the show: the first item with a picture leads, up to four more beside it; near-identical items are
+         left out (the same words, the same picture, then the same source while another is left); each picture is a door
+         to its item (data-go: the rundown's own buttons), with who said it and its number in the rundown; the maker's
+         cover line rides the lead picture as its tag
+       - the faces of everyone in the show, as every card in the room draws them (R.whoFace: authors, channels, logos)
+       - the counts as small badges: items, videos, sources, views
+       A show with no pictures, or a page that loads none before a tap, draws the faces large instead. Nothing here hides
+       and then animates in. */
+    var STOPW = /^(the|and|for|with|that|this|from|have|has|had|was|were|are|its|his|her|their|they|you|your|our|not|but|just|about|into|over|after|what|who|will|would|said|says|been|than|then|them|when|where|which|while|breaking|watch|live|video|new|now|today|tonight|here|there|all|out|how|why)$/;
+    function wordSet(t) {
+      var o = {};
+      String(t || '').toLowerCase().replace(/https?:\/\/\S+/g, ' ').replace(/[^\p{L}\p{N}\s]+/gu, ' ').split(/\s+/).forEach(function (w) { if (w.length > 2 && !STOPW.test(w)) o[w] = 1; });
+      return o;
+    }
+    function nearSame(a, b) {          // the same item told twice: most of the words of one are in the other
+      var ka = Object.keys(a), kb = Object.keys(b); if (!ka.length || !kb.length) return false;
+      var both = ka.filter(function (w) { return b[w]; }).length, lo = Math.min(ka.length, kb.length);
+      return both / (ka.length + kb.length - both) >= 0.45 || (lo >= 3 && both / lo >= 0.7);
+    }
+    var SV = {
+      play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>',
+      items: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
+      vid: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M10.5 9.5v5l4-2.5z"/></svg>',
+      who: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.8 13.6c2.3-.4 4.3 1.1 4.8 4.4"/></svg>',
+      eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/></svg>'
+    };
+    function openCard() {
+      var whoK = function (x) { return R.whoKey ? R.whoKey(x) : String(x.h || x.nm || x.src || '').toLowerCase(); };
+      var whoN = function (x) { return R.whoName ? R.whoName(x) : String(x.nm || x.h || x.src || ''); };
+      var tWords = wordSet(title), nVid = 0, views = 0, faces = [], fseen = {};
+      var cand = rows.map(function (r, i) {
+        var x = r.it, v = R.vis && !x.sn ? R.vis(x, true) : null, k = whoK(x), rc = R.reach ? R.reach(x) : null;
+        var vid = (R.kind ? R.kind(x) : x.k) === 'video' || !!R.yt(x.u);
+        if (vid) nVid++;
+        if (rc && +rc.views > 0) views += +rc.views;
+        if (k && !fseen[k]) { fseen[k] = 1; faces.push(x); }
+        return { i: i, x: x, v: v, k: k, vid: vid, w: wordSet(cleanHead(x.t)) };
+      });
+      // the pictures: real pictures first, in rundown order, each one a different item, then a different source
+      var tiles = [], pseen = {}, wseen = {};
+      var fits = function (c, kinds, newWho) {
+        if (!c.v || kinds.indexOf(c.v.k) < 0 || !c.v.u || pseen[c.v.u] || (newWho && wseen[c.k])) return false;
+        return !tiles.some(function (t) { return nearSame(t.w, c.w); });
+      };
+      [[['pic'], true], [['pic'], false], [['av'], true]].forEach(function (p) {
+        cand.forEach(function (c) { if (tiles.length < 5 && tiles.indexOf(c) < 0 && fits(c, p[0], p[1]) && (p[0][0] === 'pic' || tiles.length < 3)) { tiles.push(c); pseen[c.v.u] = 1; wseen[c.k] = 1; } });
+      });
+      // the lead is the earliest of the best pictures: a post's own photo or video still, or a YouTube still, before a link
+      // card, before a news site's thumbnail (often its logo); the rest keep the rundown's order
+      var grade = function (c) { return c.v.k !== 'pic' ? 3 : /i\.ytimg\.com|pbs\.twimg\.com\/(media|ext_tw_video_thumb|amplify_video_thumb|tweet_video_thumb)\//.test(c.v.u) ? 0 : /card_img/.test(c.v.u) ? 1 : 2; };
+      tiles.sort(function (a, b) { return (a.v.k === 'pic' ? 0 : 1) - (b.v.k === 'pic' ? 0 : 1) || a.i - b.i; });
+      var best = tiles.slice().sort(function (a, b) { return grade(a) - grade(b) || a.i - b.i; })[0];
+      if (best && best !== tiles[0]) { tiles.splice(tiles.indexOf(best), 1); tiles.unshift(best); }
+      var tag = cover || (video ? T('Today\'s video') : '');
+      // the lead's own words, whole, when they add to the title (never the title again, never cut with "...")
+      var leadLine = function (x) {
+        var h = cleanHead(x.t || ''); if (!h || nearSame(wordSet(h), tWords)) return '';
+        if (h.length > 110) h = h.split(/\s*[:|–—]\s+|[.?!]\s+/)[0];
+        return h.length >= 12 && h.length <= 110 ? h : '';
+      };
+      var face = function (x, big) { return R.whoFace ? R.whoFace(x, big) : face0(x); };
+      var tile = function (c, n) {
+        var x = c.x, lead = !n, nm = whoN(x), hl = lead ? leadLine(x) : '';
+        var img = c.v.k === 'pic' ? '<span class="ir-sh-ti' + (R.yt(x.u) ? ' is-yt' : '') + '" style="background-image:url(' + esc(c.v.u) + ')"></span>'
+          : '<span class="ir-sh-ti is-av"><i style="background-image:url(' + esc(c.v.u) + ')"></i></span>';
+        return '<button type="button" class="ir-sh-tile' + (lead ? ' is-lead' : '') + '" data-go="' + (c.i + 1) + '" aria-label="' + esc(T('{n} of {m}', { n: N(c.i + 1), m: N(rows.length) }) + ': ' + nm) + '">' + img +
+          (lead && tag ? '<span class="ir-sh-tag">' + esc(tag) + '</span>' : '') +
+          '<span class="ir-sh-tno num" aria-hidden="true">' + (c.vid ? SV.play : '') + N(c.i + 1) + '</span>' +
+          '<span class="ir-sh-tcap" aria-hidden="true">' + (hl ? '<span class="ir-sh-thl"' + (FA ? ' dir="auto"' : '') + '>' + esc(hl) + '</span>' : '') +
+          '<span class="ir-sh-tby">' + face(x, false) + '<b' + (FA ? ' dir="auto"' : '') + '>' + esc(nm) + '</b></span></span></button>';
+      };
+      // the faces: those with a picture first, then initials; eight, and how many more
+      var FMAX = 8, fl = faces.filter(function (x) { return face(x, true).indexOf('is-mono') < 0; }).concat(faces.filter(function (x) { return face(x, true).indexOf('is-mono') >= 0; }));
+      var facesHtml = faces.length ? '<p class="ir-sh-faces" aria-hidden="true">' + fl.slice(0, FMAX).map(function (x) { return '<span class="ir-sh-fc" title="' + esc(whoN(x)) + '">' + face(x, true) + '</span>'; }).join('') +
+        (faces.length > FMAX ? '<span class="ir-sh-fmore num">+' + N(faces.length - FMAX) + '</span>' : '') + '</p>' : '';
+      var bold = function (s) { return esc(s).replace(/([0-9۰-۹][0-9۰-۹.,٫٬]*\s?[KMBkmb]?)/, '<b class="num">$1</b>'); };
+      var ty = [[SV.items, rows.length === 1 ? T('1 item') : T('{n} items', { n: N(rows.length) })]];
+      if (nVid) ty.push([SV.vid, nVid === 1 ? T('1 video') : T('{n} videos', { n: N(nVid) })]);
+      if (faces.length > 1) ty.push([SV.who, T('{n} sources', { n: N(faces.length) })]);
+      if (views >= 1000) ty.push([SV.eye, T('{n} views', { n: R.fmt(views) })]);
+      var tally = '<ul class="ir-sh-tally">' + ty.map(function (t) { return '<li>' + t[0] + '<span>' + bold(t[1]) + '</span></li>'; }).join('') + '</ul>';
+      return '<div class="ir-sh-open' + (tiles.length ? '' : ' no-pics') + '"><div class="ir-sh-oh">' +
+        '<h1' + (FA ? ' dir="auto"' : '') + '>' + esc(title) + '</h1>' + facesHtml + tally + '</div>' +
+        (tiles.length ? '<div class="ir-sh-mos" data-n="' + tiles.length + '">' + tiles.map(tile).join('') + '</div>' : '') + '</div>';
+    }
+    function face0(x) { return '<span class="ir-by-av is-mono" aria-hidden="true"><i>' + esc(initial(x)) + '</i></span>'; }
     function stage() {
       var el = $('ir-sh-stage');
       el.classList.remove('one-title', 'is-post', 'rp-on', 'has-rb', 'is-xm-long');          // one-title set again by frame() when the item's own card already carries its headline
       rbAt = -1; rpCur = null;
       if (at === 0) {
-        el.innerHTML = '<div class="ir-sh-open"><p class="ir-sh-k">' + esc(cover || (video ? T('Today\'s video') : T('On the show today'))) + '</p><h1>' + esc(title) + '</h1>' + (desc ? '<p class="ir-sh-d">' + esc(firstSentence(desc)) + '</p>' : '') +
-          '<ol class="ir-sh-agenda">' + rows.slice(0, 6).map(function (r) { return '<li>' + R.mark(r.it) + '<span>' + esc(roleName(r) ? roleName(r) + ': ' : '') + esc(cut(r.it.t, 80)) + '</span></li>'; }).join('') + '</ol></div>';
+        el.innerHTML = openCard();
         refitSoon();
         return;
       }
@@ -2425,7 +2515,7 @@
       }
       var rb = $('ir-sh-rbt'); if (rb) fitText(rb, rb, u * 0.095, 18);
       var ct = sh.querySelector('.ir-sh-ct'), fr = $('ir-sh-frame'); if (ct && fr) fitText(ct, fr, u * 0.075, 18);
-      var oh = sh.querySelector('.ir-sh-open h1'), op = $('ir-sh-stage'); if (oh && op) fitText(oh, op, u * 0.11, 24);
+      var oh = sh.querySelector('.ir-sh-open h1'), op = sh.querySelector('.ir-sh-oh'); if (oh && op) fitText(oh, op, u * (sh.querySelector('.ir-sh-open.no-pics') ? 0.1 : 0.09) * Math.min(1, Math.max(0.6, Math.sqrt(40 / Math.max(1, oh.textContent.length)))), 24);          // a long title steps down, so the card is never all title          // the intro's title fits its own column, beside the pictures (29 Oct 2026)
       var tt = $('ir-sh-tt'), tb = $('ir-sh-topic'); if (tt && tb && !tt.hidden && mode !== 'read') {
         fitText(tt, tb, u * 0.05, 18);          // the topic: as large as two lines of the bar allow
         // 25 Oct 2026: the bar centres its rows, so a topic of three lines can measure as fitting while its last line hangs
@@ -2451,9 +2541,7 @@
     // it before the phone test looked (fa/news/, "the topic is cut", three runs in a row)
     setInterval(function () { var s0 = $('ir-sh-stage'); if (!s0) return; var t0 = $('ir-sh-tt'), kb = s0.clientWidth + 'x' + s0.clientHeight + (t0 ? '|' + t0.offsetWidth + 'x' + t0.offsetHeight : ''); if (kb !== lastBox) { lastBox = kb; refitSoon(); } }, 250);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(refitSoon);
-    function firstSentence(t) { var m = /^.*?[.?!](\s|$)/.exec(t); return (m ? m[0] : t).trim(); }
     function roleName(r) { return r.role === 'on' ? '' : r.role === 'rel' ? T('Related') : Object.prototype.hasOwnProperty.call(ROLE, r.role) ? ROLE[r.role] : ''; }
-    function cut(t, n) { return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…' : t; }
     function srcLine(x) { var h = String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0]; return T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : h }); }
     /* WHO COVERED THIS STORY, on the screen (25 Oct 2026): of the outlets that carried it, how many lean left, centre and
        right (intel_live.py spread(), our own lean table; the page only draws what the file says), and a Blindspot names

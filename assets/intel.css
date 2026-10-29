@@ -920,7 +920,7 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep):not(dialog){display:none!importan
 }
 .ir-sh-card{max-width:56rem;padding:clamp(20px,3vw,56px);border-radius:16px;background:linear-gradient(180deg,#1a1917,#121211);box-shadow:inset 0 0 0 1px #3a3527,0 40px 90px -50px #000}
 .ir-sh-ck{display:flex;align-items:center;gap:10px;margin:0 0 14px;color:var(--field);font:700 clamp(.9rem,1.1vw,1.25rem) var(--body);letter-spacing:.02em}
-.ir-sh-ck .ir-mk,.ir-sh-meta .ir-mk,.ir-sh-agenda .ir-mk,.ir-sh-strip .ir-mk{width:1em;height:1em;flex:none}
+.ir-sh-ck .ir-mk,.ir-sh-meta .ir-mk,.ir-sh-strip .ir-mk{width:1em;height:1em;flex:none}
 .ir-sh-ct{margin:0;font:800 clamp(1.8rem,3.4vw,4rem)/1 var(--display);text-transform:uppercase;letter-spacing:.005em;text-wrap:balance}
 .ir-sh-cw{margin:16px 0 0;color:var(--dim);font-size:clamp(.95rem,1.15vw,1.3rem)}
 .ir-sh-card h1{font-size:clamp(1.8rem,3vw,3rem)}
@@ -936,13 +936,55 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep):not(dialog){display:none!importan
 .ir-sh-why svg{width:1.1em;height:1.1em;fill:var(--field);flex:none}
 .ir-sh-stage.one-title .ir-sh-info h2,.ir-sh-stage.one-title .ir-sh-also{display:none}
 .ir-sh-src{display:inline-flex;align-items:center;min-height:44px;color:var(--field);font-weight:700;font-size:clamp(.9rem,1.05vw,1.2rem);overflow-wrap:anywhere}
-.ir-sh-open{grid-column:1/-1;justify-self:center;max-width:78rem;width:100%}
-.ir-sh-k{margin:0 0 clamp(10px,1.4vw,22px);color:var(--field);font:800 clamp(1rem,1.5vw,1.8rem)/1 var(--display);text-transform:uppercase;letter-spacing:.14em}
-.ir-sh-open h1{font-size:clamp(2.2rem,5.2vw,6rem);line-height:.92;text-wrap:balance}
-.ir-sh-d{margin:clamp(12px,1.6vw,26px) 0 0;max-width:62ch;color:var(--dim);font-size:clamp(1rem,1.5vw,1.7rem);line-height:1.4}
-.ir-sh-agenda{list-style:none;margin:clamp(18px,2.6vw,44px) 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,22rem),1fr));gap:10px clamp(16px,2vw,36px);counter-reset:ag}
-.ir-sh-agenda li{display:flex;align-items:flex-start;gap:12px;padding-top:10px;border-top:1px solid rgba(var(--ir-gold,244,196,48),.22);color:var(--ink);font-size:clamp(.95rem,1.2vw,1.4rem);line-height:1.3}
-.ir-sh-agenda .ir-mk{margin-top:.2em}
+/* ---- THE INTRO CARD, 29 Oct 2026 (intel-prep.js openCard; Armin: "absolutely boring ... images on it and also less text
+   and be more visual"). A title card: the title, the faces and the counts in one column, the show's own pictures in the
+   other. The title is fitted to its column by refit(); the pictures fill the rest of the stage. Nothing animates. */
+.ir-sh-open{grid-column:1/-1;align-self:stretch;justify-self:center;min-height:0;width:100%;max-width:124rem;display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(20px,3vw,64px)}
+.ir-sh-open.no-pics{grid-template-columns:minmax(0,1fr);max-width:80rem}
+.ir-sh-oh{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:clamp(16px,2.4vh,34px)}
+.ir-sh-oh>*{flex:none}
+.ir-sh-open h1{margin:0;font-size:clamp(2.2rem,4.6vw,5.6rem);line-height:.9;text-wrap:balance;overflow-wrap:anywhere}
+/* everyone in the show, one row of faces (the room's own: authors, channels, outlet logos) */
+.ir-sh-faces{display:flex;flex-wrap:wrap;align-items:center;row-gap:8px;margin:0;padding-inline-start:12px}
+.ir-sh-fc{display:block;margin-inline-start:-12px;border-radius:50%;box-shadow:0 0 0 3px #0e0d0b}
+.ir-sh-fc .ir-by-av:not(.is-mono){display:block}          /* a face is a span: in a byline its row is a flex box, here it is not */
+.ir-sh-fc .ir-by-av{width:clamp(44px,3.6vw,72px);height:clamp(44px,3.6vw,72px);box-shadow:0 0 0 1.5px rgba(255,255,255,.16)}
+.ir-sh-fc .ir-by-av.is-mono{font-size:clamp(14px,1.15vw,22px)}
+.ir-sh-fc .ir-pfb{width:clamp(18px,1.3vw,26px);height:clamp(18px,1.3vw,26px);right:-2px;bottom:-2px}
+.ir-sh-fc .ir-pfb svg{width:70%;height:70%}
+.ir-sh-open.no-pics .ir-sh-fc .ir-by-av{width:clamp(56px,6vw,112px);height:clamp(56px,6vw,112px)}
+.ir-sh-fmore{margin-inline-start:12px;color:var(--dim);font:800 clamp(1rem,1.4vw,1.7rem)/1 var(--display)}
+/* the counts, small badges, never a sentence */
+.ir-sh-tally{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:clamp(8px,.7vw,12px)}
+.ir-sh-tally li{display:inline-flex;align-items:center;gap:.55em;min-height:40px;padding:.35em 1em .35em .75em;border-radius:999px;background:rgba(var(--ir-gold,244,196,48),.07);box-shadow:inset 0 0 0 1px rgba(var(--ir-gold,244,196,48),.26);color:var(--dim);font:600 clamp(.85rem,1.05vw,1.3rem)/1 var(--body)}
+.ir-sh-tally svg{flex:none;width:1.3em;height:1.3em;fill:none;stroke:var(--field);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ir-sh-tally b{color:var(--ink);font:800 1.4em/1 var(--display);letter-spacing:.01em;margin-inline-end:.12em}
+/* the pictures: the lead and up to four more, each a door to its item */
+.ir-sh-mos{min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);grid-auto-rows:minmax(0,1fr);gap:clamp(8px,.8vw,14px)}
+.ir-sh-mos[data-n="1"]{grid-template-columns:minmax(0,1fr)}
+.ir-sh-mos[data-n="2"]{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+.ir-sh-mos[data-n="3"] .is-lead{grid-row:span 2}
+.ir-sh-mos[data-n="4"] .is-lead{grid-row:span 3}
+.ir-sh-mos[data-n="5"]{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr)}
+.ir-sh-mos[data-n="5"] .is-lead{grid-row:span 2}
+.ir-sh-tile{position:relative;isolation:isolate;display:block;min-width:0;min-height:0;margin:0;padding:0;border:0;border-radius:12px;overflow:hidden;background:#1b1a17;color:var(--ink);font:inherit;text-align:start;cursor:pointer;box-shadow:0 0 0 1px rgba(255,255,255,.07),0 26px 60px -34px #000}
+.ir-sh-tile:hover{box-shadow:0 0 0 2px var(--field),0 26px 60px -34px #000}
+.ir-sh-tile:focus-visible{outline:3px solid var(--field);outline-offset:3px}
+.ir-sh-ti{position:absolute;inset:0;z-index:-2;background:#1b1a17 center/cover no-repeat}
+.ir-sh-ti.is-yt{inset:-16.7% 0}          /* YouTube's large still is 4:3 with black bands above and below a 16:9 picture: cut them off */
+.ir-sh-ti.is-av{display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#2e2a22,#151411 72%)}
+.ir-sh-ti.is-av i{display:block;height:min(56%,80vw);aspect-ratio:1;border-radius:50%;background:center/cover no-repeat;box-shadow:0 0 0 3px rgba(var(--ir-gold,244,196,48),.5),0 20px 50px -20px #000;transform:translateY(-14%)}
+.ir-sh-tile::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(9,9,8,.28) 0,rgba(9,9,8,0) 26%,rgba(9,9,8,0) 40%,rgba(9,9,8,.6) 70%,rgba(9,9,8,.94) 100%)}
+.ir-sh-tag{position:absolute;top:clamp(10px,1vw,18px);inset-inline-start:clamp(10px,1vw,18px);max-width:calc(100% - 7em);margin:0;padding:.42em .7em .36em;border-radius:8px;background:var(--field);color:#15130d;font:800 clamp(.9rem,1.2vw,1.5rem)/1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.ir-sh-tno{position:absolute;top:clamp(8px,.8vw,14px);inset-inline-end:clamp(8px,.8vw,14px);display:inline-flex;align-items:center;gap:.25em;min-width:2em;height:2em;padding:0 .6em;box-sizing:border-box;justify-content:center;border-radius:999px;background:rgba(9,9,8,.74);color:var(--field);font:800 clamp(.85rem,1vw,1.25rem)/1 var(--display)}
+.ir-sh-tno svg{width:1em;height:1em;fill:var(--ink)}
+.ir-sh-tcap{position:absolute;inset:auto 0 0 0;display:grid;gap:clamp(6px,.6vw,12px);padding:clamp(10px,1vw,20px) clamp(12px,1.1vw,22px)}
+.ir-sh-thl{font:750 clamp(1.1rem,1.75vw,2.2rem)/1.1 var(--body);text-wrap:pretty;overflow-wrap:anywhere;text-shadow:0 2px 16px rgba(0,0,0,.65)}
+.ir-sh-tby{display:flex;align-items:center;gap:clamp(8px,.6vw,12px);min-width:0}
+.ir-sh-tby .ir-by-av{width:clamp(26px,1.9vw,38px);height:clamp(26px,1.9vw,38px)}
+.ir-sh-tile.is-lead .ir-sh-tby .ir-by-av{width:clamp(32px,2.6vw,50px);height:clamp(32px,2.6vw,50px)}
+.ir-sh-tby b{min-width:0;overflow-wrap:anywhere;font:700 clamp(.85rem,.95vw,1.2rem)/1.15 var(--body);text-shadow:0 1px 10px rgba(0,0,0,.7)}
+.ir-sh-tile.is-lead .ir-sh-tby b{font-size:clamp(.95rem,1.15vw,1.45rem)}
 .ir-sh-notes{position:absolute;right:clamp(14px,2vw,32px);top:calc(clamp(10px,1.4vw,22px)*2 + 48px);width:clamp(280px,22vw,420px);max-height:60%;overflow:auto;padding:16px 18px;border-radius:12px;background:rgba(18,18,17,.94);box-shadow:inset 0 0 0 1px #5e4a1c,0 20px 50px -30px #000}
 .ir-sh-nl{margin:0 0 8px;color:var(--field);font:700 var(--t1) var(--body);text-transform:uppercase;letter-spacing:.08em}
 .ir-sh-nt{margin:0;font-size:clamp(1rem,1.15vw,1.25rem);line-height:1.55}
@@ -1076,7 +1118,22 @@ html.ir-sh-on body>*:not(.ir-sh):not(.ir-keep):not(dialog){display:none!importan
   .ir-sh-foot{position:sticky;bottom:0;z-index:3;grid-template-columns:auto minmax(0,1fr) auto;padding:8px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:rgba(6,6,7,.96)}
   .ir-sh-strip button{width:150px}
   .ir-sh-mark{grid-column:1/-1;padding:0;text-align:center;font-size:.85rem}
-  .ir-sh-agenda li{font-size:.95rem}
+  /* the intro card on a phone (29 Oct 2026): the title, the pictures, the faces, the counts, one under the other */
+  .ir-sh-open{display:flex;flex-direction:column;gap:16px}
+  .ir-sh-oh{display:contents}
+  .ir-sh-open h1{order:1;font-size:clamp(1.9rem,8.4vw,2.8rem)}
+  .ir-sh-mos{order:2;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:auto;gap:8px}
+  .ir-sh-mos[data-n="1"],.ir-sh-mos[data-n="2"],.ir-sh-mos[data-n="3"],.ir-sh-mos[data-n="5"]{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ir-sh-mos[data-n="4"]{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ir-sh-mos .ir-sh-tile{grid-row:auto!important;aspect-ratio:1}
+  .ir-sh-mos .ir-sh-tile.is-lead,.ir-sh-mos[data-n="2"] .ir-sh-tile{grid-column:1/-1;aspect-ratio:16/10}
+  .ir-sh-tile:not(.is-lead) .ir-sh-tby b{display:none}
+  .ir-sh-thl{font-size:1.1rem}
+  .ir-sh-tag{font-size:.9rem}
+  .ir-sh-faces{order:3}
+  .ir-sh-fc .ir-by-av,.ir-sh-open.no-pics .ir-sh-fc .ir-by-av{width:40px;height:40px}
+  .ir-sh-tally{order:4}
+  .ir-sh-tally li{font-size:.85rem}
   /* 18 Oct 2026: every part in its own row, in reading order, sized for a phone; nothing overlaps and nothing is fitted */
   .ir-sh-stage{overflow:visible}
   .ir-sh-info{height:auto;max-height:none;overflow:visible;display:grid;justify-content:stretch}
