@@ -41,6 +41,10 @@
   function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem(k) || 'null'); localStorage.setItem(k, JSON.stringify(v)); } catch (e) { return null; } return v; }
   function rx(src, flags) { try { return src instanceof RegExp ? src : new RegExp(src[0], src[1] || ''); } catch (e) { return /(?!)/; } }
   function gl(r) { return new RegExp(r.source, r.flags.indexOf('g') >= 0 ? r.flags : r.flags + 'g'); }
+  // "on fire" as a reader's slang for hot ("what's on fire", "on fire right now") asks for the hottest; after a thing ("vessel
+  // on fire in Hormuz", "ship reported on fire off Oman") it is the news itself and stays in the words (29 Oct 2026: two
+  // Hormuz headlines could not find themselves, ask gate)
+  var FIRE = /(?:^\s*|\b(?:what'?s|whats|what is|what are|who'?s|which|stories|story|news|topics?|things?|everything)\s+)on fire\b/;
   var SPARK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>';
   var STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.8-5.5 3.8z"/></svg>';
   var TUNE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>';
@@ -240,7 +244,7 @@
     if (has(/\b(most liked|liked|likes)\b/) && canSort('likes')) want = 'likes';
     else if (has(/\b(most viewed|most watched|views|watched)\b/) && canSort('views')) want = 'views';
     eat(/\b(most liked|liked|likes|most viewed|most watched|views|watched)\b/);
-    if (has(/\bon fire\b/) && lens === 'live') { ns.heat = 90; eat(/\bon fire\b/); }
+    if (has(FIRE) && lens === 'live') { ns.heat = 90; eat(/\bon fire\b/); }
     if (has(/\b(hottest|biggest|top|best|strongest|most important|hot)\b/)) {
       if (!want) want = lens === 'live' && canSort('hot') ? 'hot' : lens === 'bank' && canSort('top') ? 'top' : '';
       eat(/\b(hottest|biggest|top|best|strongest|most important|hot)\b/);
@@ -364,7 +368,8 @@
     if (want) ns.sort = want;
     if (sorts.indexOf(ns.sort) < 0) ns.sort = sorts[0] || ns.sort;
     // the words reading: what was asked, less the words that asked for an order, a kind said outright, or one account
-    var tw = t3.replace(/\b(viral|going viral|blowing up|spreading fast|most liked|liked|likes|most viewed|most watched|views|watched|hottest|biggest|top picks?|top|best|strongest|most important|hot|newest|most recent|oldest|first|credible|reliable|trusted|trustworthy|reputable|explainers?|only|just|on fire)\b/g, ' ');
+    var tw = t3.replace(/\b(viral|going viral|blowing up|spreading fast|most liked|liked|likes|most viewed|most watched|views|watched|hottest|biggest|top picks?|top|best|strongest|most important|hot|newest|most recent|oldest|first|credible|reliable|trusted|trustworthy|reputable|explainers?|only|just)\b/g, ' ');
+    if (FIRE.test(t3)) tw = tw.replace(/\bon fire\b/g, ' ');
     if (ns.kind && !kindGuess) tw = tw.replace(/\b(videos?|clips?|vlogs?|livestreams?|articles?|op-?eds?|columns?|documents?|pdfs?|papers?|posts)\b/g, ' ');
     if (ns.who) tw = tw.replace(/(^|\s)@[a-z0-9_]+|\b(?:from|by|posted by|said by|according to)\s+\S+(\s+\S+){0,3}/g, ' ');
     tw = tw.replace(LEN, ' ');
