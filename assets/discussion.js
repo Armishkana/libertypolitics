@@ -76,7 +76,12 @@
     function subject(label, id, on) {
       ctx.value = label ? label + ' [' + (id || '') + ']' : '';
       fb.setAttribute('data-on', on || ''); fb.setAttribute('data-subject', on ? label : '');
-      about.textContent = tt('About: {what}', { what: label });
+      /* The words sit in their own span so a long line of the record is cut to two lines and never pushes the
+         box below the first screen (29 October 2026: a 2012 bill claim made it 215px tall). The full words are its title. */
+      about.textContent = '';
+      var t = document.createElement('span');
+      t.className = 'fbabout-t'; t.textContent = tt('About: {what}', { what: label }); t.title = label;
+      about.appendChild(t);
       about.hidden = !label;
       /* A reader who came from one line of the record and wants to talk about the whole page can drop the line. */
       if (label) {

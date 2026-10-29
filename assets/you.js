@@ -1,5 +1,5 @@
-/* Your Liberty Score (you/). A reader votes yes or no on twelve questions the House voted on, one for each
-   measure, and gets a letter on the same scale as a member of Congress. Nothing here is sent anywhere:
+/* Your Liberty Score (you/). A reader votes yes or no on questions the House voted on, one for each
+   principle (eight today), and gets a letter on the same scale as a member of Congress. Nothing here is sent anywhere:
    the answers live in this page and are gone when it is closed. The one thing fetched is data/you.json
    (every graded member's score on each measure), and only when the reader asks for their grade.
    The questions, the liberty side of each and the grade table are printed into the page by render.py
@@ -21,15 +21,20 @@
     for (var i = 0; i < C.grades.length; i++) if (score >= C.grades[i][0]) return C.grades[i][1];
     return 'F';
   }
-  /* The same sum as a candidate graded on words (rec_score in render.py): each measure answered is 100 or 0,
-     the score is the plain average to one decimal, and a letter needs the same number of measures. */
+  /* The same sum as every record on the site (score.weighted_total, LIBERTY-TEST.md): each principle answered
+     is 100 or 0, the score is the average weighted by each principle's weight (C.w, printed by render.py from
+     the register) to one decimal, and a letter needs the same number of principles as a member. */
   function tally() {
-    var n = 0, ok = 0, done = 0;
+    var n = 0, ok = 0, done = 0, wt = 0, wok = 0;
     items.forEach(function (li, i) {
       if (ans[i]) done++;
-      if (ans[i] === 'yea' || ans[i] === 'nay') { n++; if (ans[i] === li.getAttribute('data-side')) ok++; }
+      if (ans[i] === 'yea' || ans[i] === 'nay') {
+        var w = (C.w && C.w[li.getAttribute('data-m')]) || 1;
+        n++; wt += w;
+        if (ans[i] === li.getAttribute('data-side')) { ok++; wok += w; }
+      }
     });
-    var score = n ? Math.round(1000 * ok / n) / 10 : null;
+    var score = wt ? Math.round(1000 * wok / wt) / 10 : null;
     return { n: n, ok: ok, done: done, score: score, grade: n >= C.min ? gradeFor(score) : null };
   }
 
@@ -63,7 +68,7 @@
     var who = el('span', 'who');
     who.appendChild(el('strong', null, m.name));
     who.appendChild(el('span', null, PARTY[m.party] + ' · ' + m.stateName + ' · ' + (m.chamber === 'S' ? 'Senate' : 'House')));
-    who.appendChild(el('span', 'yq-m', m.match == null ? 'Too few votes in common to compare' : m.match + '% match on ' + m.common + ' measure' + (m.common === 1 ? '' : 's')));
+    who.appendChild(el('span', 'yq-m', m.match == null ? 'Too few votes in common to compare' : m.match + '% match on ' + m.common + ' principle' + (m.common === 1 ? '' : 's')));
     a.appendChild(f); a.appendChild(who);
     a.appendChild(el('span', 'g g-' + m.grade.charAt(0).toLowerCase(), m.grade));
     a.setAttribute('aria-label', m.name + ', Liberty Score ' + m.grade + (m.match == null ? '' : ', ' + m.match + ' percent match with you'));
@@ -102,7 +107,7 @@
     $('yq-rank').textContent = lower === 0 ? 'No member of Congress I grade scores lower than that.'
       : lower === all.length ? 'That\'s higher than every one of the ' + all.length + ' members of Congress I grade.'
       : 'That\'s higher than ' + lower + ' of the ' + all.length + ' members of Congress I grade.';
-    $('yq-like-p').textContent = 'Compared on the ' + t.n + ' measure' + (t.n === 1 ? '' : 's') + ' you answered, using every vote I count for each member.';
+    $('yq-like-p').textContent = 'Compared on the ' + t.n + ' principle' + (t.n === 1 ? '' : 's') + ' you answered, using every vote I count for each member.';
     $('yq-like').hidden = false;
     mineIn(all);
   }

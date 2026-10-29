@@ -716,6 +716,7 @@ html.modes-on{scroll-padding-top:128px}
 .fb .pick:focus-within{outline:3px solid var(--field);outline-offset:2px}
 .disc-col .fbnote:empty{min-height:0}
 .disc-col .fbabout{display:flex;align-items:center;gap:10px;margin-top:0}
+.fbabout-t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;min-width:0}
 .fbabout-x{flex:none;margin-left:auto;min-height:44px;padding:0 6px;background:none;border:0;color:var(--dim);font:600 .9rem/1 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 .fbabout-x:hover{color:var(--ink)}
 .fbsend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:10px}
