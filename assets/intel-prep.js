@@ -136,7 +136,7 @@
     ['Araghchi', 'ARAGHCHI', /\baraghchi\b/i, 1, 'person', 'Iran'], ['Hezbollah', 'HEZBOLLAH', /\bhezbollah\b/i, 1, 'group', 'Lebanon'], ['Hamas', 'HAMAS', /\bhamas\b/i, 1, 'group', 'Gaza'],
     ['the Houthis', 'HOUTHIS', /\bhouthis?\b/i, 1, 'group', 'Yemen'], ['Netanyahu', 'NETANYAHU', /\bnetanyahu\b/i, 0, 'person', 'Israel'], ['Trump', 'TRUMP', /\btrump\b/i, 0, 'person', 'the US'],
     ['Rubio', 'RUBIO', /\brubio\b/i, 0, 'person', 'the US'], ['Vance', 'VANCE', /\bvance\b/i, 0, 'person', 'the US'], ['Hegseth', 'HEGSETH', /\bhegseth\b/i, 0, 'person', 'the US'],
-    ['Putin', 'PUTIN', /\bputin\b/i, 0, 'person', 'Russia'], ['Erdogan', 'ERDOGAN', /\berdo[gğ]an\b/i, 0, 'person', 'Turkey'], ['Pahlavi', 'PAHLAVI', /\bpahlavi\b/i, 0, 'person', 'Iran'],
+    ['Putin', 'PUTIN', /\bputin\b/i, 0, 'person', 'Russia'], ['Erdogan', 'ERDOGAN', /\berdo[gğ]an\b/i, 0, 'person', 'Turkey'], ['Prince Reza Pahlavi', 'PRINCE REZA PAHLAVI', /\bpahlavi\b/i, 0, 'person', 'Iran'],
     ['Macron', 'MACRON', /\bmacron\b/i, 0, 'person', 'France'], ['Le Pen', 'LE PEN', /\ble ?pen\b/i, 0, 'person', 'France'], ['Bardella', 'BARDELLA', /\bbardella\b/i, 0, 'person', 'France'],
     ['Starmer', 'STARMER', /\bstarmer\b/i, 0, 'person', 'the UK'], ['Farage', 'FARAGE', /\bfarage\b/i, 0, 'person', 'the UK'], ['Merz', 'MERZ', /\bmerz\b/i, 0, 'person', 'Germany'],
     ['Meloni', 'MELONI', /\bmeloni\b/i, 0, 'person', 'Italy'], ['Zelensky', 'ZELENSKY', /\bzelens[kc]yy?\b/i, 0, 'person', 'Ukraine'], ['Xi', 'XI', /\bxi jinping\b|\bxi\b(?= (says|warns|meets|and|to)\b)/i, 0, 'person', 'China'],

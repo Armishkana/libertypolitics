@@ -2095,7 +2095,7 @@ span.coal-face{display:inline-flex;align-items:center;justify-content:center;fon
 .coal-src{margin-top:var(--s5);font-size:.85rem;max-width:80ch}
 .coal-src a{color:var(--dim)}
 .coal-teaser{display:block;margin-top:var(--s3);font-weight:700;color:var(--field)}
-.coal-teaser::after{content:" 92"}
+.coal-teaser::after{content:" \2192"}
 @media(prefers-reduced-motion:reduce){.coal *{transition:none!important}}
 
 /* who will govern with whom, and what happens next */

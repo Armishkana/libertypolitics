@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=d6ba9ac117) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=a35da092d6) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -1340,7 +1340,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=d6ba9ac117): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=a35da092d6): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -1484,7 +1484,7 @@
     var mine = anim;
     setTimeout(function () { if (!landed && anim === mine) { cancelAnimationFrame(anim); moving = 0; setView(lon, lat, k, true); } }, dur + 150);
   }
-  // Iran Uncensored's room is centred on Iran: home frames CFG.home (Iran, the Gulf and Israel), on the globe and the flat map
+  // Iran Uncensored's room is centred on Iran: home frames CFG.home (Iran, the Persian Gulf and Israel), on the globe and the flat map
   function home() { if (HOME) { fitTo(HOME, 1, 40); return; } if (V.mode === 'globe') flyTo(1, 32, 28); else flyTo(1, 12, 12); }
   var HOME = Array.isArray(CFG.home) && CFG.home.length ? CFG.home : null;          // the flat map's middle sits in the Atlantic so America and Asia both show
   function loadHi() {
@@ -3044,7 +3044,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=d6ba9ac117,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=a35da092d6,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3933,7 +3933,7 @@
   /* ------------------------------------------------------------ start */
   /* ONE FEED SHAPE MORE (Iran Uncensored, CFG.live === 'news'): its Newsroom file, "schema": 1, written hourly by
      ../../site/build/intel_live.py --site iu and pushed alone to the live site. Its items name provinces (pv) and topic
-     indices into the file's own topic keys; a headline that names no province is placed by CFG.livePlaces (the Gulf,
+     indices into the file's own topic keys; a headline that names no province is placed by CFG.livePlaces (the Persian Gulf,
      Israel, Washington...) or, failing those, at Iran as a whole. Its topics are the pipeline's own tags (the same patterns
      the room reads). Heat is put in words here, from its counts: how many outlets carry it, or how fast a video is watched. */
   var NEWS_TK = [], LIVE_PL = Array.isArray(CFG.livePlaces) ? CFG.livePlaces.map(function (a) { return [rxOf(a, 0), a[2]]; }) : [];
@@ -4127,7 +4127,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=d6ba9ac117'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=a35da092d6'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
