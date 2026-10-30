@@ -19,7 +19,7 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function r1(v) { return Math.round(v * 10) / 10; }
-  function moodWords(v) { var a = r1(Math.abs(v)); return a === 0 ? 'Dead even' : (v > 0 ? 'Democrats +' : 'Republicans +') + a; }
+  function moodWords(v) { var a = r1(Math.abs(v)); return a === 0 ? 'Dead even' : (v > 0 ? 'Democrats by ' : 'Republicans by ') + a; }
   function short(v) { var a = r1(Math.abs(v)); return a === 0 ? 'Even' : (v > 0 ? 'D+' : 'R+') + a; }
   function party(p) { return p === 'D' ? 'Democrats' : p === 'R' ? 'Republicans' : 'Independents'; }
   function sideParty(x, s) { return s === 'R' ? 'R' : x.L.p; }
@@ -102,10 +102,12 @@
     return M.house.now;
   }
   function gainWord(ch, p) { var n = nowOf(ch); return (p === 'R' ? n.R >= n.D : n.D > n.R) ? 'keep' : 'take'; }
+  // the same words as gain_words() in midterms.py: who gains, how many, and their count from today to this map
   function gainLine(ch, t) {
     var n = nowOf(ch), dd = t.D - n.D;
-    if (!dd) return 'No change from today: Republicans ' + n.R + ', Democrats ' + n.D;
-    return (dd > 0 ? 'Democrats gain ' + dd : 'Republicans gain ' + (-dd)) + ' seat' + (Math.abs(dd) === 1 ? '' : 's') + ' (now Republicans ' + n.R + ', Democrats ' + n.D + ')';
+    if (!dd) return 'No change from today';
+    var p = dd > 0 ? 'D' : 'R', k = Math.abs(t[p] - n[p]) || Math.abs(dd);
+    return party(p) + ' gain ' + k + ' seat' + (k === 1 ? '' : 's') + ' (' + n[p] + ' → ' + t[p] + ')';
   }
 
   // ---------------------------------------------------------------- the slider
@@ -122,21 +124,33 @@
     IN.setAttribute('aria-valuetext', moodWords(mood));
     IN.style.setProperty('--at', posOf(mood) + '%');
     [].forEach.call(box.querySelectorAll('.mt-pre'), function (b) { b.setAttribute('aria-pressed', r1(parseFloat(b.getAttribute('data-mood'))) === r1(mood) ? 'true' : 'false'); });
+    var yr = $('mt-year'), hit = '';
+    [].forEach.call(yr.options, function (o) { if (o.value && r1(parseFloat(o.value)) === r1(mood)) hit = o.value; });
+    yr.value = hit;
+    yr.classList.toggle('is-on', !!hit);
   }
+  // The Senate and House marks on the slider say their own name, and the line under it says the same thing in words:
+  // what Democrats need in the national vote to take each chamber (Armin, 30 October 2026: "the mood of the country has
+  // a yellow triangle, S, and an H. It might be confusing to people").
   function flips() {
-    var parts = [];
+    var parts = [], at = {};
     ['S', 'H'].forEach(function (ch) {
-      var f = flipAt(ch), name = ch === 'S' ? 'Senate' : 'House';
+      var f = flipAt(ch), name = ch === 'S' ? 'Senate' : 'House', tag = '<b class="mt-tag mt-tag-' + ch + '">' + name + '</b> ';
+      at[ch] = f.at;
       pin('mt-pin-' + ch, f.at);
-      if (f.never) parts.push('<span class="mt-flip"><b class="mt-flip-k">' + name + '</b> Democrats cannot win it with the races you called');
-      else if (f.always) parts.push('<span class="mt-flip"><b class="mt-flip-k">' + name + '</b> Democrats win it whatever the mood, with the races you called');
+      if (f.never) parts.push('<span class="mt-flip">' + tag + 'Democrats cannot win it with the races you called</span>');
+      else if (f.always) parts.push('<span class="mt-flip">' + tag + 'Democrats win it at any setting, with the races you called</span>');
       else {
-        var gap = r1(Math.abs(f.at - mood)), toD = f.at > mood;
-        parts.push('<span class="mt-flip"><b class="mt-flip-k">' + name + '</b> flips at <b class="num">' + short(f.at) + '</b>'
-          + (gap ? ', ' + gap + ' point' + (gap === 1 ? '' : 's') + ' ' + (toD ? 'more toward the Democrats' : 'back toward the Republicans') : ', right here') + '</span>');
+        var a = r1(Math.abs(f.at));
+        parts.push('<span class="mt-flip">' + tag + (a === 0 ? 'Democrats need a tie'
+          : f.at > 0 ? 'Democrats need to win by <b class="num">' + a + '</b>'
+          : 'Democrats win it even losing by <b class="num">' + a + '</b>') + '</span>');
       }
     });
     $('mt-flips').innerHTML = parts.join('');
+    // two marks closer than a tag's width stand one above the other, never on top of each other
+    var w = IN.offsetWidth || 300, near = at.S != null && at.H != null && Math.abs(posOf(at.S) - posOf(at.H)) * w / 100 < 70;
+    IN.parentNode.classList.toggle('is-stack', !!near);
   }
 
   // ---------------------------------------------------------------- the chances: pretend elections
@@ -163,7 +177,7 @@
       var p = Math.round(win[ch] / RUNS * 100), o = $('mt-b-' + ch).querySelector('.mt-odds');
       var lead = p >= 50 ? 'D' : 'R', q = lead === 'D' ? p : 100 - p;
       o.hidden = false;
-      o.innerHTML = '<span class="mt-odds-bar"><i class="mt-odds-d" style="width:' + p + '%"></i></span><span><b class="is-' + lead + '">' + party(lead) + ' win it in ' + (q >= 99 ? 'nearly all' : q + '%') + '</b> of ' + RUNS.toLocaleString('en-US') + ' pretend elections at this mood</span>';
+      o.innerHTML = '<span class="mt-odds-bar"><i class="mt-odds-d" style="width:' + p + '%"></i></span><span><b class="is-' + lead + '">' + party(lead) + ' win it ' + (q >= 99 ? 'almost every time' : q + ' times in 100') + '</b> if the vote went like this</span>';
     });
   }
   function oddsSoon() { clearTimeout(oddsT); oddsT = setTimeout(odds, 140); }
@@ -186,7 +200,7 @@
         + '<span class="mt-win" aria-hidden="true"></span></button>';
     };
     return '<li class="mt-race" data-id="' + esc(x.id) + '"><p class="mt-rhead"><a class="mt-rname" href="' + esc(ROOT + 'races/' + x.id + '/') + '">' + esc(x.lb) + '</a>'
-      + '<span class="mt-rate" title="The forecasters’ average rating">' + esc(x.w) + '</span><span class="mt-state"></span></p>'
+      + '<span class="mt-rate" title="The forecasters’ average rating">' + (x.lock ? '' : 'Experts: ') + esc(x.w) + '</span><span class="mt-state"></span></p>'
       + '<div class="mt-pair">' + who('L') + who('R') + '</div>'
       + '<div class="mt-meter" aria-hidden="true"><span class="mt-meter-in"></span></div></li>';
   }
@@ -230,12 +244,19 @@
         b.querySelector('.mt-win').textContent = won ? (real[x.id] ? 'Won' : pick[x.id] ? 'Your call' : 'Wins') : '';
       });
       var st = li.querySelector('.mt-state');
-      st.textContent = real[x.id] ? 'Called on the night' : pick[x.id] ? 'Your call' : x.lock ? '' : night ? '' : (Math.abs(v) < 0.05 ? 'Dead even' : 'By ' + r1(Math.abs(v)) + ' at this mood');
+      st.textContent = real[x.id] ? 'Called on the night' : pick[x.id] ? 'Your call' : x.lock ? '' : night ? '' : (Math.abs(v) < 0.05 ? 'Dead even' : 'Wins by ' + r1(Math.abs(v)) + ' pts');
       var mi = li.querySelector('.mt-meter-in'), w = Math.min(50, Math.abs(v) * 2.5);
       mi.style.width = (x.lock || pick[x.id] || real[x.id] ? 0 : w) + '%';
       mi.style.left = v > 0 ? (50 - w) + '%' : '50%';
       mi.className = 'mt-meter-in is-' + (v > 0 ? x.L.p : 'R');
     });
+  }
+
+  // the short counts: the line under the slider and the bar that stays on screen among the race cards
+  function counts(ch, t) {
+    var k = ch === 'S' ? 's' : 'h';
+    [].forEach.call(box.querySelectorAll('.mt-' + k + '-D'), function (el) { el.textContent = t.D + (t.I ? '+' + t.I : ''); });
+    [].forEach.call(box.querySelectorAll('.mt-' + k + '-R'), function (el) { el.textContent = t.R; });
   }
 
   // ---------------------------------------------------------------- one draw of the whole map
@@ -246,8 +267,7 @@
       paintChamber(ch, side);
       board(ch, t, control(ch, t));
       $('mt-b-' + ch).querySelector('.mt-gain').textContent = gainLine(ch, t);
-      box.querySelector('.mt-' + (ch === 'S' ? 's' : 'h') + '-D').textContent = t.D + (t.I ? '+' + t.I : '');
-      box.querySelector('.mt-' + (ch === 'S' ? 's' : 'h') + '-R').textContent = t.R;
+      counts(ch, t);
     });
     $('mt-score-m').textContent = short(mood);
     moodLabel();
@@ -286,7 +306,7 @@
     $('mt-feed').innerHTML = '';
     $('mt-clock-l').textContent = 'Eastern time · one pretend night at ' + short(mood);
     box.classList.add('is-night');
-    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-run,#mt-reset'))).forEach(function (b) { b.disabled = true; });
+    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-year,#mt-run,#mt-reset'))).forEach(function (b) { b.disabled = true; });
     var nb = $('mt-night');
     if (nb.getBoundingClientRect().top > W.innerHeight * 0.6 || nb.getBoundingClientRect().top < 0) {
       $('mt-b-S').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
@@ -323,8 +343,7 @@
         fl.className = 'mt-flash is-' + c;
         fl.textContent = hm(now) + ': ' + (c === 'I' ? 'independents decide the ' : party(c) + ' ' + (ch === 'S' && c === 'R' && t.R === 50 ? 'keep' : gainWord(ch, c)) + ' the ') + (ch === 'S' ? 'Senate' : 'House');
       }
-      box.querySelector('.mt-' + (ch === 'S' ? 's' : 'h') + '-D').textContent = t.D + (t.I ? '+' + t.I : '');
-      box.querySelector('.mt-' + (ch === 'S' ? 's' : 'h') + '-R').textContent = t.R;
+      counts(ch, t);
     });
     $('mt-called').textContent = n.k + ' of ' + n.calls.length + ' races called';
     var feed = $('mt-feed'), add = '';
@@ -373,7 +392,7 @@
     night = null;
     $('mt-night').hidden = true; $('mt-skip').hidden = false;
     box.classList.remove('is-night');
-    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-run,#mt-reset'))).forEach(function (b) { b.disabled = false; });
+    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-year,#mt-run,#mt-reset'))).forEach(function (b) { b.disabled = false; });
     draw();
   }
 
@@ -436,17 +455,31 @@
     stick();
   }
 
-  // the small scoreboard that stays on screen while the reader is down among the race cards
+  // The small scoreboard that stays on screen once both chambers have scrolled away above (among the race cards, on
+  // election night). It sits at the top of the whole section, so it never lies over the Senate and House tabs (it did
+  // until 30 October 2026), and a tap on it goes back up to the slider.
   function stick() {
-    var sc = $('mt-score'), boards = box.querySelector('.mt-boards'), races = $('mt-races');
-    if (!W.IntersectionObserver) return;
+    var sc = $('mt-score'), boards = box.querySelector('.mt-boards');
     var top = 0;
     [].forEach.call(D.querySelectorAll('.top,.modes'), function (el) { var cs = W.getComputedStyle(el); if (cs.position === 'sticky' || cs.position === 'fixed') top += el.offsetHeight; });
     sc.style.top = top + 'px';
-    new W.IntersectionObserver(function (es) {
-      es.forEach(function (en) { sc.classList.toggle('is-on', !en.isIntersecting && en.boundingClientRect.top < 0); });
-    }, { rootMargin: '-' + top + 'px 0px 0px 0px' }).observe(boards);
-    races.classList.add('has-score');
+    $('mt-mood-box').style.scrollMarginTop = (top + 12) + 'px';
+    // a scroll check, not an IntersectionObserver: a fast fling or a jump from above the chambers to below them never
+    // crosses them, and an observer then never fires (measured 30 October 2026: the bar stayed hidden)
+    var was = null, queued = false;
+    function upd() {
+      queued = false;
+      var on = boards.getBoundingClientRect().bottom < top;
+      if (on === was) return;
+      was = on;
+      sc.classList.toggle('is-on', on);
+      sc.setAttribute('aria-hidden', on ? 'false' : 'true');
+      sc.tabIndex = on ? 0 : -1;
+    }
+    function soon() { if (!queued) { queued = true; (W.requestAnimationFrame || setTimeout)(upd); } }
+    W.addEventListener('scroll', soon, { passive: true });
+    W.addEventListener('resize', soon);
+    upd();
   }
 
   IN.addEventListener('input', function () { mood = -parseFloat(IN.value); draw(); });
@@ -482,6 +515,7 @@
     }
   });
   WHERE.addEventListener('change', function () { where = WHERE.value; showAll = false; list(); });
+  $('mt-year').addEventListener('change', function () { var v = parseFloat(this.value); if (!isNaN(v) && !night) { mood = v; IN.value = String(-mood); draw(); } });
 
   W.fetch(ROOT + 'assets/midterms.json').then(function (r) { return r.json(); }).then(start).catch(function () {});
 })();

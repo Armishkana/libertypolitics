@@ -663,6 +663,19 @@
       if ((c.words || 0) > lvl && c.n && (!whole || c.score > whole.score) && R.peek(c.ns, true).some(function (it) { return !shown[it.id] && says(it); })) whole = c;
     });
     if (whole) best = whole;
+    // ASKED FOR WHAT IS LIKED OR VIRAL ON A PLATFORM NOW, WITH NO TIME SAID, THE LAST 24 HOURS ANSWER even when they hold
+    // little of it (30 Oct 2026, ask gate: "most liked posts on X about the protests" went to the bank on a day the last 24
+    // hours had no protest posts; the judged answer is the last 24 hours, saying honestly how little matched). Among the
+    // last-24-hours readings, one showing an item whose headline says all of it still wins, as above.
+    if (best && best.ns.lens === 'bank' && !ev && !p.timed && V.live && /\b(most liked|liked|likes|most viewed|viral|trending|tweets?|on x|right now|today|tonight)\b/i.test(p.raw)) {
+      var lv = null, lvAll = null;
+      cands.forEach(function (c) {
+        if (!c.n || c.ns.lens !== 'live') return;
+        if (!c.last && (!lv || c.score > lv.score)) lv = c;
+        if (R.peek(c.ns, true).some(says) && (!lvAll || c.score > lvAll.score)) lvAll = c;
+      });
+      if (lvAll || lv) best = lvAll || lv;
+    }
     if (!best) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
     // the filters it read stay one tap away when the words won
     var a0 = cands[0], hot0 = p.hotGuess && a0.ns.hot ? (V.hots || []).filter(function (h) { return h.id === a0.ns.hot; })[0] : null;

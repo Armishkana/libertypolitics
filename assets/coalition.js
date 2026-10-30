@@ -199,6 +199,8 @@
       li.querySelector('.coal-pick').setAttribute('aria-pressed', ing ? 'true' : 'false');
       li.querySelector('.coal-out').setAttribute('aria-pressed', ino ? 'true' : 'false');
     });
+    // what each of these changes, so build/phone-test.html can check it is on screen after a tap
+    [].forEach.call(box.querySelectorAll('.coal-pick,.coal-out,.coal-pre'), function (b) { b.setAttribute('data-shows', '#coal-n,.coal-mini'); });
     [].forEach.call(box.querySelectorAll('.coal-pre'), function (b) {
       var pr = preset(b.getAttribute('data-pre'));
       var on = pr && same(pr.gov, gov) && same(pr.out || [], out);
@@ -258,7 +260,7 @@
     WAYS.innerHTML = shown.map(function (f, k) {
       var have = gov.concat(f.add).map(function (i) { return chip(i, gov.indexOf(i) >= 0, false); }).join('')
         + f.O.map(function (i) { return chip(i, out.indexOf(i) >= 0, true); }).join('');
-      return '<li><button type="button" class="coal-way is-' + f.j.tier + (k === 0 ? ' is-best' : '') + '" data-add="' + f.add.join(',') + '" data-out="' + f.outs.join(',') + '">'
+      return '<li><button type="button" class="coal-way is-' + f.j.tier + (k === 0 ? ' is-best' : '') + '" data-add="' + f.add.join(',') + '" data-out="' + f.outs.join(',') + '" data-shows="#coal-n,.coal-mini">'
         + '<span class="coal-way-top">' + (k === 0 ? '<span class="coal-best">Likeliest here</span>' : '') + '<span class="coal-like is-' + f.j.tier + '">' + TIER[f.j.tier] + '</span></span>'
         + '<span class="coal-way-name"><b>' + esc(f.name.title) + '</b>' + (f.name.qual ? ' <span>' + esc(f.name.qual) + '</span>' : '') + '</span>'
         + '<span class="coal-way-pm">' + esc(f.name.pm) + ' as prime minister' + (!showAll && kin[f.name.title] > 1 ? ' · the likeliest of ' + kin[f.name.title] + ' like it' : '') + '</span>'
@@ -325,7 +327,62 @@
     }
   }
 
-  function draw() { paint(); words(); liberty(); rows(); ways(); save(); }
+  // ---------------------------------------------------------------- the change follows the thumb on a phone
+  // Armin, note qkdl1tzs, 30 October 2026 (Guy said the same that morning): "on mobile clicking the parties and
+  // seeing the change requires scrolling". Under 960px the chamber sits above the list, so a tap lower down
+  // changes a picture nobody can see. While the count under the chamber is off screen and the calculator is on
+  // it, a bar pinned to the bottom of the screen DRAWS the same change: every party picked as its own block of
+  // seats in its colour, against the majority line, the total, and the verdict (the government's name and how
+  // likely it is, or how many seats short). It flashes on every tap so the eye goes to it; tapping it goes back
+  // to the chamber. Every control that changes the count carries data-shows, and build/phone-test.html taps
+  // each one at 360px and fails if what it changed is not on the screen.
+  var MINI = D.createElement('button'), STAGE = box.querySelector('.coal-stage'), COUNT = box.querySelector('.coal-bar') || STAGE;
+  MINI.type = 'button'; MINI.className = 'coal-mini'; MINI.hidden = true;
+  MINI.setAttribute('aria-label', 'Back to the chamber');
+  box.appendChild(MINI);
+  var miniWas = null;
+  function miniPaint() {
+    var n = sum(gov), o = sum(out), t = n + o, txt, tier = '';
+    if (!gov.length && !out.length) txt = 'Tap a party to start a government';
+    else if (gov.length && t >= MAJ) {
+      var O = n >= MAJ ? [] : out, nm = name(gov, O), jd = judge(gov, O);
+      txt = nm.title + ' · ' + TIER[jd.tier]; tier = jd.tier;
+    } else txt = (MAJ - t) + ' short of a majority';
+    var segs = gov.map(function (i) { return '<i style="width:' + (P[i].seats / ALL * 100) + '%;--pc:' + P[i].color + '"></i>'; }).join('')
+      + out.map(function (i) { return '<i class="is-o" style="width:' + (P[i].seats / ALL * 100) + '%;--pc:' + P[i].color + '"></i>'; }).join('');
+    MINI.classList.toggle('is-maj', gov.length > 0 && n >= MAJ);
+    MINI.classList.toggle('is-min', gov.length > 0 && n < MAJ && t >= MAJ);
+    MINI.innerHTML = '<span class="coal-mini-top"><b class="num" data-n="' + n + '">' + n + (o ? '<small>+' + o + '</small>' : '') + '</b><span class="coal-mini-of">of ' + MAJ + '</span>'
+      + '<span class="coal-mini-say' + (tier ? ' is-' + tier : '') + '">' + esc(txt) + '</span><span class="coal-mini-up" aria-hidden="true">Chamber ↑</span></span>'
+      + '<span class="coal-mini-bar" aria-hidden="true"><span class="coal-mini-segs">' + segs + '</span><span class="coal-mini-line" style="left:' + (MAJ / ALL * 100) + '%"></span></span>';
+    var key = gov.join(',') + '|' + out.join(',');
+    if (miniWas !== null && key !== miniWas && !reduce) { MINI.classList.remove('is-flash'); void MINI.offsetWidth; MINI.classList.add('is-flash'); }
+    miniWas = key;
+    miniShow();
+  }
+  // shown while the count is off screen (scrolled under the header, or below the bottom) and the calculator still
+  // fills the bottom of the screen, so it never sits over the section after it
+  function miniShow() {
+    if (W.innerWidth >= 960) { MINI.hidden = true; return; }
+    var h = W.innerHeight, b = box.getBoundingClientRect(), c = COUNT.getBoundingClientRect(), head = 0, lift = 0;
+    // the header and the Record / Discussion switch stay on top of the page; what is under them is off screen too
+    [].forEach.call(D.querySelectorAll('.top,.modes'), function (el) { if (/sticky|fixed/.test(W.getComputedStyle(el).position)) head = Math.max(head, el.getBoundingClientRect().bottom); });
+    var gone = c.bottom < head + 4 || c.top > h - 90;
+    MINI.hidden = !(gone && b.top < h && b.bottom > h - 40);
+    // the page's own floating pills (the next show, the feedback button) stay visible: the bar sits above them
+    if (!MINI.hidden) [].forEach.call(D.querySelectorAll('.calls,.fab,.hi'), function (el) {
+      var r = el.getBoundingClientRect();
+      if (r.height && W.getComputedStyle(el).position === 'fixed' && r.bottom > h - 140 && r.top < h) lift = Math.max(lift, h - r.top);
+    });
+    MINI.style.bottom = lift ? (lift + 8) + 'px' : '';
+  }
+  var miniQ = false;
+  function miniLater() { if (miniQ) return; miniQ = true; (W.requestAnimationFrame || setTimeout)(function () { miniQ = false; miniShow(); }); }
+  W.addEventListener('scroll', miniLater, { passive: true });
+  W.addEventListener('resize', miniLater);
+  MINI.addEventListener('click', function () { if (STAGE) STAGE.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); });
+
+  function draw() { paint(); words(); liberty(); rows(); ways(); save(); miniPaint(); }
 
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest('button');
