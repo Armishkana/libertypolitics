@@ -27,6 +27,9 @@
   var DIG = '۰۱۲۳۴۵۶۷۸۹';
   function num(n) { var s = String(n); return FA ? s.replace(/[0-9]/g, function (d) { return DIG[+d]; }) : s; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  // every class switch goes through here: the state is forced to true or false, and a class is written only when it changes.
+  // classList.toggle(c, undefined) FLIPS the class, which made 24 faces blink on every step of the timeline (31 Oct 2026).
+  function tog(n, c, on) { on = !!on; if (n.classList.contains(c) !== on) { if (on) n.classList.add(c); else n.classList.remove(c); } return on; }
   function el(tag, cls, text) { var n = D.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   var store = { get: function (k) { try { return JSON.parse(W.localStorage.getItem(k)); } catch (e) { return null; } },
                 set: function (k, v) { try { W.localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
@@ -90,15 +93,16 @@
     [].forEach.call(root.querySelectorAll('.rg-board .rg-t, .rg-alt .rg-t'), function (t) {
       var p = BY[t.getAttribute('data-id')]; var ok = p && matches(p);
       t.hidden = !ok; if (ok && !t.closest('[hidden]')) shown++;
-      t.classList.toggle('is-dim', !!campOn && t.getAttribute('data-camp') !== campOn && t.getAttribute('data-camp2') !== campOn);
+      tog(t, 'is-dim', !!campOn && t.getAttribute('data-camp') !== campOn && t.getAttribute('data-camp2') !== campOn);
     });
     [].forEach.call(root.querySelectorAll('.rg-b, .rg-col, .rg-dayg'), function (s) { s.hidden = !s.querySelector('.rg-t:not([hidden])'); });
     $('rg-none').hidden = shown > 0;
+    tog(root, 'rg-filtering', filt !== 'all' || !!q || !!campOn);
   }
   [].forEach.call(root.querySelectorAll('.rg-f'), function (b) {
     b.addEventListener('click', function () {
       filt = b.getAttribute('data-f');
-      [].forEach.call(root.querySelectorAll('.rg-f'), function (x) { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      [].forEach.call(root.querySelectorAll('.rg-f'), function (x) { tog(x, 'is-on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
       applyFilter();
     });
   });
@@ -148,7 +152,7 @@
   }
   function setView(v) {
     view = v;
-    [].forEach.call(root.querySelectorAll('.rg-v'), function (b) { var on = b.getAttribute('data-v') === v; b.classList.toggle('is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    [].forEach.call(root.querySelectorAll('.rg-v'), function (b) { var on = b.getAttribute('data-v') === v; tog(b, 'is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
     $('rg-board').hidden = v !== 'board';
     $('rg-alt').hidden = v === 'board';
     $('rg-campkey').hidden = v === 'days';
@@ -167,7 +171,7 @@
       b.appendChild(el('i')); b.appendChild(el('span', null, X.camps[k].n)); b.title = X.camps[k].w;
       b.addEventListener('click', function () {
         campOn = campOn === k ? '' : k;
-        [].forEach.call(key.querySelectorAll('.rg-ck'), function (x) { x.classList.toggle('is-on', x.getAttribute('data-c') === campOn); x.setAttribute('aria-pressed', x.getAttribute('data-c') === campOn ? 'true' : 'false'); });
+        [].forEach.call(key.querySelectorAll('.rg-ck'), function (x) { tog(x, 'is-on', x.getAttribute('data-c') === campOn); x.setAttribute('aria-pressed', x.getAttribute('data-c') === campOn ? 'true' : 'false'); });
         applyFilter();
       });
       key.appendChild(b);
@@ -176,7 +180,7 @@
   })();
 
   /* ---------------------------------------------------------------- the timeline */
-  var T0 = ms('2020-01-01'), T1 = ms(X.today), SPAN = Math.round((T1 - T0) / DAY);
+  var T0 = ms(X.t0 || '2020-01-01'), T1 = ms(X.today), SPAN = Math.round((T1 - T0) / DAY);
   var range = $('rg-range'); range.max = SPAN; range.value = SPAN;
   var cur = X.today;
   var dates = {};
@@ -185,7 +189,7 @@
   (function ticks() {
     var t = $('rg-ticks');
     dayList.forEach(function (d) {
-      if (d < '2020-01-01') return;      // a fall before the timeline starts: the face is simply down from the first day
+      if (d < (X.t0 || '2020-01-01')) return;      // a fall before the timeline starts: the face is simply down from the first day
       var i = el('i', dates[d].some(function (p) { return p.s === 'killed'; }) ? 'rg-tick' : 'rg-tick is-d');
       var pos = (ms(d) - T0) / (T1 - T0) * 100;
       i.style[RTL ? 'right' : 'left'] = pos + '%';
@@ -194,8 +198,49 @@
     });
     X.ops.forEach(function (o) {
       if (!o.start) return;
-      var a = (ms(o.start) - T0) / (T1 - T0) * 100, b = (ms(o.end || o.start) - T0) / (T1 - T0) * 100;
+      var a = Math.max(0, (ms(o.start) - T0) / (T1 - T0) * 100), b = (ms(o.end || o.start) - T0) / (T1 - T0) * 100;
+      if (b < 0) return;
       var s = el('i', 'rg-opband'); s.style[RTL ? 'right' : 'left'] = a + '%'; s.style.width = Math.max(.6, b - a) + '%'; s.title = (FA && o.name_fa) || o.name; t.appendChild(s);
+    });
+  })();
+  /* the wars: a name under each burst of falls, and a button per war that jumps the timeline to it */
+  var WARS = X.wars || [];
+  function pos(d) { return Math.max(0, Math.min(100, (ms(d) - T0) / (T1 - T0) * 100)); }
+  function warOn(d) { for (var i = 0; i < WARS.length; i++) { var g = WARS[i]; if (g.a && d >= g.a && d <= g.b) return g; } return null; }
+  (function warLabels() {
+    var box = $('rg-wl'); if (!box) return;
+    WARS.forEach(function (g) {
+      if (!g.a || !g.k) return;
+      var c = (pos(g.a) + pos(g.b)) / 2, l = el('span', 'rg-wlab', g.s + ' · ' + num(g.k));
+      l.style[RTL ? 'right' : 'left'] = c + '%';
+      tog(l, 'is-start', c < 18); tog(l, 'is-end', c > 82);
+      box.appendChild(l);
+    });
+  })();
+  function warRows() {      // two names that would touch: the later one drops to a second line (measured once the timeline is on screen)
+    var box = $('rg-wl'); if (!box) return;
+    var ls = [].slice.call(box.children), two = false;
+    ls.forEach(function (l) { l.classList.remove('is-row2'); });
+    for (var i = 1; i < ls.length; i++) {
+      var p = ls[i - 1].getBoundingClientRect(), q = ls[i].getBoundingClientRect();
+      if (!ls[i - 1].classList.contains('is-row2') && q.left < p.right + 6 && p.left < q.right + 6) { ls[i].classList.add('is-row2'); two = true; }
+    }
+    tog(box, 'is-two', two);
+  }
+  W.addEventListener('resize', function () { clearTimeout(warRows.t); warRows.t = setTimeout(warRows, 200); });
+  var warBtns = [];
+  (function warChips() {
+    var box = $('rg-wars'); if (!box) return;
+    WARS.forEach(function (g) {
+      var b = el('button', 'rg-war'); b.type = 'button';
+      b.appendChild(el('b', null, g.n));
+      b.appendChild(el('span', null, g.k ? w.killed_n.replace('{k}', num(g.k)) : w.none_killed));
+      b.addEventListener('click', function () {
+        stop();
+        var to = g.a ? (g.b > X.today ? X.today : g.b) : (X.t0 || X.today);
+        range.value = Math.round((ms(to) - T0) / DAY); applyTime(to);
+      });
+      warBtns.push({ b: b, g: g }); box.appendChild(b);
     });
   })();
   function applyTime(d, quiet) {
@@ -205,10 +250,10 @@
       var p = BY[t.getAttribute('data-id')]; if (!p) return;
       var down = GONE[p.s] && p.d && p.d <= d;
       var pre = false;
-      if (!atEnd && p.rp && BY[p.rp]) { var r = BY[p.rp]; pre = !(GONE[r.s] && r.d && r.d <= d) && GONE[r.s]; }
-      t.classList.toggle('is-down', !!down);
-      t.classList.toggle('is-up', !atEnd && !down && !pre);
-      t.classList.toggle('is-pre', pre);
+      if (!atEnd && p.rp && BY[p.rp]) { var r = BY[p.rp]; pre = !!GONE[r.s] && !(r.d && r.d <= d); }
+      tog(t, 'is-down', !!down);
+      tog(t, 'is-up', !atEnd && !down && !pre);
+      tog(t, 'is-pre', pre);
       if (atEnd) { t.classList.remove('is-up'); }
     });
     P.forEach(function (p) {
@@ -221,7 +266,10 @@
     $('rg-date').textContent = atEnd ? w.today + ' · ' + say(d) : say(d);
     var since = P.filter(function (p) { return p.s === 'killed' && p.d && p.d <= d; }).length;
     $('rg-dn').textContent = num(since) + ' ' + w.n_killed + ' ' + w.by_date;
-    root.classList.toggle('is-past', !atEnd);
+    var wr = atEnd ? null : warOn(d), wn = $('rg-warnow');
+    if (wn) { wn.hidden = !wr; wn.textContent = wr ? wr.n : ''; }
+    warBtns.forEach(function (x) { var g = x.g, on = !atEnd && (g.a ? (d >= g.a && d <= g.b) : d <= g.b); tog(x.b, 'is-on', on); x.b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    tog(root, 'is-past', !atEnd);
     if (!quiet) event(d);
   }
   function event(d) {
@@ -322,6 +370,11 @@
   root.addEventListener('click', function (ev) {
     var t = ev.target.closest && ev.target.closest('.rg-t, .rg-cl, .rg-slot[data-id], .rg-tp[data-id]');
     if (!t || !root.contains(t) || sheet.contains(t)) return;
+    if (picking && t.classList.contains('rg-t')) {      // pick mode: a tap picks, it does not open the story
+      var pp = BY[t.getAttribute('data-id')];
+      if (pp && (STAND[pp.s] || pp.s === 'unknown')) togglePick(pp.id); else note(w.not_pickable);
+      return;
+    }
     open(t.getAttribute('data-id'), t);
   });
 
@@ -345,7 +398,7 @@
   }
   function slot(p, i, lockedDay) {
     var s = el('button', 'rg-slot' + (p ? ' is-full is-' + p.s : '')); s.type = 'button';
-    if (!p) { s.appendChild(el('span', 'rg-slot-n', num(i + 1))); s.appendChild(el('span', 'rg-slot-e', w.slot)); s.addEventListener('click', function () { $('rg-board').scrollIntoView({ behavior: REDUCE ? 'auto' : 'smooth' }); }); return s; }
+    if (!p) { s.appendChild(el('span', 'rg-slot-n', num(i + 1))); s.appendChild(el('span', 'rg-slot-e', w.slot)); s.addEventListener('click', function () { setPicking(true); }); return s; }
     s.setAttribute('data-id', p.id);
     s.appendChild(face(p)); var t = el('span', 'rg-slot-t'); t.appendChild(el('b', null, p.n)); t.appendChild(el('small', null, p.r || ''));
     var hit = lockedDay && p.s === 'killed' && p.d >= lockedDay;
@@ -356,7 +409,8 @@
   function drawPicks() {
     var box = $('rg-slots'); box.textContent = '';
     for (var i = 0; i < MAX; i++) box.appendChild(slot(BY[picks[i]], i, locked));
-    $('rg-lock').disabled = !picks.length || !!locked;
+    $('rg-lock').disabled = !picks.length || !!locked; $('rg-lock').hidden = !picks.length;
+    $('rg-pickmode').className = 'btn ' + (picks.length ? 'btn-line' : 'btn-key');
     $('rg-lock').textContent = locked ? w.locked + ' ' + say(locked) : w.lock;
     $('rg-share').setAttribute('data-url', shareUrl());
     $('rg-share').hidden = !picks.length;
@@ -366,12 +420,31 @@
     markPicks(); tray();
   }
   function markPicks() {
-    [].forEach.call(root.querySelectorAll('.rg-t'), function (t) { t.classList.toggle('is-picked', picks.indexOf(t.getAttribute('data-id')) >= 0); });
+    [].forEach.call(root.querySelectorAll('.rg-t'), function (t) { tog(t, 'is-picked', picks.indexOf(t.getAttribute('data-id')) >= 0); });
   }
   $('rg-lock').addEventListener('click', function () { if (!picks.length) return; locked = X.today; save(); drawPicks(); });
   $('rg-clear').addEventListener('click', function () { picks = []; locked = null; save(); drawPicks(); });
+  var picking = false, noteT = null;
+  function setPicking(on) {
+    picking = on; tog(root, 'rg-picking', on);
+    if (on) { if (view !== 'board') setView('board'); $('rg-bar').scrollIntoView({ behavior: REDUCE ? 'auto' : 'smooth', block: 'start' }); }
+    else { $('rg-next').scrollIntoView({ behavior: REDUCE ? 'auto' : 'smooth', block: 'start' }); }
+    tray();
+  }
+  function note(txt) {
+    var tr = $('rg-tray'), m = tr.querySelector('.rg-tray-say'); if (!m) return;
+    m.textContent = txt; clearTimeout(noteT); noteT = setTimeout(tray, 2200);
+  }
+  $('rg-pickmode').addEventListener('click', function () { setPicking(true); });
   function tray() {
     var tr = $('rg-tray'); tr.textContent = '';
+    if (picking) {
+      var bx = el('div', 'rg-tray-in is-picking');
+      picks.forEach(function (i) { var f = face(BY[i]); f.classList.add('rg-tp'); bx.appendChild(f); });
+      bx.appendChild(el('span', 'rg-tray-say', picks.length ? num(picks.length) + '/' + num(MAX) : w.picking));
+      var dn = el('button', 'rg-tray-done', w.done); dn.type = 'button'; dn.addEventListener('click', function () { setPicking(false); });
+      bx.appendChild(dn); tr.appendChild(bx); tr.hidden = false; return;
+    }
     if (!picks.length) { tr.hidden = true; return; }
     var a = el('a', 'rg-tray-in'); a.href = '#rg-next';
     picks.forEach(function (i) { var f = face(BY[i]); f.classList.add('rg-tp'); a.appendChild(f); });
@@ -379,7 +452,7 @@
     tr.appendChild(a); tr.hidden = false;
   }
   if ('IntersectionObserver' in W) {      // the tray hides while the game itself is on screen
-    new IntersectionObserver(function (es) { es.forEach(function (x) { root.classList.toggle('rg-next-on', x.isIntersecting); }); }).observe($('rg-next'));
+    new IntersectionObserver(function (es) { es.forEach(function (x) { tog(root, 'rg-next-on', x.isIntersecting); }); }).observe($('rg-next'));
   }
   /* a friend's picks arrive in the address */
   (function theirs() {
@@ -398,7 +471,39 @@
 
   /* ---------------------------------------------------------------- start */
   $('rg-time').hidden = false; $('rg-bar').hidden = false; $('rg-next').hidden = false;
+  warRows();
   drawPicks();
+  (function fold() {      // each branch shows its first two rows; the button says what the rest holds
+    var bs = [].slice.call(root.querySelectorAll('.rg-board .rg-b'));
+    function lay() {
+      bs.forEach(function (b) {
+        var g = b.querySelector('.rg-g'), ts = [].slice.call(g.children);
+        var cols = (W.getComputedStyle(g).gridTemplateColumns || '').split(' ').filter(Boolean).length || 3, n = cols * 2;
+        var over = ts.slice(n), btn = b.querySelector('.rg-more');
+        ts.forEach(function (t, i) { tog(t, 'is-over', i >= n); });
+        if (!over.length) { if (btn) btn.remove(); b.classList.remove('is-folded'); return; }
+        if (!btn) {
+          btn = el('button', 'btn btn-line rg-more'); btn.type = 'button';
+          btn.addEventListener('click', function () { var f = b.classList.toggle('is-folded'); btn.textContent = f ? btn.getAttribute('data-more') : w.less; btn.setAttribute('aria-expanded', f ? 'false' : 'true'); if (f) b.scrollIntoView({ block: 'nearest' }); });
+          b.appendChild(btn); b.classList.add('is-folded');
+        }
+        var k = ts.filter(function (t) { var p = BY[t.getAttribute('data-id')]; return p && GONE[p.s]; }).length;
+        btn.setAttribute('data-more', w.more.replace('{n}', num(ts.length)).replace('{k}', num(k)));
+        btn.textContent = b.classList.contains('is-folded') ? btn.getAttribute('data-more') : w.less;
+        btn.setAttribute('aria-expanded', b.classList.contains('is-folded') ? 'false' : 'true');
+      });
+    }
+    var cl = [].slice.call(root.querySelectorAll('.rg-chairs > ul > li'));
+    if (cl.length > 4) {      // the chains: the first four, then the rest on a tap
+      cl.forEach(function (li, i) { tog(li, 'is-over', i >= 4); });
+      var ch = $('rg-chairs'); ch.classList.add('is-folded');
+      var cb = el('button', 'btn btn-line rg-more', w.more.replace('{n}', num(cl.length)).replace(/[,،][^,،]*$/, '')); cb.type = 'button'; cb.setAttribute('aria-expanded', 'false');
+      var cm = cb.textContent;
+      cb.addEventListener('click', function () { var f = ch.classList.toggle('is-folded'); cb.textContent = f ? cm : w.less; cb.setAttribute('aria-expanded', f ? 'false' : 'true'); });
+      ch.appendChild(cb);
+    }
+    lay(); var rt = null; W.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(lay, 200); });
+  })();
   applyTime(X.today, true); event(X.today);
   (function fromAddress() {
     var u; try { u = new URL(W.location.href); } catch (e) { return; }

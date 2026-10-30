@@ -211,3 +211,60 @@ html.rg-lock{overflow:hidden}
 .rg-tray-in{pointer-events:auto;display:flex;align-items:center;gap:6px;min-height:52px;padding:6px 16px 6px 8px;border-radius:999px;background:var(--ink);color:var(--bg);font:800 .9rem/1 var(--body);text-decoration:none;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 .rg-tray-in .rg-face{width:38px;height:38px}
 .rg-tray-in .rg-x,.rg-tray-in .rg-q{display:none}
+
+/* second pass, 31 Oct 2026: the game sits above the board, a pick mode, folded branches, a slimmer sticky bar */
+.rg-next{margin-top:var(--s5)}
+.rg-steps{list-style:none;counter-reset:st;margin:var(--s3) 0 0;padding:0;display:grid;gap:6px}
+@media(min-width:720px){.rg-steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.rg-steps li{counter-increment:st;display:flex;align-items:center;gap:10px;font-size:.92rem;font-weight:600;min-width:0}
+.rg-steps li::before{content:counter(st);flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--field);color:var(--panel);font:900 .95rem/1 var(--display)}
+.rg-intel{margin-top:var(--s3);background:var(--panel);border-radius:var(--r2)}
+.rg-intel summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px;padding:var(--s2) var(--s4);font-weight:700;list-style:none}
+.rg-intel summary::-webkit-details-marker{display:none}
+.rg-intel summary::after{content:"";flex:none;margin-inline-start:auto;width:10px;height:10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.rg-intel[open] summary::after{transform:rotate(-135deg)}
+.rg-intel .rg-side{margin:0;padding:0 var(--s4) var(--s4)}
+.rg-bh{position:relative}
+.rg-bp{flex-basis:100%;height:4px;border-radius:4px;background:var(--line);position:relative;overflow:hidden}
+.rg-bp::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:var(--p);background:var(--rg-kill);border-radius:4px}
+.rg:not(.rg-filtering) .rg-b.is-folded .rg-t.is-over{display:none}
+.rg-filtering .rg-more{display:none}
+.rg-more{margin-top:var(--s3);width:100%;min-height:44px}
+.rg-fil{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;flex:1 1 100%;min-width:0;padding-bottom:2px}
+.rg-fil::-webkit-scrollbar{display:none}
+.rg-fil .rg-f{flex:none}
+.rg-fil .rg-find{order:-1;flex:0 0 140px;min-width:0}
+@media(min-width:720px){.rg-fil{flex:1 1 280px}.rg-fil .rg-find{order:0;flex:1 1 160px}}
+.rg-picking .rg-board .rg-t{cursor:copy}
+.rg-picking .rg-t.is-killed,.rg-picking .rg-t.is-died{opacity:.35}
+.rg-picking .rg-t.is-picked .rg-face{outline:3px solid var(--field);outline-offset:3px}
+.rg-picking .rg-tray{display:flex!important}
+.rg-tray-in.is-picking{gap:8px;padding:6px 6px 6px 10px}
+.rg-tray-say{max-width:46vw;font-size:.85rem;line-height:1.2}
+.rg-tray-done{min-height:40px;padding:0 18px;border:0;border-radius:999px;background:var(--field);color:var(--panel);font:800 .9rem/1 var(--body);cursor:pointer}
+.rg-chairs.is-folded > ul > li.is-over{display:none}
+@media(max-width:719px){.rg-camps{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.rg-camps::-webkit-scrollbar{display:none}.rg-ck{flex:none}}
+/* the wars on the timeline (31 Oct 2026): a name under each burst, a badge by the date, a button per war */
+.rg-wl{position:relative;height:22px;margin:2px 11px 0}
+.rg-wlab{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;font-size:.75rem;font-weight:800;color:var(--rg-kill);line-height:22px}
+[dir=rtl] .rg-wlab{transform:translateX(50%)}
+.rg-wlab.is-start{transform:none}.rg-wlab.is-end{transform:translateX(-100%)}
+[dir=rtl] .rg-wlab.is-start{transform:none}[dir=rtl] .rg-wlab.is-end{transform:translateX(100%)}
+.rg-warnow{display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:999px;background:rgba(229,72,77,.16);color:var(--rg-kill);font-size:.8rem;font-weight:800}
+.rg-warnow[hidden]{display:none}
+.rg-wars{display:flex;gap:8px;margin-top:var(--s3);overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.rg-wars::-webkit-scrollbar{display:none}
+.rg-war{flex:none;display:grid;gap:2px;min-height:48px;padding:6px 14px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);text-align:start;cursor:pointer;font:inherit}
+.rg-war b{font-size:.85rem}.rg-war span{font-size:.75rem;color:var(--dim);font-weight:600}
+.rg-war.is-on{border-color:var(--rg-kill);background:rgba(229,72,77,.12)}
+.rg-war.is-on span{color:var(--rg-kill)}
+@media(min-width:720px){.rg-wars{flex-wrap:wrap;overflow:visible}}
+.rg-clues{margin-top:var(--s3);border-top:1px solid var(--line)}
+.rg-clues summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px;font-weight:800;list-style:none}
+.rg-clues summary::-webkit-details-marker{display:none}
+.rg-clues summary::before{content:"💡";flex:none}
+.rg-clues ol{margin:0;padding-inline-start:1.2em;display:grid;gap:var(--s2)}
+.rg-clues li{font-size:.9rem;line-height:1.5}
+.rg-clues a{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;font-size:.8rem;color:var(--dim)}
+.rg-wl.is-two{height:42px}
+.rg-wlab.is-row2{top:20px}

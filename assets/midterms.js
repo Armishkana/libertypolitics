@@ -136,11 +136,15 @@
     OUT.className = 'mt-mood-v ' + (r1(mood) > 0 ? 'is-D' : r1(mood) < 0 ? 'is-R' : '');
     IN.setAttribute('aria-valuetext', moodWords(mood));
     IN.style.setProperty('--at', posOf(mood) + '%');
-    [].forEach.call(box.querySelectorAll('.mt-pre[data-mood]'), function (b) { b.setAttribute('aria-pressed', !Object.keys(pick).length && r1(parseFloat(b.getAttribute('data-mood'))) === r1(mood) ? 'true' : 'false'); });
+    // The "Set it to" row lights the one setting the slider is at. It follows the slider alone, never whether races are
+    // called: with any race called nothing ever lit (Armin, 30 October 2026: "when i click these buttons, they don't stay
+    // highlighted"). Betting favorites outranks Polls today when both are true, so only one is ever lit.
+    var mk = isMarketMap();
+    [].forEach.call(box.querySelectorAll('.mt-pre[data-mood]'), function (b) { b.setAttribute('aria-pressed', !mk && r1(parseFloat(b.getAttribute('data-mood'))) === r1(mood) ? 'true' : 'false'); });
     var yr = $('mt-year'), hit = '';
     [].forEach.call(yr.options, function (o) { if (o.value && r1(parseFloat(o.value)) === r1(mood)) hit = o.value; });
     yr.value = hit;
-    yr.classList.toggle('is-on', !!hit);
+    yr.classList.toggle('is-on', !!hit && !mk);
   }
   // The Senate and House marks on the slider say their own name, and the line under it says the same thing in words:
   // what Democrats need in the national vote to take each chamber (Armin, 30 October 2026: "the mood of the country has
@@ -337,9 +341,22 @@
     return RS.every(function (x) { var f = fav(x); return !f || real[x.id] || f.p <= 50 || sideAt(x, 0) === f.s; })
       && Object.keys(pick).every(function (i) { var f = fav(BY[i]); return f && pick[i] === f.s; });
   }
-  function marketMap() {
-    mood = TODAY; pick = {}; IN.value = String(-mood);
-    RS.forEach(function (x) { var f = fav(x); if (f && f.p > 50 && !real[x.id] && sideAt(x, 0) !== f.s) pick[x.id] = f.s; });
+  // the calls Betting favorites makes: every race the markets price where their favorite is not already ahead in the polls
+  function marketPicks() {
+    var keep = pick, out = {};
+    pick = {};
+    RS.forEach(function (x) { var f = fav(x); if (f && f.p > 50 && !real[x.id] && sideAt(x, 0) !== f.s) out[x.id] = f.s; });
+    pick = keep;
+    return out;
+  }
+  function marketMap() { mood = TODAY; pick = marketPicks(); IN.value = String(-mood); }
+  // Another setting after Betting favorites hands the markets' calls back, so "Dead even" is a dead-even map; calls the
+  // reader made by hand stay, as they do when the slider moves.
+  function dropMarketPicks() {
+    if (!MK) return;
+    var a = Object.keys(pick), m = marketPicks(), b = Object.keys(m);
+    if (!a.length || a.length !== b.length || !a.every(function (i) { return m[i] === pick[i]; })) return;
+    pick = {}; if (where === 'mine') where = 'close'; options(); list();
   }
 
   // ---------------------------------------------------------------- election night
@@ -570,7 +587,7 @@
       draw();
       if (!!hadMine !== !!Object.keys(pick).length || where === 'mine') { options(); if (where === 'mine') list(); }
     } else if (b.classList.contains('mt-pre') && b.hasAttribute('data-mood')) {
-      mood = parseFloat(b.getAttribute('data-mood')); IN.value = String(-mood); draw();
+      dropMarketPicks(); mood = parseFloat(b.getAttribute('data-mood')); IN.value = String(-mood); draw();
     } else if (b.id === 'mt-reset') {
       mood = TODAY; pick = {}; IN.value = String(-mood); where = 'close'; options(); list(); draw();
     } else if (b.id === 'mt-mk') {
@@ -600,7 +617,7 @@
     }
   });
   WHERE.addEventListener('change', function () { where = WHERE.value; showAll = false; list(); });
-  $('mt-year').addEventListener('change', function () { var v = parseFloat(this.value); if (!isNaN(v) && !night) { mood = v; IN.value = String(-mood); draw(); } });
+  $('mt-year').addEventListener('change', function () { var v = parseFloat(this.value); if (!isNaN(v) && !night) { dropMarketPicks(); mood = v; IN.value = String(-mood); draw(); } });
 
   W.fetch(ROOT + 'assets/midterms.json').then(function (r) { return r.json(); }).then(start).catch(function () {});
 })();

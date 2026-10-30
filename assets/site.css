@@ -2334,12 +2334,12 @@ html.coal-docked .fab,html.coal-docked .hi{bottom:calc(var(--coal-dock,96px) + 1
 .mt-pre{display:inline-flex;align-items:center;gap:5px;min-height:40px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--ink);font:600 .84rem/1 var(--body);cursor:pointer}
 .mt-pre span{color:var(--dim);font-weight:700}
 .mt-pre:hover{border-color:var(--dim)}
-.mt-pre.is-today{border-color:rgba(244,196,48,.55)}
-.mt-pre[aria-pressed="true"]{border-color:var(--field);background:rgba(244,196,48,.12)}
-.mt-pre[aria-pressed="true"] span{color:var(--field)}
+.mt-pre[aria-pressed="true"]{border-color:var(--field);background:var(--field);color:var(--on-field)}
+.mt-pre[aria-pressed="true"] span{color:var(--on-field)}
 .mt-pre:disabled{opacity:.5;cursor:default}
 .mt-year{min-height:40px;max-width:100%;padding:0 30px 0 10px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--ink);font:600 .84rem/1 var(--body)}
-.mt-year.is-on{border-color:var(--field);background:rgba(244,196,48,.12)}
+.mt-year.is-on{border-color:var(--field);background:var(--field);color:var(--on-field)}
+.mt-year option{background:var(--raise);color:var(--ink)}
 .mt-year:disabled{opacity:.5}
 /* the live count under the slider: a drag shows its result on the same screen, whatever the phone */
 .mt-result{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:var(--s3);padding:8px 12px;border-radius:var(--r);background:var(--sunk);font-size:.9rem}
@@ -2481,6 +2481,7 @@ html.coal-docked .fab,html.coal-docked .hi{bottom:calc(var(--coal-dock,96px) + 1
 .mt-bs-go{display:inline-flex;align-items:center;min-height:40px;padding:0 4px;background:none;border:0;color:var(--field);font:700 .9rem/1 var(--body);text-decoration:underline;cursor:pointer}
 .mt-pre-mk[hidden]{display:none}
 .mt-pre-mk::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--field)}
+.mt-pre-mk[aria-pressed="true"]::before{background:var(--on-field)}
 .mt-vs-s{display:none}
 @media(max-width:560px){.mt-vs-l{display:none}.mt-vs-s{display:inline}}
 /* The betting markets on a race page, a race card and a country page (build/markets.py, build/markets.js), added to the end
