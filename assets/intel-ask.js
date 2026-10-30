@@ -612,14 +612,20 @@
     var A = cp(ns); if (A.q && !A.qm) A.qm = 'best';
     cands.push({ ns: A, pref: 0.03 });
     var guessed = (ns.tp || []).length || (ns.fx || []).length || ns.place || Object.keys(ns.ext || {}).length || (p.kindGuess && ns.kind) || p.hotGuess || (p.pfGuess && (ns.pf || []).length);
-    if (guessed || p.allq !== ns.q) { var B = cp(ns); B.tp = []; B.fx = []; B.place = ''; B.ext = {}; if (p.kindGuess) B.kind = ''; if (p.hotGuess) B.hot = ''; if (p.pfGuess) B.pf = []; B.q = p.allq; B.qm = 'best'; cands.push({ ns: B, pref: p.allq.split(' ').length >= 5 ? 0.08 : 0.02, words: true }); }
+    if (guessed || p.allq !== ns.q) { var B = cp(ns); B.tp = []; B.fx = []; B.place = ''; B.ext = {}; if (p.kindGuess) B.kind = ''; if (p.hotGuess) B.hot = ''; if (p.pfGuess) B.pf = []; B.q = p.allq; B.qm = 'best'; cands.push({ ns: B, pref: p.allq.split(' ').length >= 5 ? 0.08 : 0.02, words: 1 }); }
+    // A HEADLINE OR A CAPTION PASTED WHOLE (a sentence of eight words or more, four of them searched) is also read with no
+    // facet at all, a platform or kind said outright included: «از طریق این نشانی در تلگرام» at the end of a pasted caption
+    // says where it was sent, not where to look (29 Oct 2026, ask gate: that caption, an X post, found nothing on Telegram).
+    // This reading never wins on its own score; only the rule below picks it, for an item that says all of it.
+    var C = cp(ns); C.tp = []; C.fx = []; C.place = ''; C.ext = {}; C.kind = ''; C.hot = ''; C.pf = []; C.q = p.allq; C.qm = 'best';
+    if (p.allq.split(' ').length >= 4 && p.raw.split(/\s+/).length >= 8 && JSON.stringify(C) !== JSON.stringify(cands[cands.length - 1].ns)) cands.push({ ns: C, pref: 0, words: 2, last: true });
     var other = here === 'live' ? 'bank' : here === 'bank' && V.live ? 'live' : '';
     if (other && V.sorts[other] && !p.timed && !p.toBank && !p.intent && !(ns.hot && !p.hotGuess) && !ns.who && !(/^(likes|views|viral)$/.test(p.want || '') && (V.sorts[other] || []).indexOf(p.want) < 0) && !ns.lmin && !ns.vmin) {
       cands.slice().forEach(function (c) {
         var x = R.blank(other);
         ['q', 'qm', 'tp', 'fx', 'place', 'kind', 'pf', 'lmin', 'vmin', 'crmin', 'ext', 'sort'].forEach(function (k) { if (c.ns[k] != null) x[k] = cp(c.ns[k]); });
         if ((V.sorts[other] || []).indexOf(x.sort) < 0) x.sort = (V.sorts[other] || [])[0] || x.sort;
-        cands.push({ ns: x, pref: c.pref - 0.01, words: c.words });
+        cands.push({ ns: x, pref: c.pref - 0.01, words: c.words, last: c.last });
       });
     }
     var bankW = V.sorts.bank ? Math.min(1, R.peek(R.blank('bank')) / 200) : 0;
@@ -640,21 +646,24 @@
       // with no time said, the curated bank answers by default and the last 24 hours answer what is social or recent ("most
       // liked", "on X", "trending"); a question about proof or evidence leans to the bank harder
       c.score = c.q + c.pref + (c.ns.lens === 'bank' ? bankW * (ev ? 0.15 : so ? 0 : 0.08) : (so ? 0.15 : 0)) + (c.ns.lens === here ? 0.02 : 0);
-      if (!best || c.score > best.score) best = c;
+      if (!c.last && (!best || c.score > best.score)) best = c;
     });
-    if (!best) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
-    // A GUESS NEVER HIDES THE ITEM WHOSE OWN HEADLINE SAYS ALL OF IT (29 Oct 2026, ask gate: the Persian headline «شمارش آرای
+    // A FILTER NEVER HIDES THE ITEM WHOSE OWN HEADLINE SAYS ALL OF IT (29 Oct 2026, ask gate: the Persian headline «شمارش آرای
     // انتخابات اسرائیل به پایان رسید» asked in its own words was read as the Trending story on Israel's election, whose seven
-    // items did not hold it, and the story won on its count). When the words find an item carrying every asked word in its
-    // headline that the guessed filters leave out, the words win; the guess stays one tap away, below.
-    if (!best.words) {
-      var shown = {}; R.peek(best.ns, true).forEach(function (it) { shown[it.id] = 1; });
-      var whole = null;
-      cands.forEach(function (c) {
-        if (c.words && c.n && (!whole || c.score > whole.score) && R.peek(c.ns, true).some(function (it) { return !shown[it.id] && R.rel(it, p.allq) >= 0.999; })) whole = c;
-      });
-      if (whole) best = whole;
-    }
+    // items did not hold it, and the story won on its count; that evening a pasted caption was read as opposition, Iran,
+    // videos and Telegram, and found nothing). An item says all of it when its headline carries every searched word, or,
+    // for four words or more, nearly every one by weight (a headline cut mid-word still finds itself). When a reading with
+    // fewer filters (the words, then no facet at all) shows such an item and the chosen one does not, that reading wins;
+    // the filters it read stay one tap away, below.
+    var says = function (it) { var r = R.rel(it, p.allq); return r >= 0.999 || (aw.length >= 4 && r >= 0.85); };
+    var shown = {}, lvl = best ? best.words || 0 : -1;
+    if (best) R.peek(best.ns, true).forEach(function (it) { shown[it.id] = 1; });
+    var whole = null;
+    cands.forEach(function (c) {
+      if ((c.words || 0) > lvl && c.n && (!whole || c.score > whole.score) && R.peek(c.ns, true).some(function (it) { return !shown[it.id] && says(it); })) whole = c;
+    });
+    if (whole) best = whole;
+    if (!best) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
     // the filters it read stay one tap away when the words won
     var a0 = cands[0], hot0 = p.hotGuess && a0.ns.hot ? (V.hots || []).filter(function (h) { return h.id === a0.ns.hot; })[0] : null;
     if (best !== a0 && a0.n > 0 && guessed && best.ns.lens === a0.ns.lens) withs.push({ ns: a0.ns, label: T('narrowed to {what}', { what: [].concat((a0.ns.tp || []).map(V.name.topic), (a0.ns.fx || []).map(V.name.focus), a0.ns.place ? [a0.ns.place.indexOf('c:') === 0 ? V.name.country(a0.ns.place.slice(2)) : V.name.place(a0.ns.place)] : [], hot0 && hot0.name ? [hot0.name] : []).join(T(', ')) }), n: a0.n });
