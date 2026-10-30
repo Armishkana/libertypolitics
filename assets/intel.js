@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=8aa742d67c) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=1c446c4ee7) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -871,7 +871,9 @@
     if (QX[q]) return QX[q];
     var seen = {}, t = faNorm(String(q || '').toLowerCase()).split(/[^a-z0-9_\u0590-\u06ff]+/).filter(function (w) { return w && !(/^[a-z0-9_]+$/.test(w) && w.length < 3 && !/^(uk|un|eu)$/.test(w)); }).map(function (w) {
       if (QPHRASE[w]) { var ph = QPHRASE[w].slice(); ph.own = true; return ph; }
-      var st = qStem(w).replace(/_/g, ' '), g = QSYN.filter(function (x) { return x.some(function (a) { return st.indexOf(a) === 0 || a.indexOf(st) === 0 && st.length >= 4; }); })[0];
+      // a word joins a group by its start, but a word of two letters only as itself: «زن» (woman) is the start of «زندان»
+      // (prison) and «زنده» (alive), and qHas already reads a two-letter word only as a whole word
+      var st = qStem(w).replace(/_/g, ' '), g = QSYN.filter(function (x) { return x.some(function (a) { return st.indexOf(a) === 0 && (a.length >= 3 || st === a) || a.indexOf(st) === 0 && st.length >= 4; }); })[0];
       return g ? [st].concat(g.filter(function (a) { return a !== st; })) : [st];
     }).filter(function (alts) { var k = alts.join('|'); if (seen[k]) return false; seen[k] = 1; return true; });
     return (QX[q] = t);
@@ -1120,11 +1122,12 @@
   var SMALLW = /^(a|an|and|as|at|but|by|for|from|in|into|of|on|or|over|the|to|vs|with)$/i;
   function unshout(t) {
     var word = function (w) { return ACRO.test(w.replace(/['’]/g, '')) ? w : w.charAt(0) + w.slice(1).toLowerCase(); };
-    t = String(t || '').replace(/\b[A-Z][A-Z'’]*(?:[\s,:;.!?&–—-]+[A-Z][A-Z'’]*){2,}\b/g, function (run) {
+    // a self-censored word is one word ("ST@BBED" -> "St@bbed", never "St@Bbed", 30 Oct 2026): [*@#$] between capitals
+    t = String(t || '').replace(/\b[A-Z](?:[A-Z'’]|[*@#$](?=[A-Z]))*(?:[\s,:;.!?&–—-]+[A-Z](?:[A-Z'’]|[*@#$](?=[A-Z]))*){2,}\b/g, function (run) {
       var n = 0;
-      return run.replace(/\b[A-Z][A-Z'’]*\b/g, function (w) { n++; return n > 1 && SMALLW.test(w) ? w.toLowerCase() : word(w); });
+      return run.replace(/\b[A-Z](?:[A-Z'’]|[*@#$](?=[A-Z]))*\b/g, function (w) { n++; return n > 1 && SMALLW.test(w) ? w.toLowerCase() : word(w); });
     });
-    return t.replace(/\b[A-Z][A-Z'’]{3,}\b/g, word);
+    return t.replace(/\b[A-Z](?:[A-Z'’]|[*@#$](?=[A-Z])){3,}\b/g, word);
   }
   // The place, drawn from the room's own map: a globe turned to it, the land as on the big map, the country lit in the
   // room's gold, a pin on the spot. One picture a place and size, made once and kept (a JPEG of a few KB).
@@ -1337,7 +1340,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=8aa742d67c): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=1c446c4ee7): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -3041,7 +3044,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=8aa742d67c,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=1c446c4ee7,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3992,7 +3995,12 @@
     var dp = res[6];
     if (dp && Array.isArray(dp.items) && dp.stories && typeof dp.stories === 'object') {
       FACE_YT = dp.faces && dp.faces.yt || {}; FACE_DOM = dp.faces && dp.faces.dom || {};
-      if (LIVE.length && PACKS && dp.packs === PACKS.at) {          // the found items of this hour's stories, never another hour's
+      // the found items of this hour's stories, never another hour's. A story's id is a hash of its own items, so found
+      // items join only the story they were found for; 30 Oct 2026 the stamps differed by an hour (one push failed, then a
+      // rebuild of the names) and the exact-stamp test threw away every found item of every story, so both rooms' Trending
+      // rows lost most of their items. Within the stories' own 3-hour window the ids decide.
+      var dpAt = Date.parse(dp.packs) || 0, pkAt = PACKS ? Date.parse(PACKS.at) || 0 : 0;
+      if (LIVE.length && PACKS && (dp.packs === PACKS.at || (dpAt && pkAt && Math.abs(dpAt - pkAt) < 3 * 3600000))) {
         var haveU = {}; LIVE.forEach(function (it) { haveU[it.u] = 1; });
         dp.items.forEach(function (it) { if (it && it.u && it.t && it.d && !haveU[it.u]) { haveU[it.u] = 1; it = normLive(it); it._deep = 1; LIVE.push(it); } });
         DEEP = dp; DEEP_FRESH = true;
@@ -4119,7 +4127,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=8aa742d67c'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=1c446c4ee7'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

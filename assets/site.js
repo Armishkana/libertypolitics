@@ -189,6 +189,12 @@
   }
 
   /* ---- a state picker that opens that state's page ---- */
+  // The row of Elections pages (render.py elections_strip): on a phone it slides inside itself, so the page you are on is
+  // brought into view, never left past the edge.
+  Array.prototype.forEach.call(document.querySelectorAll('.estrip-l a[aria-current]'), function (a) {
+    var row = a.parentNode;
+    if (row.scrollWidth > row.clientWidth) row.scrollLeft = Math.max(0, a.offsetLeft - row.offsetLeft - (row.clientWidth - a.offsetWidth) / 2);
+  });
   Array.prototype.forEach.call(document.querySelectorAll('select[data-go]'), function (sel) {
     sel.addEventListener('change', function () {
       if (sel.value) location.href = root + sel.getAttribute('data-go') + sel.value + '/' + (sel.getAttribute('data-hash') || '');

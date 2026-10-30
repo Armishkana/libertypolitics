@@ -63,7 +63,11 @@
 .em-map{position:relative;background:radial-gradient(120% 90% at 50% 0%,#1b1b1a 0%,var(--sunk) 70%);border:1px solid var(--line);border-radius:var(--r2);padding:var(--s3) var(--s3) var(--s2)}
 .em-map svg{display:block;width:100%;height:auto;max-height:72vh}
 .em-states path{stroke:var(--sunk);stroke-width:.9;stroke-linejoin:round;cursor:pointer;transition:fill .35s,stroke .15s,filter .15s;outline:0}
-.em-states path.hov,.em-states path:focus-visible,.em-states path.sel{stroke:var(--field);stroke-width:2.4;filter:drop-shadow(0 0 6px rgba(244,196,48,.45))}
+/* The gold edges: two paths of their own above the states (results.js ring()), so no state is ever moved under the pointer. */
+.em-rings path{fill:none;stroke:var(--field);stroke-linejoin:round;pointer-events:none}
+.em-rings .ring-hov{stroke-width:2;filter:drop-shadow(0 0 5px rgba(244,196,48,.4))}
+.em-rings .ring-sel{stroke-width:3.2;filter:drop-shadow(0 0 8px rgba(244,196,48,.55))}
+.em-states path:hover{filter:brightness(1.12)}
 .s-rw{fill:var(--em-r)} .s-rl{fill:var(--em-rl)} .s-dw{fill:var(--em-d)} .s-dl{fill:var(--em-dl)}
 .s-iw{fill:var(--em-i)} .s-il{fill:var(--em-il)}
 .s-u{fill:var(--em-u)} .em-states .s-u{stroke:var(--em-ue)}
@@ -117,16 +121,48 @@
 .pb{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:4px;font:800 .75rem/1 var(--body);font-style:normal;color:#fff}
 .pb-r{background:var(--em-r)} .pb-d{background:var(--em-d)} .pb-i{background:var(--em-i);color:#1d1a0c}
 
+/* the side panel: what to do and the closest races, until a state is picked; then that state (the deep dive).
+   Beside the map on a wide screen, so picking state after state never scrolls the page; under it on a phone. */
+.em-side{margin-top:var(--s5)}
+.em-lobby{padding:var(--s4) var(--s5) var(--s5);background:var(--panel);border:1px solid var(--line);border-radius:var(--r2)}
+.em-open .em-lobby{display:none}
+.em-lobby h2{font-size:var(--t5);color:var(--field)}
+.em-lobby>p{margin-top:4px;font-size:var(--t1)}
+.em-lobby h3{font-size:var(--t1);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:var(--s4) 0 var(--s2)}
+.em-wait{margin-top:var(--s3);font-size:var(--t1);color:var(--ink)}
+.em-near{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.em-near button{width:100%;min-height:44px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:0 12px;font:600 var(--t2)/1.1 var(--body);color:var(--ink);background:var(--raise);border:1px solid var(--line);border-radius:var(--r);cursor:pointer;text-align:left}
+.em-near button:hover,.em-near button.hov,.em-near button:focus-visible{border-color:var(--field);outline:0}
+.em-near .nn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.em-near .nr{font-size:.75rem;font-weight:600}
+.em-near .ng{font-weight:800;min-width:4.2em;text-align:right}
+.m-r{color:var(--em-rl)} .m-d{color:var(--em-dl)} .m-i{color:var(--em-il)}
+.em-side .em-deep{margin-top:0}
+@media(min-width:1100px){
+  .em:not(.em-s) .em-wrap{max-width:96rem}
+  .em:not(.em-s) .em-main{display:grid;grid-template-columns:minmax(0,1fr) 23rem;gap:var(--s4);align-items:start}
+  .em:not(.em-s) .em-side{margin-top:0;position:sticky;top:72px;max-height:calc(100vh - 88px);overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;border-radius:var(--r2)}
+  .em:not(.em-s) .em-deep{padding:var(--s4) var(--s5) var(--s5)}
+  .em:not(.em-s) .em-deep h2{font-size:2.4rem}
+  .em:not(.em-s) .em-deep .dk-grid{grid-template-columns:1fr;gap:var(--s4)}
+  .em:not(.em-s) .em-map svg{max-height:calc(100vh - 150px)}
+}
+.em-s .em-lobby{display:none}
+
 /* the deep dive */
-.em-deep{margin-top:var(--s5);padding:var(--s5);background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--field);border-radius:var(--r2)}
+.em-deep{scroll-margin-top:72px;margin-top:var(--s5);padding:var(--s5);background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--field);border-radius:var(--r2)}
 .em-deep[hidden]{display:none}
 .em-deep header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s4)}
 .em-deep h2{font-size:var(--t6)}
-.dk-act{display:flex;gap:var(--s2)}
+.em-deep header{position:relative;padding-right:48px;flex-wrap:nowrap}
+.em-close{position:absolute;top:-6px;right:-8px;width:44px;height:44px;display:grid;place-items:center;font:400 1.9rem/1 var(--body);color:var(--dim);background:none;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.em-close:hover,.em-close:focus-visible{color:var(--ink);border-color:var(--field);outline:0}
+.dk-link{margin-top:var(--s4);width:100%;min-height:44px}
 .dk-grid{display:grid;gap:var(--s5)}
 @media(min-width:820px){.dk-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.15fr)}}
 .dk-cands .em-cands{gap:12px}
 .dk-cands .em-cands li{font-size:var(--t2)}
+.dk-cands .em-cands .nm{white-space:normal;overflow-wrap:anywhere}
 .dk-co h3{font-size:var(--t4);margin-bottom:var(--s2)}
 .cmap svg{display:block;width:100%;height:auto;max-height:360px;background:var(--sunk);border-radius:var(--r)}
 .cmap path{stroke:var(--sunk);stroke-width:var(--cw,.3)}
@@ -144,6 +180,7 @@
    ?stream=1 opens it, &transparent=1 also drops the ground for a browser source laid over video. */
 html.em-streaming body>:not(main),html.em-streaming main>:not(#em){display:none!important}
 html.em-streaming body{overflow:hidden}
+html.em-streaming .ctabs{display:none!important}      /* the country tabs (world.bar) are for a reader, not for a stream */
 .em.em-s{padding:12px 0 0;min-height:100vh}
 .em-s .em-wrap{max-width:none;padding:0 20px}
 .em-s .em-head{margin-bottom:8px}

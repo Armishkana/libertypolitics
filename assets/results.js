@@ -151,6 +151,10 @@
   /* ---------------------------------------------------------------- 3. the map */
   var geo = null, office = OFFICES.indexOf(qs.get('office')) >= 0 ? qs.get('office') : 'senate', sel = null, cur = {};
   var svg = $('.em-map svg'), gS = $('.em-states'), gL = $('.em-labels'), tip = $('.em-tip'), small = $('.em-small');
+  // The gold edges are their own two paths above the states, never the state moved to the top: moving the pressed path
+  // mid-click made Chrome drop the click, so a state on the map could not be picked (Armin, 30 October 2026).
+  var ringSel = $('.ring-sel'), ringHov = $('.ring-hov'), side = $('.em-side'), lobbyEl = $('.em-lobby'), hovSt = null;
+  var SIDE = window.matchMedia ? matchMedia('(min-width:1100px)') : { matches: false };
   var NS = 'http://www.w3.org/2000/svg';
 
   function cls(v) {
@@ -208,14 +212,40 @@
     });
     Array.prototype.forEach.call(small.querySelectorAll('button'), function (b) {
       var st = b.getAttribute('data-st'), v = cur[st];
-      b.className = cls(v) + (st === sel ? ' sel' : '');
+      b.className = cls(v) + (st === sel ? ' sel' : '') + (st === hovSt ? ' hov' : '');
       b.querySelector('span').textContent = office === 'president' && v && !v.none ? v.seats : '';
       b.setAttribute('aria-label', geo.states[st].name + ': ' + word(v));
     });
+    ring(ringSel, sel);
     tally(o);
     status();
+    lobby(o);
     if (tip.getAttribute('data-st') && !tip.hidden) tipFill(tip.getAttribute('data-st'));
     if (sel) deep(sel, true);
+  }
+  function ring(el, st) { if (st && geo.states[st] && geo.states[st].d) el.setAttribute('d', geo.states[st].d); else el.removeAttribute('d'); }
+  // Write a box only when what it says has changed: the page re-reads the numbers every 30 seconds (1.5 with test
+  // numbers), and rewriting an unchanged box lost the keyboard's place in it and made a screen reader read it again.
+  function put(el, html) { if (el._h === html) return false; el.innerHTML = html; el._h = html; return true; }
+
+  // The side panel when no state is picked: what to do, and the closest races, each a way into its state.
+  function lobby(o) {
+    if (!lobbyEl) return;
+    var ras = Object.keys(cur).map(function (st) { return cur[st]; }).filter(function (v) { return !v.none; });
+    var counted = ras.filter(function (v) { return v.total && v.margin != null; }).sort(function (a, b) { return a.margin - b.margin; });
+    var past = office === 'president' && !ElectionData.mock();
+    var h = '<h2>Pick a state</h2><p class="dim">Click or tap any state on the map to see ' + (past ? 'how it voted in 2024.' : 'its ' + esc(o.label) + ' result, county by county.') + '</p>';
+    if (counted.length) {
+      h += '<h3>' + (past ? 'Closest states in 2024' : 'Closest races so far') + '</h3><ol class="em-near">' + counted.slice(0, 8).map(function (v) {
+        var p = v.cands[0].party, k = (p === 'R' || p === 'D') ? p.toLowerCase() : 'i';
+        return '<li><button type="button" data-st="' + v.st + '"><span class="nn">' + esc(geo.states[v.st].name) + '</span>' +
+          '<span class="nr dim">' + (past ? '' : v.status === 'won' ? 'Called' : v.reporting + '% counted') + '</span>' +
+          '<span class="ng num m-' + k + '">' + esc(p) + ' +' + v.margin.toFixed(1) + '</span></button></li>';
+      }).join('') + '</ol>';
+    } else {
+      h += '<p class="em-wait">' + ras.length + ' ' + esc(o.label) + ' race' + (ras.length === 1 ? '' : 's') + ' on the ballot. The closest ones show here as the votes are counted.</p>';
+    }
+    put(lobbyEl, h);
   }
 
   function badge(p) { return '<i class="pb pb-' + (p === 'R' || p === 'D' ? p.toLowerCase() : 'i') + '">' + esc(p) + '</i>'; }
@@ -259,11 +289,12 @@
     if (ev) tipAt(ev.clientX, ev.clientY);
   }
   function hl(st) {
+    hovSt = st || null;
     Array.prototype.forEach.call(root.querySelectorAll('.hov'), function (n) { n.classList.remove('hov'); });
+    ring(ringHov, hovSt);      // its own path above every state, so no neighbour covers the gold edge and no state moves
     if (!st) return;
-    var p = gS.querySelector('[data-st="' + st + '"]');
-    if (p) { p.classList.add('hov'); gS.appendChild(p); }      // drawn last, so its gold edge is not covered by a neighbour
     var b = small.querySelector('[data-st="' + st + '"]'); if (b) b.classList.add('hov');
+    var n = lobbyEl && lobbyEl.querySelector('[data-st="' + st + '"]'); if (n) n.classList.add('hov');
   }
 
   /* ---------------------------------------------------------------- 4. the panels */
@@ -283,13 +314,13 @@
     var extra = sum.I.w + sum.I.l ? '<span class="tind">Independent ' + (sum.I.w + sum.I.l) + '</span>' : '';
     var basebit = office === 'senate' ? '<small>' + base.D + ' not up</small>' : '';
     var basebitR = office === 'senate' ? '<small>' + base.R + ' not up</small>' : '';
-    $('.em-tally').innerHTML =
+    put($('.em-tally'),
       '<div class="tnum tnum-d"><span class="tw num">' + dW + '</span><span class="tn">' + esc(who.D) + (sum.D.l ? ' <em>+' + sum.D.l + ' ahead</em>' : '') + basebit + '</span></div>' +
       '<div class="tbar" role="img" aria-label="' + esc(who.D + ' ' + dW + ', ' + who.R + ' ' + rW + ' ' + unitTxt + (need ? ', ' + need + ' needed' : '')) + '">' +
       '<i class="b-d" style="width:' + pct(dW) + '"></i><i class="b-dl" style="left:' + pct(dW) + ';width:' + pct(sum.D.l) + '"></i>' +
       '<i class="b-rl" style="right:' + pct(rW) + ';width:' + pct(sum.R.l) + '"></i><i class="b-r" style="width:' + pct(rW) + '"></i>' + mid + '</div>' +
       '<div class="tnum tnum-r"><span class="tw num">' + rW + '</span><span class="tn">' + esc(who.R) + (sum.R.l ? ' <em>+' + sum.R.l + ' ahead</em>' : '') + basebitR + '</span></div>' +
-      '<p class="tsub">' + (office === 'governor' ? Object.keys(cur).filter(function (s) { return !cur[s].none; }).length + ' governor races. ' : '') + extra + '</p>';
+      '<p class="tsub">' + (office === 'governor' ? Object.keys(cur).filter(function (s) { return !cur[s].none; }).length + ' governor races. ' : '') + extra + '</p>');
     $('.em-note').textContent = o.note || '';
   }
 
@@ -315,30 +346,45 @@
   function deep(st, quiet) {
     var box = $('.em-deep'), v = cur[st], s = geo.states[st], o = ElectionData.doc().offices[office];
     if (!v) return;
-    var link = v.r && v.r.link ? '<a class="em-btn" href="' + ROOT + v.r.link + '">The race page</a>' : '';
+    var link = v.r && v.r.link ? '<a class="em-btn dk-link" href="' + ROOT + v.r.link + '">Who is running in ' + esc(s.name) + ' &rarr;</a>' : '';
     var head = '<header><div><p class="em-kick">' + esc(o.label) + (office === 'president' && !ElectionData.mock() ? ' 2024' : '') + '</p><h2>' + esc(s.name) + '</h2>' +
       (v.none ? '' : '<p class="rep">' + calledTag(v) + '<span>' + esc(seatLine(v, o, st)) + ' &middot; ' + reportingLine(v) + '</span></p>') + '</div>' +
-      '<div class="dk-act">' + link + '<button type="button" class="em-btn em-close" aria-label="Close ' + esc(s.name) + '">Close</button></div></header>';
-    if (v.none) { box.innerHTML = head + '<p class="dim">No ' + esc(o.label) + ' race in ' + esc(s.name) + ' this year.</p>'; }
-    else {
-      var keep = quiet && box.getAttribute('data-st') === st && box.querySelector('.cmap svg');
-      box.innerHTML = head + '<div class="dk-grid"><div class="dk-cands">' + rows(v, 6) + '</div><div class="dk-co"><h3>By county</h3><div class="cmap"></div><div class="ctab"></div></div></div>';
-      fillCounties(st, v, keep);
-    }
+      '<button type="button" class="em-close" aria-label="Close ' + esc(s.name) + '" title="Close (Esc)">&times;</button></header>';
     box.setAttribute('data-st', st);
+    if (v.none) put(box, head + '<p class="dim">No ' + esc(o.label) + ' race in ' + esc(s.name) + ' this year.</p>');
+    else {
+      // 2024 has no county numbers on the site, so it draws no county map: a grey map that can never fill says nothing.
+      var hasCo = !(office === 'president' && !ElectionData.mock() && !(v.r && v.r.areas && Object.keys(v.r.areas).length));
+      // The key carries the county numbers too, so a box whose words did not change still redraws its counties when they did.
+      var fresh = put(box, head + '<div class="dk-grid' + (hasCo ? '' : ' dk-one') + '"><div class="dk-cands">' + rows(v, 6) + link + '</div>' +
+        (hasCo ? '<div class="dk-co"><h3>By county</h3><div class="cmap"></div><div class="ctab"></div></div>' : '') + '</div>');
+      if (!hasCo) return finish();
+      var ak = office + st + JSON.stringify((v.r && v.r.areas) || {}) + (ElectionData.mock() ? v.total : '');
+      if (fresh || box._a !== ak) { box._a = ak; fillCounties(st, v); }
+    }
+    finish();
+    function finish() {
     box.hidden = false;
     root.classList.add('em-open');
-    if (!quiet) {
+    if (quiet) return;
+      var was = sel;
       sel = st;
       paint();
       history.replaceState(null, '', location.pathname + location.search + '#' + st.toLowerCase());
-      if (!root.classList.contains('em-s')) box.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+      // Beside the map (a wide screen) the panel is already in view: start it at its top. Under the map (a phone), bring
+      // it up, but only when it is not on the screen already.
+      if (SIDE.matches && !root.classList.contains('em-s')) { if (was !== st) side.scrollTop = 0; }
+      else if (!root.classList.contains('em-s')) {
+        var r = box.getBoundingClientRect();
+        if (r.top > innerHeight - 120 || r.bottom < 80) box.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+      }
     }
   }
-  function fillCounties(st, v, keep) {
-    var box = $('.em-deep');
-    counties(st).then(function (g) {
-      if (box.getAttribute('data-st') !== st) return;
+  function fillCounties(st, v) {
+    var box = $('.em-deep'), key = box._a;
+    counties(st).catch(function () { return null; }).then(function (g) {
+      if (box.getAttribute('data-st') !== st || box._a !== key) return;
+      if (!g) { box.querySelector('.cmap').innerHTML = '<p class="dim">The county map could not load. The state result above is complete.</p>'; box._a = null; return; }
       var areas = (v.r && v.r.areas && Object.keys(v.r.areas).length) ? v.r.areas : (ElectionData.mock() ? ElectionData.engine().areas(office, st, g.counties) : {});
       var b = g.box, pad = 4, vb = (b[0] - pad) + ' ' + (b[1] - pad) + ' ' + (b[2] - b[0] + 2 * pad) + ' ' + (b[3] - b[1] + 2 * pad);
       var sw = Math.max(0.15, (b[2] - b[0]) / 600);
@@ -361,9 +407,11 @@
         : '<p class="dim">' + (office === 'president' && !ElectionData.mock() ? 'County results for 2024 are not on the site.' : 'County numbers appear here as they are counted.') + '</p>';
     });
   }
-  function closeDeep() {
-    var box = $('.em-deep'); box.hidden = true; root.classList.remove('em-open'); box.removeAttribute('data-st'); sel = null; paint();
+  function closeDeep(byKey) {
+    var box = $('.em-deep'), was = sel; box.hidden = true; root.classList.remove('em-open'); box.removeAttribute('data-st'); sel = null; paint();
     history.replaceState(null, '', location.pathname + location.search);
+    // From the keyboard, the place goes back to the state that was open, so the next Tab carries on from the map.
+    if (byKey && was) { var n = small.querySelector('[data-st="' + was + '"]') || gS.querySelector('[data-st="' + was + '"]'); if (n) n.focus(); }
   }
   function pick(q) {
     q = String(q || '').trim().toLowerCase(); if (!q) return null;
@@ -390,27 +438,45 @@
 
   /* wiring */
   function stOf(t) { var n = t && t.closest && t.closest('[data-st]'); return n ? n.getAttribute('data-st') : null; }
-  var mapEl = $('.em-map');
+  var mapEl = $('.em-map'), pressed = 0;
   mapEl.addEventListener('pointermove', function (ev) { if (ev.pointerType !== 'mouse') return; hover(stOf(ev.target), ev); });
   mapEl.addEventListener('pointerleave', function () { hover(null); });
-  mapEl.addEventListener('click', function (ev) { var st = stOf(ev.target); if (st) { hover(null); deep(st); } });
+  mapEl.addEventListener('pointerdown', function () { pressed = Date.now(); });
+  mapEl.addEventListener('click', function (ev) { var st = stOf(ev.target); if (st) { tip.hidden = true; deep(st); } });
   mapEl.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { var st = stOf(ev.target); if (st) { ev.preventDefault(); deep(st); } } });
-  mapEl.addEventListener('focusin', function (ev) { var st = stOf(ev.target); if (st) { tipFill(st); tip.hidden = false; hl(st); var r = ev.target.getBoundingClientRect(); tipAt(r.right, r.top); } });
-  mapEl.addEventListener('focusout', function () { hover(null); });
-  $('.em-deep').addEventListener('click', function (ev) { if (ev.target.closest('.em-close')) closeDeep(); });
+  // Focus from the keyboard shows the card beside the state; focus that a click or a tap gave it does not (the pointer
+  // already shows it, and on a phone the card would sit over the map).
+  mapEl.addEventListener('focusin', function (ev) { var st = stOf(ev.target); if (st && Date.now() - pressed > 600) { tipFill(st); tip.hidden = false; hl(st); var r = ev.target.getBoundingClientRect(); tipAt(r.right, r.top); } });
+  mapEl.addEventListener('focusout', function () { if (Date.now() - pressed > 600) hover(null); });
+  $('.em-deep').addEventListener('click', function (ev) { if (ev.target.closest('.em-close')) closeDeep(ev.detail === 0); });
+  // The closest-races list: a row lights its state on the map and opens it.
+  if (lobbyEl) {
+    lobbyEl.addEventListener('click', function (ev) { var st = stOf(ev.target); if (st) deep(st); });
+    lobbyEl.addEventListener('pointerover', function (ev) { hl(stOf(ev.target)); });
+    lobbyEl.addEventListener('pointerleave', function () { hl(null); });
+    lobbyEl.addEventListener('focusin', function (ev) { hl(stOf(ev.target)); });
+    lobbyEl.addEventListener('focusout', function () { hl(null); });
+  }
   root.addEventListener('click', function (ev) { var t = ev.target.closest('[data-office]'); if (t) setOffice(t.getAttribute('data-office')); });
   $('.em-tabs').addEventListener('keydown', function (ev) {
     var i = OFFICES.indexOf(office);
     if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { i = (i + (ev.key === 'ArrowRight' ? 1 : 2)) % 3; setOffice(OFFICES[i]); root.querySelector('[data-office="' + OFFICES[i] + '"]').focus(); }
   });
   var find = $('.em-find input');
-  function go() { var st = pick(find.value); if (st) { deep(st); find.value = ''; find.blur(); } }
-  find.addEventListener('change', go);
-  find.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); go(); } });
+  // A name that matches no state says so in the box, rather than nothing happening.
+  function go(said) {
+    var q = find.value.trim(); if (!q) return;
+    var st = pick(q);
+    if (st) { find.setCustomValidity(''); deep(st); find.value = ''; find.blur(); }
+    else if (said) { find.setCustomValidity('No state called "' + q + '". Try its name or its two letters, like TX.'); find.reportValidity(); }
+  }
+  find.addEventListener('change', function () { go(false); });
+  find.addEventListener('input', function () { find.setCustomValidity(''); });
+  find.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); go(true); } });
   $('.em-stream').addEventListener('click', function () { stream(!root.classList.contains('em-s')); });
   document.addEventListener('keydown', function (ev) {
     if (ev.key !== 'Escape') return;
-    if (!$('.em-deep').hidden) closeDeep(); else if (root.classList.contains('em-s')) stream(false);
+    if (!$('.em-deep').hidden) closeDeep(true); else if (root.classList.contains('em-s')) stream(false);
   });
   var mockBtn = $('.em-mock');
   if (MOCK_OK) {
@@ -427,7 +493,6 @@
   var startMock = MOCK_OK && (root.getAttribute('data-mock') === '1' || qs.get('mock') === '1');
   mockBtn.setAttribute('aria-pressed', startMock ? 'true' : 'false');
   if (qs.get('stream') === '1') stream(true);
-  root.querySelector('[data-office="' + office + '"]') && setTimeout(function () {}, 0);
   Array.prototype.forEach.call(root.querySelectorAll('[data-office]'), function (b) { b.setAttribute('aria-selected', b.getAttribute('data-office') === office ? 'true' : 'false'); });
 
   fetch(GEO + 'states.json').then(function (r) { return r.json(); }).then(function (g) {
@@ -438,7 +503,7 @@
     var h = location.hash.replace('#', '').toUpperCase();
     if (h && geo.states[h]) deep(h, false);
   }).catch(function (err) {
-    var l = $('.em-loading'); if (l) l.textContent = 'The map could not load. Every race is listed on Every election.';
+    var l = $('.em-loading'); if (l) l.textContent = 'The map could not load. Every race is listed on Who is running.';
     if (window.console) console.error('results map', err);
   });
   window.LPResults = ElectionData;      // for the browser test and the console

@@ -291,7 +291,41 @@
     out = ok(q.get('out')).filter(function (i) { return gov.indexOf(i) < 0; });
   }
 
-  function draw() { paint(); words(); rows(); ways(); save(); }
+  // ---------------------------------------------------------------- how free the government would be
+  // The Liberty Scores of the leaders inside it (C.lib, from the page's own grades), weighted by their seats, on
+  // the site's one letter scale (C.scale). Parties outside are not ministers, so they do not count. A party whose
+  // leader is not graded is named, never guessed. The same choice lights its leaders in Side by side (#side).
+  var LIB = $('coal-lib'), LIB_ = C.lib || {}, SCALE = C.scale || [];
+  function letter(sc) { for (var k = 0; k < SCALE.length; k++) if (sc >= SCALE[k][0]) return SCALE[k][1]; return 'F'; }
+  function liberty() {
+    if (!LIB) return;
+    var w = 0, t = 0, miss = [];
+    gov.forEach(function (i) { if (LIB_[i]) { w += P[i].seats; t += P[i].seats * LIB_[i][0]; } else miss.push(i); });
+    if (!gov.length || !w) { LIB.hidden = true; LIB.innerHTML = ''; mark(); return; }
+    var sc = t / w, g = letter(sc), all = sum(gov);
+    LIB.innerHTML = '<span class="g g-r r-' + g.charAt(0).toLowerCase() + '" aria-hidden="true">' + esc(g) + '</span>'
+      + '<span><b>Liberty Score of this government: ' + esc(g) + '</b>, <span class="num">' + Math.floor(sc) + '</span> out of 100. '
+      + 'The grades of its leaders, each counted by its seats' + (miss.length ? ', from ' + (all - sum(miss)) + ' of its ' + all + ' seats. Not graded: ' + esc(join(miss.map(function (i) { return P[i].name + ' (' + P[i].leader + ')'; }))) : '')
+      + '. <a href="#side">See them side by side</a></span>';
+    LIB.hidden = false;
+    mark();
+  }
+  function mark() {
+    var mx = D.querySelector('.wmx');
+    if (!mx) return;
+    var who = {};
+    gov.forEach(function (i) { if (P[i].person) who[P[i].person] = 1; });
+    var on = Object.keys(who).length > 0;
+    mx.classList.toggle('has-gov', on);
+    [].forEach.call(mx.querySelectorAll('.wmx-c[data-person]'), function (a) { a.classList.toggle('is-gov', !!who[a.getAttribute('data-person')]); });
+    var note = D.getElementById('wmx-gov');
+    if (note) {
+      note.hidden = !on;
+      if (on) note.innerHTML = 'Lit up: the leaders of the government you built above (' + esc(join(gov.filter(function (i) { return P[i].person; }).map(function (i) { return P[i].name; }))) + '). <a href="#coalition">Change it</a>';
+    }
+  }
+
+  function draw() { paint(); words(); liberty(); rows(); ways(); save(); }
 
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest('button');
