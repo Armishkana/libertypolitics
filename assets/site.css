@@ -1190,7 +1190,78 @@ a.door span{color:var(--dim);line-height:1.45}
 /* the cards of the other countries: their own list, so the checks on the Senate race cards do not count them */
 .wlist{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:10px}
 @media(min-width:700px){.wlist{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(min-width:1100px){.wlist{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:1100px){.wlist{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* the Elections cards (world.wcard, 30 October 2026): flag, where the vote stands, what is at stake, the race drawn */
+.hflags{display:flex;gap:8px;margin-bottom:18px}
+.hflag{width:44px;height:33px;border-radius:4px;box-shadow:0 0 0 1px rgba(255,255,255,.18);object-fit:cover}
+.ekey{display:flex;align-items:center;gap:8px;margin-top:16px;color:var(--dim);font-size:.95rem;max-width:62ch}
+.ekey .g{flex:none}
+.ekey-t{flex:1;min-width:0;margin-left:4px;line-height:1.4}
+.eg-h{font-size:clamp(1.9rem,6vw,2.6rem);margin-top:8px}
+.eg-h ~ .eg-h{margin-top:48px}
+.eg-p{color:var(--dim);margin-top:6px}
+.elist{gap:18px}
+@media(min-width:760px){.elist{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ec{min-width:0}
+.ec-a{display:flex;flex-direction:column;height:100%;background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;text-decoration:none;color:var(--ink);box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 30px rgba(0,0,0,.35);transition:border-color .18s,transform .18s,box-shadow .18s}
+.ec-a:hover{border-color:var(--field);transform:translateY(-3px);box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 18px 40px rgba(0,0,0,.5)}
+.ec-a,.ec-a *{text-decoration:none}
+/* the United States card: the whole row, its parts side by side from 760px */
+.ec-us{grid-column:1/-1}
+@media(min-width:760px){
+  .ec-us .ec-head{padding:24px 24px 18px}
+  .ec-us .ec-flag{width:84px;height:63px}
+  .ec-us .ec-t strong{font-size:2.6rem}
+  .ec-us .ec-body{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px 32px;padding:4px 24px 22px}
+  .ec-us .ec-stake{font-size:1.7rem;grid-column:1}
+  .ec-us .ec-list{grid-column:1}
+  .ec-us .ec-big{grid-column:2;grid-row:1/span 3;align-self:start}
+  .ec-us .ec-go{grid-column:1}
+}
+.ec-a:focus-visible{outline:3px solid var(--field);outline-offset:2px}
+.ec-head{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;align-items:center;padding:18px 16px 16px;overflow:hidden;isolation:isolate}
+.ec-wash{position:absolute;inset:-30px;width:calc(100% + 60px);height:calc(100% + 60px);object-fit:cover;filter:blur(22px) saturate(1.4);opacity:.5;z-index:-2}
+.ec-head::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,16,16,.25),var(--panel) 96%);z-index:-1}
+.ec-flag{width:64px;height:48px;border-radius:6px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.22),0 6px 18px rgba(0,0,0,.45)}
+.ec-t strong{display:block;font:800 clamp(1.7rem,6vw,2.1rem)/.95 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.ec-t small{display:block;margin-top:6px;color:var(--ink);opacity:.85;font-size:.88rem;line-height:1.3}
+.ec-chip{grid-column:1/-1;justify-self:start;display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:5px 10px;border-radius:999px;font:700 .8rem/1 var(--body);letter-spacing:.02em;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18)}
+.ec-chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.ec-soon{color:var(--field)}
+.ec-talks{color:#7FC8F8}
+.ec-done{color:#8ED18A}
+.ec-body{display:flex;flex-direction:column;gap:12px;flex:1;padding:4px 16px 16px}
+.ec-stake{font:800 1.3rem/1.15 var(--display);letter-spacing:.005em;color:var(--ink)}
+.ec-how{color:var(--dim);font-size:.8rem;line-height:1.3}
+.ec-seats{display:flex;flex-direction:column;gap:8px}
+.ec-strip{position:relative;display:flex;height:16px;border-radius:4px;overflow:hidden;background:var(--sunk)}
+.ec-strip i{display:block;height:100%;box-shadow:inset -1px 0 0 rgba(0,0,0,.35)}
+.ec-strip em{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;background:var(--ink)}
+.ec-camps{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.86rem;color:var(--dim)}
+.ec-camps b{color:var(--ink);font-size:1rem}
+.ec-need{margin-left:auto}
+.ec-need b{color:var(--field)}
+.ec-rows{display:flex;flex-direction:column;gap:10px}
+.ec-row{display:grid;grid-template-columns:44px minmax(0,1fr) 4.6em auto;gap:10px;align-items:center}
+.ec-val{text-align:right}
+@media(max-width:420px){.ec-row{grid-template-columns:38px minmax(0,1fr) 3.9em auto;gap:8px}.ec-row .face{width:38px;height:38px}.ec-body{padding:4px 14px 16px}.ec-head{padding:16px 14px 14px}}
+.ec-row .face{width:44px;height:44px}
+.ec-who b{display:block;line-height:1.2;overflow-wrap:anywhere}
+.ec-who small{display:block;color:var(--dim);font-size:.82rem;line-height:1.3;margin-top:1px}
+.ec-bar{display:block;height:4px;margin-top:6px;border-radius:2px;background:var(--sunk);overflow:hidden}
+.ec-bar i{display:block;height:100%;background:var(--dim);border-radius:2px}
+.ec-lead .ec-bar i{background:var(--field)}
+.ec-val{font-weight:700;font-size:.92rem;white-space:nowrap}
+.ec-more{color:var(--dim);font-size:.86rem}
+.ec-big{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ec-big span{display:flex;flex-direction:column;gap:4px;padding:10px;background:var(--sunk);border-radius:var(--r);font-size:.82rem;line-height:1.25;color:var(--dim)}
+.ec-big b{font:800 2rem/1 var(--display);color:var(--ink)}
+.ec-list{display:flex;flex-direction:column;gap:6px;font-size:.92rem}
+.ec-list span::before{content:"\2713";color:var(--field);font-weight:800;margin-right:8px}
+.ec-go{margin-top:auto;padding-top:6px;font-weight:800;color:var(--field)}
+.ec-a:hover .ec-go{text-decoration:underline}
+.tflag{width:22px;height:16px;border-radius:2px;margin-right:8px;object-fit:cover;box-shadow:0 0 0 1px rgba(255,255,255,.2)}
+@media (prefers-reduced-motion:reduce){.ec-a,.ec-a:hover{transition:none;transform:none}}
 .rc-when{color:var(--dim);font-size:.9rem;line-height:1.3;margin-top:-4px}
 .cand-stand{color:var(--dim);font-size:.92rem;line-height:1.4}
 /* measure by measure, everyone on one line that wraps */
@@ -1873,7 +1944,9 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .estrip-l a{flex:none;display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;font:600 .9rem/1 var(--body);color:var(--dim);text-decoration:none;white-space:nowrap}
 .estrip-l a:hover{color:var(--ink);background:var(--raise)}
 .estrip-l a[aria-current="page"]{background:var(--ink);color:#0A0A0A}
-@media(min-width:900px){.estrip-l{justify-content:center}}
+/* Centred by auto margins, never justify-content:center: on a scroller that centring pushes the first link past the left
+   edge where no scroll can reach it ("ountry" on races/ at 1600px, 30 October 2026). Auto margins collapse to 0 instead. */
+@media(min-width:900px){.estrip-l a:first-child{margin-left:auto}.estrip-l a:last-child{margin-right:auto}}
 /* 30 October 2026 (Armin: "If somebody is looking for Israel and they look at this menu, they wouldn't know that Israel is right
    under there"). Every country is a pill under Every country (.nav-cty), and the US items sit under a heading that names the
    United States and its day (.nav-more-s). races/ lists every country as a card (.ecard), the US first. */

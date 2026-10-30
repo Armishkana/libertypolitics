@@ -236,6 +236,13 @@
     else if (s.getAttribute('data-after')) s.textContent = s.getAttribute('data-after');      /* the day has passed: say so, never leave a vote that was held reading as one to come */
   });
 
+  /* the chip on an Elections card (build/world.py, chip): "Votes in 4 days", counted from the reader's own date */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-countdown]'), function (s) {
+    var p = s.getAttribute('data-countdown').split('-'), now = new Date();
+    var days = Math.round((Date.UTC(+p[0], +p[1] - 1, +p[2]) - Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+    s.textContent = days > 1 ? 'Votes in ' + days + ' days' : days === 1 ? 'Votes tomorrow' : days === 0 ? 'Voting today' : 'Counting the votes';
+  });
+
   /* The country switch was a select here until 15 October 2026. It is a row of plain links on Elections and
      Scorecard now (build/world.py, bar), so it needs no script. */
 
