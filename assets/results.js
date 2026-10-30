@@ -245,6 +245,7 @@
     } else {
       h += '<p class="em-wait">' + ras.length + ' ' + esc(o.label) + ' race' + (ras.length === 1 ? '' : 's') + ' on the ballot. The closest ones show here as the votes are counted.</p>';
     }
+    h += changesFor(null);
     put(lobbyEl, h);
   }
 
@@ -258,7 +259,10 @@
     if (!v.cands.length) return '<p class="dim">The candidates for this race are not on the site yet.</p>';
     return '<ul class="em-cands">' + v.cands.slice(0, n).map(function (c, i) {
       var p = (c.party === 'R' || c.party === 'D') ? c.party.toLowerCase() : 'i';
-      return '<li class="' + (i === 0 && v.total ? 'em-lead' : '') + '">' + badge(c.party) + '<span class="nm">' + esc(c.name) + (c.incumbent ? ' <small>incumbent</small>' : '') +
+      // Their Liberty Score beside the count: filled when graded on votes in Congress, an outline when on the record.
+      var gr = c.grade ? ' <span class="em-gr' + (c.gradedOn === 'record' ? ' em-gr-o' : '') + '" title="Liberty Score ' + esc(c.grade) +
+        (c.gradedOn === 'record' ? ', from what they have said and done' : ', from their votes in Congress') + '">' + esc(c.grade) + '</span>' : '';
+      return '<li class="' + (i === 0 && v.total ? 'em-lead' : '') + '">' + badge(c.party) + '<span class="nm">' + esc(c.name) + gr + (c.incumbent ? ' <small>incumbent</small>' : '') +
         (v.called && c.party === v.called ? ' <b class="ck" aria-label="winner">&#10003;</b>' : '') + '</span>' +
         '<span class="em-vt num">' + (v.total ? nf.format(c.votes) : '&ndash;') + '</span><span class="pc num">' + (v.total ? c.pct.toFixed(1) + '%' : '') + '</span>' +
         '<span class="pbar"><i class="f-' + p + '" style="width:' + (v.total ? c.pct.toFixed(1) : 0) + '%"></i></span></li>';
@@ -268,13 +272,38 @@
     if (office === 'president' && !ElectionData.mock()) return 'Certified result';
     return v.total ? v.reporting + '% reporting' : 'No votes counted yet';
   }
+  /* Trust, per race (Elysa's list, 29 October 2026): when these numbers last changed, where they were read, and a dead
+     source shown as STALE with its last good numbers, never a blank map. 20 minutes with no change while counting. */
+  var STALE_MIN = 20;
+  function clock(iso) { var t = new Date(iso); return isNaN(t) ? '' : t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }); }
+  function isStale(v) {
+    var d = ElectionData.doc();
+    if (ElectionData.mock() || !d.live || !v.r || !v.total || v.called || v.reporting >= 100 || !v.r.updated) return false;
+    return Date.now() - new Date(v.r.updated).getTime() > STALE_MIN * 60000;
+  }
+  function trustLine(v) {
+    if (ElectionData.mock() || office === 'president' || !v.r || !v.total) return '';
+    var src = v.r.numbersFrom, s = src ? (src.url ? '<a href="' + esc(src.url) + '" target="_blank" rel="noopener">' + esc(src.name) + '</a>' : esc(src.name)) : '';
+    var bits = [];
+    if (v.r.updated) bits.push((isStale(v) ? '<b class="em-stale">No new numbers since ' : 'Updated ') + esc(clock(v.r.updated)) + (isStale(v) ? '</b>' : ''));
+    if (s) bits.push('Numbers from ' + s);
+    if (v.r.frozen) bits.push('Held by hand while a source is checked');
+    return bits.length ? '<p class="em-trust dim">' + bits.join(' &middot; ') + '</p>' : '';
+  }
+  function changesFor(st) {
+    var ch = (ElectionData.doc().changes || []).filter(function (c) { return c.office === office && (!st || c.st === st); });
+    if (!ch.length || ElectionData.mock()) return '';
+    return '<h3>' + (st ? 'Corrections in this race' : 'Corrections tonight') + '</h3><ul class="em-changes">' + ch.slice(-6).reverse().map(function (c) {
+      return '<li><span class="num dim">' + esc(clock(c.at)) + '</span> ' + (st ? '' : '<b>' + esc(geo.states[c.st] ? geo.states[c.st].name : c.st) + ':</b> ') + esc(c.what) + '</li>';
+    }).join('') + '</ul>';
+  }
   function tipFill(st) {
     var v = cur[st], o = ElectionData.doc().offices[office], s = geo.states[st];
     tip.setAttribute('data-st', st);
     if (!v || v.none) { tip.innerHTML = '<h3>' + esc(s.name) + '</h3><p class="dim">No ' + esc(o.label) + ' race this year.</p>'; return; }
     tip.innerHTML = '<h3>' + esc(s.name) + '<small>' + esc(seatLine(v, o, st)) + '</small></h3>' +
       '<p class="rep">' + calledTag(v) + '<span>' + reportingLine(v) + '</span></p>' +
-      (v.total ? '<span class="rbar"><i style="width:' + v.reporting + '%"></i></span>' : '') + rows(v, 2);
+      (v.total ? '<span class="rbar"><i style="width:' + v.reporting + '%"></i></span>' : '') + rows(v, 2) + trustLine(v);
   }
   function tipAt(x, y) {
     var w = tip.offsetWidth, h = tip.offsetHeight, vw = innerWidth, vh = innerHeight;
@@ -310,17 +339,31 @@
     var pct = function (x) { return (100 * x / of).toFixed(2) + '%'; };
     var who = office === 'president' ? (ElectionData.mock() ? { D: 'Democratic nominee', R: 'Republican nominee' } : { D: 'Harris', R: 'Trump' }) : { D: 'Democrats', R: 'Republicans' };
     var unitTxt = office === 'president' ? 'electoral votes' : (office === 'senate' ? 'seats' : 'governor races');
-    var mid = need ? '<span class="tmark" style="left:' + pct(need) + '"><b>' + need + (office === 'senate' ? ' for control' : ' to win') + '</b></span>' : '';
+    var sen = office === 'senate';
+    /* Elysa, 29 October 2026: "My only confusion is the count for the senate races." Before a vote is counted the bar
+       read Democrats 34, Republicans 31: the seats NOT on the ballot, which looked like a score. So the Senate says in
+       words what is being voted on and what each side needs, and the line under each number splits held from won. */
+    var needD = need, needR = sen && o.tiebreak === 'R' ? need - 1 : need;
+    var mid = need ? '<span class="tmark" style="left:' + pct(need) + '"><b>' + (sen ? 'Control: D ' + needD + ' &middot; R ' + needR : need + ' to win') + '</b></span>' : '';
     var extra = sum.I.w + sum.I.l ? '<span class="tind">Independent ' + (sum.I.w + sum.I.l) + '</span>' : '';
-    var basebit = office === 'senate' ? '<small>' + base.D + ' not up</small>' : '';
-    var basebitR = office === 'senate' ? '<small>' + base.R + ' not up</small>' : '';
+    var basebit = sen ? '<small>' + base.D + ' not on the ballot' + (sum.D.w ? ' + ' + sum.D.w + ' won' : '') + '</small>' : '';
+    var basebitR = sen ? '<small>' + base.R + ' not on the ballot' + (sum.R.w ? ' + ' + sum.R.w + ' won' : '') + '</small>' : '';
+    var senLine = '';
+    if (sen) {
+      var up = o.up || (of - base.D - base.R), decided = sum.D.w + sum.R.w + sum.I.w;
+      var lD = Math.max(0, needD - dW), lR = Math.max(0, needR - rW);
+      senLine = !decided
+        ? up + ' seats are on the ballot. Democrats need ' + lD + ' of them for control, Republicans need ' + lR + ' (the Vice President breaks a tie).'
+        : (decided + ' of ' + up + ' seats called. ' + (lD === 0 ? 'Democrats have control. ' : lR === 0 ? 'Republicans have control. ' :
+           'Democrats need ' + lD + ' more, Republicans need ' + lR + ' more, of the ' + (up - decided) + ' still open.'));
+    }
     put($('.em-tally'),
       '<div class="tnum tnum-d"><span class="tw num">' + dW + '</span><span class="tn">' + esc(who.D) + (sum.D.l ? ' <em>+' + sum.D.l + ' ahead</em>' : '') + basebit + '</span></div>' +
       '<div class="tbar" role="img" aria-label="' + esc(who.D + ' ' + dW + ', ' + who.R + ' ' + rW + ' ' + unitTxt + (need ? ', ' + need + ' needed' : '')) + '">' +
       '<i class="b-d" style="width:' + pct(dW) + '"></i><i class="b-dl" style="left:' + pct(dW) + ';width:' + pct(sum.D.l) + '"></i>' +
       '<i class="b-rl" style="right:' + pct(rW) + ';width:' + pct(sum.R.l) + '"></i><i class="b-r" style="width:' + pct(rW) + '"></i>' + mid + '</div>' +
       '<div class="tnum tnum-r"><span class="tw num">' + rW + '</span><span class="tn">' + esc(who.R) + (sum.R.l ? ' <em>+' + sum.R.l + ' ahead</em>' : '') + basebitR + '</span></div>' +
-      '<p class="tsub">' + (office === 'governor' ? Object.keys(cur).filter(function (s) { return !cur[s].none; }).length + ' governor races. ' : '') + extra + '</p>');
+      '<p class="tsub">' + (senLine ? esc(senLine) + ' ' : '') + (office === 'governor' ?Object.keys(cur).filter(function (s) { return !cur[s].none; }).length + ' governor races. ' : '') + extra + '</p>');
     $('.em-note').textContent = o.note || '';
   }
 
@@ -336,6 +379,11 @@
     if (office === 'president' && !mock) upd.textContent = 'Certified 2024 result';
     else if (!anyVotes && !mock) upd.textContent = 'First polls close at 6pm Eastern on November 3';
     else upd.textContent = 'Last updated ' + at;
+    /* The whole file stopped arriving while the night is live: say so, keep the last good numbers on the map. The file is
+       written at least every 5 minutes by results_feed.py while it runs, even when no number moved. */
+    var quiet = !mock && d.live && office !== 'president' && Date.now() - new Date(d.heartbeat || d.updated).getTime() > 12 * 60000;
+    upd.classList.toggle('em-stale', quiet);
+    if (quiet) { live.hidden = true; upd.textContent = 'Paused: no new numbers since ' + clock(d.updated) + '. The map shows the last ones.'; }
   }
 
   var countyCache = {};
@@ -356,7 +404,7 @@
       // 2024 has no county numbers on the site, so it draws no county map: a grey map that can never fill says nothing.
       var hasCo = !(office === 'president' && !ElectionData.mock() && !(v.r && v.r.areas && Object.keys(v.r.areas).length));
       // The key carries the county numbers too, so a box whose words did not change still redraws its counties when they did.
-      var fresh = put(box, head + '<div class="dk-grid' + (hasCo ? '' : ' dk-one') + '"><div class="dk-cands">' + rows(v, 6) + link + '</div>' +
+      var fresh = put(box, head + '<div class="dk-grid' + (hasCo ? '' : ' dk-one') + '"><div class="dk-cands">' + rows(v, 6) + trustLine(v) + link + changesFor(st) + '</div>' +
         (hasCo ? '<div class="dk-co"><h3>By county</h3><div class="cmap"></div><div class="ctab"></div></div>' : '') + '</div>');
       if (!hasCo) return finish();
       var ak = office + st + JSON.stringify((v.r && v.r.areas) || {}) + (ElectionData.mock() ? v.total : '');

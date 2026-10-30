@@ -162,6 +162,13 @@
       ? 'of <b class="num">' + MAJ + '</b> needed' + (o ? '<span class="coal-plus num">+' + o + ' outside</span>' : '')
       : 'seats in the ' + esc(C.chamber || 'parliament');
     BAR.style.width = (g / ALL * 100) + '%';
+    // the bar under the chamber in the same party colours as the seats and as the bar docked at the bottom of a phone
+    var acc = 0, stops = [];
+    gov.forEach(function (i, k) {
+      var a = (acc / g * 100).toFixed(3), b = ((acc += P[i].seats) / g * 100).toFixed(3), cut = k < gov.length - 1 ? 'calc(' + b + '% - 2px)' : b + '%';
+      stops.push(P[i].color + ' ' + a + '% ' + cut, 'var(--sunk) ' + cut + ' ' + b + '%');
+    });
+    BAR.style.backgroundImage = g ? 'linear-gradient(90deg,' + stops.join(',') + ')' : 'none';
     BARO.style.left = (g / ALL * 100) + '%';
     BARO.style.width = (o / ALL * 100) + '%';
     box.classList.toggle('is-maj', g >= MAJ);
@@ -336,51 +343,69 @@
   // likely it is, or how many seats short). It flashes on every tap so the eye goes to it; tapping it goes back
   // to the chamber. Every control that changes the count carries data-shows, and build/phone-test.html taps
   // each one at 360px and fails if what it changed is not on the screen.
-  var MINI = D.createElement('button'), STAGE = box.querySelector('.coal-stage'), COUNT = box.querySelector('.coal-bar') || STAGE;
+  // Armin, note vvyso03a, 30 October 2026: "I really like ... the bar that shows the number of seats that are adding
+  // up ... However, it's kind of not noticeable unless you pay attention." It floated in the middle of the screen in
+  // the grey of the cards under it, with the next-show bubble sitting below it. Now it is docked to the bottom edge,
+  // the way an app's own bar is: lit by the site's yellow along its top, the number large, the verdict in two plain
+  // lines (what the government is, and how likely or what is in it), and the gap still missing to the majority drawn
+  // in the bar. While it shows, the next-show bubble steps aside (html.coal-docked in coalition.css) and comes back
+  // the moment the bar goes; the site's other floating buttons ride above it.
+  var MINI = D.createElement('button'), STAGE = box.querySelector('.coal-stage'), COUNT = box.querySelector('.coal-bar') || STAGE, HTML = D.documentElement;
   MINI.type = 'button'; MINI.className = 'coal-mini'; MINI.hidden = true;
   MINI.setAttribute('aria-label', 'Back to the chamber');
   box.appendChild(MINI);
   var miniWas = null;
+  // a small drawing of the chamber, so the way back up says where it goes without words
+  var HEMI = '<svg viewBox="0 0 24 14" width="24" height="14" aria-hidden="true"><path d="M2 13a10 10 0 0 1 20 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="0.1 4.2"/><path d="M7 13a5 5 0 0 1 10 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="0.1 4"/></svg>';
   function miniPaint() {
-    var n = sum(gov), o = sum(out), t = n + o, txt, tier = '';
-    if (!gov.length && !out.length) txt = 'Tap a party to start a government';
+    var n = sum(gov), o = sum(out), t = n + o, head, sub, state;
+    if (!gov.length && !out.length) { head = 'Tap a party to add its seats'; sub = MAJ + ' seats make a government'; state = 'empty'; }
     else if (gov.length && t >= MAJ) {
       var O = n >= MAJ ? [] : out, nm = name(gov, O), jd = judge(gov, O);
-      txt = nm.title + ' · ' + TIER[jd.tier]; tier = jd.tier;
-    } else txt = (MAJ - t) + ' short of a majority';
-    var segs = gov.map(function (i) { return '<i style="width:' + (P[i].seats / ALL * 100) + '%;--pc:' + P[i].color + '"></i>'; }).join('')
-      + out.map(function (i) { return '<i class="is-o" style="width:' + (P[i].seats / ALL * 100) + '%;--pc:' + P[i].color + '"></i>'; }).join('');
-    MINI.classList.toggle('is-maj', gov.length > 0 && n >= MAJ);
-    MINI.classList.toggle('is-min', gov.length > 0 && n < MAJ && t >= MAJ);
-    MINI.innerHTML = '<span class="coal-mini-top"><b class="num" data-n="' + n + '">' + n + (o ? '<small>+' + o + '</small>' : '') + '</b><span class="coal-mini-of">of ' + MAJ + '</span>'
-      + '<span class="coal-mini-say' + (tier ? ' is-' + tier : '') + '">' + esc(txt) + '</span><span class="coal-mini-up" aria-hidden="true">Chamber ↑</span></span>'
-      + '<span class="coal-mini-bar" aria-hidden="true"><span class="coal-mini-segs">' + segs + '</span><span class="coal-mini-line" style="left:' + (MAJ / ALL * 100) + '%"></span></span>';
+      head = esc(nm.title);
+      sub = '<i class="coal-like is-' + jd.tier + '">' + TIER[jd.tier] + '</i>' + (nm.qual ? ' ' + esc(nm.qual) : '');
+      state = n >= MAJ ? 'maj' : 'min';
+    } else {
+      head = (MAJ - t) + ' seat' + (MAJ - t === 1 ? '' : 's') + ' short';
+      sub = esc(gov.map(function (i) { return P[i].name; }).concat(out.map(function (i) { return P[i].name + ' outside'; })).join(' + '));
+      state = 'short';
+    }
+    var pc = function (k) { return (k / ALL * 100).toFixed(3) + '%'; };
+    var segs = gov.map(function (i) { return '<i style="width:' + pc(P[i].seats) + ';--pc:' + P[i].color + '"></i>'; }).join('')
+      + out.map(function (i) { return '<i class="is-o" style="width:' + pc(P[i].seats) + ';--pc:' + P[i].color + '"></i>'; }).join('');
+    MINI.className = 'coal-mini is-' + state;
+    MINI.innerHTML = '<span class="coal-mini-top"><span class="coal-mini-n"><b class="num" data-n="' + n + '">' + n + (o ? '<small>+' + o + '</small>' : '') + '</b>'
+      + '<span class="coal-mini-of">of <span class="num">' + MAJ + '</span></span></span>'
+      + '<span class="coal-mini-say"><span class="coal-mini-h">' + head + '</span><span class="coal-mini-s">' + sub + '</span></span>'
+      + '<span class="coal-mini-up" aria-hidden="true">' + HEMI + '<span>Chamber</span></span></span>'
+      + '<span class="coal-mini-bar" aria-hidden="true"><span class="coal-mini-segs">' + segs + '</span>'
+      + (t < MAJ ? '<span class="coal-mini-gap" style="left:' + pc(t) + ';width:' + pc(MAJ - t) + '"></span>' : '')
+      + '<span class="coal-mini-line" style="left:' + pc(MAJ) + '"></span></span>';
     var key = gov.join(',') + '|' + out.join(',');
-    if (miniWas !== null && key !== miniWas && !reduce) { MINI.classList.remove('is-flash'); void MINI.offsetWidth; MINI.classList.add('is-flash'); }
+    if (miniWas !== null && key !== miniWas && !reduce) { void MINI.offsetWidth; MINI.classList.add('is-flash'); }
     miniWas = key;
     miniShow();
   }
   // shown while the count is off screen (scrolled under the header, or below the bottom) and the calculator still
   // fills the bottom of the screen, so it never sits over the section after it
   function miniShow() {
-    if (W.innerWidth >= 960) { MINI.hidden = true; return; }
-    var h = W.innerHeight, b = box.getBoundingClientRect(), c = COUNT.getBoundingClientRect(), head = 0, lift = 0;
-    // the header and the Record / Discussion switch stay on top of the page; what is under them is off screen too
-    [].forEach.call(D.querySelectorAll('.top,.modes'), function (el) { if (/sticky|fixed/.test(W.getComputedStyle(el).position)) head = Math.max(head, el.getBoundingClientRect().bottom); });
-    var gone = c.bottom < head + 4 || c.top > h - 90;
-    MINI.hidden = !(gone && b.top < h && b.bottom > h - 40);
-    // the page's own floating pills (the next show, the feedback button) stay visible: the bar sits above them
-    if (!MINI.hidden) [].forEach.call(D.querySelectorAll('.calls,.fab,.hi'), function (el) {
-      var r = el.getBoundingClientRect();
-      if (r.height && W.getComputedStyle(el).position === 'fixed' && r.bottom > h - 140 && r.top < h) lift = Math.max(lift, h - r.top);
-    });
-    MINI.style.bottom = lift ? (lift + 8) + 'px' : '';
+    var on = false;
+    if (W.innerWidth < 960) {
+      var h = W.innerHeight, b = box.getBoundingClientRect(), c = COUNT.getBoundingClientRect(), head = 0;
+      // the header and the Record / Discussion switch stay on top of the page; what is under them is off screen too
+      [].forEach.call(D.querySelectorAll('.top,.modes'), function (el) { if (/sticky|fixed/.test(W.getComputedStyle(el).position)) head = Math.max(head, el.getBoundingClientRect().bottom); });
+      on = (c.bottom < head + 4 || c.top > h - 110) && b.top < h - 120 && b.bottom > h - 40;
+    }
+    MINI.hidden = !on;
+    HTML.classList.toggle('coal-docked', on);
+    if (on) HTML.style.setProperty('--coal-dock', MINI.offsetHeight + 'px');
   }
   var miniQ = false;
   function miniLater() { if (miniQ) return; miniQ = true; (W.requestAnimationFrame || setTimeout)(function () { miniQ = false; miniShow(); }); }
   W.addEventListener('scroll', miniLater, { passive: true });
   W.addEventListener('resize', miniLater);
   MINI.addEventListener('click', function () { if (STAGE) STAGE.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' }); });
+  MINI.addEventListener('animationend', function (ev) { if (ev.target === MINI) MINI.classList.remove('is-flash'); });
 
   function draw() { paint(); words(); liberty(); rows(); ways(); save(); miniPaint(); }
 

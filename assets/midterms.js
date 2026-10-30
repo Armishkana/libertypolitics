@@ -15,6 +15,7 @@
   var reduce = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var M, RS = [], BY = {}, TODAY = parseFloat(box.getAttribute('data-today')) || 0;
   var mood = TODAY, pick = {}, real = {}, night = null, tab = 'S', where = 'close', showAll = false;
+  var MK = null;      // the betting markets (assets/markets.json, build/markets.py): {at, us: {S|H: {D, R}}, r: {id: [L%, R%, $, feeds]}}
   var SNEED = 51, HNEED = 218;
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -23,6 +24,18 @@
   function short(v) { var a = r1(Math.abs(v)); return a === 0 ? 'Even' : (v > 0 ? 'D+' : 'R+') + a; }
   function party(p) { return p === 'D' ? 'Democrats' : p === 'R' ? 'Republicans' : 'Independents'; }
   function sideParty(x, s) { return s === 'R' ? 'R' : x.L.p; }
+  // ---------------------------------------------------------------- the betting markets
+  // fav(x): the side the markets favor in a race ('L' or 'R'), its chance in 100, and the name; null where no market prices it.
+  function fav(x) {
+    var m = MK && x && MK.r[x.id];
+    if (!m || x.lock || !x.L || !x.R) return null;
+    var s = m[0] >= m[1] ? 'L' : 'R';
+    return { s: s, p: s === 'L' ? m[0] : m[1], n: x[s].n };
+  }
+  function surname(n) { var w = String(n).replace(/,?\s+(Jr|Sr|II|III|IV)\.?$/, '').trim().split(/\s+/); return w[w.length - 1]; }
+  // a call goes against the markets when the side it picks is the one they give under 45 in 100
+  function against(x, s) { var f = fav(x); return !!(f && s && s !== f.s && f.p >= 55); }
+  function againstAll(ch, shift) { return RS.filter(function (x) { return (!ch || x.c === ch) && !real[x.id] && against(x, sideAt(x, shift)); }); }
 
   // ---------------------------------------------------------------- who wins a race
   // real (called on the night) beats the reader's call beats a race with one side on the ballot beats the mood.
@@ -123,7 +136,7 @@
     OUT.className = 'mt-mood-v ' + (r1(mood) > 0 ? 'is-D' : r1(mood) < 0 ? 'is-R' : '');
     IN.setAttribute('aria-valuetext', moodWords(mood));
     IN.style.setProperty('--at', posOf(mood) + '%');
-    [].forEach.call(box.querySelectorAll('.mt-pre'), function (b) { b.setAttribute('aria-pressed', r1(parseFloat(b.getAttribute('data-mood'))) === r1(mood) ? 'true' : 'false'); });
+    [].forEach.call(box.querySelectorAll('.mt-pre[data-mood]'), function (b) { b.setAttribute('aria-pressed', !Object.keys(pick).length && r1(parseFloat(b.getAttribute('data-mood'))) === r1(mood) ? 'true' : 'false'); });
     var yr = $('mt-year'), hit = '';
     [].forEach.call(yr.options, function (o) { if (o.value && r1(parseFloat(o.value)) === r1(mood)) hit = o.value; });
     yr.value = hit;
@@ -177,7 +190,17 @@
       var p = Math.round(win[ch] / RUNS * 100), o = $('mt-b-' + ch).querySelector('.mt-odds');
       var lead = p >= 50 ? 'D' : 'R', q = lead === 'D' ? p : 100 - p;
       o.hidden = false;
-      o.innerHTML = '<span class="mt-odds-bar"><i class="mt-odds-d" style="width:' + p + '%"></i></span><span><b class="is-' + lead + '">' + party(lead) + ' win it ' + (q >= 99 ? 'almost every time' : q + ' times in 100') + '</b> if the vote went like this</span>';
+      var row = function (k, pd, cls) {
+        var ld = pd >= 50 ? 'D' : 'R', qq = ld === 'D' ? pd : 100 - pd;
+        return '<span class="mt-vs' + cls + '"><span class="mt-vs-k">' + k + '</span><span class="mt-odds-bar"><i class="mt-odds-d" style="width:' + pd + '%"></i></span>'
+          + '<b class="is-' + ld + '" title="' + party(ld) + '">' + ld + ' ' + (qq >= 99 ? '99+' : qq) + '%</b></span>';
+      };
+      var mk = MK && MK.us[ch], h = '<span class="mt-vs-h">Chance to win it</span>' + row('Your map', p, '');
+      if (mk) {
+        h += row('<span class="mt-vs-l">Betting markets</span><span class="mt-vs-s">Markets</span>', mk.D, ' is-mk');
+        if ((mk.D >= 50 ? 'D' : 'R') !== lead && Math.abs(mk.D - 50) >= 5) h += '<span class="mt-vs-say">Your map and the markets pick different winners.</span>';
+      }
+      o.innerHTML = h;
     });
   }
   function oddsSoon() { clearTimeout(oddsT); oddsT = setTimeout(odds, 140); }
@@ -200,26 +223,33 @@
         + '<span class="mt-win" aria-hidden="true"></span></button>';
     };
     return '<li class="mt-race" data-id="' + esc(x.id) + '"><p class="mt-rhead"><a class="mt-rname" href="' + esc(ROOT + 'races/' + x.id + '/') + '">' + esc(x.lb) + '</a>'
-      + '<span class="mt-rate" title="The forecasters’ average rating">' + (x.lock ? '' : 'Experts: ') + esc(x.w) + '</span><span class="mt-state"></span></p>'
+      + '<span class="mt-rate" title="The forecasters’ average rating">' + (x.lock ? '' : 'Experts: ') + esc(x.w) + '</span>' + mkChip(x) + '<span class="mt-state"></span></p>'
       + '<div class="mt-pair">' + who('L') + who('R') + '</div>'
       + '<div class="mt-meter" aria-hidden="true"><span class="mt-meter-in"></span></div></li>';
+  }
+  function mkChip(x) {
+    var f = fav(x);
+    if (!f) return '';
+    return '<span class="mt-mk is-' + (f.s === 'R' ? 'R' : x.L.p) + '" title="The betting markets’ chance: Polymarket and Kalshi">Markets: ' + esc(surname(f.n)) + ' <b class="num">' + f.p + '%</b></span>';
   }
   function chosen() {
     var c = RS.filter(function (x) { return x.c === tab; });
     if (where === 'close') c = c.filter(function (x) { return Math.abs(x.m) < M.model.safeFloor; });
     else if (where === 'mine') c = c.filter(function (x) { return pick[x.id]; });
+    else if (where === 'against') { var sh = mood - TODAY; c = c.filter(function (x) { return against(x, sideAt(x, sh)); }); }
     else if (where !== 'all') c = c.filter(function (x) { return x.st === where; });
     return c.sort(function (a, b) { return (Math.abs(a.m) - Math.abs(b.m)) || (a.lb < b.lb ? -1 : 1); });
   }
   function options() {
     var c = RS.filter(function (x) { return x.c === tab; }), sts = {}, nClose = 0;
     c.forEach(function (x) { sts[x.st] = x.lb.replace(/ (Senate.*|\d+|at large)$/, ''); if (Math.abs(x.m) < M.model.safeFloor) nClose++; });
-    var nMine = c.filter(function (x) { return pick[x.id]; }).length;
+    var nMine = c.filter(function (x) { return pick[x.id]; }).length, nAg = againstAll(tab, mood - TODAY).length;
     var h = '<option value="close">The close races (' + nClose + ')</option><option value="all">Every ' + (tab === 'S' ? 'Senate' : 'House') + ' race (' + c.length + ')</option>'
       + (nMine ? '<option value="mine">The races you called (' + nMine + ')</option>' : '')
+      + (nAg ? '<option value="against">Where you go against the markets (' + nAg + ')</option>' : '')
       + Object.keys(sts).sort(function (a, b) { return sts[a] < sts[b] ? -1 : 1; }).map(function (s) { return '<option value="' + s + '">' + esc(sts[s]) + '</option>'; }).join('');
     WHERE.innerHTML = h;
-    if (where === 'mine' && !nMine) where = 'close';
+    if ((where === 'mine' && !nMine) || (where === 'against' && !nAg)) where = 'close';
     WHERE.value = where;
   }
   function list() {
@@ -235,6 +265,7 @@
       var x = BY[li.getAttribute('data-id')], s = night ? night.side[x.id] : sideAt(x, shift), v = x.m + shift;
       li.classList.toggle('is-pin', !!pick[x.id]);
       li.classList.toggle('is-real', !!real[x.id]);
+      li.classList.toggle('is-against', !night && !real[x.id] && against(x, s));
       [].forEach.call(li.querySelectorAll('.mt-pick'), function (b) {
         var k = b.getAttribute('data-side'), won = s === k;
         b.classList.toggle('is-win', won);
@@ -277,8 +308,38 @@
     $('mt-mine').hidden = !n;
     $('mt-mine').innerHTML = n ? 'You called ' + n + ' race' + (n === 1 ? '' : 's') + ' yourself. <button type="button" class="mt-clear" id="mt-clear">Hand them all back to the mood</button>' : '';
     $('mt-reset').hidden = !(n || r1(mood) !== r1(TODAY));
+    boldSum();
     oddsSoon();
     save();
+  }
+
+  // The line under step 3: how many of the reader's calls go against the betting markets, and a tap to see them.
+  function boldSum() {
+    var el = $('mt-boldsum'), mk = $('mt-mk');
+    if (!MK) { el.hidden = true; return; }
+    mk.hidden = false;
+    mk.setAttribute('aria-pressed', isMarketMap() ? 'true' : 'false');
+    var sh = mood - TODAY, S = againstAll('S', sh), H = againstAll('H', sh);
+    el.hidden = false;
+    if (!S.length && !H.length) {
+      el.innerHTML = '<span class="mt-bs-i" aria-hidden="true">=</span><span>Your map agrees with the betting markets in every race they price.</span>';
+      return;
+    }
+    var names = S.slice(0, 3).map(function (x) { return x.lb.replace(/ Senate.*$/, ''); }), say = [];
+    if (S.length) say.push('<b class="num">' + S.length + '</b> Senate race' + (S.length === 1 ? '' : 's') + ' (' + esc(names.join(', ')) + (S.length > 3 ? ' and more' : '') + ')');
+    if (H.length) say.push('<b class="num">' + H.length + '</b> House race' + (H.length === 1 ? '' : 's'));
+    el.innerHTML = '<span class="mt-bs-i" aria-hidden="true">&#9889;</span><span>You go against the betting markets in ' + say.join(' and ') + '. '
+      + '<button type="button" class="mt-bs-go" id="mt-bs-go">Show them</button></span>';
+  }
+  // the map the markets would draw: today's polls, and every race they price given to their favorite
+  function isMarketMap() {
+    if (!MK || r1(mood) !== r1(TODAY)) return false;
+    return RS.every(function (x) { var f = fav(x); return !f || real[x.id] || f.p <= 50 || sideAt(x, 0) === f.s; })
+      && Object.keys(pick).every(function (i) { var f = fav(BY[i]); return f && pick[i] === f.s; });
+  }
+  function marketMap() {
+    mood = TODAY; pick = {}; IN.value = String(-mood);
+    RS.forEach(function (x) { var f = fav(x); if (f && f.p > 50 && !real[x.id] && sideAt(x, 0) !== f.s) pick[x.id] = f.s; });
   }
 
   // ---------------------------------------------------------------- election night
@@ -412,7 +473,9 @@
     var say = function (ch, c, t) { var name = ch === 'S' ? 'the Senate' : 'the House'; return c === 'I' ? 'independents decide ' + name : party(c) + ' ' + gainWord(ch, c) + ' ' + name + ' ' + Math.max(t.D, t.R) + '-' + Math.min(t.D, t.R); };
     var sh = $('mt-share');
     sh.setAttribute('data-url', box.getAttribute('data-canon') + (qs ? '?' + qs : '') + '#midterms');
-    sh.setAttribute('data-text', 'My midterms, at ' + short(mood) + ': ' + say('H', chh, H) + ', ' + say('S', cs, S) + '. Call yours:');
+    var ag = MK ? againstAll(null, mood - TODAY).length : 0;
+    sh.setAttribute('data-text', 'My midterms, at ' + short(mood) + ': ' + say('H', chh, H) + ', ' + say('S', cs, S) + '.'
+      + (MK ? (ag ? ' I go against the betting markets in ' + ag + ' race' + (ag === 1 ? '' : 's') + '.' : ' I agree with the betting markets everywhere.') : '') + ' Call yours:');
   }
   function load() {
     var q = new URLSearchParams(W.location.search), v = parseFloat(q.get('mood'));
@@ -453,6 +516,16 @@
     options(); list(); draw();
     realCalls();
     stick();
+    markets();
+  }
+
+  // The betting markets: read once; a file over 48 hours old is not shown (the hourly push has stopped).
+  function markets() {
+    W.fetch(ROOT + 'assets/markets.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d || !d.at || !d.r || (Date.now() - Date.parse(d.at)) > 48 * 3600 * 1000) return;
+      MK = d;
+      options(); list(); draw();
+    }).catch(function () {});
   }
 
   // The small scoreboard that stays on screen once both chambers have scrolled away above (among the race cards, on
@@ -482,7 +555,10 @@
     upd();
   }
 
-  IN.addEventListener('input', function () { mood = -parseFloat(IN.value); draw(); });
+  IN.addEventListener('input', function () { mood = -parseFloat(IN.value); draw(); optionsSoon(); });
+  // the counts in "Which races" follow the slider a moment after it stops
+  var optT = null;
+  function optionsSoon() { clearTimeout(optT); optT = setTimeout(function () { options(); if (where === 'against') list(); }, 300); }
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest && ev.target.closest('button');
     if (!b || !box.contains(b) || b.disabled) return;
@@ -493,10 +569,19 @@
       var hadMine = WHERE.querySelector('option[value="mine"]');
       draw();
       if (!!hadMine !== !!Object.keys(pick).length || where === 'mine') { options(); if (where === 'mine') list(); }
-    } else if (b.classList.contains('mt-pre')) {
+    } else if (b.classList.contains('mt-pre') && b.hasAttribute('data-mood')) {
       mood = parseFloat(b.getAttribute('data-mood')); IN.value = String(-mood); draw();
     } else if (b.id === 'mt-reset') {
       mood = TODAY; pick = {}; IN.value = String(-mood); where = 'close'; options(); list(); draw();
+    } else if (b.id === 'mt-mk') {
+      marketMap(); options(); list(); draw();
+    } else if (b.id === 'mt-bs-go') {
+      if (!againstAll(tab, mood - TODAY).length) {
+        tab = tab === 'S' ? 'H' : 'S';
+        [].forEach.call(box.querySelectorAll('.mt-tab'), function (t) { t.setAttribute('aria-selected', t.id === 'mt-tab-' + tab ? 'true' : 'false'); });
+      }
+      where = 'against'; showAll = false; options(); list();
+      var hw = $('mt-how'); if (hw.scrollIntoView) hw.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     } else if (b.id === 'mt-clear') {
       pick = {}; if (where === 'mine') where = 'close'; options(); list(); draw();
     } else if (b.id === 'mt-run' || b.id === 'mt-again') {

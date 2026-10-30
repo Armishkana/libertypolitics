@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=729791177a) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=d6ba9ac117) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -1340,7 +1340,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=729791177a): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=d6ba9ac117): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2320,7 +2320,7 @@
   var ACTORS = [
     ['hezbollah', 'Hezbollah', /\bhezbollah\b/i], ['hamas', 'Hamas', /\bhamas\b|\bsinwar\b/i], ['houthis', 'The Houthis', /\bhouthis?\b|\bansar ?allah\b/i],
     ['irgc', 'The IRGC', /\birgc\b|\brevolutionary guards?\b|\bquds force\b|\biran'?s guards\b/i], ['khamenei', 'Khamenei', /\bkhamenei\b|\bsupreme leader\b/i],
-    ['pahlavi', 'Reza Pahlavi', /\bpahlavi\b/i], ['netanyahu', 'Netanyahu', /\bnetanyahu\b|\bbibi\b/i], ['idf', 'The IDF', /\bidf\b|\bisraeli army\b/i],
+    ['pahlavi', 'Prince Reza Pahlavi', /\bpahlavi\b/i], ['netanyahu', 'Netanyahu', /\bnetanyahu\b|\bbibi\b/i], ['idf', 'The IDF', /\bidf\b|\bisraeli army\b/i],
     ['trump', 'Trump', /\btrump\b/i], ['vance', 'JD Vance', /\bvance\b/i], ['rubio', 'Rubio', /\brubio\b/i], ['hegseth', 'Hegseth', /\bhegseth\b/i],
     ['putin', 'Putin', /\bputin\b|\bkremlin\b/i], ['zelensky', 'Zelensky', /\bzelensk\w*/i], ['xi', 'Xi Jinping', /\bxi jinping\b|\bpresident xi\b/i],
     ['macron', 'Macron', /\bmacron\b/i], ['starmer', 'Starmer', /\bstarmer\b/i], ['farage', 'Farage', /\bfarage\b/i], ['robinson', 'Tommy Robinson', /\btommy robinson\b/i],
@@ -3044,7 +3044,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=729791177a,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=d6ba9ac117,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -4127,7 +4127,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=729791177a'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=d6ba9ac117'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

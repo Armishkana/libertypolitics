@@ -1217,6 +1217,15 @@ a.door span{color:var(--dim);line-height:1.45}
 .wcal-n{font-weight:700}
 .wcal .links{margin-top:6px;display:flex;flex-wrap:wrap;gap:0 18px;font-size:.92rem}
 .wcal .links a{display:inline-flex;align-items:center;min-height:44px;font-weight:600}
+/* A country page on a phone (Armin note vvyso03a, 30 Oct 2026): the opening paragraph at reading size instead of a
+   twelve-line wall above the calculator, a vote's date over its text instead of a narrow column beside it, and the
+   long "Every line on ..." button set as a centred two-line label. */
+@media(max-width:719px){
+  .wlede{font-size:1.08rem;font-weight:500;line-height:1.5}
+  .wcal li{grid-template-columns:minmax(0,1fr);gap:8px}
+  .wcal-d{display:flex;align-items:baseline;gap:8px}
+  .cand .row .btn{text-align:center;line-height:1.25;padding-top:10px;padding-bottom:10px}
+}
 /* a politician's page: the original words under our translation, and a measure tile that jumps to its lines */
 .vote .orig{margin-top:6px;padding-left:15px;font-size:.88rem;line-height:1.45;color:var(--dim)}
 .vote .orig span{font-weight:700}
@@ -1865,6 +1874,14 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .estrip-l a:hover{color:var(--ink);background:var(--raise)}
 .estrip-l a[aria-current="page"]{background:var(--ink);color:#0A0A0A}
 @media(min-width:900px){.estrip-l{justify-content:center}}
+/* 30 October 2026 (Armin: "If somebody is looking for Israel and they look at this menu, they wouldn't know that Israel is right
+   under there"). Every country is a pill under Every country (.nav-cty), and the US items sit under a heading that names the
+   United States and its day (.nav-more-s). races/ lists every country as a card (.ecard), the US first. */
+.nav-more .nav-more-l .nav-cty{display:flex;flex-wrap:wrap;gap:6px;margin:0 8px 8px;padding:0 4px}
+.nav-more .nav-more-l .nav-cty a{display:inline-flex;min-height:40px;padding:0 13px;border:1px solid var(--line);border-radius:999px;font-size:.88rem;white-space:nowrap}
+.nav-more-s{margin:10px 12px 4px;padding-top:10px;border-top:1px solid var(--line);font:700 .78rem/1.2 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--field)}
+.kicker{margin:0 0 10px;font:700 .8rem/1.2 var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--field)}
+.ecard .ecard-t{display:block;margin-top:10px;font:500 .95rem/1.4 var(--body);color:var(--dim)}
 /* The results map at the top of Who is running, from two weeks before the vote to six weeks after (render.py results_band). */
 .eband{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 18px;margin:0 0 26px;padding:18px 20px;border-radius:var(--r2);background:var(--field);color:var(--on-field);text-decoration:none}
 .eband-k{grid-column:1/-1;display:inline-flex;align-items:center;gap:8px;font:800 .8rem/1 var(--body);letter-spacing:.12em;text-transform:uppercase}
@@ -1930,8 +1947,8 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .coal{margin:var(--s6) 0;padding:var(--s5) var(--s4);background:var(--panel);border:1px solid var(--line);border-radius:var(--r2)}
 @media(min-width:720px){.coal{padding:var(--s6)}}
 .coal-head{max-width:62ch}
-.coal-kicker{display:flex;align-items:center;gap:var(--s2);font-size:.85rem;font-weight:700;color:var(--dim);letter-spacing:.02em}
-.coal-live{width:8px;height:8px;border-radius:50%;background:var(--ga);flex:none;box-shadow:0 0 0 3px rgba(70,204,130,.18)}
+.coal-kicker{display:flex;align-items:flex-start;gap:var(--s2);font-size:.85rem;font-weight:700;color:var(--dim);letter-spacing:.02em;line-height:1.4}
+.coal-live{width:8px;height:8px;margin-top:.42em;border-radius:50%;background:var(--ga);flex:none;box-shadow:0 0 0 3px rgba(70,204,130,.18)}
 .coal h2{margin-top:var(--s2);font-size:clamp(2rem,7vw,3rem)}
 .coal-lede{margin-top:var(--s2);font-size:1.05rem;color:var(--dim)}
 .coal-lede b{color:var(--ink)}
@@ -1961,7 +1978,7 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .coal-bar{position:relative;height:14px;margin-top:var(--s5);background:var(--sunk);border-radius:999px;border:1px solid var(--line)}
 .coal-bar-in,.coal-bar-out{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:999px;transition:width .45s cubic-bezier(.16,1,.3,1),left .45s cubic-bezier(.16,1,.3,1),background-color .25s}
 .coal-bar-in{background:var(--ink)}
-.coal.is-maj .coal-bar-in{background:var(--field)}
+.coal.is-maj .coal-bar{border-color:var(--field);box-shadow:0 0 16px color-mix(in srgb,var(--field) 35%,transparent)}
 .coal-bar-out{background:repeating-linear-gradient(135deg,var(--gc) 0 4px,transparent 4px 8px)}
 .coal-bar-line{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:var(--field)}
 .coal-bar-line span{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font-size:.75rem;font-weight:700;color:var(--field)}
@@ -2027,6 +2044,17 @@ span.coal-face{display:inline-flex;align-items:center;justify-content:center;fon
 .coal-row.is-out .coal-tick{border-color:var(--pc);border-style:dashed}
 .coal-out[aria-pressed="true"]{color:var(--on-grade);background:var(--gc);border-color:var(--gc)}
 .coal:not(.is-live) .coal-tick{display:none}
+/* On a phone the calculator runs edge to edge (Armin note vvyso03a, 30 Oct: party names had about 90px and broke
+   over two and three lines), and each row's chrome before the name is trimmed. */
+@media(max-width:719px){
+  .coal{margin-left:calc(-1 * var(--gutter));margin-right:calc(-1 * var(--gutter));padding:var(--s5) var(--s3);border-radius:0;border-left:0;border-right:0}
+  .coal-head{padding:0 var(--s1)}
+  .coal-pick{gap:10px;padding-left:14px}
+  .coal-face{width:38px;height:38px}
+  .coal-who{padding-left:94px}
+  .coal:not(.is-live) .coal-who{padding-left:62px}
+  .coal-out{margin-right:8px;padding:0 10px}
+}
 @media(max-width:380px){.coal-pick{gap:var(--s2);padding-left:12px}.coal-face{width:34px;height:34px}.coal-who{padding-left:84px}.coal-out{margin-right:6px;padding:0 8px}}
 
 /* every smallest team that makes a majority */
@@ -2094,31 +2122,47 @@ span.coal-face{display:inline-flex;align-items:center;justify-content:center;fon
 .coal-next li b{color:var(--field)}
 .coal-next a{color:var(--dim);font-weight:700}
 @media(max-width:420px){.coal-next li{grid-template-columns:1fr;gap:0}}
-/* the change drawn at the bottom of a phone screen while the chamber is scrolled away (coalition.js, Armin note
-   qkdl1tzs, 30 Oct): the seats picked as blocks in each party's colour against the majority line, the total and
-   the verdict. It sits above the page's own floating buttons while it shows. */
+/* The seat count docked to the bottom of a phone screen while the chamber is scrolled away (coalition.js; Armin
+   notes qkdl1tzs and vvyso03a, 30 Oct). Docked to the edge like an app's own bar, lit along its top in the site's
+   yellow, so it reads as the page's scoreboard and not as one more card. The next-show bubble steps aside while it
+   is up; the site's other floating buttons ride above it. */
 .coal-stage{scroll-margin-top:136px}
-.coal-mini{position:fixed;left:var(--s3);right:var(--s3);bottom:max(var(--s3),env(safe-area-inset-bottom));z-index:40;display:grid;gap:8px;min-height:56px;padding:10px 12px 12px;background:var(--raise);color:var(--ink);border:1px solid var(--line);border-radius:var(--r2);box-shadow:0 6px 24px rgba(0,0,0,.35);font:inherit;text-align:left;cursor:pointer}
+.coal-mini{position:fixed;left:0;right:0;bottom:0;z-index:40;display:grid;gap:10px;width:100%;margin:0;padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(180deg,color-mix(in srgb,var(--field) 9%,var(--raise)),var(--raise) 70%);color:var(--ink);border:2px solid var(--field);border-bottom:0;outline:1px solid color-mix(in srgb,var(--field) 45%,transparent);outline-offset:2px;border-radius:18px 18px 0 0;box-shadow:0 -14px 34px rgba(0,0,0,.6);font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .coal-mini[hidden]{display:none}
-.coal-mini-top{display:flex;align-items:baseline;gap:8px;min-width:0}
-.coal-mini b{font:900 1.5rem/1 var(--display);color:var(--ink);transition:color .25s}
-.coal-mini b small{font-size:.75em;color:var(--gc);margin-left:2px}
+.coal-mini-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;min-width:0}
+.coal-mini-n{display:flex;flex-direction:column;align-items:center;min-width:3.2rem;line-height:1}
+.coal-mini b{display:block;font:900 2.1rem/.9 var(--display);color:var(--ink);transition:color .25s;white-space:nowrap}
+.coal-mini b small{font-size:.55em;color:var(--gc);margin-left:2px;vertical-align:.55em}
 .coal-mini.is-maj b{color:var(--field)}
 .coal-mini.is-min b{color:var(--gc)}
-.coal-mini-of{color:var(--dim);font-size:.88rem;white-space:nowrap}
-.coal-mini-say{flex:1;min-width:0;font-size:.92rem;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.coal-mini-say.is-likely{color:var(--ga)}
-.coal-mini-say.is-possible{color:var(--gb)}
-.coal-mini-say.is-unlikely{color:var(--gd)}
-.coal-mini-say.is-remote{color:var(--gf)}
-.coal-mini-up{flex:none;font-size:.75rem;font-weight:700;color:var(--dim);white-space:nowrap}
-.coal-mini-bar{position:relative;display:block;height:12px}
-.coal-mini-segs{display:flex;height:100%;overflow:hidden;border-radius:999px;background:var(--sunk);border:1px solid var(--line)}
-.coal-mini-segs i{display:block;height:100%;flex:none;background:var(--pc);box-shadow:inset -1px 0 0 var(--raise);transition:width .3s ease}
+.coal-mini-of{margin-top:4px;color:var(--dim);font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.coal-mini-say{display:grid;gap:3px;min-width:0}
+.coal-mini-h,.coal-mini-s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.coal-mini-h{font:800 1.08rem/1.15 var(--display);letter-spacing:.01em;color:var(--ink)}
+.coal-mini.is-empty .coal-mini-h{color:var(--field)}
+.coal-mini.is-maj .coal-mini-h{color:var(--field)}
+.coal-mini-s{font-size:.82rem;line-height:1.3;color:var(--dim)}
+.coal-mini-s .coal-like{font-style:normal;padding:1px 7px;font-size:.75rem;margin-right:2px}
+.coal-mini-up{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:66px;min-height:46px;border-radius:12px;background:var(--sunk);border:1px solid var(--line);color:var(--dim);font-size:.75rem;font-weight:700}
+.coal-mini:hover .coal-mini-up,.coal-mini:focus-visible .coal-mini-up{color:var(--ink);border-color:var(--dim)}
+.coal-mini-bar{position:relative;display:block;height:14px}
+.coal-mini-segs{display:flex;height:100%;overflow:hidden;border-radius:999px;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line)}
+.coal-mini-segs i{display:block;height:100%;flex:none;background:var(--pc);box-shadow:inset -2px 0 0 var(--raise);transition:width .3s ease}
+.coal-mini-segs i:last-child{box-shadow:none}
 .coal-mini-segs i.is-o{background:repeating-linear-gradient(135deg,var(--pc) 0 3px,transparent 3px 6px)}
-.coal-mini-line{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;background:var(--field)}
-@keyframes coal-flash{from{box-shadow:0 0 0 3px var(--field),0 6px 24px rgba(0,0,0,.35)}to{box-shadow:0 0 0 0 transparent,0 6px 24px rgba(0,0,0,.35)}}
-.coal-mini.is-flash{animation:coal-flash .7s ease-out}
+/* the seats still missing to the majority, so "short" is something you can see */
+.coal-mini-gap{position:absolute;top:0;bottom:0;border-radius:999px;background:repeating-linear-gradient(90deg,color-mix(in srgb,var(--field) 30%,transparent) 0 2px,transparent 2px 5px)}
+.coal-mini-line{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--field);box-shadow:0 0 0 2px var(--raise)}
+.coal-mini.is-maj .coal-mini-segs{box-shadow:inset 0 0 0 1px var(--field),0 0 14px color-mix(in srgb,var(--field) 35%,transparent)}
+/* every tap: the top edge flares and the number pops, so the eye goes to it */
+@keyframes coal-flash{from{box-shadow:0 -4px 26px color-mix(in srgb,var(--field) 55%,transparent),0 -14px 34px rgba(0,0,0,.6)}to{box-shadow:0 0 0 transparent,0 -14px 34px rgba(0,0,0,.6)}}
+@keyframes coal-pop{0%{transform:scale(1.28)}100%{transform:scale(1)}}
+.coal-mini.is-flash{animation:coal-flash .8s ease-out}
+.coal-mini.is-flash b{animation:coal-pop .45s cubic-bezier(.2,1.6,.4,1)}
+/* while the bar is up, the next-show bubble steps aside and the other floating buttons ride above it */
+html.coal-docked .calls{visibility:hidden}
+html.coal-docked .fab,html.coal-docked .hi{bottom:calc(var(--coal-dock,96px) + 10px)}
+@media(prefers-reduced-motion:reduce){.coal-mini.is-flash,.coal-mini.is-flash b{animation:none}}
 @media(min-width:960px){.coal-mini{display:none!important}}
 /* Call the Midterms (build/midterms.py, build/midterms.js), added to the end of site.css by render.py.
    Blue is the Democrats (--dem), red the Republicans (--rep), --ind the independents, the site's own yellow is kept
@@ -2333,3 +2377,81 @@ span.coal-face{display:inline-flex;align-items:center;justify-content:center;fon
 @media(max-width:380px){.mt{padding:var(--s4) var(--s3)}.mt-board{padding:10px}.mt-pre{padding:0 10px;font-size:.84rem}.mt-score{margin:0 calc(-1 * var(--s3)) -44px;padding:0 var(--s3);gap:8px;font-size:.78rem}}
 @media(prefers-reduced-motion:reduce){.mt *{transition:none!important;animation:none!important}}
 .mt-sec{padding:var(--s3) 0 0}
+
+/* The betting markets (build/markets.py, assets/markets.json; Armin, 30 October 2026: "people could compare what they have
+   to the betting markets ... in a way that doesn't make it too crowded"). Under each chamber, two thin bars: the chance of
+   the reader's own map and the markets' chance. On a race card, one chip beside the experts' rating; a call that goes
+   against the markets lights it in the site's yellow. Nothing is added to a race the markets do not price. */
+.mt-odds{gap:6px}
+.mt-vs-h{font-size:.75rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--dim)}
+.mt-vs{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 8px}
+.mt-vs-k{font-size:.75rem;font-weight:700;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-vs b{font-weight:800;white-space:nowrap}
+.mt-vs .mt-odds-bar{grid-column:1/-1;grid-row:2;height:5px}
+.mt-vs.is-mk .mt-vs-k::before{content:"";display:inline-block;width:6px;height:6px;margin:0 6px 1px 0;border-radius:50%;background:var(--field);vertical-align:middle}
+.mt-vs.is-mk .mt-odds-bar{opacity:.85;background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(0,0,0,.22) 3px 5px);background-color:var(--rep)}
+.mt-vs.is-mk .mt-odds-d{background-image:repeating-linear-gradient(135deg,transparent 0 3px,rgba(0,0,0,.22) 3px 5px);background-color:var(--dem)}
+.mt-vs-say{font-size:.75rem;font-weight:700;color:var(--field);line-height:1.3}
+@media(min-width:720px){.mt-vs-k,.mt-vs-say{font-size:.82rem}}
+.mt-mk{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:.75rem;font-weight:700;color:var(--dim);white-space:nowrap}
+.mt-mk b{font-weight:800}
+.mt-mk.is-D b{color:var(--dem)}
+.mt-mk.is-R b{color:var(--rep)}
+.mt-mk.is-I b{color:var(--ind)}
+.mt-race.is-against{border-color:rgba(244,196,48,.45)}
+.mt-race.is-against .mt-mk{border-color:var(--field);background:rgba(244,196,48,.12);color:var(--field)}
+.mt-race.is-against .mt-mk::before{content:"\26A1\FE0E";font-size:.8rem}
+.mt-boldsum{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:0 0 var(--s3);padding:6px 12px;border-radius:var(--r);background:var(--sunk);border:1px solid var(--line);font-size:.9rem;line-height:1.4}
+.mt-boldsum[hidden]{display:none}
+.mt-bs-i{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:rgba(244,196,48,.15);color:var(--field);font-weight:900}
+.mt-boldsum > span:last-child{flex:1 1 220px}
+.mt-bs-go{display:inline-flex;align-items:center;min-height:40px;padding:0 4px;background:none;border:0;color:var(--field);font:700 .9rem/1 var(--body);text-decoration:underline;cursor:pointer}
+.mt-pre-mk[hidden]{display:none}
+.mt-pre-mk::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--field)}
+.mt-vs-s{display:none}
+@media(max-width:560px){.mt-vs-l{display:none}.mt-vs-s{display:inline}}
+/* The betting markets on a race page, a race card and a country page (build/markets.py, build/markets.js), added to the end
+   of site.css by render.py. Quiet by design (Armin, 30 October 2026: "doesn't make people miss out on it and also doesn't
+   annoy people who aren't interested"): one labelled panel, thin bars, the party colours, the site's yellow only as the dot
+   that marks money on the line. */
+.mk{margin-top:var(--s4);padding:12px 14px;border:1px solid var(--line);border-radius:var(--r2);background:var(--sunk);max-width:640px}
+.mk[hidden]{display:none}
+.mk-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 12px}
+.mk-k{font-size:.8rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.mk-k::before{content:"";display:inline-block;width:7px;height:7px;margin:0 7px 1px 0;border-radius:50%;background:var(--field);vertical-align:middle}
+.mk-t{font-size:.75rem;color:var(--dim)}
+.mk-ends{display:flex;justify-content:space-between;gap:12px;margin-top:8px;font-size:.95rem;font-weight:600;line-height:1.25}
+.mk-ends span:last-child{text-align:right}
+.mk-ends b{font:900 1.35rem/1 var(--display)}
+.mk .is-D b,.mk b.is-D{color:var(--dem)}
+.mk .is-R b,.mk b.is-R{color:var(--rep)}
+.mk .is-I b,.mk b.is-I{color:var(--ind)}
+.mk-bar{display:flex;justify-content:space-between;height:8px;margin-top:8px;border-radius:999px;background:var(--raise);overflow:hidden}
+.mk-bar i{display:block;height:100%;transition:width .4s cubic-bezier(.16,1,.3,1)}
+.mk-bar i.is-D{background:var(--dem)}
+.mk-bar i.is-R{background:var(--rep)}
+.mk-bar i.is-I{background:var(--ind)}
+.mk-src{margin-top:8px;font-size:.8rem;line-height:1.45;color:var(--dim)}
+.mk-src a{color:var(--dim);font-weight:700;padding:12px 0;margin:-12px 0}
+/* a country: the question, then one row a name */
+.mk-w{max-width:720px;margin-top:var(--s5)}
+.mk-q{margin-top:6px;font:900 clamp(1.4rem,5.5vw,1.9rem)/1.05 var(--display)}
+.mk-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.mk-list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:4px 10px}
+.mk-face{width:36px;height:36px;grid-row:span 2;border-radius:50%;object-fit:cover;object-position:50% 18%;background:var(--raise);display:inline-flex;align-items:center;justify-content:center;font:800 .8rem/1 var(--display);color:var(--dim)}
+.mk-nm{font-weight:700;font-size:.95rem;min-width:0;overflow-wrap:anywhere}
+.mk-nm a{color:var(--ink);text-decoration:none;display:inline-flex;align-items:center;min-height:40px}
+.mk-nm a:hover{text-decoration:underline}
+.mk-list b{font:900 1.2rem/1 var(--display);color:var(--ink)}
+.mk-list li:first-child b{color:var(--field)}
+.mk-bar1{grid-column:2/-1;display:block;height:5px;border-radius:999px;background:var(--raise);overflow:hidden}
+.mk-bar1 i{display:block;height:100%;background:var(--dim);border-radius:999px;transition:width .4s cubic-bezier(.16,1,.3,1)}
+.mk-list li:first-child .mk-bar1 i{background:var(--field)}
+/* a race card in a list */
+.rc-mk{display:block;margin-top:2px;font-size:.8rem;color:var(--dim)}
+.rc-mk[hidden]{display:none}
+.rc-mk b{font-weight:800}
+.rc-mk b.is-D{color:var(--dem)}
+.rc-mk b.is-R{color:var(--rep)}
+.rc-mk b.is-I{color:var(--ind)}
+@media(prefers-reduced-motion:reduce){.mk *{transition:none!important}}
