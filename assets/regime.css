@@ -1,6 +1,8 @@
 /* The Regime Board (build/regime.py, build/regime.js). Shared by both sites: every colour but the camps' and the red of a
    fall is the site's own token, so it wears Liberty Politics' yellow on one site and the Sun gold on the other.
-   Phone first: 360px wide, 12px the smallest text, 40px the smallest thing to tap, no sideways scroll. */
+   Phone first: 360px wide, 12px the smallest text, 40px the smallest thing to tap, no sideways scroll.
+   ONE STAGE (31 Oct 2026): the views and filters, the board and the timeline share one window the height of the screen,
+   so whatever is tapped, its effect is in view (Armin: "it's all the way at the top, and I can't even see what's happening"). */
 .rg{--rg-kill:#E5484D;--rg-unk:#E8A33D;padding:var(--s5) 0 var(--s7)}
 .rg-dim{color:var(--dim)}
 .rg-head{max-width:66ch}
@@ -8,33 +10,94 @@
 .rg-live{width:8px;height:8px;border-radius:50%;background:var(--rg-kill);box-shadow:0 0 0 3px rgba(229,72,77,.22);flex:none}
 .rg h1{margin-top:var(--s2);font-size:clamp(2.1rem,8.5vw,4rem)}
 .rg-lede{margin-top:var(--s3);font-size:1.05rem;color:var(--dim)}
+/* the three counts: also the filters (a tap lights that group on the board below) */
 .rg-count{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2);margin-top:var(--s5)}
-.rg-cn{padding:var(--s3);background:var(--panel);border-radius:var(--r2);border-top:3px solid var(--line);min-width:0}
+.rg-cn{display:block;width:100%;padding:var(--s3);background:var(--panel);border:0;border-radius:var(--r2);border-top:3px solid var(--line);min-width:0;color:var(--ink);font:inherit;text-align:start;cursor:pointer}
+.rg-cn:hover{background:var(--raise)}
+.rg-cn:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-cn.is-on{box-shadow:inset 0 0 0 2px var(--ink)}
 .rg-cn b{display:block;font:900 clamp(2rem,9vw,3.4rem)/.9 var(--display)}
 .rg-cn span{display:block;margin-top:4px;font-size:.78rem;line-height:1.25;color:var(--dim);font-weight:600}
 .rg-cn.is-k{border-top-color:var(--rg-kill)}.rg-cn.is-k b{color:var(--rg-kill)}
 .rg-cn.is-a{border-top-color:var(--field)}
 .rg-cn.is-u{border-top-color:var(--rg-unk)}.rg-cn.is-u b{color:var(--rg-unk)}
 .rg-nojs{margin-top:var(--s4);color:var(--dim)}
+.rg-acts{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin-top:var(--s4)}
+.rg-acts .btn{min-height:44px}
+.rg-acts [hidden]{display:none}
 
-/* the timeline */
-.rg-time{margin-top:var(--s5);padding:var(--s4);background:var(--panel);border-radius:var(--r2)}
-@media(min-width:720px){.rg-time{padding:var(--s5)}}
-.rg-time-top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3)}
-.rg-time h2,.rg-chairs h2{font-size:clamp(1.6rem,6vw,2.3rem)}
-.rg-time-top p{margin-top:4px;font-size:.9rem}
+/* ---------------------------------------------------------------- the stage */
+.rg-stage{position:relative;margin-top:var(--s5);background:var(--panel);border-radius:var(--r2);overflow:hidden}
+.rg-stage.is-js{display:flex;flex-direction:column;height:calc(100vh - var(--rg-top,60px) - 12px);height:calc(100svh - var(--rg-top,60px) - 12px);min-height:540px;max-height:1240px}
+@media(min-width:1200px){.rg-stage:not(.is-full){margin-inline:calc(50% - 50vw + 24px)}}
+/* the top edge: the views, then who to show */
+.rg-ctl{flex:none;display:grid;gap:6px;padding:8px;border-bottom:1px solid var(--line);min-width:0}
+.rg-seg{display:flex;gap:2px;padding:3px;background:var(--sunk);border-radius:999px;overflow-x:auto;scrollbar-width:none;min-width:0;justify-self:start;max-width:100%}
+.rg-seg::-webkit-scrollbar{display:none}
+.rg-v{flex:none;min-height:40px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--dim);font:700 .9rem/1 var(--body);cursor:pointer;white-space:nowrap}
+.rg-v:hover{color:var(--ink)}
+.rg-v.is-on{background:var(--ink);color:var(--bg)}
+/* who to show, then the camps: each one line that slides sideways on a phone, so neither is hidden behind the other */
+.rg-ctl2{display:contents}
+.rg-fil,.rg-camps{display:flex;gap:6px;align-items:center;min-width:0;overflow-x:auto;scrollbar-width:none}
+.rg-fil::-webkit-scrollbar,.rg-camps::-webkit-scrollbar{display:none}
+@media(max-width:519px){.rg-seg{justify-self:stretch}.rg-v{flex:1 1 auto;padding:0 8px;font-size:.84rem}.rg-find{flex-basis:128px}}
+/* a computer: the views, the search and who to show on one line, the camps on the line under it */
+@media(min-width:900px){
+  .rg-ctl{grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:10px}
+  .rg-fil{grid-column:2}
+  .rg-camps{grid-column:1/-1}
+}
+.rg-f{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font:600 .82rem/1 var(--body);cursor:pointer;white-space:nowrap}
+.rg-f b{font-weight:800;color:var(--dim)}
+.rg-f.is-k b{color:var(--rg-kill)}.rg-f.is-u b{color:var(--rg-unk)}
+.rg-f.is-on{border-color:var(--field);background:var(--field);color:var(--on-field)}
+.rg-f.is-on b{color:inherit}
+.rg-find{flex:0 0 150px;min-width:0;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--sunk);color:var(--ink);font:500 .9rem/1 var(--body)}
+.rg-ck{flex:none;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font:600 .8rem/1 var(--body);cursor:pointer;white-space:nowrap}
+.rg-ck i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.rg-ck.is-on{border-color:var(--c);background:color-mix(in srgb,var(--c) 30%,transparent)}
+/* the middle: a zooming drawing, or the list, with the zoom buttons always on its corner */
+.rg-vpw{position:relative;flex:1 1 auto;min-height:0;background:var(--sunk)}
+.rg-stage:not(.is-js) .rg-vpw{background:transparent}
+.rg-vp{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;outline:none}
+.rg-vp:focus-visible{box-shadow:inset 0 0 0 3px var(--field)}
+.rg-vp.is-moving{cursor:grabbing}
+.rg-vp img{pointer-events:none;-webkit-user-drag:none}
+.rg-list{padding:var(--s3)}
+.rg-stage.is-js .rg-list{position:absolute;inset:0;overflow-y:auto;padding:var(--s3) var(--s3) 88px;padding-inline-end:64px}
+.rg-zfl{position:absolute;inset-inline-end:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:3}
+.rg-zb{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:0;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.rg-zb:hover{border-color:var(--ink)}
+.rg-zb:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-zb svg{flex:none}
+.rg-zhint{position:absolute;top:10px;inset-inline-start:10px;max-width:calc(100% - 80px);margin:0;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;font-size:.8rem;line-height:1.3;pointer-events:none;z-index:2}
+.rg-stage.rg-used .rg-zhint:not(.is-q),.rg-stage.is-list .rg-zhint:not(.is-q){display:none}
+.rg-zhint.is-q{background:var(--field);color:var(--on-field);font-weight:700}
+.rg-none{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);margin:0;padding:10px 16px;border-radius:12px;background:var(--panel);color:var(--dim);z-index:2;text-align:center}
+.rg-stage:not(.is-js) .rg-none{position:static;transform:none}
+/* over the bottom of the board, while the timeline is on a past day: what fell on the last day of falls */
+.rg-ev{position:absolute;inset-inline:10px;bottom:10px;margin:0;padding:8px 12px;border-radius:12px;background:rgba(0,0,0,.78);color:#fff;font-size:.88rem;line-height:1.35;pointer-events:none;z-index:2;max-width:640px}
+.rg-ev b{color:#FF8A8D}
+.rg:not(.is-past) .rg-ev,.rg-ev:empty{display:none}
+.rg-op{display:inline-block;margin-inline-start:8px;padding:1px 8px;border-radius:999px;background:var(--raise);font-size:.75rem;font-weight:700;color:var(--dim);vertical-align:1px}
+.rg-ev .rg-op{background:rgba(255,255,255,.16);color:#fff}
+/* the bottom edge: the timeline */
+.rg-dock{flex:none;display:grid;gap:4px;padding:8px calc(10px + var(--rg-pr,0px)) calc(8px + var(--rg-bot,0px)) calc(10px + var(--rg-pl,0px));border-top:1px solid var(--line);background:var(--panel)}
+.rg-stage.is-full .rg-dock{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}
+.rg-dk1{display:flex;align-items:center;gap:10px;min-width:0}
 .rg-play{flex:none;min-height:44px;display:inline-flex;align-items:center;gap:8px}
 .rg-play-i{width:0;height:0;border-block:7px solid transparent;border-inline-start:11px solid currentColor}
 .rg-play.is-on .rg-play-i{width:10px;height:12px;border:0;border-inline:3px solid currentColor}
-.rg-day{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px;margin-top:var(--s4)}
-.rg-day b{font:900 clamp(1.4rem,5.5vw,2rem)/1 var(--display)}
-.rg-day span{font-size:.85rem;color:var(--rg-kill);font-weight:700}
-.rg-track{position:relative;margin-top:var(--s2);padding-top:28px}
-.rg-ticks{position:absolute;left:11px;right:11px;top:0;height:28px;pointer-events:none;overflow:hidden}
+.rg-day{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;min-width:0}
+.rg-day b{font:900 clamp(1.05rem,4.4vw,1.5rem)/1.1 var(--display)}
+.rg-warnow{display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:999px;background:rgba(229,72,77,.16);color:var(--rg-kill);font-size:.78rem;font-weight:800}
+.rg-track{position:relative;padding-top:20px}
+.rg-ticks{position:absolute;left:11px;right:11px;top:0;height:22px;pointer-events:none;overflow:hidden}
 .rg-tick{position:absolute;bottom:0;width:2px;background:var(--rg-kill);border-radius:1px;opacity:.85}
 .rg-tick.is-d{background:var(--dim);opacity:.6}
-.rg-opband{position:absolute;bottom:-6px;height:4px;background:rgba(229,72,77,.35);border-radius:2px}
-.rg-track input{-webkit-appearance:none;appearance:none;display:block;width:100%;height:44px;margin:0;background:transparent;cursor:pointer;touch-action:pan-y}
+.rg-opband{position:absolute;bottom:-4px;height:4px;background:rgba(229,72,77,.35);border-radius:2px}
+.rg-track input{-webkit-appearance:none;appearance:none;display:block;width:100%;height:40px;margin:0;background:transparent;cursor:pointer;touch-action:pan-y}
 .rg-track input:focus{outline:none}
 .rg-track input::-webkit-slider-runnable-track{height:8px;border-radius:999px;background:linear-gradient(90deg,var(--line),var(--rg-kill))}
 .rg-track input::-moz-range-track{height:8px;border-radius:999px;background:linear-gradient(90deg,var(--line),var(--rg-kill))}
@@ -42,41 +105,48 @@
 .rg-track input::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-9px;border-radius:50%;background:var(--ink);border:3px solid var(--bg);box-shadow:0 0 0 2px var(--rg-kill)}
 .rg-track input::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--ink);border:3px solid var(--bg);box-shadow:0 0 0 2px var(--rg-kill)}
 .rg-track input:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 2px var(--rg-kill),0 0 0 6px rgba(229,72,77,.4)}
-.rg-ev{margin-top:var(--s2);min-height:3em;font-size:.92rem;line-height:1.4}
-.rg-ev b{color:var(--rg-kill)}
-.rg-op{display:inline-block;margin-inline-start:8px;padding:1px 8px;border-radius:999px;background:var(--raise);font-size:.75rem;font-weight:700;color:var(--dim);vertical-align:1px}
+.rg-wars{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;min-width:0}
+.rg-wars::-webkit-scrollbar{display:none}
+.rg-war{flex:none;display:inline-flex;align-items:baseline;gap:6px;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);cursor:pointer;font:inherit;white-space:nowrap}
+.rg-war b{font-size:.82rem}.rg-war span{font-size:.75rem;color:var(--dim);font-weight:600}
+.rg-war.is-on{border-color:var(--rg-kill);background:rgba(229,72,77,.12)}
+.rg-war.is-on span{color:var(--rg-kill)}
+.rg-war.is-today.is-on{border-color:var(--field);background:color-mix(in srgb,var(--field) 18%,transparent)}
+.rg-war.is-today.is-on span{color:var(--ink)}
+@media(min-width:900px){
+  .rg-dock{grid-template-columns:auto minmax(0,1fr);column-gap:var(--s4);align-items:center}
+  .rg-dk1{grid-row:1/span 2}
+  .rg-wars{grid-column:2}
+}
+/* full screen (the live show): the whole stage, the browser's own or the window filled when a phone has none */
+.rg-stage.is-full{margin:0;border-radius:0;background:var(--bg);height:100%;max-height:none;min-height:0}
+.rg-stage.rg-full{position:fixed;inset:0;z-index:90;height:auto}
+.rg-stage.is-full .rg-ctl{padding-top:calc(8px + env(safe-area-inset-top,0px))}
+.rg-stage:fullscreen{width:100%;height:100%}
+.rg-stage .rg-sheet{z-index:95}
 
-/* the bar: views and filters, stays at hand while the board scrolls */
-.rg-bar{min-width:0;position:sticky;top:60px;z-index:5;margin-top:var(--s5);padding:var(--s2) 0;background:var(--bg);display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3);align-items:center;border-bottom:1px solid var(--line)}
-.rg-seg{display:flex;padding:3px;background:var(--panel);border-radius:999px;gap:2px}
-.rg-v{min-height:40px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--dim);font:700 .9rem/1 var(--body);cursor:pointer}
-.rg-v.is-on{background:var(--ink);color:var(--bg)}
-.rg-fil{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1 1 280px}
-.rg-f{min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font:600 .82rem/1 var(--body);cursor:pointer}
-.rg-f.is-on{border-color:var(--field);background:var(--field);color:var(--on-field)}
-.rg-find{flex:1 1 140px;min-width:0;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--sunk);color:var(--ink);font:500 .9rem/1 var(--body)}
-.rg-camps{display:flex;flex-wrap:wrap;gap:6px;margin-top:var(--s3)}
-.rg-ck{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font:600 .8rem/1 var(--body);cursor:pointer}
-.rg-ck i{width:10px;height:10px;border-radius:50%;background:var(--c)}
-.rg-ck.is-on{border-color:var(--c);background:color-mix(in srgb,var(--c) 30%,transparent)}
-
-/* the board */
-.rg-board,.rg-alt{margin-top:var(--s4);display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s4)}
-.rg-cols,.rg-days{grid-template-columns:minmax(0,1fr)}
-.rg-col,.rg-dayg,.rg-b{min-width:0}
+/* ---------------------------------------------------------------- the list (by branch) */
+.rg-board{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s4)}
 @media(min-width:900px){.rg-board{grid-template-columns:repeat(2,minmax(0,1fr))}.rg-b[data-b=irgc],.rg-b[data-b=former],.rg-b[data-b=gov]{grid-column:1/-1}}
-.rg-b{padding:var(--s3);border:1.5px dashed var(--line);border-radius:var(--r2);min-width:0}
+.rg-b{padding:var(--s3);border:1.5px dashed var(--line);border-radius:var(--r2);min-width:0;background:var(--panel)}
 @media(min-width:720px){.rg-b{padding:var(--s4)}}
-.rg-bh,.rg-colh,.rg-dayh{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);flex-wrap:wrap}
-.rg-bh h3,.rg-colh h3{font-size:1.25rem}
+.rg-bh{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2);flex-wrap:wrap}
+.rg-bh h3{font-size:1.25rem}
 .rg-bc{font-size:.8rem;font-weight:700;color:var(--dim)}
 .rg-bc i::before{content:" / "}
-.rg-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:var(--s3) var(--s2);margin-top:var(--s3)}
-@media(min-width:720px){.rg-g{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}}
+.rg-bp{flex-basis:100%;height:4px;border-radius:4px;background:var(--line);position:relative;overflow:hidden}
+.rg-bp::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:var(--p);background:var(--rg-kill);border-radius:4px}
+.rg-list{--fw:76px;--gw:98px}
+.rg-list[data-z="0"]{--fw:52px;--gw:72px}
+.rg-list[data-z="2"]{--fw:100px;--gw:128px}
+.rg-list[data-z="3"]{--fw:132px;--gw:164px}
+@media(min-width:720px){.rg-list{--fw:88px;--gw:118px}.rg-list[data-z="0"]{--fw:60px;--gw:84px}.rg-list[data-z="2"]{--fw:116px;--gw:148px}.rg-list[data-z="3"]{--fw:150px;--gw:186px}}
+.rg-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--gw,98px),1fr));gap:var(--s3) var(--s2);margin-top:var(--s3)}
+.rg-list[data-z="0"] .rg-r,.rg-list[data-z="0"] .rg-s{display:none}
 .rg-t{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px 8px;border:0;border-radius:var(--r2);background:transparent;color:var(--ink);text-align:center;cursor:pointer;font:inherit;min-width:0;position:relative}
-.rg-t:hover{background:var(--panel)}
+.rg-t:hover{background:var(--raise)}
 .rg-face{position:relative;display:block;width:76px;height:76px;border-radius:50%;overflow:visible;flex:none}
-@media(min-width:720px){.rg-face{width:88px;height:88px}}
+.rg-t .rg-face{width:var(--fw,76px);height:var(--fw,76px)}
 .rg-face img,.rg-ini{width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:50% 22%;box-shadow:0 0 0 3px var(--c,var(--line));background:var(--raise)}
 .rg-ini{display:flex;align-items:center;justify-content:center;font:800 1.4rem/1 var(--display);color:var(--dim)}
 .rg-n{font-size:.84rem;line-height:1.2;font-weight:800;margin-top:6px;overflow-wrap:anywhere}
@@ -85,52 +155,82 @@
 .rg-t.is-killed .rg-s,.rg-t.is-down .rg-s{color:var(--rg-kill)}
 .rg-t.is-unknown .rg-s,.rg-t.is-wounded .rg-s{color:var(--rg-unk)}
 /* a fall: the face goes grey and takes the red cross */
-.rg-t.is-killed img,.rg-t.is-died img,.rg-cl.is-killed img,.rg-cl.is-died img,.rg-cp.is-killed img,.rg-cp.is-died img{filter:grayscale(1) brightness(.72)}
+.rg-t.is-killed img,.rg-t.is-died img,.rg-cp.is-killed img,.rg-cp.is-died img{filter:grayscale(1) brightness(.72)}
 .rg-x{position:absolute;inset-inline-end:-4px;top:-4px;width:30px;height:30px;border-radius:50%;background:var(--rg-kill);box-shadow:0 0 0 3px var(--bg)}
 .rg-x::before,.rg-x::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:3px;border-radius:2px;background:#fff;transform:translate(-50%,-50%) rotate(45deg)}
 .rg-x::after{transform:translate(-50%,-50%) rotate(-45deg)}
 .rg-x-d{background:#6B6A64}
 .rg-q{position:absolute;inset-inline-end:-4px;top:-4px;width:28px;height:28px;border-radius:50%;background:var(--rg-unk);color:#1A1406;font:900 1.05rem/28px var(--body);text-align:center;font-style:normal;box-shadow:0 0 0 3px var(--bg)}
+.rg-list[data-z="0"] .rg-x,.rg-list[data-z="0"] .rg-q{width:20px;height:20px;line-height:20px;font-size:.75rem}
+.rg-list[data-z="0"] .rg-x::before,.rg-list[data-z="0"] .rg-x::after{width:11px;height:2px}
 /* the timeline moving: at a past day a fall that has not happened yet shows the face in colour; a successor not yet in the
    chair is faint; at today everything is as the register says */
-.is-past .rg-t.is-killed:not(.is-down) img,.is-past .rg-t.is-died:not(.is-down) img,.is-past .rg-cl:not(.is-down) img,.is-past .rg-cp.is-killed:not(.is-down) img,.is-past .rg-cp.is-died:not(.is-down) img{filter:none}
-.is-past .rg-t:not(.is-down) .rg-x,.is-past .rg-cl:not(.is-down) .rg-x,.is-past .rg-cp:not(.is-down) .rg-x{display:none}
+.is-past .rg-t.is-killed:not(.is-down) img,.is-past .rg-t.is-died:not(.is-down) img,.is-past .rg-cp.is-killed:not(.is-down) img,.is-past .rg-cp.is-died:not(.is-down) img{filter:none}
+.is-past .rg-t:not(.is-down) .rg-x,.is-past .rg-cp:not(.is-down) .rg-x{display:none}
 .is-past .rg-t.is-killed:not(.is-down) .rg-s,.is-past .rg-t.is-died:not(.is-down) .rg-s,.is-past .rg-cp.is-killed:not(.is-down) .rg-cps,.is-past .rg-cp.is-died:not(.is-down) .rg-cps{visibility:hidden}
 .rg-t.is-down img,.rg-cp.is-down img{filter:grayscale(1) brightness(.72)}
-.rg-t.is-pre,.rg-cl.is-pre,.rg-cp.is-pre{opacity:.22}
-.rg-t.is-dim{opacity:.18}
-.rg-none{margin-top:var(--s4);color:var(--dim)}
+.rg-t.is-pre,.rg-cp.is-pre{opacity:.22}
 
-/* factions and day by day */
-.rg-cols{display:grid;gap:var(--s4)}
-@media(min-width:900px){.rg-cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.rg-col{padding:var(--s3) var(--s3) var(--s4);border-radius:var(--r2);background:var(--panel);border-top:4px solid var(--c);min-width:0}
-.rg-colw{margin-top:4px;font-size:.85rem;color:var(--dim);line-height:1.4}
-.rg-days{display:grid;gap:var(--s4)}
-.rg-dayg{padding-bottom:var(--s3);border-bottom:1px solid var(--line)}
-.rg-dayh b{font:900 1.3rem/1 var(--display);color:var(--rg-kill)}
-
-/* the empty chairs */
-.rg-chairs{margin-top:var(--s7)}
-.rg-chairs > p{margin-top:4px}
-.rg-chairs ul{list-style:none;margin:var(--s4) 0 0;padding:0;display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3)}
-.rg-ch{min-width:0;padding:var(--s3);background:var(--panel);border-radius:var(--r2)}
-.rg-chr{font-weight:800;font-size:.95rem}
-.rg-chl{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:var(--s2) 4px 4px;scrollbar-width:thin}
-.rg-cl{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none;width:92px;border:0;background:transparent;color:var(--ink);font:inherit;cursor:pointer;text-align:center;padding:4px 0}
-.rg-cl .rg-face{width:60px;height:60px}
-.rg-cl .rg-x{width:22px;height:22px}.rg-cl .rg-x::before,.rg-cl .rg-x::after{width:12px}
-.rg-cl b{font-size:.75rem;line-height:1.2;margin-top:4px}
-.rg-cl span:last-child{font-size:.75rem;color:var(--dim)}
-.rg-cl.is-killed span:last-child{color:var(--rg-kill)}
-.rg-arrow{flex:none;width:18px;height:2px;background:var(--line);position:relative;margin-bottom:34px}
+/* ---------------------------------------------------------------- the zooming drawings (whole chart, factions, day by day)
+   Drawn at real size (a face 64px, words 12px and up) and scaled by one transform (regime.js), so the faces stay sharp. */
+.rg-chart{position:absolute;left:0;top:0;width:max-content;padding:44px;transform-origin:0 0}
+.rg-c-head{max-width:560px;margin-bottom:28px}
+.rg-chart[data-v=chart] .rg-c-head{position:absolute;inset-inline-start:44px;top:40px;margin:0}
+.rg-c-h1{font:900 2.6rem/1.02 var(--display)}
+.rg-c-sub{margin-top:10px;font-size:1.3rem;font-weight:800;color:var(--rg-kill)}
+.rg-c-top{display:flex;flex-direction:column;align-items:center;position:relative;padding-bottom:34px}
+.rg-c-top::after{content:"";position:absolute;left:50%;bottom:0;width:3px;height:34px;background:var(--line);transform:translateX(-50%)}
+.rg-c-topl{font:800 1rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+[lang=fa] .rg-c-topl{letter-spacing:0;text-transform:none}
+.rg-c-chain{display:flex;align-items:center;gap:14px;margin-top:10px;padding:14px 20px;border:2px solid var(--line);border-radius:18px;background:var(--panel)}
+.rg-arrow{flex:none;width:18px;height:2px;background:var(--line);position:relative}
 .rg-arrow::after{content:"";position:absolute;inset-inline-end:-1px;top:-4px;border-block:5px solid transparent;border-inline-start:7px solid var(--line)}
+.rg-c-chain .rg-arrow{width:44px;height:3px;margin-bottom:60px}
+.rg-c-chain .rg-arrow::after{top:-5px;border-block-width:6px;border-inline-start-width:10px}
+.rg-c-cols{display:flex;align-items:flex-start;gap:24px;padding-top:30px;border-top:3px solid var(--line)}
+.rg-c-cols.is-flat{padding-top:0;border-top:0}
+.rg-cs{display:flex;flex-direction:column;align-items:center;gap:30px;flex:none}
+.rg-cc{position:relative;flex:none;padding:16px;border:2px dashed var(--line);border-radius:16px;background:var(--panel)}
+.rg-c-cols:not(.is-flat) .rg-cc::before{content:"";position:absolute;left:50%;top:-34px;width:3px;height:32px;background:var(--line);transform:translateX(-50%)}
+.rg-cc.is-camp{border-style:solid;border-top:6px solid var(--c)}
+.rg-cch{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;margin-bottom:12px;max-width:calc(var(--n,1) * 118px)}
+.rg-cch h3{font-size:1.65rem;line-height:1.05;min-width:0;overflow-wrap:anywhere}
+.rg-cchc{font-size:1.15rem;font-weight:800;color:var(--dim)}
+.rg-cchc b{color:var(--rg-kill)}
+.rg-cch .rg-bp{height:5px}
+.rg-ccw{flex-basis:100%;margin:2px 0 0;font-size:.85rem;line-height:1.3;color:var(--dim);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.rg-cg + .rg-cg{margin-top:10px}
+.rg-cgl{margin-bottom:6px;padding-top:8px;border-top:1px solid var(--line);font:800 .8rem/1.2 var(--body);letter-spacing:.04em;text-transform:uppercase;color:var(--dim);max-width:calc(var(--n,1) * 118px)}
+[lang=fa] .rg-cgl{letter-spacing:0;text-transform:none}
+.rg-cg:first-of-type .rg-cgl{border-top:0;padding-top:0}
+.rg-chart[data-v=days] .rg-cgl{color:var(--rg-kill);text-transform:none;letter-spacing:0;font-size:.9rem}
+.rg-cgg{display:grid;grid-template-columns:repeat(var(--n,1),112px);gap:6px}
+.rg-cp{position:relative;display:flex;flex-direction:column;align-items:center;width:112px;height:134px;padding:6px 3px 0;border-radius:12px;text-align:center;color:var(--ink);cursor:pointer}
+.rg-cp .rg-face{width:64px;height:64px}
+.rg-cp .rg-x{width:24px;height:24px;inset-inline-end:-6px;top:-5px}
+.rg-cp .rg-x::before,.rg-cp .rg-x::after{width:13px;height:3px}
+.rg-cp .rg-q{width:22px;height:22px;line-height:22px;font-size:.85rem;inset-inline-end:-6px;top:-5px}
+.rg-cp > b{margin-top:7px;max-width:100%;font-size:.95rem;line-height:1.12;font-weight:800;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.rg-cps{max-width:100%;margin-top:2px;font-size:.75rem;line-height:1.25;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rg-cp.is-killed .rg-cps,.rg-cp.is-down .rg-cps{color:var(--rg-kill);font-weight:700}
+.rg-chart[data-v=days] .rg-cp .rg-cps{color:var(--dim);font-weight:400}
+.rg-cp.is-unknown .rg-cps{color:var(--rg-unk);font-weight:700}
+.rg-cp.is-top{width:200px;height:auto;padding-bottom:4px}
+.rg-cp.is-top .rg-face{width:136px;height:136px}
+.rg-cp.is-top .rg-x{width:40px;height:40px}.rg-cp.is-top .rg-x::before,.rg-cp.is-top .rg-x::after{width:22px;height:4px}
+.rg-cp.is-top .rg-q{width:36px;height:36px;line-height:36px;font-size:1.3rem}
+.rg-cp.is-top > b{font-size:1.45rem}
+.rg-cp.is-top .rg-cps{font-size:.95rem;white-space:normal}
+.rg-cp.is-dim{opacity:.16}
+.rg-cp.is-hit{background:color-mix(in srgb,var(--field) 22%,transparent);box-shadow:0 0 0 3px var(--field)}
 
-/* share the board, make a picture of it */
-.rg-acts{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin-top:var(--s4)}
-.rg-acts .btn{min-height:44px}
-.rg-acts [hidden]{display:none}
-.rg-side{display:grid;gap:var(--s4);margin-top:var(--s5)}
+/* ---------------------------------------------------------------- what we know: the war, the targets, the odds */
+.rg-intel{margin-top:var(--s4);background:var(--panel);border-radius:var(--r2)}
+.rg-intel summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px;padding:var(--s2) var(--s4);font-weight:700;list-style:none}
+.rg-intel summary::-webkit-details-marker{display:none}
+.rg-intel summary::after{content:"";flex:none;margin-inline-start:auto;width:10px;height:10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
+.rg-intel[open] summary::after{transform:rotate(-135deg)}
+.rg-side{display:grid;gap:var(--s4);margin:0;padding:0 var(--s4) var(--s4)}
 @media(min-width:900px){.rg-side{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .rg-side h3{font-size:1.05rem}
 .rg-side p,.rg-side li{font-size:.88rem;line-height:1.45}
@@ -146,7 +246,7 @@
 .rg-now p{margin-top:var(--s2)}
 .rg-foot{margin-top:var(--s5);font-size:.85rem;color:var(--dim);max-width:70ch}
 
-/* the sheet: one person, over the page */
+/* ---------------------------------------------------------------- the sheet: one person, over the page */
 html.rg-lock{overflow:hidden}
 .rg-sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.66);display:flex;align-items:flex-end;justify-content:center}
 @media(min-width:720px){.rg-sheet{align-items:center;padding:var(--s5)}}
@@ -168,11 +268,16 @@ html.rg-lock{overflow:hidden}
 .rg-sh-f dt{color:var(--dim);font-weight:700}
 .rg-sh-f dd{margin:0}
 .rg-sh-ch{display:grid;gap:var(--s2);margin-top:var(--s4)}
+.rg-sh-line{display:flex;align-items:center;gap:6px;margin-top:var(--s2);overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+.rg-sh-line .rg-sh-cp{flex:none;max-width:220px}
+.rg-sh-line .rg-arrow{width:14px}
 .rg-sh-cp{display:flex;align-items:center;gap:var(--s3);min-height:56px;padding:6px var(--s3);border:1px solid var(--line);border-radius:var(--r2);background:var(--sunk);color:var(--ink);font:inherit;text-align:start;cursor:pointer}
+.rg-sh-cp.is-me{border-color:var(--field);box-shadow:inset 0 0 0 1px var(--field)}
 .rg-sh-cp .rg-face{width:44px;height:44px}
 .rg-sh-cp .rg-x,.rg-sh-cp .rg-q{width:18px;height:18px;line-height:18px;font-size:.75rem}
 .rg-sh-cp .rg-x::before,.rg-sh-cp .rg-x::after{width:10px;height:2px}
-.rg-sh-cp span{display:flex;flex-direction:column}
+.rg-sh-cp.is-killed img,.rg-sh-cp.is-died img{filter:grayscale(1) brightness(.72)}
+.rg-sh-cp span{display:flex;flex-direction:column;min-width:0}
 .rg-sh-cp small{font-size:.75rem;color:var(--dim)}
 .rg-sh-c{margin-top:var(--s4);padding:var(--s3);border-radius:var(--r2);background:var(--sunk);border-inline-start:4px solid var(--c)}
 .rg-sh-c p{font-size:.88rem;line-height:1.45;margin-top:4px}
@@ -187,122 +292,31 @@ html.rg-lock{overflow:hidden}
 .rg-sh-src a{color:var(--dim);min-height:24px}
 .rg-sh-cr{margin-top:var(--s2);font-size:.75rem;color:var(--dim)}
 
-/* second pass, 31 Oct 2026: folded branches, a slimmer sticky bar */
-.rg-intel{margin-top:var(--s3);background:var(--panel);border-radius:var(--r2)}
-.rg-intel summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px;padding:var(--s2) var(--s4);font-weight:700;list-style:none}
-.rg-intel summary::-webkit-details-marker{display:none}
-.rg-intel summary::after{content:"";flex:none;margin-inline-start:auto;width:10px;height:10px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg)}
-.rg-intel[open] summary::after{transform:rotate(-135deg)}
-.rg-intel .rg-side{margin:0;padding:0 var(--s4) var(--s4)}
-.rg-bh{position:relative}
-.rg-bp{flex-basis:100%;height:4px;border-radius:4px;background:var(--line);position:relative;overflow:hidden}
-.rg-bp::before{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:var(--p);background:var(--rg-kill);border-radius:4px}
-.rg:not(.rg-filtering) .rg-b.is-folded .rg-t.is-over{display:none}
-.rg-filtering .rg-more{display:none}
-.rg-more{margin-top:var(--s3);width:100%;min-height:44px}
-.rg-fil{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;flex:1 1 100%;min-width:0;padding-bottom:2px}
-.rg-fil::-webkit-scrollbar{display:none}
-.rg-fil .rg-f{flex:none}
-.rg-fil .rg-find{order:-1;flex:0 0 140px;min-width:0}
-@media(min-width:720px){.rg-fil{flex:1 1 280px}.rg-fil .rg-find{order:0;flex:1 1 160px}}
-.rg-chairs.is-folded > ul > li.is-over{display:none}
-@media(max-width:719px){.rg-camps{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.rg-camps::-webkit-scrollbar{display:none}.rg-ck{flex:none}}
-/* the wars on the timeline (31 Oct 2026): a name under each burst, a badge by the date, a button per war */
-.rg-wl{position:relative;height:22px;margin:2px 11px 0}
-.rg-wlab{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;font-size:.75rem;font-weight:800;color:var(--rg-kill);line-height:22px}
-[dir=rtl] .rg-wlab{transform:translateX(50%)}
-.rg-wlab.is-start{transform:none}.rg-wlab.is-end{transform:translateX(-100%)}
-[dir=rtl] .rg-wlab.is-start{transform:none}[dir=rtl] .rg-wlab.is-end{transform:translateX(100%)}
-.rg-warnow{display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:999px;background:rgba(229,72,77,.16);color:var(--rg-kill);font-size:.8rem;font-weight:800}
-.rg-warnow[hidden]{display:none}
-.rg-wars{display:flex;gap:8px;margin-top:var(--s3);overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
-.rg-wars::-webkit-scrollbar{display:none}
-.rg-war{flex:none;display:grid;gap:2px;min-height:48px;padding:6px 14px;border:1px solid var(--line);border-radius:12px;background:transparent;color:var(--ink);text-align:start;cursor:pointer;font:inherit}
-.rg-war b{font-size:.85rem}.rg-war span{font-size:.75rem;color:var(--dim);font-weight:600}
-.rg-war.is-on{border-color:var(--rg-kill);background:rgba(229,72,77,.12)}
-.rg-war.is-on span{color:var(--rg-kill)}
-@media(min-width:720px){.rg-wars{flex-wrap:wrap;overflow:visible}}
-.rg-wl.is-two{height:42px}
-.rg-wlab.is-row2{top:20px}
-
-/* THE WHOLE CHART (30 Oct 2026): the Supreme Leader on top, every branch a column under him, in a window that zooms.
-   The chart is drawn at its real size (a face 64px, words 12px and up) and scaled by one transform (regime.js), so the
-   faces stay sharp; touch-action:none only inside the window, so the page still scrolls everywhere else. */
-.rg-zw{position:relative;margin-top:var(--s4);background:var(--panel);border-radius:var(--r2);overflow:hidden}
-.rg-zbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px}
-.rg-zb{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;min-width:44px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink);font:700 .85rem/1 var(--body);cursor:pointer}
-.rg-zb:hover{border-color:var(--ink)}
-.rg-zb:focus-visible{outline:2px solid var(--field);outline-offset:2px}
-.rg-zb svg{flex:none}
-#rg-zin,#rg-zout{padding:0}
-.rg-zhint{flex:1 1 150px;min-width:0;font-size:.78rem;line-height:1.3;color:var(--dim);text-align:end}
-.rg-vpw{position:relative}
-.rg-zfl{position:absolute;inset-inline-end:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:2}
-.rg-zfl .rg-zb{background:var(--panel);box-shadow:0 4px 16px rgba(0,0,0,.35)}
-.rg-vp{position:relative;overflow:hidden;height:62vh;height:min(62svh,640px);min-height:340px;background:var(--sunk);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;outline:none}
-@media(min-width:720px){.rg-vp{height:clamp(460px,calc(100vh - 200px),980px)}}
-.rg-vp:focus-visible{box-shadow:inset 0 0 0 3px var(--field)}
-.rg-vp.is-moving{cursor:grabbing}
-.rg-vp img{pointer-events:none;-webkit-user-drag:none}
-.rg-chart{position:absolute;left:0;top:0;width:max-content;padding:44px;transform-origin:0 0}
-.rg-c-head{position:absolute;inset-inline-start:44px;top:40px;max-width:560px}
-.rg-c-h1{font:900 2.6rem/1.02 var(--display)}
-.rg-c-sub{margin-top:10px;font-size:1.3rem;font-weight:800;color:var(--rg-kill)}
-.rg-c-top{display:flex;flex-direction:column;align-items:center;position:relative;padding-bottom:34px}
-.rg-c-top::after{content:"";position:absolute;left:50%;bottom:0;width:3px;height:34px;background:var(--line);transform:translateX(-50%)}
-.rg-c-topl{font:800 1rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-[lang=fa] .rg-c-topl{letter-spacing:0;text-transform:none}
-.rg-c-chain{display:flex;align-items:center;gap:14px;margin-top:10px;padding:14px 20px;border:2px solid var(--line);border-radius:18px;background:var(--panel)}
-.rg-c-chain .rg-arrow{width:44px;height:3px;margin-bottom:60px}
-.rg-c-chain .rg-arrow::after{top:-5px;border-block-width:6px;border-inline-start-width:10px}
-.rg-c-cols{display:flex;align-items:flex-start;gap:24px;padding-top:30px;border-top:3px solid var(--line)}
-.rg-cs{display:flex;flex-direction:column;align-items:center;gap:30px;flex:none}
-.rg-cc{position:relative;flex:none;padding:16px;border:2px dashed var(--line);border-radius:16px;background:var(--panel)}
-.rg-cc::before{content:"";position:absolute;left:50%;top:-34px;width:3px;height:32px;background:var(--line);transform:translateX(-50%)}
-.rg-cch{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;margin-bottom:12px;max-width:calc(var(--n,1) * 118px)}
-.rg-cch h3{font-size:1.65rem;line-height:1.05;min-width:0;overflow-wrap:anywhere}
-.rg-cchc{font-size:1.15rem;font-weight:800;color:var(--dim)}
-.rg-cchc b{color:var(--rg-kill)}
-.rg-cch .rg-bp{flex-basis:100%;height:5px}
-.rg-cg + .rg-cg{margin-top:10px}
-.rg-cgl{margin-bottom:6px;padding-top:8px;border-top:1px solid var(--line);font:800 .8rem/1.2 var(--body);letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
-[lang=fa] .rg-cgl{letter-spacing:0;text-transform:none}
-.rg-cg:first-of-type .rg-cgl{border-top:0;padding-top:0}
-.rg-cgg{display:grid;grid-template-columns:repeat(var(--n,1),112px);gap:6px}
-.rg-cp{position:relative;display:flex;flex-direction:column;align-items:center;width:112px;height:134px;padding:6px 3px 0;border-radius:12px;text-align:center;color:var(--ink);cursor:pointer}
-.rg-cp .rg-face{width:64px;height:64px}
-.rg-cp .rg-x{width:24px;height:24px;inset-inline-end:-6px;top:-5px}
-.rg-cp .rg-x::before,.rg-cp .rg-x::after{width:13px;height:3px}
-.rg-cp .rg-q{width:22px;height:22px;line-height:22px;font-size:.85rem;inset-inline-end:-6px;top:-5px}
-.rg-cp > b{margin-top:7px;max-width:100%;font-size:.95rem;line-height:1.12;font-weight:800;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
-.rg-cps{max-width:100%;margin-top:2px;font-size:.75rem;line-height:1.25;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rg-cp.is-killed .rg-cps,.rg-cp.is-down .rg-cps{color:var(--rg-kill);font-weight:700}
-.rg-cp.is-unknown .rg-cps{color:var(--rg-unk);font-weight:700}
-.rg-cp.is-top{width:200px;height:auto;padding-bottom:4px}
-.rg-cp.is-top .rg-face{width:136px;height:136px}
-.rg-cp.is-top .rg-x{width:40px;height:40px}.rg-cp.is-top .rg-x::before,.rg-cp.is-top .rg-x::after{width:22px;height:4px}
-.rg-cp.is-top .rg-q{width:36px;height:36px;line-height:36px;font-size:1.3rem}
-.rg-cp.is-top > b{font-size:1.45rem}
-.rg-cp.is-top .rg-cps{font-size:.95rem;white-space:normal}
-.rg-cp.is-dim{opacity:.16}
-.rg-cp.is-hit{background:color-mix(in srgb,var(--field) 22%,transparent);box-shadow:0 0 0 3px var(--field)}
-.rg-zcap{display:none}
-.rg-zcap input{flex:1 1 220px;min-width:0;height:44px;accent-color:var(--rg-kill);cursor:pointer}
-.rg-zcap b{font:900 1.35rem/1 var(--display);white-space:nowrap}
-.rg-zcap .num:not(b){font-size:.95rem;font-weight:800;color:var(--rg-kill);white-space:nowrap}
-.rg-zplay .rg-play-i{margin-inline-start:2px}
-/* full screen (the live show): the browser's own, or the window filled when a phone has none */
-.rg-zw.is-full{display:flex;flex-direction:column;margin:0;border-radius:0;background:var(--bg)}
-.rg-zw.rg-full{position:fixed;inset:0;z-index:90}
-.rg-zw.is-full .rg-vpw{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
-.rg-zw.is-full .rg-vp{flex:1 1 auto;height:auto;min-height:0}
-.rg-zw.is-full .rg-zcap{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px))}
-.rg-zw.is-full .rg-zbar{padding-top:calc(8px + env(safe-area-inset-top,0px))}
-.rg-zw:fullscreen{width:100%;height:100%}
-.rg-zw .rg-sheet{z-index:95}
-/* the chart is a window of its own: the filter bar stops following the page over it, and on a wide screen the window uses the whole width */
-.rg-on-chart .rg-bar{position:static}
-@media(min-width:1200px){.rg-zw:not(.is-full){margin-inline:calc(50% - 50vw + 24px)}}
-/* on a phone the hint sits over the chart until the first touch, so the window keeps its height */
-@media(max-width:519px){.rg-zhint{position:absolute;top:70px;inset-inline-start:10px;max-width:calc(100% - 80px);padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;text-align:start;pointer-events:none;z-index:2}
-.rg-zw.rg-used .rg-zhint:not(.is-q){display:none}.rg-zw.is-full .rg-zhint{top:calc(66px + env(safe-area-inset-top,0px))}}
+/* THE STREAM VIEW (build/stream.js, build/stream.css; Armin, 31 October 2026: "when I'm showing these tools on a live stream,
+   it makes perfect sense, and people can see what's going on, even if it's on a small screen"). The stage fills the screen
+   on the left; the title, the count and Share stand on the right. The head, the stage's bar and its timeline are zoomed
+   with the screen (--lps-z); the chart window and the list are NOT (their pinch, drag and zoom measure the screen), and the
+   chart fits itself to its window as it does on the page (its zoom buttons stay their own size, so they cover less of it).
+   What the war stands at and the source line stay on the page. */
+html.lp-stream #regime .wrap{display:grid;grid-template-columns:minmax(0,1fr) calc(330px * var(--lps-z));grid-template-rows:minmax(0,1fr);column-gap:calc(16px * var(--lps-z));
+  height:100%;max-width:none;margin:0;padding:calc(10px * var(--lps-z)) calc(14px * var(--lps-z))}
+html.lp-stream #regime .wrap>noscript,html.lp-stream #regime .rg-intel,html.lp-stream #regime .rg-foot{display:none!important}
+html.lp-stream .rg-head{grid-column:2;grid-row:1;zoom:var(--lps-z);max-width:none;min-height:0;overflow:hidden;padding-top:46px}
+html.lp-stream .rg h1{margin-top:6px;font-size:2.3rem}
+html.lp-stream .rg-lede{margin-top:8px;font-size:.85rem;line-height:1.45}
+html.lp-stream .rg-count{margin-top:14px;gap:6px}
+html.lp-stream .rg-cn{padding:8px}
+html.lp-stream .rg-acts{margin-top:12px}
+html.lp-stream .rg-stage,html.lp-stream .rg-stage.is-js{grid-column:1;grid-row:1;margin:0!important;height:auto;min-height:0;max-height:none}
+html.lp-stream .rg-ctl,html.lp-stream .rg-dock,html.lp-stream .rg-ev,html.lp-stream .rg-sh-in{zoom:var(--lps-z)}
+/* every view, filter, faction and war on the screen at once: the rows that slide sideways on a phone wrap here */
+html.lp-stream .rg-ctl{grid-template-columns:minmax(0,1fr)}
+html.lp-stream .rg-fil,html.lp-stream .rg-camps{grid-column:1;flex-wrap:wrap;overflow:visible}
+html.lp-stream .rg-seg,html.lp-stream .rg-wars{flex-wrap:wrap;overflow:visible}
+html.lp-stream #regime{padding:0}
+html.lp-stream .rg-dock{grid-template-columns:auto minmax(0,1fr);column-gap:var(--s4);align-items:center}
+html.lp-stream .rg-dk1{grid-row:1;grid-column:1}
+html.lp-stream .rg-track{grid-row:1;grid-column:2}
+html.lp-stream .rg-wars{grid-row:2;grid-column:1/-1}
+html.lp-stream .rg-zhint:not(.is-q){display:none}          /* "pinch to zoom" is for the one at the screen, not the stream */
+html.lp-stream .rg-zhint.is-q{zoom:var(--lps-z)}

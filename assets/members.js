@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=5258bd4c36; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=3691a885c1; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -2018,6 +2018,21 @@ async function initMember(box) {
       num(hosted.length, IU ? tt('Events posted') : tt('Gatherings hosted'));
     }
     prof.append(nums);
+
+    // ---- Make your call (../CALLS.md, build/calls.js): the calls record on Beat the Markets. Its owner always sees the way
+    // to it; anyone else only while the owner has made it public (callrec/<account> is readable then, and only then).
+    if (!IU && !host) {
+      const rec = await get(['callrec', uid]);
+      if (own || (rec && rec.pub)) {
+        const n = rec ? (rec.right || 0) + (rec.wrong || 0) : 0, b = rec ? Math.round(+rec.beat || 0) : 0;
+        const say = !n ? (own ? tt('Your calls against the betting markets, scored when each one settles.') : tt('No call has settled yet.'))
+          : (b >= 0 ? tt('Beat the markets by {n}.', { n: '+' + b }) : tt('The markets are ahead by {n}.', { n: Math.abs(b) })) + ' ' + tt('{r} right, {w} wrong.', { r: rec.right || 0, w: rec.wrong || 0 });
+        const line = el('div', 'mb-calls'), txt = el('p', 'mb-calls-t');
+        txt.append(el('b', null, tt('Calls record')), el('span', null, say));
+        line.append(txt, el('a', 'btn btn-line mb-calls-go', own ? tt('Your record') : tt('See the record'), { href: page(own ? 'markets/#record' : 'markets/?u=' + encodeURIComponent(uid)) }));
+        prof.append(line);
+      }
+    }
 
     // ---- what is left, for the owner only, until it is done
     if (own) {

@@ -1,0 +1,237 @@
+/* THE WARGAME (build/wargame.py, wargame.js). Added to the end of site.css by render.py. Own prefix: wg-, wgi- (never a class a
+   linked stylesheet styles: deploy_guard no_style_clash). Nothing here hides content and animates it back. */
+.wg{--wg-sea:#07090c;--wg-land:#2c2b27;--wg-edge:#5a574f;--wg-blue:#4C8DFF;--wg-red:#FF5A48;--wg-glow:rgba(244,196,48,.35);padding:var(--s4) 0 var(--s6)}
+.wg-head{padding-bottom:var(--s4)}
+.wg-kick{margin:0 0 var(--s2);font:800 .82rem/1.3 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--field);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.wg-kick a{color:inherit;display:inline-flex;align-items:center;min-height:40px}.wg-sibs{display:inline-flex;gap:6px;margin-inline-start:auto}
+.wg-sib{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);color:var(--dim);text-decoration:none;letter-spacing:.04em}
+.wg-sib:hover{border-color:var(--field);color:var(--ink)}
+.wg h1{font-size:clamp(2.1rem,8vw,4rem);line-height:.92}
+.wg-lede{margin-top:var(--s3);color:var(--dim);max-width:62ch;font-size:1.02rem}
+.wg-app{display:grid;gap:0;max-width:96rem;margin:0 auto;background:var(--sunk);border-block:1px solid var(--line)}
+@media(min-width:1000px){.wg-app{grid-template-columns:minmax(0,1fr) 420px;border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;margin-inline:var(--gutter)}}
+@media(min-width:1600px){.wg-app{grid-template-columns:minmax(0,1fr) 480px}}
+
+/* the map */
+.wg-stage{position:relative;min-width:0;aspect-ratio:4/3.3;max-height:78vh;background:var(--wg-sea);overflow:hidden;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.wg-stage.zoomed{touch-action:none;cursor:grab}
+@media(min-width:1000px){.wg-stage{aspect-ratio:auto;height:min(78vh,820px);max-height:none}}
+.wg-map,.wg-fx{position:absolute;inset:0;width:100%;height:100%;display:block}
+.wg-fx{pointer-events:none}
+.wg-land path{fill:var(--wg-land);stroke:var(--wg-edge);stroke-width:1px;filter:drop-shadow(0 0 2px rgba(244,196,48,.08));vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.wg-cty{font-weight:700;font-family:var(--display);font-size:calc(15px / var(--z,1));letter-spacing:.32em;fill:rgba(243,241,234,.13);text-anchor:middle;pointer-events:none}
+.wg-lab{font-weight:700;font-family:var(--body);font-size:calc(11px / var(--z,1));stroke-width:calc(3px / var(--z,1))!important;fill:rgba(243,241,234,.78);paint-order:stroke;stroke:#07090c;stroke-width:3px;pointer-events:none}
+.wg-p{cursor:pointer;outline:none}
+.wg-p .wg-hit{fill:transparent}
+.wg-p .wg-g{stroke:#07090c;stroke-width:1.2;transform:scale(calc(1 / var(--z,1)));transform-box:fill-box;transform-origin:center}
+.wg-p:hover .wg-g,.wg-p:focus-visible .wg-g{filter:drop-shadow(0 0 6px var(--wg-glow))}
+.wg-p.hit .wg-g{filter:drop-shadow(0 0 5px #ff5a48)}
+.wg-p.hit::after{content:""}
+.wg-p.off .wg-g{opacity:.75}
+.wg-occ{fill:rgba(255,90,72,.30);stroke:none}
+.wg-line{fill:none;stroke:#FF5A48;stroke-width:2.2;vector-effect:non-scaling-stroke;stroke-dasharray:6 3;filter:drop-shadow(0 0 3px rgba(255,90,72,.8))}
+.wg-lobe{fill:rgba(76,141,255,.32);stroke:#4C8DFF;stroke-width:1.5;vector-effect:non-scaling-stroke}
+
+/* the HUD: on the map, never over the middle */
+.wg-hud{position:absolute;inset:0;pointer-events:none;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 1fr auto auto;padding:10px;gap:8px}
+.wg-hudi{pointer-events:auto;background:rgba(10,10,10,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(244,196,48,.18);border-radius:8px}
+.wg-h-top{justify-self:start;display:flex;flex-direction:column;padding:6px 12px;max-width:min(78%,560px)}
+.wg-h-when{font:800 1.05rem/1.1 var(--display);letter-spacing:.06em;color:var(--field);text-transform:uppercase}
+.wg-h-top span{font-size:.82rem;color:var(--dim);line-height:1.3}
+.wg-h-board{grid-row:4;grid-column:1/-1;margin:0;display:flex;flex-wrap:wrap;gap:4px 18px;padding:6px 12px}
+.wg-h-board div{display:flex;flex-direction:column;min-width:0}
+.wg-h-board dt{font-size:.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;line-height:1.2}
+.wg-h-board dd{margin:0;font:800 1.05rem/1.15 var(--display);color:var(--ink)}
+@media(max-width:560px){.wg-h-board{gap:2px 12px;padding:5px 8px}.wg-h-board div:nth-child(n+5){display:none}.wg-h-board dd{font-size:.95rem}}
+.wg-h-say{grid-row:3;grid-column:1/-1;justify-self:start;max-width:min(92%,640px);padding:8px 10px;font-size:.86rem;line-height:1.4}
+.wg-now{color:var(--dim)}
+.wg-h-ctl{grid-row:1;grid-column:2;justify-self:end;align-self:start;display:flex;gap:2px;padding:3px}
+.wg-ib{min-width:40px;min-height:40px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:800 1rem/1 var(--body);cursor:pointer}
+.wg-ib:hover{background:rgba(244,196,48,.15);color:var(--field)}
+.wg-say{display:flex;gap:10px;align-items:center}.wg-say b{display:block;color:var(--field);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+
+/* faces */
+.wg-face{position:relative;display:grid;place-items:center;width:52px;height:64px;flex:none;border-radius:8px;overflow:hidden;background:linear-gradient(160deg,#2a2924,#141412);border:1px solid rgba(244,196,48,.25)}
+.wg-face img{width:100%;height:100%;object-fit:cover;filter:saturate(.85) contrast(1.05)}
+.wg-face b{font:900 1.15rem/1 var(--display);color:var(--field);letter-spacing:.04em}
+.wg-face.org{border-radius:50%;width:56px;height:56px;background:radial-gradient(circle at 30% 30%,#3a3424,#141412)}
+.wg-face.big{width:120px;height:150px;border-radius:12px;box-shadow:0 0 0 1px rgba(244,196,48,.35),0 12px 40px rgba(0,0,0,.6)}
+.wg-face.big.org{width:120px;height:120px}.wg-face.big b{font-size:2.4rem}
+.wg-face.tiny{width:34px;height:42px;border-radius:6px}.wg-face.tiny.org{width:36px;height:36px}.wg-face.tiny b{font-size:.8rem}
+
+/* the panel */
+.wg-panel{min-width:0;background:var(--panel);display:flex;flex-direction:column}
+@media(min-width:1000px){.wg-panel{height:min(78vh,820px);overflow:hidden}.wg-body{overflow-y:auto;overscroll-behavior:contain}}
+.wg-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.wg-tab{min-height:48px;border:0;background:transparent;color:var(--dim);font:800 .82rem/1.15 var(--body);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;padding:6px;border-bottom:3px solid transparent}
+.wg-tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--field)}
+.wg-body{padding:var(--s4);display:grid;gap:var(--s4);align-content:start;flex:1;min-height:0}
+.wg-step h3{display:flex;align-items:center;gap:10px;font-size:1.25rem;margin-bottom:var(--s3)}
+.wg-step h3 i{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--field);color:var(--on-field);font:900 .95rem/1 var(--display);font-style:normal}
+.wg-hint{color:var(--dim);font-size:.88rem;line-height:1.45;margin-bottom:var(--s3)}
+.wg-link{border:0;background:none;color:var(--field);text-decoration:underline;font:inherit;cursor:pointer;min-height:40px;padding:0 4px}
+.wg-lens,.wg-seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
+.wg-lens button,.wg-seg button,.wg-chip{min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--ink);font:600 .86rem/1.2 var(--body);cursor:pointer}
+.wg-lens button[aria-checked="true"],.wg-seg button[aria-checked="true"]{background:var(--field);color:var(--on-field);border-color:var(--field);font-weight:800}
+.wg-chip{background:transparent;color:var(--dim);font-size:.8rem}
+.wg-chip:hover,.wg-lens button:hover,.wg-seg button:hover{border-color:var(--field)}
+.wg-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
+.wg-room{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.wg-room li{position:relative;display:grid;border:1px solid var(--line);border-radius:10px;background:var(--raise);overflow:hidden}
+.wg-room li.on{border-color:var(--field);box-shadow:0 0 0 1px var(--field) inset,0 0 24px rgba(244,196,48,.12)}
+.wg-ex{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto 1fr;column-gap:10px;row-gap:2px;align-items:start;text-align:start;padding:10px;border:0;background:transparent;color:inherit;cursor:pointer;min-height:84px}
+.wg-ex .wg-face{grid-row:1/4}
+.wg-ex b{font:800 1rem/1.05 var(--display);text-transform:uppercase;min-width:0;overflow-wrap:break-word}
+.wg-ex>span:not(.wg-face){font-size:.75rem;color:var(--dim);line-height:1.3;min-width:0}
+.wg-room.compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.wg-room.compact .wg-ex{min-height:72px}
+.wg-seat{min-height:40px;border:0;border-top:1px solid var(--line);background:transparent;color:var(--dim);font:800 .76rem/1 var(--body);text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+.wg-seat.on{background:var(--field);color:var(--on-field)}
+.wg-lean{justify-self:start;margin-top:4px;padding:2px 8px;border-radius:999px;font:700 .75rem/1.4 var(--body);text-transform:uppercase;letter-spacing:.06em;background:#2b2a27;color:var(--dim)}
+.wg-lean.l-hawk,.wg-lean.l-optimist{background:rgba(76,141,255,.16);color:#9fc0ff}.wg-lean.l-dove,.wg-lean.l-skeptic{background:rgba(70,204,130,.14);color:#8fe2b4}
+.wg-lean.l-pessimist{background:rgba(255,90,72,.14);color:#ffaa9f}.wg-lean.l-realist{background:rgba(244,196,48,.13);color:var(--field)}
+.wg-lv{display:grid;gap:4px;margin-bottom:var(--s3)}.wg-lv>span{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.wg-lv .wg-seg{margin:0}
+.wg-dates{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+.wg-date{display:grid;gap:2px;text-align:start;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--raise);color:inherit;cursor:pointer;min-height:44px}
+.wg-date b{font:800 1rem/1.1 var(--display);text-transform:uppercase}.wg-date span{font-size:.75rem;color:var(--dim);line-height:1.3}
+.wg-date[aria-pressed="true"]{border-color:var(--field);box-shadow:0 0 0 1px var(--field) inset}
+.wg-pms{display:grid;gap:var(--s3)}
+.wg-pm{display:grid;gap:2px}.wg-pm span{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;font-weight:700}
+.wg-pm output{color:var(--field)}.wg-pm small{color:var(--dim);font-size:.75rem;line-height:1.3}
+.wg-pm input{width:100%;min-height:40px;accent-color:var(--field)}
+.wg-run{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;border:0;border-radius:10px;background:var(--field);color:var(--on-field);font:900 1.2rem/1 var(--display);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;box-shadow:0 0 0 1px var(--field-edge) inset,0 8px 30px rgba(244,196,48,.18)}
+.wg-run:hover{background:var(--field-hi)}.wg-run:disabled{opacity:.7;cursor:progress}
+.wg-run.on{background:transparent;color:var(--field);box-shadow:0 0 0 1px var(--field) inset}
+.wg-ghost{background:transparent;color:var(--ink);box-shadow:0 0 0 1px var(--line) inset}
+.wg-prog{height:3px;border-radius:3px;background:var(--line);overflow:hidden;--p:0%}
+.wg-prog::before{content:"";display:block;height:100%;width:var(--p);background:var(--field);transition:width .3s}
+.wg-cap:empty{display:none}
+.wg-evl{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-evl li{display:grid;grid-template-columns:10px minmax(0,1fr);gap:8px;font-size:.88rem;line-height:1.4}
+.wg-evl li i{width:10px;height:10px;border-radius:50%;margin-top:6px}
+.wg-evl a{color:var(--dim);font-size:.78rem}
+.wg-res{padding:10px 12px;border-radius:8px;background:var(--raise);font-size:.92rem;line-height:1.45}
+.wg-hist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.wg-hist button{display:grid;gap:3px;width:100%;text-align:start;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--raise);color:inherit;cursor:pointer}
+.wg-hist button.on,.wg-hist button:hover{border-color:var(--field)}
+.wg-hist b{font:800 1.15rem/1.05 var(--display);text-transform:uppercase}
+.wg-hist span{font-size:.82rem;color:var(--dim);line-height:1.4}.wg-hist .wg-ops{color:var(--field);font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+
+/* results */
+#wg-result.old{opacity:.45}
+.wg-out{display:grid;gap:var(--s3)}
+.wg-out h3{font-size:1.3rem}.wg-out h4,.wg-brief h4,.wg-how h4{font:800 .82rem/1.2 var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:var(--s2) 0 0}
+.wg-big{font-size:1.05rem}.wg-big b{font:900 1.7rem/1 var(--display);text-transform:uppercase}
+.wg-bars{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-bars li{position:relative;display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:6px;background:var(--raise);overflow:hidden;font-size:.9rem;font-weight:700}
+.wg-bars li span,.wg-bars li b{position:relative;z-index:1}
+.wg-bars li i{position:absolute;inset:0 auto 0 0;width:var(--p);background:var(--c);opacity:.32}
+.wg-sum{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.wg-sum div{padding:8px 10px;border-radius:6px;background:var(--raise);min-width:0}
+.wg-sum dt{font-size:.75rem;color:var(--dim);line-height:1.25}.wg-sum dd{margin:2px 0 0;font:800 1.1rem/1.1 var(--display);overflow-wrap:break-word}
+.wg-calls{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-calls li{display:flex;gap:10px;align-items:center;font-size:.86rem;line-height:1.35}.wg-calls b{display:block}.wg-calls em{font-style:normal;font-weight:800}
+.wg-share{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.wg-mk{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-mk li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline;font-size:.86rem;line-height:1.4}
+.wg-mk b{font:800 1.2rem/1 var(--display);color:var(--field);min-width:3.2em}.wg-mk a{color:var(--dim)}
+html.mk-off .wg-mk{display:none}
+
+/* the sheet: a briefing, a place */
+.wg-sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);display:grid;place-items:end center;padding:0}
+.wg-sheet[hidden]{display:none}
+@media(min-width:720px){.wg-sheet{place-items:center;padding:var(--s5)}}
+.wg-sh-in{position:relative;width:min(100%,720px);max-height:92vh;overflow-y:auto;background:var(--panel);border:1px solid rgba(244,196,48,.25);border-radius:14px 14px 0 0;padding:var(--s5) var(--s4) var(--s4)}
+@media(min-width:720px){.wg-sh-in{border-radius:14px;padding:var(--s6)}}
+.wg-x{position:absolute;top:8px;right:8px;width:44px;height:44px;border:0;border-radius:50%;background:var(--raise);color:var(--ink);font-size:1.5rem;cursor:pointer}
+.wg-brief{display:grid;gap:var(--s3)}
+.wg-br-who{display:flex;gap:var(--s4);align-items:center;padding-right:40px}
+.wg-br-who h3{font-size:clamp(1.5rem,6vw,2.2rem)}
+.wg-br-k{font:800 .78rem/1 var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--field);margin-bottom:6px}
+.wg-br-say{position:relative;padding:var(--s4);border-radius:12px;background:linear-gradient(180deg,#22211d,#1a1917);border:1px solid var(--line)}
+.wg-br-say::before{content:"";position:absolute;top:-8px;left:46px;width:14px;height:14px;background:#22211d;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
+.wg-br-view{font-weight:700;font-size:1.02rem;line-height:1.45;margin-bottom:var(--s2)}
+.wg-br-say ol{margin:0;padding-inline-start:1.2em;display:grid;gap:6px;color:var(--ink);font-size:.93rem;line-height:1.5}
+.wg-br-own{margin-top:var(--s3);font-size:.88rem;color:var(--dim)}.wg-br-own b{font-weight:900}
+.wg-br-nums,.wg-br-src{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.86rem;line-height:1.4}
+.wg-br-nums li{display:grid;grid-template-columns:4.5em minmax(0,1fr);gap:10px}.wg-br-nums b{font:800 1.1rem/1.1 var(--display);color:var(--field)}
+.wg-br-nums small{display:block;color:var(--dim);font-size:.78rem}
+.wg-br-src a{color:var(--dim)}
+.wg-fine{font-size:.76rem;color:var(--dim);line-height:1.4}
+.wg-place{display:grid;gap:var(--s2);padding-right:40px}.wg-place h3{font-size:1.8rem}
+
+/* below the board */
+.wg-below{display:grid;gap:var(--s3);margin-top:var(--s5)}
+.wg-how,.wg-wars{border:1px solid var(--line);border-radius:var(--r2);background:var(--panel);padding:0 var(--s4)}
+.wg-how summary,.wg-wars summary{min-height:48px;display:flex;align-items:center;font:800 1rem/1.2 var(--body);cursor:pointer}
+.wg-how>div,.wg-wars ul{padding-bottom:var(--s4);font-size:.92rem;line-height:1.55;display:grid;gap:var(--s2)}
+.wg-how ol,.wg-how ul{margin:0;padding-inline-start:1.2em;display:grid;gap:6px}
+.wg-wars ul{list-style:none;padding-inline-start:0}.wg-wars li p{color:var(--dim)}
+.wg-foot{color:var(--dim);font-size:.82rem;line-height:1.5;max-width:70ch}
+
+/* full screen and the stream */
+.wg.wg-full{position:fixed;inset:0;z-index:65;background:var(--sunk);padding:0;overflow:hidden}
+.wg.wg-full .wg-head,.wg.wg-full .wg-below{display:none}
+.wg.wg-full .wg-app{height:100%;margin:0;border-radius:0;border:0;max-width:none}
+.wg.wg-full .wg-stage{height:100%;max-height:none;aspect-ratio:auto}
+.wg.wg-full .wg-panel{height:100%}
+@media(max-width:999px){.wg.wg-full .wg-app{grid-template-rows:62% 38%}.wg.wg-full .wg-panel{overflow-y:auto}}
+/* the stream view (build/stream.js): the box fills the screen; the map is NOT zoomed (its pinch and drag read the pointer),
+   its overlays are sized from the screen's zoom (--lps-z) instead; the panel is zoomed like the other tools' boxes. */
+html.lp-stream #wargame{width:100vw;height:100vh;padding:0;overflow:hidden;background:var(--sunk)}
+html.lp-stream #wargame .wg-head{display:none}
+html.lp-stream #wargame .wg-below{display:none}
+html.lp-stream #wargame .wg-app{height:100%;margin:0;border:0;border-radius:0;max-width:none;grid-template-columns:minmax(0,1fr) calc(380px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-stage{height:100%;max-height:none;aspect-ratio:auto}
+html.lp-stream #wargame .wg-panel{height:100vh;overflow:hidden}
+html.lp-stream #wargame .wg-tabs,html.lp-stream #wargame .wg-body{zoom:var(--lps-z,1)}
+html.lp-stream #wargame .wg-body{height:calc(100vh / var(--lps-z,1) - 52px);overflow-y:auto;font-size:15px}
+html.lp-stream #wargame .wg-hud{padding:calc(12px * var(--lps-z,1));gap:calc(8px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-when{font-size:calc(26px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-top span,html.lp-stream #wargame .wg-h-say{font-size:calc(16px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-board dt{font-size:calc(14px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-board dd{font-size:calc(32px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-ib{min-width:calc(44px * var(--lps-z,1));min-height:calc(44px * var(--lps-z,1));font-size:calc(18px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-lab{font-size:calc(14px * var(--lps-z,1) / var(--z,1))}
+
+/* the index of theatres */
+.wgi{padding:var(--s5) 0 var(--s6)}
+.wgi h1{font-size:clamp(2.4rem,9vw,4.4rem)}
+.wgi-l{list-style:none;margin:var(--s5) 0;padding:0;display:grid;gap:var(--s4)}
+@media(min-width:900px){.wgi-l{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.wgi-l a{position:relative;display:grid;gap:6px;height:100%;padding:0 0 var(--s4);border-radius:var(--r2);overflow:hidden;background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none}
+.wgi-l a:hover{border-color:var(--field)}
+.wgi-l svg{width:100%;aspect-ratio:16/10;display:block;margin-bottom:var(--s2)}
+.wgi-land path{fill:#23221f;stroke:#3b3a36;stroke-width:1px;vector-effect:non-scaling-stroke}
+.wgi-l a>span,.wgi-l a>b{margin-inline:var(--s4)}
+.wgi-k{font:800 .78rem/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--field)}
+.wgi-l b{font:800 1.6rem/1 var(--display);text-transform:uppercase}
+.wgi-p{color:var(--dim);font-size:.92rem;line-height:1.45}.wgi-m{font-size:.8rem;color:var(--dim)}
+.wgi-go{justify-self:start;display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;background:var(--field);color:var(--on-field);font-weight:800;margin-top:var(--s2)}
+
+.wg-lab.gone,.wg-cty.gone{display:none}
+.wg-h-say .wg-evl li{font-size:.84rem}.wg-h-say .wg-evl a{display:none}
+/* phones: a taller map, and the overlays shrink to one line each so the map stays visible */
+.wg-stage{scroll-margin-top:64px}
+@media(max-width:560px){
+.wg-stage{aspect-ratio:auto;height:min(68vh,540px)}
+.wg-hud{padding:6px;gap:5px}
+.wg-h-top{padding:4px 8px}.wg-h-top span{display:none}.wg-h-when{font-size:.95rem}
+.wg-h-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px 8px;padding:4px 8px}
+.wg-h-board dt{font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg-h-say{max-height:none;padding:6px 8px;font-size:.8rem}
+.wg-h-say .wg-say>span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.wg-h-say .wg-evl li:nth-child(n+3){display:none}
+.wg-now{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.wg-ib{min-width:40px}
+}
+
+/* Iran Uncensored's Persian page (fa/scenarios/iran/, dir=rtl, 31 October 2026): the map keeps its left-to-right geometry so a
+   name sits right of its place; the sheet's close button and its pointer move to the other side; Persian never takes
+   letter-spacing or capitals (spacing breaks the joins between its letters). Nothing here changes a left-to-right page. */
+.wg-map{direction:ltr}
+[dir=rtl] .wg-x{right:auto;left:8px}
+[dir=rtl] .wg-br-who,[dir=rtl] .wg-place{padding-right:0;padding-left:40px}
+[dir=rtl] .wg-br-say::before{left:auto;right:46px;border-left:0;border-right:1px solid var(--line)}
+[lang=fa] .wg,[lang=fa] .wg *{letter-spacing:0!important;text-transform:none!important}

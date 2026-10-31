@@ -557,12 +557,90 @@
     var qs = q.toString().replace(/%2C/g, ',');
     try { W.history.replaceState(W.history.state, '', W.location.pathname + (qs ? '?' + qs : '') + W.location.hash); } catch (err) {}
     var S = tally('S', mood - TODAY), H = tally('H', mood - TODAY), cs = control('S', S), chh = control('H', H);
+    callSays(cs, chh);
     var say = function (ch, c, t) { var name = ch === 'S' ? 'the Senate' : 'the House'; return c === 'I' ? 'independents decide ' + name : party(c) + ' ' + gainWord(ch, c) + ' ' + name + ' ' + Math.max(t.D, t.R) + '-' + Math.min(t.D, t.R); };
     var sh = $('mt-share');
     sh.setAttribute('data-url', box.getAttribute('data-canon') + (qs ? '?' + qs : '') + '#midterms');
     var ag = MK ? againstAll(null, mood - TODAY).length : 0;
     sh.setAttribute('data-text', 'My midterms, at ' + short(mood) + ': ' + say('H', chh, H) + ', ' + say('S', cs, S) + '.'
       + (MK ? (ag ? ' I go against the betting markets in ' + ag + ' race' + (ag === 1 ? '' : 's') + '.' : ' I agree with the betting markets everywhere.') : '') + ' Call yours:');
+  }
+
+  // ---------------------------------------------------------------- Make your call (build/calls.js, ../CALLS.md)
+  // The map's own answer on the betting markets that ask the same thing: who controls the Senate and the House (and both,
+  // on the balance-of-power markets), and every race the reader called. Each card then says "Your build says X", one tap
+  // from being the reader's call. Nothing here changes the map: it only reads it. The calls under step 3 put the races
+  // the reader called first, then the most traded midterms markets not already shown under the chambers.
+  var SAID = {}, RACEMK = null, CALLKEY = null;
+  function withCalls(fn) {
+    if (W.LPCalls) return fn(W.LPCalls);
+    W.addEventListener('load', function () { if (W.LPCalls) fn(W.LPCalls); });
+  }
+  function fold(v) { v = String(v || ''); try { v = v.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (err) {} return v.toLowerCase(); }
+  function optAt(m, re) { for (var i = 0; i < m.o.length; i++) if (re.test(m.o[i][0])) return i; return -1; }
+  function comboAt(m, s, h) {
+    for (var i = 0; i < m.o.length; i++) {
+      var o = m.o[i][0], ms = /\b([DR])[\s-]*Senate/i.exec(o), mh = /\b([DR])[\s-]*House/i.exec(o);
+      if (/democrats? sweep/i.test(o) ? s === 'D' && h === 'D' : /republicans? sweep/i.test(o) ? s === 'R' && h === 'R'
+        : !!(ms && mh) && ms[1].toUpperCase() === s && mh[1].toUpperCase() === h) return i;
+    }
+    return -1;
+  }
+  function raceAt(m, x, k) {
+    var c = x[k]; if (!c) return -1;
+    var sn = fold(surname(c.n)).replace(/[^a-z0-9]/g, '.');
+    if (sn.length > 2) { var re = new RegExp('(^|[^a-z])' + sn + '([^a-z]|$)'); for (var i = 0; i < m.o.length; i++) if (re.test(fold(m.o[i][0]))) return i; }
+    var p = sideParty(x, k);
+    return optAt(m, p === 'D' ? /\(D\)|democrat/i : p === 'R' ? /\(R\)|republican/i : /\(I\)|independent/i);
+  }
+  function chamberMk(m) { var t = m.t || []; return t.indexOf('control') >= 0 && (t.indexOf('senate') >= 0 || t.indexOf('house') >= 0); }
+  function raceOf(m) { var t = (m.t || []).filter(function (x) { return x.indexOf('race:') === 0; })[0]; return t ? t.slice(5) : ''; }
+  function callSays(cs, ch) {
+    withCalls(function (L) {
+      L.ready().then(function (cat) {
+        if (!cat) return;
+        if (!RACEMK) { RACEMK = {}; cat.m.forEach(function (m) { var r = raceOf(m); if (r && BY[r] && (m.tools || []).indexOf('midterms') >= 0) (RACEMK[r] = RACEMK[r] || []).push(m); }); }
+        var want = {};
+        cat.m.forEach(function (m) {
+          if ((m.tools || []).indexOf('midterms') < 0 || (m.t || []).indexOf('control') < 0) return;
+          var t = m.t, c = t.indexOf('senate') >= 0 ? cs : t.indexOf('house') >= 0 ? ch : null, i;
+          if (c) i = c === 'D' ? optAt(m, /democrat/i) : c === 'R' ? optAt(m, /republican/i) : -1;
+          else i = (cs === 'D' || cs === 'R') && (ch === 'D' || ch === 'R') ? comboAt(m, cs, ch) : -1;
+          if (i >= 0) want[m.id] = i;
+        });
+        Object.keys(pick).forEach(function (r) { (RACEMK[r] || []).forEach(function (m) { var i = raceAt(m, BY[r], pick[r]); if (i >= 0) want[m.id] = i; }); });
+        Object.keys(SAID).forEach(function (id) { if (!(id in want)) { delete SAID[id]; L.mine(id, null); } });
+        Object.keys(want).forEach(function (id) {
+          if (SAID[id] === want[id]) return;
+          SAID[id] = want[id];
+          var m = null; cat.m.some(function (x) { return x.id === id && (m = x); });
+          L.mine(id, want[id], m ? m.o[want[id]][0] : '');
+        });
+        var key = Object.keys(pick).sort().join(',');
+        if (key !== CALLKEY) { CALLKEY = key; var el = box.querySelector('.lpc.mt-calls'); if (el) L.refresh(el); }
+      });
+    });
+  }
+  var TOP = {};
+  function topOf(L, r) {
+    if (!(r in TOP)) { var best = null; ((L.cat() || {}).m || []).forEach(function (m) { if (raceOf(m) === r && !L.closed(m) && (!best || (+m.v || 0) > (+best.v || 0))) best = m; }); TOP[r] = best; }
+    return TOP[r];
+  }
+  function callsWire() {
+    withCalls(function (L) {
+      var el = box.querySelector('.lpc.mt-calls');
+      if (!el) return;
+      var mineFirst = function (m) { var r = raceOf(m); return r && pick[r] ? 0 : 1; };
+      L.mount(el, {
+        n: 3,
+        filter: function (m) {
+          if ((m.tools || []).indexOf('midterms') < 0 || chamberMk(m) || (m.st === 'resolved' && !(L.my() || {})[m.mid])) return false;
+          var r = raceOf(m);      // one market a race (Polymarket and Kalshi often both ask it): the most traded, or the one the reader called
+          return !r || m === topOf(L, r) || !!(L.my() || {})[m.mid];
+        },
+        sort: function (a, b) { return (mineFirst(a) - mineFirst(b)) || (L.closed(a) - L.closed(b)) || ((+b.v || 0) - (+a.v || 0)); }
+      });
+    });
   }
   function load() {
     var q = new URLSearchParams(W.location.search), v = parseFloat(q.get('mood'));
@@ -607,6 +685,7 @@
     realCalls();
     stick();
     markets();
+    callsWire();      // Make your call: the betting markets' questions, with what this map says (above)
     picture();      // the picture to post (build/shareimg.js): "Make a picture" beside Share
   }
 

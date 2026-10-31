@@ -115,6 +115,12 @@ h1.mb-name{margin:0;font-size:clamp(2rem,8vw,3rem);line-height:1;overflow-wrap:a
 .mb-nums li{display:grid;gap:2px;justify-items:center;align-content:start;text-align:center;padding:var(--s3) var(--s2);background:var(--panel);border-radius:var(--r2,10px);min-width:0}
 .mb-nums b{font:800 clamp(1.5rem,6vw,2rem)/1 var(--display);color:var(--field);font-variant-numeric:tabular-nums}
 .mb-nums span{color:var(--dim);font-size:.85rem;line-height:1.25;overflow-wrap:anywhere}
+/* the calls record (Beat the Markets, ../CALLS.md): one line under the three numbers, and the way to it */
+.mb-calls{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s2) var(--s3);padding:var(--s3) var(--s4);background:var(--panel);border-radius:var(--r2,10px)}
+.mb-calls-t{display:grid;gap:2px;margin:0;min-width:0;flex:1 1 200px}
+.mb-calls-t b{font-weight:800}
+.mb-calls-t span{color:var(--dim);font-size:.9rem;line-height:1.35}
+.mb-calls-go{min-height:44px}
 .mb-todo{display:grid;gap:var(--s2);padding:var(--s4);background:var(--sunk);border:1px solid var(--line);border-inline-start:3px solid var(--field);border-radius:var(--r2,10px)}
 .mb-todo[hidden]{display:none}
 .mb-h3{margin:0;font-size:1.35rem}

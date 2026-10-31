@@ -214,7 +214,49 @@
     RESET.hidden = !(gov.length || out.length);
     SHARE.hidden = !gov.length;
     if (PIC) PIC.hidden = !gov.length;      // "Make a picture" beside Share (the picture to post, below)
+    callSays(t >= MAJ ? big : null);
   }
+
+  // ---------------------------------------------------------------- Make your call (build/calls.js, ../CALLS.md)
+  // The government built here names a prime minister: the leader of its biggest party, once it can survive a vote. Each
+  // betting market under the calculator that asks who the next prime minister is then says "Your build says <name>",
+  // one tap from being the reader's call. It only reads the calculator; nothing above changes.
+  var SAID = {};
+  function fold(v) { v = String(v || ''); try { v = v.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (err) {} return v.toLowerCase(); }
+  function callSays(i) {
+    var L = W.LPCalls, mt = box.querySelector('.lpc[data-lpc-tool]');
+    if (!L || !mt) return;
+    var tool = mt.getAttribute('data-lpc-tool'), tag = mt.getAttribute('data-lpc-tag') || '';
+    L.ready().then(function (cat) {
+      if (!cat) return;
+      var want = {};
+      if (i && P[i]) {
+        var named = fold(C.mk && C.mk.pm && C.mk.pm[i] ? C.mk.pm[i][0] : P[i].leader), sn = fold(surname(i));
+        cat.m.forEach(function (m) {
+          if (!/prime minister/i.test(m.q)) return;
+          if (tool !== 'markets' ? (m.tools || []).indexOf(tool) < 0 : (m.t || []).indexOf(tag) < 0) return;
+          var k = -1;
+          m.o.forEach(function (o, j) { if (k < 0 && fold(o[0]) === named) k = j; });
+          if (k < 0 && sn.length > 2) m.o.forEach(function (o, j) { if (k < 0 && fold(o[0]).split(/[^a-z]+/).indexOf(sn) >= 0) k = j; });
+          if (k >= 0) want[m.id] = [k, m.o[k][0]];
+        });
+      }
+      Object.keys(SAID).forEach(function (id) { if (!want[id]) { delete SAID[id]; L.mine(id, null); } });
+      Object.keys(want).forEach(function (id) { if (SAID[id] !== want[id][0]) { SAID[id] = want[id][0]; L.mine(id, want[id][0], want[id][1]); } });
+    });
+  }
+  // the order of the calls: who becomes prime minister first (what the calculator answers), then this country's own
+  // questions, then the rest, the most traded first within each
+  function callsOrder() {
+    var L = W.LPCalls, mt = box.querySelector('.lpc[data-lpc-tool]');
+    if (!L || !mt) return;
+    var tool = mt.getAttribute('data-lpc-tool'), tag = mt.getAttribute('data-lpc-tag') || '', who = new RegExp(String(C.country || '').replace(/[^A-Za-z ]/g, '') || '^$', 'i');
+    var rank = function (m) { return /prime minister/i.test(m.q) ? 0 : (who.test(m.q) || (m.t || []).some(function (t) { return t.indexOf('person:') === 0; })) ? 1 : 2; };
+    L.mount(mt, { n: +mt.getAttribute('data-lpc-n') || 2,
+      filter: function (m) { return tool !== 'markets' ? (m.tools || []).indexOf(tool) >= 0 : (m.t || []).indexOf(tag) >= 0; },
+      sort: function (a, b) { return (L.closed(a) - L.closed(b)) || (rank(a) - rank(b)) || ((+b.v || 0) - (+a.v || 0)); } });
+  }
+  W.addEventListener('load', function () { callsOrder(); words(); });      // calls.js may arrive after the first drawing
 
   // ---------------------------------------------------------------- the buttons
   function rows() {

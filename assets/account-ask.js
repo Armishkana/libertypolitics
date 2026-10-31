@@ -82,10 +82,31 @@ whenLP(LP => {
     }).catch(() => { });
     return box;
   });
+  /* Make your call (../CALLS.md, build/calls.js): the way to the reader's calls record on Beat the Markets, with the count of
+     results not yet seen. Never a pop-up: the count waits in the panel. On a page with a call widget LPCalls has read the
+     inbox already; anywhere else it is one read of users/<account>/calls/_inbox, when the panel opens. */
+  M.account(() => {
+    if (!M.user()) return null;
+    const a = el('a', 'btn btn-line acct-calls', tt('Your calls record'), { href: (D.documentElement.getAttribute('data-root') || './') + 'markets/#record' });
+    const show = n => { if (n > 0) a.append(el('b', 'lpc-new', tt('{n} new', { n }))); };
+    if (W.LPCalls) { const i = W.LPCalls.inbox(); show(i && i.r ? i.r.length : 0); }
+    else M.within(20000, M.fb()).then(({ F, db }) => { const u = M.user(); return u ? M.within(15000, F.getDoc(F.doc(db, 'users', u.uid, 'calls', '_inbox'))) : null; })
+      .then(s => { if (s && s.exists()) { const r = s.data().r; show(Array.isArray(r) ? r.length : 0); } }).catch(() => { });
+    return a;
+  });
   M.drop(async uid => {
     const { F, ref } = await savedRef('');
     const snap = await M.within(20000, F.getDocs(F.query(ref, F.limit(20))));
     for (const d of snap.docs) await M.within(20000, F.deleteDoc(d.ref));
+  });
+  /* Make your call (../CALLS.md, build/calls.js): the reader's calls, their public/private choice and their unread results go
+     with the account too. The rules refuse deleting a call on a market that has closed (so a losing call cannot be taken
+     back); those, and anything else left, are deleted by the hourly job (build/calls_score.py) once the account is gone. */
+  M.drop(async () => {
+    const { F, db } = await M.within(20000, M.fb());
+    const u = M.user(); if (!u) return;
+    const snap = await M.within(20000, F.getDocs(F.query(F.collection(db, 'users', u.uid, 'calls'), F.limit(1000))));
+    for (const d of snap.docs) { try { await M.within(20000, F.deleteDoc(d.ref)); } catch (e) { } }
   });
 
   /* ---- the card on the tool ---- */

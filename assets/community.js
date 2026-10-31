@@ -25,7 +25,7 @@ const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, 
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=5258bd4c36 and assets/community-fa.js?v=5258bd4c36, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=3691a885c1 and assets/community-fa.js?v=3691a885c1, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -388,7 +388,7 @@ function faceLink(name, uid) {
    same key, only for a gathering that is on the board, and refuse an address in its words (looksLikeAddress below). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
   ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + ')|(gathering):([A-Za-z0-9]{20}))$')
-  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms)|(gathering):([A-Za-z0-9]{20}))$/;
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms|markets|wargame|war-iran|war-ukraine|war-taiwan|tools)|(gathering):([A-Za-z0-9]{20}))$/;
 const GATHERING_PAGE = typeof SITE.gatheringPage === 'string' ? SITE.gatheringPage : 'gatherings/g/';
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
@@ -2800,6 +2800,7 @@ function row(p, best) {
     li.append(note);
     if (p.status === 'held') li.append(btn('sheet-text', tt('Send the confirmation link again'), ev => openSheet('check', { resend: true, opener: ev.currentTarget })));
     if (!p.parent) hang(li, p);
+    rowHooks(li, p);
     return li;
   }
   const bar = el('div', 'said-bar'), own = me && p.uid === me.uid;
@@ -2846,7 +2847,18 @@ function row(p, best) {
   if (p.msg) li.append(el('p', 'said-msg' + (p.msgBad ? ' bad' : ''), p.msg, { role: 'status' }));
   if (p.parent && T.replying && T.replying.at === p.id && T.replying.id === p.parent) { const par = find(p.parent); if (par) li.append(replyBox(par, p)); }
   if (!p.parent) hang(li, p);
+  rowHooks(li, p);
   return li;
+}
+/* A page may dress the rows of its own discussion (31 October 2026: the Tools page turns each idea's Like into "I want
+   this" and adds what only the site knows about it). It pushes fn(li, post, replies) onto window.LPTalkRows, before or
+   after this file loads; each live row is handed over every time it is drawn, a copy of the post, never the post itself. */
+function rowHooks(li, p) {
+  const H = window.LPTalkRows;
+  if (!Array.isArray(H) || !H.length) return;
+  const copy = { id: p.id, about: p.about, subject: p.subject, text: p.text, tag: p.tag || '', name: p.name, uid: p.uid, ups: p.ups, downs: p.downs, my: p.my, ms: p.ms, status: p.status, parent: p.parent || '' };
+  const n = p.parent ? 0 : repliesTo(p.id).length;
+  H.forEach(f => { try { f(li, copy, n); } catch (x) { } });
 }
 /* Delete, for the author. A post other readers have answered stays: taking it away would take their
    answers out of sight with it. Two taps, because it cannot be undone. */
@@ -3045,6 +3057,10 @@ async function ready(what, opener) {
   const W = what.type === 'vote'
     ? { make: tt('Create an account to like or unlike. Your tap is saved.'), sign: tt('Sign in to like or unlike. Your tap is saved.'), name: tt('Choose a name to like or unlike. Your tap is saved.'), conf: tt('Confirm your email to like or unlike. Your tap is saved.') }
     : { make: tt('Create an account to report a post. Your report is saved.'), sign: tt('Sign in to report a post. Your report is saved.'), name: tt('Choose a name to report a post. Your report is saved.'), conf: tt('Confirm your email to report a post. Your report is saved.') };
+  /* A discussion may say why a like matters there, in its own words and its page's language (31 October 2026: the
+     Tools page, where a like is the vote on what gets built next): data-why-vote and data-why-vote-in on #talk. */
+  const why = what.type === 'vote' && T && T.el ? [T.el.getAttribute('data-why-vote'), T.el.getAttribute('data-why-vote-in')] : [];
+  if (why[0]) { W.make = why[0]; W.sign = why[1] || why[0]; }
   if (!me) {
     pending = what;
     openSheet('auth', { why: W.make, whyIn: W.sign, opener });

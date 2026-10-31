@@ -1943,6 +1943,50 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .subnav a.navgo[aria-current="page"],.top nav a.navgo[aria-current="page"]{background:var(--field);color:var(--on-field);box-shadow:none;border-radius:999px}
 .top nav a.navgo{display:none}
 @media(min-width:1220px){.top nav a.navgo{display:inline-flex;margin-inline-end:4px}}
+/* 31 October 2026: a third group, Tools (../TOOLS.md), ran the bar 25px past its end at 1220px. Every link stays; between 1220
+   and 1365px each one gives up 2px of its side padding (9 to 7), which measured 36px back. */
+@media(min-width:1220px) and (max-width:1365px){.top nav>a:not(.navgo):not(.acct):not(.yt),.top nav .nav-more>summary{padding-inline:7px}.top nav a.navgo{padding:0 11px}}
+/* THE PHONE MENU (31 October 2026, render.py more_s; Armin: "it's really hard to maneuver the menu at the very top"). Under
+   760px the five links no longer slide in a window one link wide: the strip is the pill and one Menu button, and Menu
+   opens every page at once, the five places as tiles first. From 760px they fit beside the pill and the button says More.
+   phone-test.html ("THE MENU CAN BE USED") measures it at 320 and 360px. */
+.nav-menu .nm-p,.nav-more-l .nav-main{display:none}
+@media(max-width:759px){
+  .subnav{padding:5px var(--gutter);gap:8px;align-items:center}
+  .subnav-s{display:none}
+  .subnav a.navgo{margin-inline-end:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .subnav .nav-menu{position:static;margin-left:auto;border-left:0}
+  .subnav .nav-menu .nm-w{display:none}
+  .subnav .nav-menu .nm-p{display:inline-flex;align-items:center;gap:8px}
+  .subnav .nav-menu>summary{min-height:40px;padding:0 16px;border:1px solid #3a3936;border-radius:999px;color:var(--ink);font-weight:700}
+  .subnav .nav-menu>summary::after{display:none}
+  .subnav .nav-menu[open]>summary{background:var(--ink);border-color:var(--ink);color:#0A0A0A}
+  .subnav .nav-menu .nav-more-l{left:8px;right:8px;width:auto;min-width:0;margin-top:2px;max-height:calc(100dvh - 140px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+  .nav-more-l .nav-main{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 4px 6px}
+  .nav-more .nav-more-l .nav-main a{min-height:52px;padding:0 14px;border:1px solid #3a3936;border-radius:var(--r);background:rgba(243,241,234,.04);font-size:1rem;font-weight:700;white-space:normal}
+  .nav-more .nav-more-l .nav-main a:last-child:nth-child(odd){grid-column:1/-1}
+  .nav-more .nav-more-l .nav-main a[aria-current="page"]{border-color:var(--field);background:rgba(244,196,48,.1);color:var(--ink)}
+}
+/* THE ELECTIONS PAGES ON A PHONE (31 October 2026, render.py elections_strip): the row of eight showed one whole at 360px.
+   Under 760px it is one button naming the page you are on, and it opens the eight with their one-line descriptions. */
+.epick-w{display:none}
+@media(max-width:759px){
+  .estrip .estrip-l{display:none}
+  .epick-w{display:block;padding-top:6px;padding-bottom:6px}
+  .estrip .epick{position:relative}
+  .estrip .epick>summary{display:flex;width:100%;box-sizing:border-box;min-height:44px;padding:0 14px;border:1px solid #3a3936;border-radius:var(--r2);background:var(--raise);color:var(--ink)}
+  .epick .ep-k{flex:none;font:700 .78rem/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--field)}
+  .epick .ep-t{flex:1 1 auto;min-width:0;margin-left:10px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .epick .ep-l{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;display:grid;gap:2px;padding:6px;background:var(--raise);border-radius:var(--r2);box-shadow:0 18px 40px -12px rgba(0,0,0,.8);max-height:calc(100dvh - 200px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+  .epick .ep-l a{display:flex;flex-direction:column;justify-content:center;gap:3px;min-height:52px;padding:8px 12px;border-radius:var(--r);color:var(--ink);text-decoration:none}
+  .epick .ep-l a:hover{background:rgba(243,241,234,.07)}
+  .epick .ep-l a small{font:500 .82rem/1.3 var(--body);color:var(--dim)}
+  .epick .ep-l a[aria-current="page"]{background:rgba(244,196,48,.1);box-shadow:inset 3px 0 0 var(--field)}
+}
+/* The bar on the smallest phones: look.css's mark size above outranked site.css's small-phone size, so at 320px the bar
+   was 21px wider than the screen (measured 31 October 2026). */
+@media(max-width:419px){.mark{font-size:1.15rem;gap:8px}.mark img{width:34px;height:34px}}
+@media(max-width:359px){.top .wrap{gap:6px;padding:0 12px}.mark{font-size:1rem;gap:6px}.mark img{width:30px;height:30px}.top nav a.yt{min-width:40px;padding:0 4px}}
 /* THE ELECTIONS PAGES (29 October 2026, Armin: "the names are not clear about what each thing does or where I am supposed to
    go ... able to go from one to the other one"). The menu's Elections items carry one plain line under their name (.nav-x),
    and the six pages share one row across their top (.estrip, render.py elections_strip), the page you are on lit. On a phone
@@ -2286,6 +2330,52 @@ html.coal-docked .calls{visibility:hidden}
 html.coal-docked .fab,html.coal-docked .hi{bottom:calc(var(--coal-dock,96px) + 10px)}
 @media(prefers-reduced-motion:reduce){.coal-mini.is-flash,.coal-mini.is-flash b{animation:none}}
 @media(min-width:960px){.coal-mini{display:none!important}}
+
+/* THE STREAM VIEW (build/stream.js, build/stream.css; Armin, 31 October 2026: "when I'm showing these tools on a live stream,
+   it makes perfect sense, and people can see what's going on, even if it's on a small screen"). The calculator on one
+   1280 x 720 canvas, zoomed to the screen: the chamber and what it says on the left, the plans, the betting markets and the
+   ways to a majority beside it, and every party on the right, one line each (face, name, seats, leader with the PM odds,
+   Outside). What each leader said and what happens next stay on the page (reading, not the calculator), and so does the
+   markets' prime minister list, whose numbers each party's line already carries. Only the layout changes (.coal-grid and
+   .coal-stage lend their parts to one grid); every control works as on the page. */
+html.lp-stream #coalition{zoom:var(--lps-z);width:var(--lps-w);height:var(--lps-h);padding:12px 18px 14px;display:grid;
+  grid-template-columns:330px 270px minmax(0,1fr);grid-template-rows:auto auto auto auto auto auto minmax(0,1fr);
+  grid-template-areas:"head head head" "ch pres side" "bar pres side" "say mk side" "lib mk side" "warn ways side" "tools ways side";gap:0 16px}
+html.lp-stream #coalition>.coal-said,html.lp-stream #coalition>.coal-next,html.lp-stream #coalition>.coal-src,html.lp-stream .coal-mini{display:none!important}
+html.lp-stream .coal-grid,html.lp-stream .coal-stage{display:contents}
+html.lp-stream .coal-head{grid-area:head;max-width:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 18px;padding:0 250px 10px 0}
+html.lp-stream .coal h2{order:-1;margin:0;font-size:2.1rem}
+html.lp-stream .coal-lede{display:none}
+html.lp-stream .coal-chamber{grid-area:ch}
+html.lp-stream .coal-bar{grid-area:bar;margin-top:8px}
+html.lp-stream .coal-say{grid-area:say;margin-top:24px;font-size:.95rem}
+html.lp-stream .coal-lib{grid-area:lib}
+html.lp-stream .coal-warn{grid-area:warn}
+html.lp-stream .coal-tools{grid-area:tools;margin-top:8px;align-self:start;display:flex;flex-wrap:wrap;gap:6px}
+html.lp-stream .coal-tools .btn{min-height:40px;padding:0 14px;font-size:.8rem}
+html.lp-stream .coal-pres{grid-area:pres;margin:0;align-self:start}
+html.lp-stream .coal-pre-row{gap:6px}
+html.lp-stream .coal-pre{min-height:40px;padding:0 12px;font-size:.82rem}
+html.lp-stream #coalition .mk{grid-area:mk;margin:10px 0 0;align-self:start}
+html.lp-stream .coal-ways{grid-area:ways;margin:10px 0 0;padding:10px 0 0;min-height:0;overflow:auto;overscroll-behavior:contain}
+html.lp-stream .coal-ways-list{grid-template-columns:minmax(0,1fr)}
+html.lp-stream #coalition .mk-q2,html.lp-stream #coalition .mk-rank,html.lp-stream #coalition .mk-src{display:none}
+html.lp-stream .coal-lib{margin-top:8px}
+html.lp-stream .coal-ways-l{display:none}
+html.lp-stream .coal-side{grid-area:side;min-height:0;overflow:hidden}
+html.lp-stream .coal-list{gap:4px}
+html.lp-stream .coal-row{grid-template-columns:minmax(0,1fr) 210px auto;align-items:center}
+html.lp-stream .coal-tick{display:none}
+html.lp-stream .coal-pick{grid-column:1;grid-row:1;min-height:44px;gap:8px;padding:2px 6px 2px 12px}
+html.lp-stream .coal-face{width:32px;height:32px}
+html.lp-stream .coal-name{gap:0}
+html.lp-stream .coal-name b{font-size:.9rem;line-height:1.15}
+html.lp-stream .coal-bloc{font-size:.75rem;line-height:1.2}
+html.lp-stream .coal-seats{font-size:1.6rem}
+html.lp-stream .coal-who{grid-column:2;grid-row:1;margin:0;padding:0 4px;font-size:0;line-height:1.2}
+html.lp-stream .coal-who>*{font-size:.75rem}
+html.lp-stream .coal-who .coal-g{margin-left:4px}
+html.lp-stream .coal-out{grid-column:3;grid-row:1;margin:0 8px 0 0;padding:0 10px}
 /* Call the Midterms (build/midterms.py, build/midterms.js), added to the end of site.css by render.py.
    Blue is the Democrats (--dem), red the Republicans (--rep), --ind the independents, the site's own yellow is kept
    for what the reader did: the mood marker, a race they called, the button that runs the night. */
@@ -2557,6 +2647,51 @@ html.coal-docked .fab,html.coal-docked .hi{bottom:calc(var(--coal-dock,96px) + 1
 .mt-feed-m{font-size:.8rem;font-weight:900}
 .mt-feed li.is-D .mt-feed-m{color:#A9C3FF}
 .mt-feed li.is-R .mt-feed-m{color:#FFB0A6}
+
+/* THE STREAM VIEW (build/stream.js, build/stream.css; Armin, 31 October 2026: "when I'm showing these tools on a live stream,
+   it makes perfect sense, and people can see what's going on, even if it's on a small screen"). The whole board on one
+   1280 x 720 canvas, zoomed to the screen: 1 the slider on the left and 2 election night under it, the two chambers in the
+   middle, 3 the races on the right (election night takes their place while it runs). Only the layout changes; every control
+   works as on the page. */
+html.lp-stream #midterms{zoom:var(--lps-z);width:var(--lps-w);height:var(--lps-h);padding:14px 18px 14px;display:grid;
+  grid-template-columns:390px minmax(0,1fr) 322px;grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"head head head" "mood boards races" "tools boards races";gap:12px 18px;background:var(--panel)}
+html.lp-stream #midterms>.mt-score,html.lp-stream #midterms>.mt-src{display:none!important}
+html.lp-stream .mt-head{grid-area:head;max-width:none;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 18px;padding-right:300px}
+html.lp-stream .mt h2{order:-1;margin:0;font-size:2.4rem}
+html.lp-stream .mt-lede{display:none}
+html.lp-stream .mt-mood{grid-area:mood;margin:0;padding:12px 16px;min-height:0;overflow:hidden}
+html.lp-stream .mt-mood-top{flex-direction:column;align-items:flex-start;gap:2px}
+html.lp-stream .mt-mood-v{font-size:2.3rem}
+html.lp-stream .mt-track{margin-top:0}
+html.lp-stream .mt-track.is-mk-l #mt-pin-mk,html.lp-stream .mt-track.is-mk-r #mt-pin-today{margin-left:-6px}
+html.lp-stream .mt-track.is-mk-l #mt-pin-today,html.lp-stream .mt-track.is-mk-r #mt-pin-mk{margin-left:6px}
+html.lp-stream .mt-result{margin-top:6px}
+html.lp-stream .mt-flips{margin-top:6px;gap:2px}
+html.lp-stream .mt-pre-row{margin-top:8px}
+html.lp-stream .mt-mksw{margin-top:6px}
+html.lp-stream .mt-boards{grid-area:boards;margin:0;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:12px;min-height:0}
+html.lp-stream .mt-board{display:grid;grid-template-columns:minmax(0,1fr) 205px;grid-template-rows:auto auto minmax(0,1fr);column-gap:14px;align-content:start;padding:8px 14px 10px;min-height:0;overflow:hidden}
+html.lp-stream .mt-bname{grid-column:1;grid-row:1}
+html.lp-stream .mt-chamber{grid-column:1;grid-row:2/-1;min-height:0;margin-top:2px;display:flex;flex-direction:column}
+html.lp-stream .mt-hemi{flex:1 1 auto;min-height:0;max-height:100%}
+html.lp-stream .mt-verdict,html.lp-stream .mt-gain,html.lp-stream .mt-odds{grid-column:2}
+html.lp-stream .mt-verdict{grid-row:1;margin:0;align-self:center;line-height:1.15}
+html.lp-stream .mt-gain{grid-row:2;margin-top:6px}
+html.lp-stream .mt-odds{grid-row:3;align-self:start}
+html.lp-stream .mt-run span{font-size:1em}
+html.lp-stream .mt-state .mt-sk{font-size:.75rem}
+html.lp-stream .mt-odds{margin-top:8px}
+html.lp-stream .mt-tools{grid-area:tools;margin:0;align-self:end}
+html.lp-stream .mt-tools-b{margin:0;gap:8px}
+html.lp-stream .mt-tools .btn{min-height:42px;padding:0 16px;font-size:.85rem}
+html.lp-stream .mt-night,html.lp-stream .mt-races{grid-area:races;grid-row:2/4;margin:0;min-height:0;overflow:auto;overscroll-behavior:contain}
+html.lp-stream .mt-races{padding-top:0;border-top:0}
+html.lp-stream #midterms:has(#mt-night:not([hidden])) .mt-races{display:none}
+html.lp-stream .mt.is-live .mt-list{grid-template-columns:minmax(0,1fr)}
+html.lp-stream .mt-where{margin-left:0}
+html.lp-stream .mt-vs-l{display:none}
+html.lp-stream .mt-vs-s{display:inline}
 /* The betting markets on a race page, a race card and a country page (build/markets.py, build/markets.js), added to the end
    of site.css by render.py. Quiet by design (Armin, 30 October 2026: "doesn't make people miss out on it and also doesn't
    annoy people who aren't interested"): one labelled panel, thin bars, the party colours, the site's yellow only as the dot
@@ -2650,3 +2785,482 @@ html.coal-docked .fab,html.coal-docked .hi{bottom:calc(var(--coal-dock,96px) + 1
 .mt-vs-src{font-size:.75rem;color:var(--dim);line-height:1.4}
 .mt-vs-src a{color:var(--dim);font-weight:700;padding:12px 0;margin:-12px 0}
 @media(prefers-reduced-motion:reduce){.mk *{transition:none!important}}
+/* Make your call: the shared call widget (build/calls.js) and the Beat the Markets page (build/calls.py, markets/). The plan,
+   the names and the scoring rule are ../CALLS.md; nothing here restates them. Added to the end of site.css by render.py,
+   so every page that mounts a widget has its looks with no second request.
+   The three numbers, in this order everywhere: Markets, Readers, You. Market prices go with the one odds switch
+   (html.mk-off, build/markets.js): Readers and You stay. Nothing here is hidden and animated in; the only movement is
+   a card answering a finger, and only transform and box-shadow ever move. */
+
+/* ---------------------------------------------------------------- a mount, and its cards */
+.lpc{margin-top:var(--s4)}
+.lpc[hidden]{display:none}
+.lpc-l{display:grid;gap:var(--s3);grid-template-columns:minmax(0,1fr)}
+@media(min-width:700px){.lpc-l{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}}
+.lpc-c{position:relative;display:flex;flex-direction:column;gap:10px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:var(--r2);background:var(--panel);scroll-margin-top:96px}
+.lpc-c:target{box-shadow:0 0 0 2px var(--field)}
+.lpc-meta{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:.8125rem;line-height:1.35;color:var(--dim)}
+.lpc-meta .lpc-st{font-weight:700;color:var(--ink)}
+.lpc-meta .lpc-st.is-won{color:var(--ga)}
+.lpc-q{margin:0;font:700 1.0625rem/1.3 var(--body);text-transform:none;letter-spacing:0;color:var(--ink);overflow-wrap:anywhere}
+
+/* the three numbers */
+.lpc-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.lpc-n{display:flex;flex-direction:column;gap:1px;min-width:0;min-height:76px;padding:8px 10px;border-radius:var(--r);background:var(--sunk);border:1px solid transparent;text-align:left;color:var(--ink);font:inherit}
+.lpc-k{font-size:.75rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.lpc-n b{font:900 1.55rem/1.05 var(--display);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpc-n small{font-size:.75rem;line-height:1.3;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpc-n-y.is-set{border-color:var(--field-edge)}
+.lpc-n-y.is-set b{color:var(--field)}
+.lpc-n-y.is-won b{color:var(--ga)}
+.lpc-n-y.is-lost b{color:var(--gf)}
+/* signed out: the third number is visibly missing, and the empty slot is the way in */
+button.lpc-n-y{cursor:pointer;border:1px dashed #4a4843;background:transparent;justify-content:center}
+button.lpc-n-y small{white-space:normal;color:var(--ink);font-weight:600;font-size:.8125rem}
+button.lpc-n-y:hover{border-color:var(--field)}
+.lpc-sp{display:block;width:100%;max-width:72px;height:16px;margin-top:2px}
+.lpc-sp polyline{fill:none;stroke:var(--field);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+/* Your build says (LPCalls.mine): the calculator's own answer, one tap from being the reader's call */
+.lpc-mine{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 12px;width:100%;min-height:44px;margin:0;padding:8px 12px;border:1px dashed var(--field-edge);border-radius:var(--r);background:transparent;color:var(--dim);font:500 .875rem/1.35 var(--body);text-align:left}
+.lpc-mine b{color:var(--ink)}
+.lpc-mine small{font-size:.8125rem;font-weight:700;color:var(--field)}
+button.lpc-mine{cursor:pointer}
+button.lpc-mine:hover{border-style:solid}
+.lpc-mine.is-same{border-style:solid}
+.lpc-mine.is-same small{color:var(--dim)}
+/* a tool's heading over its calls (data-lpc-h): the title, the one line, the way to keep score */
+.lpc-hd{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:var(--s3)}
+.lpc-h{display:flex;flex-direction:column;gap:2px;min-width:0;margin:0}
+.lpc-h b{font:900 1.25rem/1.15 var(--display);color:var(--ink)}
+.lpc-h span{font-size:.875rem;line-height:1.4;color:var(--dim)}
+.lpc-rec{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font:700 .875rem/1 var(--body);text-decoration:none;cursor:pointer;white-space:nowrap}
+.lpc-rec:hover{border-color:var(--field)}
+.lpc-new{padding:3px 7px;border-radius:999px;background:var(--field);color:var(--bg);font-size:.75rem;font-weight:800}
+@media(min-width:700px){.lpc[data-lpc-n="2"] .lpc-l{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.lpc-n small{white-space:normal}}      /* a phone: "Democratic Party" on two lines, never "Democrat..." */
+/* the calls in a tool step aside in its stream view: the tool fills the screen (build/stream.js) */
+html.lp-stream .lpc[data-lpc-tool]:not([data-lpc-page]){display:none}
+
+/* the options: one tap is the call */
+.lpc-o{display:grid;gap:6px}
+.lpc-b{position:relative;display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--sunk);color:var(--ink);font:600 .9375rem/1.25 var(--body);text-align:left;cursor:pointer;overflow:hidden;transition:transform .15s var(--ease,ease),box-shadow .15s}
+.lpc-b:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 14px -6px rgba(0,0,0,.7)}
+.lpc-b:disabled{cursor:default}
+.lpc-bl{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.lpc-bp{flex:none;font:800 1.05rem/1 var(--display);font-variant-numeric:tabular-nums lining-nums;color:var(--dim)}
+.lpc-bi{position:absolute;left:0;bottom:0;height:3px;background:#55534c;border-radius:0 2px 2px 0}
+.lpc-b[aria-pressed="true"]{border-color:var(--field);box-shadow:inset 0 0 0 1px var(--field)}
+.lpc-b[aria-pressed="true"] .lpc-bl::before{content:"\2713\00a0";color:var(--field);font-weight:900}
+.lpc-b[aria-pressed="true"] .lpc-bi{background:var(--field)}
+.lpc-b.is-won{border-color:var(--ga)}
+.lpc-b.is-won .lpc-bl::after{content:"\00a0 Won";color:var(--ga);font-weight:800;font-size:.8125rem}
+.lpc-more1{justify-self:start;min-height:40px;padding:0 4px;background:none;border:0;color:var(--dim);font:700 .875rem/1 var(--body);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.lpc-more1:hover{color:var(--ink)}
+
+/* what the call is worth, and where the market lives */
+.lpc-say{min-height:1.4em;font-size:.9375rem;line-height:1.4;color:var(--ink)}
+.lpc-say:empty{display:none}
+.lpc-say b{color:var(--field)}
+.lpc-say.is-bad{color:#ff8a80}
+.lpc-say.is-won b{color:var(--ga)}
+.lpc-say.is-lost b{color:var(--gf)}
+.lpc-src{margin-top:auto;font-size:.8125rem;line-height:1.45;color:var(--dim)}
+.lpc-src a{color:var(--dim);font-weight:700}
+.lpc-src a:hover{color:var(--ink)}
+
+/* More calls: the rest, under the first ones, so nothing above the finger moves */
+.lpc-more{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--s2);margin-top:var(--s3)}
+.lpc-more .btn{min-height:44px}
+.lpc-none{padding:var(--s4);border:1px dashed var(--line);border-radius:var(--r2);color:var(--dim)}
+.lpc-aff{margin-top:var(--s3);font-size:.8125rem;color:var(--dim)}
+.lpc-aff:empty{display:none}
+
+/* the odds switch: market numbers go, Readers and You stay */
+.mk-off .lpc-n-m,.mk-off .lpc-bp,.mk-off .lpc-bi,.lpc-stale .lpc-n-m,.lpc-stale .lpc-bp,.lpc-stale .lpc-bi{display:none}
+.mk-off .lpc-3,.lpc-stale .lpc-3{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+/* ---------------------------------------------------------------- the Beat the Markets page (markets/) */
+.btm-hero .wrap{padding-top:var(--s6);padding-bottom:var(--s5)}
+.btm-hero h1{font-size:clamp(2.4rem,11vw,4.4rem);line-height:.92}
+.btm-lede{margin-top:var(--s3);max-width:62ch;font-size:1.0625rem;line-height:1.5;color:var(--ink)}
+.btm-rule{margin-top:6px;max-width:62ch;font-size:.9375rem;line-height:1.5;color:var(--dim)}
+.btm-tabs{display:grid;grid-template-columns:1fr 1fr;gap:0;max-width:440px;margin-top:var(--s5);padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+.btm-tab{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 12px;border-radius:999px;color:var(--dim);font:700 .9375rem/1 var(--body);text-decoration:none}
+.btm-tab[aria-current="true"]{background:var(--field);color:var(--on-field)}
+.btm-tab:hover{color:var(--ink)}
+.btm-tab[aria-current="true"]:hover{color:var(--on-field)}
+.btm-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:var(--gf);color:var(--on-grade);font:800 .75rem/1 var(--body)}
+.btm-badge[hidden]{display:none}
+.btm-sec{padding:var(--s5) 0 var(--s7)}
+.btm-sec[hidden]{display:none}
+.btm-bar{display:grid;gap:var(--s3);margin-bottom:var(--s4)}
+.btm-bar .chips{margin-top:0}
+.btm-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s2) var(--s3);align-items:end}
+.btm-row .btm-f:first-child{grid-column:1/-1}
+@media(min-width:760px){.btm-row{grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto}.btm-row .btm-f:first-child{grid-column:auto}}
+.btm-f label{display:block;margin-bottom:4px;font-size:.8125rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+.btm-f input,.btm-f select{width:100%;min-height:48px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--ink);font:500 1rem/1 var(--body)}
+.btm-f input:focus,.btm-f select:focus{border-color:var(--field);outline:none}
+.btm-f input::placeholder{color:var(--dim)}
+.btm-sw{display:flex;align-items:center;min-height:48px}
+.btm-sw .mk-sw{margin:0}
+.btm-count{font-size:.875rem;color:var(--dim)}
+.btm-age{font-size:.8125rem;color:var(--dim)}
+.btm-age:not(:empty)::before{content:"·  "}
+
+/* Your record */
+.btm-rec{display:grid;gap:var(--s4);max-width:60rem}
+.btm-head{font:900 clamp(1.7rem,7vw,2.6rem)/1 var(--display);text-transform:uppercase;color:var(--ink)}
+.btm-head b{color:var(--field);font-weight:900}
+.btm-head.is-down b{color:var(--gf)}
+.btm-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0;padding:0;list-style:none}
+@media(min-width:700px){.btm-stats{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.btm-stats li{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:var(--r);background:var(--panel)}
+.btm-stats b{font:900 1.6rem/1 var(--display);font-variant-numeric:tabular-nums lining-nums}
+.btm-stats span{font-size:.8125rem;color:var(--dim)}
+.btm-h3{font:800 .875rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.btm-list{display:grid;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+.btm-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:center;padding:10px 12px;border-radius:var(--r);background:var(--panel)}
+.btm-list .btm-lq{font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.btm-list .btm-lq a{color:var(--ink)}
+.btm-list .btm-lc{grid-column:1;font-size:.8125rem;color:var(--dim)}
+.btm-list .btm-lp{grid-row:1/span 2;grid-column:2;font:900 1.25rem/1 var(--display);font-variant-numeric:tabular-nums lining-nums}
+.btm-list .is-up{color:var(--ga)}
+.btm-list .is-down{color:var(--gf)}
+.btm-new{padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--field);border-radius:var(--r2);background:var(--panel)}
+.btm-new .btn{margin-top:10px;min-height:44px}
+.btm-pub{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2) var(--s4)}
+.btm-pubsw{display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 4px;background:none;border:0;color:var(--ink);font:600 .9375rem/1.3 var(--body);cursor:pointer;text-align:left}
+.btm-pubsw .mk-sw-t{background:var(--raise);box-shadow:inset 0 0 0 1px var(--line)}
+.btm-pubsw .mk-sw-t i{left:2px;background:var(--dim)}
+.btm-pubsw[aria-checked="true"] .mk-sw-t{background:var(--field);box-shadow:none}
+.btm-pubsw[aria-checked="true"] .mk-sw-t i{left:14px;background:var(--on-field)}
+.btm-note{font-size:.9375rem;line-height:1.5;color:var(--dim);max-width:60ch}
+.btm-note.is-bad{color:#ff8a80}
+.btm-out{display:grid;gap:var(--s3);max-width:40rem;padding:var(--s4);border:1px dashed #4a4843;border-radius:var(--r2)}
+.btm-out .btn{justify-self:start}
+
+/* ---------------------------------------------------------------- the stream view (build/stream.js: html.lp-stream, #btm is the box)
+   One 1280 x 720 canvas, zoomed to the screen (--lps-z). The head and the filters on two rows, the cards in three columns
+   that scroll inside their own box; nothing on the canvas under 13.4px, so 20px on a 1920 x 1080 stream. */
+html.lp-stream #btm{zoom:var(--lps-z);width:var(--lps-w);height:var(--lps-h);display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+html.lp-stream #btm .tband,html.lp-stream .btm-lede,html.lp-stream #btm noscript{display:none}
+html.lp-stream .btm-hero{flex:none;border:0}
+html.lp-stream .btm-hero .wrap{max-width:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px;padding:14px 24px 8px}
+html.lp-stream .btm-hero h1{font-size:2.6rem}
+html.lp-stream .btm-rule{order:5;flex-basis:100%;margin:0;font-size:.875rem}
+html.lp-stream .btm-tabs{margin:0;width:340px}
+html.lp-stream .btm-hero .lpt-doors{margin:0 0 0 auto}
+html.lp-stream .btm-sec{flex:1 1 auto;min-height:0;padding:0;display:flex;flex-direction:column}
+html.lp-stream .btm-sec > .wrap{max-width:none;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:0 24px 12px}
+html.lp-stream .btm-bar{flex:none;margin-bottom:8px;grid-template-columns:auto minmax(0,1fr);align-items:end;gap:8px 16px}
+html.lp-stream .btm-bar .chips{overflow:visible;flex-wrap:wrap;margin:0;padding:0}
+html.lp-stream .btm-row{grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto}
+html.lp-stream .btm-row .btm-f:first-child{grid-column:auto}
+html.lp-stream .btm-f label{font-size:.875rem}
+html.lp-stream .btm-count{grid-column:1/-1;font-size:.875rem}
+html.lp-stream .btm-age{font-size:.875rem}
+html.lp-stream #btm-list,html.lp-stream #btm-recbox{flex:1 1 auto;min-height:0;margin:0;overflow:auto;overscroll-behavior:contain}
+html.lp-stream .lpc-l{grid-template-columns:repeat(3,minmax(0,1fr))}
+html.lp-stream .lpc-k,html.lp-stream .lpc-n small,html.lp-stream .lpc-meta,html.lp-stream .lpc-src,html.lp-stream .btm-badge,html.lp-stream .lpc-more1,html.lp-stream .lpc-aff{font-size:.875rem}
+html.lp-stream .btm-rec{max-width:none}
+html.lp-stream .btm-stats span,html.lp-stream .btm-list .btm-lc{font-size:.875rem}
+/* THE TOOLS' DOORS, THE TOUR CARD AND THE STREAM VIEW (build/tour.js, build/stream.js), added to the end of site.css by
+   render.py. Each tool's own stream layout is in its own CSS under html.lp-stream (midterms.css, coalition.css, regime.css).
+   Nothing here hides content and animates it back. */
+
+/* ---------------------------------------------------------------- the doors: "How it works" and "Stream view" */
+.lpt-doors{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:var(--s3)}
+.lpt-how,.lps-go{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 14px 0 11px;border:1px solid #3a3936;border-radius:999px;background:none;color:var(--ink);font:650 var(--t1,.8125rem)/1 var(--body);cursor:pointer;white-space:nowrap}
+.lpt-how{color:var(--field)}
+.lpt-how:hover,.lps-go:hover{border-color:var(--dim)}
+.lpt-how[hidden],.lps-go[hidden]{display:none}
+.lpt-how.is-new::after{content:"New";margin-left:2px;padding:3px 7px;border-radius:999px;background:var(--field);color:var(--on-field);font:800 .75rem/1 var(--body)}
+@media(max-width:899px){.lps-go{display:none!important}}          /* a stream is made on a computer */
+/* on a computer the doors sit in the empty top right corner of the tool, so they add no height */
+@media(min-width:960px){
+  #midterms,#coalition{position:relative}
+  .mt-head .lpt-doors,.coal-head .lpt-doors{position:absolute;top:var(--s4);right:var(--s4);margin:0}
+}
+.rg-acts .lpt-doors{display:contents}
+.rg-acts .lpt-how,.rg-acts .lps-go{min-height:48px;padding:0 18px 0 14px;border:1.5px solid currentColor;font-size:1rem;font-weight:700}
+.rg-acts .lpt-how{color:var(--ink)}
+
+/* ---------------------------------------------------------------- the tour card (the Intel Room's look, build/intel.css .irt) */
+.lpt{position:fixed;inset:0;z-index:2147483000}
+.lpt[hidden]{display:none}
+.lpt.is-center{background:rgba(8,7,5,.72)}
+.lpt-hole{position:fixed;border-radius:12px;box-shadow:0 0 0 200vmax rgba(8,7,5,.72),0 0 0 2px var(--field) inset;pointer-events:none}
+.lpt-tip{position:fixed;box-sizing:border-box;max-width:calc(100vw - 24px);padding:16px 16px 14px;border:1px solid rgba(244,196,48,.45);border-radius:16px;background:#1A1814;color:var(--ink);box-shadow:0 18px 50px rgba(0,0,0,.55);outline:none;font-family:var(--body)}
+.lpt-top{display:flex;align-items:center;gap:10px;margin:0 0 6px}
+.lpt-e{font-size:28px;line-height:1}
+.lpt-n{margin:0;color:var(--dim);font:600 var(--t1,.8125rem)/1 var(--body);letter-spacing:.04em}
+.lpt-x{margin-left:auto;width:40px;height:40px;border:0;border-radius:50%;background:none;color:var(--dim);font-size:24px;line-height:1;cursor:pointer}
+.lpt-x:hover{color:var(--ink);background:rgba(255,255,255,.06)}
+.lpt-tip h3{margin:0 0 6px;font:800 1.2rem/1.2 var(--display);letter-spacing:.01em;text-transform:none;color:var(--ink)}
+.lpt-p{margin:0 0 14px;font:450 var(--t2,.9375rem)/1.5 var(--body);color:var(--ink)}
+.lpt-b{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.lpt-b span{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.lpt-b button{min-height:44px;padding:0 18px;border-radius:999px;font:700 var(--t2,.9375rem)/1 var(--body);cursor:pointer}
+.lpt-b button[hidden]{display:none}
+.lpt-back{border:1px solid #3a3936;background:none;color:var(--ink)}
+.lpt-act{border:1px solid var(--field);background:none;color:var(--field)}
+.lpt-next{border:0;background:var(--field);color:var(--on-field)}
+@media(max-width:640px){.lpt-tip{padding:14px 14px 12px}.lpt-b button{padding:0 14px}}
+html.lpt-on #calls{visibility:hidden}          /* the show bubble steps aside while the tour talks */
+
+/* ---------------------------------------------------------------- the stream view: the tool alone, filling the screen */
+/* one rem step up on the canvas (18px, not 16), so a tool's smallest words (.75rem) are 13.5px there and 20px on a 1920 x 1080 stream */
+html.lp-stream{font-size:18px}
+html.lp-stream,html.lp-stream body{overflow:hidden!important;height:100%;background:var(--bg)}
+html.lp-stream body{padding:0!important;margin:0!important}
+/* everything that is not on the way to the tool goes (dialogs and the tour stay: they are opened from the tool) */
+html.lp-stream .lps-path>:not(.lps-path):not(.lps-root):not(.lps-keep):not(dialog){display:none!important}
+html.lp-stream .lps-path{display:block!important;position:static!important;transform:none!important;filter:none!important;contain:none!important;content-visibility:visible!important;margin:0!important;padding:0!important;border:0!important;min-height:0!important}
+html.lp-stream #calls,html.lp-stream .top,html.lp-stream .modes,html.lp-stream footer{display:none!important}
+html.lp-stream .lps-root{position:fixed!important;top:0!important;left:0!important;right:auto!important;bottom:auto!important;width:100vw;height:100vh;max-width:none!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;z-index:40;overflow:hidden;background:var(--bg)}
+html.lp-stream .lps-root .lpt-doors,html.lp-stream .lps-root .acct-ask{display:none!important}
+/* the corner: the site's address, and the way out. Sized with the zoom, so it reads on the stream like the tool does. */
+.lps-bar{display:none}
+html.lp-stream .lps-bar{display:flex;position:fixed;top:calc(10px * var(--lps-z,1));right:calc(14px * var(--lps-z,1));z-index:60;align-items:center;gap:calc(10px * var(--lps-z,1))}
+.lps-mark{font:800 calc(14px * var(--lps-z,1))/1 var(--display);letter-spacing:.02em;color:var(--ink);white-space:nowrap}
+.lps-mark b{color:var(--field);font-weight:800}
+.lps-x{min-height:max(40px,calc(30px * var(--lps-z,1)));padding:0 calc(12px * var(--lps-z,1));border:1px solid #3a3936;border-radius:999px;background:var(--panel);color:var(--dim);font:700 max(13px,calc(13.5px * var(--lps-z,1)))/1 var(--body);cursor:pointer}
+.lps-x:hover{color:var(--ink);border-color:var(--dim)}
+/* THE WARGAME (build/wargame.py, wargame.js). Added to the end of site.css by render.py. Own prefix: wg-, wgi- (never a class a
+   linked stylesheet styles: deploy_guard no_style_clash). Nothing here hides content and animates it back. */
+.wg{--wg-sea:#07090c;--wg-land:#2c2b27;--wg-edge:#5a574f;--wg-blue:#4C8DFF;--wg-red:#FF5A48;--wg-glow:rgba(244,196,48,.35);padding:var(--s4) 0 var(--s6)}
+.wg-head{padding-bottom:var(--s4)}
+.wg-kick{margin:0 0 var(--s2);font:800 .82rem/1.3 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--field);display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.wg-kick a{color:inherit;display:inline-flex;align-items:center;min-height:40px}.wg-sibs{display:inline-flex;gap:6px;margin-inline-start:auto}
+.wg-sib{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);color:var(--dim);text-decoration:none;letter-spacing:.04em}
+.wg-sib:hover{border-color:var(--field);color:var(--ink)}
+.wg h1{font-size:clamp(2.1rem,8vw,4rem);line-height:.92}
+.wg-lede{margin-top:var(--s3);color:var(--dim);max-width:62ch;font-size:1.02rem}
+.wg-app{display:grid;gap:0;max-width:96rem;margin:0 auto;background:var(--sunk);border-block:1px solid var(--line)}
+@media(min-width:1000px){.wg-app{grid-template-columns:minmax(0,1fr) 420px;border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;margin-inline:var(--gutter)}}
+@media(min-width:1600px){.wg-app{grid-template-columns:minmax(0,1fr) 480px}}
+
+/* the map */
+.wg-stage{position:relative;min-width:0;aspect-ratio:4/3.3;max-height:78vh;background:var(--wg-sea);overflow:hidden;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.wg-stage.zoomed{touch-action:none;cursor:grab}
+@media(min-width:1000px){.wg-stage{aspect-ratio:auto;height:min(78vh,820px);max-height:none}}
+.wg-map,.wg-fx{position:absolute;inset:0;width:100%;height:100%;display:block}
+.wg-fx{pointer-events:none}
+.wg-land path{fill:var(--wg-land);stroke:var(--wg-edge);stroke-width:1px;filter:drop-shadow(0 0 2px rgba(244,196,48,.08));vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.wg-cty{font-weight:700;font-family:var(--display);font-size:calc(15px / var(--z,1));letter-spacing:.32em;fill:rgba(243,241,234,.13);text-anchor:middle;pointer-events:none}
+.wg-lab{font-weight:700;font-family:var(--body);font-size:calc(11px / var(--z,1));stroke-width:calc(3px / var(--z,1))!important;fill:rgba(243,241,234,.78);paint-order:stroke;stroke:#07090c;stroke-width:3px;pointer-events:none}
+.wg-p{cursor:pointer;outline:none}
+.wg-p .wg-hit{fill:transparent}
+.wg-p .wg-g{stroke:#07090c;stroke-width:1.2;transform:scale(calc(1 / var(--z,1)));transform-box:fill-box;transform-origin:center}
+.wg-p:hover .wg-g,.wg-p:focus-visible .wg-g{filter:drop-shadow(0 0 6px var(--wg-glow))}
+.wg-p.hit .wg-g{filter:drop-shadow(0 0 5px #ff5a48)}
+.wg-p.hit::after{content:""}
+.wg-p.off .wg-g{opacity:.75}
+.wg-occ{fill:rgba(255,90,72,.30);stroke:none}
+.wg-line{fill:none;stroke:#FF5A48;stroke-width:2.2;vector-effect:non-scaling-stroke;stroke-dasharray:6 3;filter:drop-shadow(0 0 3px rgba(255,90,72,.8))}
+.wg-lobe{fill:rgba(76,141,255,.32);stroke:#4C8DFF;stroke-width:1.5;vector-effect:non-scaling-stroke}
+
+/* the HUD: on the map, never over the middle */
+.wg-hud{position:absolute;inset:0;pointer-events:none;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto 1fr auto auto;padding:10px;gap:8px}
+.wg-hudi{pointer-events:auto;background:rgba(10,10,10,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(244,196,48,.18);border-radius:8px}
+.wg-h-top{justify-self:start;display:flex;flex-direction:column;padding:6px 12px;max-width:min(78%,560px)}
+.wg-h-when{font:800 1.05rem/1.1 var(--display);letter-spacing:.06em;color:var(--field);text-transform:uppercase}
+.wg-h-top span{font-size:.82rem;color:var(--dim);line-height:1.3}
+.wg-h-board{grid-row:4;grid-column:1/-1;margin:0;display:flex;flex-wrap:wrap;gap:4px 18px;padding:6px 12px}
+.wg-h-board div{display:flex;flex-direction:column;min-width:0}
+.wg-h-board dt{font-size:.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;line-height:1.2}
+.wg-h-board dd{margin:0;font:800 1.05rem/1.15 var(--display);color:var(--ink)}
+@media(max-width:560px){.wg-h-board{gap:2px 12px;padding:5px 8px}.wg-h-board div:nth-child(n+5){display:none}.wg-h-board dd{font-size:.95rem}}
+.wg-h-say{grid-row:3;grid-column:1/-1;justify-self:start;max-width:min(92%,640px);padding:8px 10px;font-size:.86rem;line-height:1.4}
+.wg-now{color:var(--dim)}
+.wg-h-ctl{grid-row:1;grid-column:2;justify-self:end;align-self:start;display:flex;gap:2px;padding:3px}
+.wg-ib{min-width:40px;min-height:40px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:800 1rem/1 var(--body);cursor:pointer}
+.wg-ib:hover{background:rgba(244,196,48,.15);color:var(--field)}
+.wg-say{display:flex;gap:10px;align-items:center}.wg-say b{display:block;color:var(--field);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+
+/* faces */
+.wg-face{position:relative;display:grid;place-items:center;width:52px;height:64px;flex:none;border-radius:8px;overflow:hidden;background:linear-gradient(160deg,#2a2924,#141412);border:1px solid rgba(244,196,48,.25)}
+.wg-face img{width:100%;height:100%;object-fit:cover;filter:saturate(.85) contrast(1.05)}
+.wg-face b{font:900 1.15rem/1 var(--display);color:var(--field);letter-spacing:.04em}
+.wg-face.org{border-radius:50%;width:56px;height:56px;background:radial-gradient(circle at 30% 30%,#3a3424,#141412)}
+.wg-face.big{width:120px;height:150px;border-radius:12px;box-shadow:0 0 0 1px rgba(244,196,48,.35),0 12px 40px rgba(0,0,0,.6)}
+.wg-face.big.org{width:120px;height:120px}.wg-face.big b{font-size:2.4rem}
+.wg-face.tiny{width:34px;height:42px;border-radius:6px}.wg-face.tiny.org{width:36px;height:36px}.wg-face.tiny b{font-size:.8rem}
+
+/* the panel */
+.wg-panel{min-width:0;background:var(--panel);display:flex;flex-direction:column}
+@media(min-width:1000px){.wg-panel{height:min(78vh,820px);overflow:hidden}.wg-body{overflow-y:auto;overscroll-behavior:contain}}
+.wg-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.wg-tab{min-height:48px;border:0;background:transparent;color:var(--dim);font:800 .82rem/1.15 var(--body);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;padding:6px;border-bottom:3px solid transparent}
+.wg-tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--field)}
+.wg-body{padding:var(--s4);display:grid;gap:var(--s4);align-content:start;flex:1;min-height:0}
+.wg-step h3{display:flex;align-items:center;gap:10px;font-size:1.25rem;margin-bottom:var(--s3)}
+.wg-step h3 i{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--field);color:var(--on-field);font:900 .95rem/1 var(--display);font-style:normal}
+.wg-hint{color:var(--dim);font-size:.88rem;line-height:1.45;margin-bottom:var(--s3)}
+.wg-link{border:0;background:none;color:var(--field);text-decoration:underline;font:inherit;cursor:pointer;min-height:40px;padding:0 4px}
+.wg-lens,.wg-seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
+.wg-lens button,.wg-seg button,.wg-chip{min-height:40px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:var(--raise);color:var(--ink);font:600 .86rem/1.2 var(--body);cursor:pointer}
+.wg-lens button[aria-checked="true"],.wg-seg button[aria-checked="true"]{background:var(--field);color:var(--on-field);border-color:var(--field);font-weight:800}
+.wg-chip{background:transparent;color:var(--dim);font-size:.8rem}
+.wg-chip:hover,.wg-lens button:hover,.wg-seg button:hover{border-color:var(--field)}
+.wg-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
+.wg-room{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.wg-room li{position:relative;display:grid;border:1px solid var(--line);border-radius:10px;background:var(--raise);overflow:hidden}
+.wg-room li.on{border-color:var(--field);box-shadow:0 0 0 1px var(--field) inset,0 0 24px rgba(244,196,48,.12)}
+.wg-ex{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto 1fr;column-gap:10px;row-gap:2px;align-items:start;text-align:start;padding:10px;border:0;background:transparent;color:inherit;cursor:pointer;min-height:84px}
+.wg-ex .wg-face{grid-row:1/4}
+.wg-ex b{font:800 1rem/1.05 var(--display);text-transform:uppercase;min-width:0;overflow-wrap:break-word}
+.wg-ex>span:not(.wg-face){font-size:.75rem;color:var(--dim);line-height:1.3;min-width:0}
+.wg-room.compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+.wg-room.compact .wg-ex{min-height:72px}
+.wg-seat{min-height:40px;border:0;border-top:1px solid var(--line);background:transparent;color:var(--dim);font:800 .76rem/1 var(--body);text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
+.wg-seat.on{background:var(--field);color:var(--on-field)}
+.wg-lean{justify-self:start;margin-top:4px;padding:2px 8px;border-radius:999px;font:700 .75rem/1.4 var(--body);text-transform:uppercase;letter-spacing:.06em;background:#2b2a27;color:var(--dim)}
+.wg-lean.l-hawk,.wg-lean.l-optimist{background:rgba(76,141,255,.16);color:#9fc0ff}.wg-lean.l-dove,.wg-lean.l-skeptic{background:rgba(70,204,130,.14);color:#8fe2b4}
+.wg-lean.l-pessimist{background:rgba(255,90,72,.14);color:#ffaa9f}.wg-lean.l-realist{background:rgba(244,196,48,.13);color:var(--field)}
+.wg-lv{display:grid;gap:4px;margin-bottom:var(--s3)}.wg-lv>span{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)}
+.wg-lv .wg-seg{margin:0}
+.wg-dates{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px}
+.wg-date{display:grid;gap:2px;text-align:start;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--raise);color:inherit;cursor:pointer;min-height:44px}
+.wg-date b{font:800 1rem/1.1 var(--display);text-transform:uppercase}.wg-date span{font-size:.75rem;color:var(--dim);line-height:1.3}
+.wg-date[aria-pressed="true"]{border-color:var(--field);box-shadow:0 0 0 1px var(--field) inset}
+.wg-pms{display:grid;gap:var(--s3)}
+.wg-pm{display:grid;gap:2px}.wg-pm span{display:flex;justify-content:space-between;gap:8px;font-size:.84rem;font-weight:700}
+.wg-pm output{color:var(--field)}.wg-pm small{color:var(--dim);font-size:.75rem;line-height:1.3}
+.wg-pm input{width:100%;min-height:40px;accent-color:var(--field)}
+.wg-run{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;border:0;border-radius:10px;background:var(--field);color:var(--on-field);font:900 1.2rem/1 var(--display);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;box-shadow:0 0 0 1px var(--field-edge) inset,0 8px 30px rgba(244,196,48,.18)}
+.wg-run:hover{background:var(--field-hi)}.wg-run:disabled{opacity:.7;cursor:progress}
+.wg-run.on{background:transparent;color:var(--field);box-shadow:0 0 0 1px var(--field) inset}
+.wg-ghost{background:transparent;color:var(--ink);box-shadow:0 0 0 1px var(--line) inset}
+.wg-prog{height:3px;border-radius:3px;background:var(--line);overflow:hidden;--p:0%}
+.wg-prog::before{content:"";display:block;height:100%;width:var(--p);background:var(--field);transition:width .3s}
+.wg-cap:empty{display:none}
+.wg-evl{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-evl li{display:grid;grid-template-columns:10px minmax(0,1fr);gap:8px;font-size:.88rem;line-height:1.4}
+.wg-evl li i{width:10px;height:10px;border-radius:50%;margin-top:6px}
+.wg-evl a{color:var(--dim);font-size:.78rem}
+.wg-res{padding:10px 12px;border-radius:8px;background:var(--raise);font-size:.92rem;line-height:1.45}
+.wg-hist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.wg-hist button{display:grid;gap:3px;width:100%;text-align:start;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--raise);color:inherit;cursor:pointer}
+.wg-hist button.on,.wg-hist button:hover{border-color:var(--field)}
+.wg-hist b{font:800 1.15rem/1.05 var(--display);text-transform:uppercase}
+.wg-hist span{font-size:.82rem;color:var(--dim);line-height:1.4}.wg-hist .wg-ops{color:var(--field);font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+
+/* results */
+#wg-result.old{opacity:.45}
+.wg-out{display:grid;gap:var(--s3)}
+.wg-out h3{font-size:1.3rem}.wg-out h4,.wg-brief h4,.wg-how h4{font:800 .82rem/1.2 var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:var(--s2) 0 0}
+.wg-big{font-size:1.05rem}.wg-big b{font:900 1.7rem/1 var(--display);text-transform:uppercase}
+.wg-bars{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-bars li{position:relative;display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:6px;background:var(--raise);overflow:hidden;font-size:.9rem;font-weight:700}
+.wg-bars li span,.wg-bars li b{position:relative;z-index:1}
+.wg-bars li i{position:absolute;inset:0 auto 0 0;width:var(--p);background:var(--c);opacity:.32}
+.wg-sum{margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.wg-sum div{padding:8px 10px;border-radius:6px;background:var(--raise);min-width:0}
+.wg-sum dt{font-size:.75rem;color:var(--dim);line-height:1.25}.wg-sum dd{margin:2px 0 0;font:800 1.1rem/1.1 var(--display);overflow-wrap:break-word}
+.wg-calls{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-calls li{display:flex;gap:10px;align-items:center;font-size:.86rem;line-height:1.35}.wg-calls b{display:block}.wg-calls em{font-style:normal;font-weight:800}
+.wg-share{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.wg-mk{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-mk li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:baseline;font-size:.86rem;line-height:1.4}
+.wg-mk b{font:800 1.2rem/1 var(--display);color:var(--field);min-width:3.2em}.wg-mk a{color:var(--dim)}
+html.mk-off .wg-mk{display:none}
+
+/* the sheet: a briefing, a place */
+.wg-sheet{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);display:grid;place-items:end center;padding:0}
+.wg-sheet[hidden]{display:none}
+@media(min-width:720px){.wg-sheet{place-items:center;padding:var(--s5)}}
+.wg-sh-in{position:relative;width:min(100%,720px);max-height:92vh;overflow-y:auto;background:var(--panel);border:1px solid rgba(244,196,48,.25);border-radius:14px 14px 0 0;padding:var(--s5) var(--s4) var(--s4)}
+@media(min-width:720px){.wg-sh-in{border-radius:14px;padding:var(--s6)}}
+.wg-x{position:absolute;top:8px;right:8px;width:44px;height:44px;border:0;border-radius:50%;background:var(--raise);color:var(--ink);font-size:1.5rem;cursor:pointer}
+.wg-brief{display:grid;gap:var(--s3)}
+.wg-br-who{display:flex;gap:var(--s4);align-items:center;padding-right:40px}
+.wg-br-who h3{font-size:clamp(1.5rem,6vw,2.2rem)}
+.wg-br-k{font:800 .78rem/1 var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--field);margin-bottom:6px}
+.wg-br-say{position:relative;padding:var(--s4);border-radius:12px;background:linear-gradient(180deg,#22211d,#1a1917);border:1px solid var(--line)}
+.wg-br-say::before{content:"";position:absolute;top:-8px;left:46px;width:14px;height:14px;background:#22211d;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
+.wg-br-view{font-weight:700;font-size:1.02rem;line-height:1.45;margin-bottom:var(--s2)}
+.wg-br-say ol{margin:0;padding-inline-start:1.2em;display:grid;gap:6px;color:var(--ink);font-size:.93rem;line-height:1.5}
+.wg-br-own{margin-top:var(--s3);font-size:.88rem;color:var(--dim)}.wg-br-own b{font-weight:900}
+.wg-br-nums,.wg-br-src{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.86rem;line-height:1.4}
+.wg-br-nums li{display:grid;grid-template-columns:4.5em minmax(0,1fr);gap:10px}.wg-br-nums b{font:800 1.1rem/1.1 var(--display);color:var(--field)}
+.wg-br-nums small{display:block;color:var(--dim);font-size:.78rem}
+.wg-br-src a{color:var(--dim)}
+.wg-fine{font-size:.76rem;color:var(--dim);line-height:1.4}
+.wg-place{display:grid;gap:var(--s2);padding-right:40px}.wg-place h3{font-size:1.8rem}
+
+/* below the board */
+.wg-below{display:grid;gap:var(--s3);margin-top:var(--s5)}
+.wg-how,.wg-wars{border:1px solid var(--line);border-radius:var(--r2);background:var(--panel);padding:0 var(--s4)}
+.wg-how summary,.wg-wars summary{min-height:48px;display:flex;align-items:center;font:800 1rem/1.2 var(--body);cursor:pointer}
+.wg-how>div,.wg-wars ul{padding-bottom:var(--s4);font-size:.92rem;line-height:1.55;display:grid;gap:var(--s2)}
+.wg-how ol,.wg-how ul{margin:0;padding-inline-start:1.2em;display:grid;gap:6px}
+.wg-wars ul{list-style:none;padding-inline-start:0}.wg-wars li p{color:var(--dim)}
+.wg-foot{color:var(--dim);font-size:.82rem;line-height:1.5;max-width:70ch}
+
+/* full screen and the stream */
+.wg.wg-full{position:fixed;inset:0;z-index:65;background:var(--sunk);padding:0;overflow:hidden}
+.wg.wg-full .wg-head,.wg.wg-full .wg-below{display:none}
+.wg.wg-full .wg-app{height:100%;margin:0;border-radius:0;border:0;max-width:none}
+.wg.wg-full .wg-stage{height:100%;max-height:none;aspect-ratio:auto}
+.wg.wg-full .wg-panel{height:100%}
+@media(max-width:999px){.wg.wg-full .wg-app{grid-template-rows:62% 38%}.wg.wg-full .wg-panel{overflow-y:auto}}
+/* the stream view (build/stream.js): the box fills the screen; the map is NOT zoomed (its pinch and drag read the pointer),
+   its overlays are sized from the screen's zoom (--lps-z) instead; the panel is zoomed like the other tools' boxes. */
+html.lp-stream #wargame{width:100vw;height:100vh;padding:0;overflow:hidden;background:var(--sunk)}
+html.lp-stream #wargame .wg-head{display:none}
+html.lp-stream #wargame .wg-below{display:none}
+html.lp-stream #wargame .wg-app{height:100%;margin:0;border:0;border-radius:0;max-width:none;grid-template-columns:minmax(0,1fr) calc(380px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-stage{height:100%;max-height:none;aspect-ratio:auto}
+html.lp-stream #wargame .wg-panel{height:100vh;overflow:hidden}
+html.lp-stream #wargame .wg-tabs,html.lp-stream #wargame .wg-body{zoom:var(--lps-z,1)}
+html.lp-stream #wargame .wg-body{height:calc(100vh / var(--lps-z,1) - 52px);overflow-y:auto;font-size:15px}
+html.lp-stream #wargame .wg-hud{padding:calc(12px * var(--lps-z,1));gap:calc(8px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-when{font-size:calc(26px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-top span,html.lp-stream #wargame .wg-h-say{font-size:calc(16px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-board dt{font-size:calc(14px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-h-board dd{font-size:calc(32px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-ib{min-width:calc(44px * var(--lps-z,1));min-height:calc(44px * var(--lps-z,1));font-size:calc(18px * var(--lps-z,1))}
+html.lp-stream #wargame .wg-lab{font-size:calc(14px * var(--lps-z,1) / var(--z,1))}
+
+/* the index of theatres */
+.wgi{padding:var(--s5) 0 var(--s6)}
+.wgi h1{font-size:clamp(2.4rem,9vw,4.4rem)}
+.wgi-l{list-style:none;margin:var(--s5) 0;padding:0;display:grid;gap:var(--s4)}
+@media(min-width:900px){.wgi-l{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.wgi-l a{position:relative;display:grid;gap:6px;height:100%;padding:0 0 var(--s4);border-radius:var(--r2);overflow:hidden;background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none}
+.wgi-l a:hover{border-color:var(--field)}
+.wgi-l svg{width:100%;aspect-ratio:16/10;display:block;margin-bottom:var(--s2)}
+.wgi-land path{fill:#23221f;stroke:#3b3a36;stroke-width:1px;vector-effect:non-scaling-stroke}
+.wgi-l a>span,.wgi-l a>b{margin-inline:var(--s4)}
+.wgi-k{font:800 .78rem/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--field)}
+.wgi-l b{font:800 1.6rem/1 var(--display);text-transform:uppercase}
+.wgi-p{color:var(--dim);font-size:.92rem;line-height:1.45}.wgi-m{font-size:.8rem;color:var(--dim)}
+.wgi-go{justify-self:start;display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;background:var(--field);color:var(--on-field);font-weight:800;margin-top:var(--s2)}
+
+.wg-lab.gone,.wg-cty.gone{display:none}
+.wg-h-say .wg-evl li{font-size:.84rem}.wg-h-say .wg-evl a{display:none}
+/* phones: a taller map, and the overlays shrink to one line each so the map stays visible */
+.wg-stage{scroll-margin-top:64px}
+@media(max-width:560px){
+.wg-stage{aspect-ratio:auto;height:min(68vh,540px)}
+.wg-hud{padding:6px;gap:5px}
+.wg-h-top{padding:4px 8px}.wg-h-top span{display:none}.wg-h-when{font-size:.95rem}
+.wg-h-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px 8px;padding:4px 8px}
+.wg-h-board dt{font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg-h-say{max-height:none;padding:6px 8px;font-size:.8rem}
+.wg-h-say .wg-say>span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.wg-h-say .wg-evl li:nth-child(n+3){display:none}
+.wg-now{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.wg-ib{min-width:40px}
+}
+
+/* Iran Uncensored's Persian page (fa/scenarios/iran/, dir=rtl, 31 October 2026): the map keeps its left-to-right geometry so a
+   name sits right of its place; the sheet's close button and its pointer move to the other side; Persian never takes
+   letter-spacing or capitals (spacing breaks the joins between its letters). Nothing here changes a left-to-right page. */
+.wg-map{direction:ltr}
+[dir=rtl] .wg-x{right:auto;left:8px}
+[dir=rtl] .wg-br-who,[dir=rtl] .wg-place{padding-right:0;padding-left:40px}
+[dir=rtl] .wg-br-say::before{left:auto;right:46px;border-left:0;border-right:1px solid var(--line)}
+[lang=fa] .wg,[lang=fa] .wg *{letter-spacing:0!important;text-transform:none!important}
