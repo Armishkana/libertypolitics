@@ -329,7 +329,7 @@
   function boxW(c) { return c * CELL_W + (c - 1) * GAP + PAD * 2 + 4; }
   function plan() {      // how many faces wide each box is, and which short boxes stack under the one before: the layout that lets the whole drawing sit largest in this window
     var lay = LAY[view]; if (!vp || !lay || !lay.cols.length) return;
-    var COLS = lay.cols, vw = vp.clientWidth || 360, vh = vp.clientHeight || 400, best = null;
+    var COLS = lay.cols, vw = vp.clientWidth || 360, vh = (vp.clientHeight || 400) - hintH(), best = null;
     for (var R = 2; R <= 70; R++) {
       var cs = [], hs = [], Hmax = 0;
       COLS.forEach(function (col) { var c = Math.min(col.minC || 1, col.ids.length); while (c < 12 && rowsOf(col, c) > R) c++; cs.push(c); hs.push(boxH(col, c)); Hmax = Math.max(Hmax, boxH(col, c)); });
@@ -352,8 +352,12 @@
     measure();
   }
   function measure() { Z.cw = chart.offsetWidth || 1; Z.ch = chart.offsetHeight || 1; }
+  function hintH() {      // while the "pinch or scroll" hint is up, the fitted board starts under it, never behind it
+    if (!hint || !hint.offsetHeight) return 0;
+    return Math.max(0, Math.round(hint.getBoundingClientRect().bottom - vp.getBoundingClientRect().top) + 6);
+  }
   function bounds() {
-    var vw = vp.clientWidth, vh = vp.clientHeight;
+    var vw = vp.clientWidth, vh = vp.clientHeight - hintH();
     Z.fit = Math.min(vw / Z.cw, vh / Z.ch) * .97;
     Z.min = Z.fit * .9;
     Z.max = Math.max(Z.fit * 1.5, 3);      // a face is drawn 64px at scale 1 from a 200px picture: 3 is as sharp as it gets
@@ -369,7 +373,7 @@
     Z.y = sh <= vh ? Math.max(0, Math.min(vh - sh, Z.y)) : Math.max(vh - sh - M, Math.min(M, Z.y));
   }
   function clampPaint() { bounds(); clamp(); paint(); }
-  function fitPose() { var vw = vp.clientWidth, vh = vp.clientHeight; return { s: Z.fit, x: (vw - Z.cw * Z.fit) / 2, y: (vh - Z.ch * Z.fit) / 2 }; }
+  function fitPose() { var vw = vp.clientWidth, hh = hintH(), vh = vp.clientHeight - hh; return { s: Z.fit, x: (vw - Z.cw * Z.fit) / 2, y: hh + (vh - Z.ch * Z.fit) / 2 }; }
   function fit(anim) { bounds(); var f = fitPose(); Z.atFit = true; Z.ready = true; go(f.s, f.x, f.y, anim, true); }
   var moveT = null;
   function moving(on) {      // the drawing is a layer only while it moves, so the faces are drawn sharp again once it stops

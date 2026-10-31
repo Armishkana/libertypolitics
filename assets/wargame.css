@@ -76,14 +76,15 @@
 .wg-chip{background:transparent;color:var(--dim);font-size:.8rem}
 .wg-chip:hover,.wg-lens button:hover,.wg-seg button:hover{border-color:var(--field)}
 .wg-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
-.wg-room{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.wg-room li{position:relative;display:grid;border:1px solid var(--line);border-radius:10px;background:var(--raise);overflow:hidden}
+.wg-room{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.wg-room li{position:relative;display:grid;grid-template-rows:1fr auto;border:1px solid var(--line);border-radius:10px;background:var(--raise);overflow:hidden}
 .wg-room li.on{border-color:var(--field);box-shadow:0 0 0 1px var(--field) inset,0 0 24px rgba(244,196,48,.12)}
 .wg-ex{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto 1fr;column-gap:10px;row-gap:2px;align-items:start;text-align:start;padding:10px;border:0;background:transparent;color:inherit;cursor:pointer;min-height:84px}
 .wg-ex .wg-face{grid-row:1/4}
 .wg-ex b{font:800 1rem/1.05 var(--display);text-transform:uppercase;min-width:0;overflow-wrap:break-word}
 .wg-ex>span:not(.wg-face){font-size:.75rem;color:var(--dim);line-height:1.3;min-width:0}
-.wg-room.compact{grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
+/* 31 Oct 2026: 132px and 150px columns left the name beside the 52px face about 75px, so names ran a word a line and text was cut; 200px gives two readable columns in the 1600px panel and one on a phone. The seat button keeps its height (rows 1fr auto). */
+.wg-room.compact{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
 .wg-room.compact .wg-ex{min-height:72px}
 .wg-seat{min-height:40px;border:0;border-top:1px solid var(--line);background:transparent;color:var(--dim);font:800 .76rem/1 var(--body);text-transform:uppercase;letter-spacing:.06em;cursor:pointer}
 .wg-seat.on{background:var(--field);color:var(--on-field)}
