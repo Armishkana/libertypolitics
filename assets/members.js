@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=c5a046860f; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=f7f548e971; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the

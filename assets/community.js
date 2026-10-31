@@ -21,10 +21,11 @@
 const D = document, root = D.documentElement.getAttribute('data-root') || './';
 const $ = id => D.getElementById(id);
 const CFG = (() => { try { return JSON.parse($('lp-cfg').textContent); } catch (x) { return null; } })();
+const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, posts, "allow list" (both sites)
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=c5a046860f and assets/community-fa.js?v=c5a046860f, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=f7f548e971 and assets/community-fa.js?v=f7f548e971, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -387,7 +388,7 @@ function faceLink(name, uid) {
    same key, only for a gathering that is on the board, and refuse an address in its words (looksLikeAddress below). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
   ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + ')|(gathering):([A-Za-z0-9]{20}))$')
-  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job)|(gathering):([A-Za-z0-9]{20}))$/;
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms)|(gathering):([A-Za-z0-9]{20}))$/;
 const GATHERING_PAGE = typeof SITE.gatheringPage === 'string' ? SITE.gatheringPage : 'gatherings/g/';
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
@@ -1739,7 +1740,7 @@ function keptMark(text) {
       : (me && me.name && V && vsay(V.nudge, { name: me.name })) || (discCount > 0 ? tt('Agree, or not? Add what you think.') : ph.getAttribute('data-was'));
     const i = nd.querySelector('.nudge-in i'); if (i) i.textContent = kept ? tt('Finish it') : tt('Discuss');
   }
-  if (go) go.textContent = kept ? tt('Finish your unsent note') : tt('Open the discussion') + (discCount > 0 ? ' (' + (discCount >= 300 ? dig(300) + '+' : dig(discCount)) + ')' : '');
+  if (go) go.textContent = kept ? tt('Finish your unsent note') : tt('Open the discussion') + (discCount > 0 ? ' (' + (discCount >= COUNT_MAX ? dig(COUNT_MAX) + '+' : dig(discCount)) + ')' : '');
   if (tab) tab.setAttribute('aria-label', (discCount > 0 ? (discCount === 1 ? tt('Discussion, {n} post', { n: discCount }) : tt('Discussion, {n} posts', { n: discCount })) : tt('Discussion')) + (kept ? tt(', your unsent note is here') : ''));
 }
 function paintBox() {
@@ -1972,7 +1973,8 @@ function initTalk() {
      under the post they answer, with the order and the kinds to pick from once there is enough to sort. */
   const full = sec.hasAttribute('data-full'), page = sec.classList.contains('talk-all');
   T = { el: sec, feed: sec.hasAttribute('data-feed'), all: page || full, full, key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
-    what: sec.getAttribute('data-what') || tt('this page'), empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null, open: new Set() };
+    what: sec.getAttribute('data-what') || tt('this page'), empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null, open: new Set(),
+    gs: 'act', gopen: new Set(), gshut: new Set(), gall: false };      // the list of all discussions: its order, the cards opened and closed, all of them shown (groupCard)
   T.list = el('ul', 'votes talk-list');
   const go = sec.querySelector('.talk-go');
   if (go) sec.insertBefore(T.list, go); else sec.append(T.list);
@@ -2047,7 +2049,7 @@ async function loadTalk(quiet) {
     T.state = e && e.code === 'lp/off' ? 'off' : 'err';
   }
   /* A link to a reply opens the thread it is in, or the reply would not be on the page to land on. */
-  if (T.state === 'ok' && location.hash.indexOf('#p-') === 0) { const t = find(location.hash.slice(3)); if (t && t.parent) T.open.add(t.parent); }
+  if (T.state === 'ok' && location.hash.indexOf('#p-') === 0) { const t = find(location.hash.slice(3)); if (t && t.parent) T.open.add(t.parent); if (t) { T.gopen.add(t.about); T.gshut.delete(t.about); } }
   drawTalk();
   if (T.state === 'ok' && location.hash.indexOf('#p-') === 0) { const r = $(location.hash.slice(1)); if (r) r.scrollIntoView({ block: 'center' }); }
 }
@@ -2136,6 +2138,19 @@ function snapOnce() {
   if (!SNAPP || Date.now() - SNAPT > 60000) { SNAPT = Date.now(); SNAPP = snapFeed().catch(() => null); }
   return SNAPP;
 }
+/* The posts older than the newest 300 (fresh, just read from the database), from the newest saved copy, but only when the
+   count of live posts says the two together are every live post. A post taken off since the copy fails that count, and the
+   list is then the newest 300 alone, as before. Likes on a post past the newest 300 may be up to SNAP_TRUST old. */
+async function olderFromCopy(fresh) {
+  const [live, server] = await Promise.all([liveFp(), snapServer().catch(() => null)]);
+  if (!live) return [];
+  const ids = new Set(fresh.map(r => r.id)), oldest = Math.min(...fresh.map(r => r.ms || 0));
+  for (const b of [server, snapLocal()].filter(Boolean).sort((a, b) => b.at - a.at)) {
+    const older = b.rows.filter(r => r.status === 'live' && (r.ms || 0) < oldest && !ids.has(r.id));
+    if (fresh.length + older.length === live.n) return older;
+  }
+  return [];
+}
 /* Every live post when a copy can be proven to be exactly the database now, else null (and the list is read in full). */
 async function snapFeed() {
   if (hook('lpnosnap') || hook('lpnoindex') || hook('lpbreak')) return null;      // lpnoindex: the test of the list without its index reads the database
@@ -2168,10 +2183,10 @@ async function fetchPosts() {
     all.filter(r => r.status === 'live' && r.about === T.key).sort(byId).slice(0, 200).forEach(r => out.set(r.id, shapeRow(r)));
     if (user) take(await F.getDocs(F.query(P, F.where('about', '==', T.key), F.where('uid', '==', user.uid), F.limit(50))));
   } else if (all) {
-    /* What the database would have answered below: the newest 300, then up to 20 older posts that one of them answers. */
-    const live = all.filter(r => r.status === 'live').sort((a, b) => (b.ms || 0) - (a.ms || 0)), idx = new Map(live.map(r => [r.id, r]));
-    live.slice(0, 300).forEach(r => out.set(r.id, shapeRow(r)));
-    [...new Set([...out.values()].map(p => p.parent).filter(id => id && !out.has(id)))].slice(0, 20).forEach(id => { const r = idx.get(id); if (r) out.set(id, shapeRow(r)); });
+    /* Every live post. Until 31 October 2026 this kept the newest 300, copying what one list may ask the database for,
+       so with more than that on the site the counts stopped at "300+" and the oldest discussions went missing. The copy is
+       proven to be every live post (snapFeed), so it is shown whole. */
+    all.filter(r => r.status === 'live').forEach(r => out.set(r.id, shapeRow(r)));
   } else if (T.feed) {
     try {
       if (hook('lpnoindex')) throw { code: 'failed-precondition' };
@@ -2186,6 +2201,9 @@ async function fetchPosts() {
     }
     /* Fewer than 300 is every live post: kept in this browser, so the next look can be proven with a count (snapFeed). */
     if (raw.length && raw.length < 300) store.set(SNAP_KEY, { at: Date.now(), rows: raw });
+    /* 300 is all one list may ask for. The older posts come from the saved copy, when a count proves the two together are
+       every live post (olderFromCopy). */
+    else if (raw.length >= 300) { try { (await olderFromCopy(raw)).forEach(r => { if (!out.has(r.id)) out.set(r.id, shapeRow(r)); }); } catch (x) { } }
     /* A reply is drawn under the post it answers (ordered, hang). The newest posts can hold a reply whose
        post is older than all of them: that post is asked for by its id, so an answer is never left alone. */
     const lost = [...new Set([...out.values()].map(p => p.parent).filter(id => id && !out.has(id)))].slice(0, 20);
@@ -2217,6 +2235,7 @@ function talkAdd(post) {
   if (T.feed ? !((T.full && T.key === post.about) || hasPost(post.parent)) : T.key !== post.about) return;
   T.rev++;
   if (T.state !== 'ok') { if (T.state === 'idle' || T.state === 'err') loadTalk(); return; }
+  T.gopen.add(post.about); T.gshut.delete(post.about);      // on the list of all discussions, the card it is in opens
   T.posts = T.posts.filter(p => p.id !== post.id).concat([post]);
   drawTalk();
 }
@@ -2263,6 +2282,7 @@ function drawTalk() {
     const best = T.sort === 'top' && rows.find(p => p.status === 'live' && p.score > 0 && !p.fresh);
     if (!every.length) L.append(stateRow(T.feed ? (T.full && T.empty) || tt('Nobody has posted yet. Pick a race or a member and be the first.') : T.empty || tt('Nobody has said anything about {what} yet. Be the first.', { what: T.what })));
     else if (!rows.length) L.append(stateRow(tt('Nothing of that kind here yet.'), btn('btn btn-line', tt('Show everything'), () => { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); })));
+    else if (T.feed && T.all) drawGroups(L, every, rows);
     else (T.all ? rows : rows.slice(0, 3)).forEach(p => L.append(row(p, p === best)));
     if (T.full) { drawCtl(every); setCount(n); }
   }
@@ -2278,6 +2298,95 @@ function drawTalk() {
     } else if (more) more.remove();
   }
 }
+/* ------------------------------------------------------------------ all discussions: one card a discussion
+   31 October 2026, Armin, on the front page's Discussion: "I can't tell how many there are here because it says 300+ ...
+   it's just such a mess. I don't know what's going on ... because it's comments from everywhere, it's hard to see what this
+   was about". Until then this list was the newest 300 posts of the whole site in one stream, each with "In: <page>" over
+   it. Now every live post is read (snapFeed, olderFromCopy) and the list is the discussions: one card for each page people
+   are talking on, with its name, how many posts and people, when someone last spoke, and the newest words in it. A tap on
+   the words opens that discussion where it stands, each post with its replies under it; the name opens its page. Newest
+   puts the last word first, Busiest the most posts. A card opens by itself when it holds the reader's own new post, a reply
+   to them, or the post a link points at. */
+const GROUPS_FIRST = 12;
+function threadOf(p) { return p.parent ? [p] : [p].concat(repliesTo(p.id)); }
+function groupsOf(every, rows) {
+  const by = new Map();
+  every.forEach(p => {
+    let g = by.get(p.about);
+    if (!g) by.set(p.about, g = { about: p.about, n: 0, who: new Set(), last: 0, subject: '', shown: [], newest: null, mine: false, ry: false });
+    threadOf(p).forEach(x => { g.n++; if (x.uid) g.who.add(x.uid); if (x.ms > g.last) g.last = x.ms; });
+    if (!g.subject && !p.parent && p.subject) g.subject = p.subject;
+  });
+  rows.forEach(p => {
+    const g = by.get(p.about);
+    if (!g) return;
+    g.shown.push(p);
+    threadOf(p).forEach(x => {
+      if (x.status === 'live' && (x.text || x.url) && (!g.newest || x.ms > g.newest.ms)) g.newest = x;
+      if (x.fresh || (me && x.uid === me.uid && x.status !== 'live')) g.mine = true;
+      if (x.status === 'live' && ryHere(x)) g.ry = true;
+    });
+  });
+  const act = (a, b) => b.last - a.last;
+  return [...by.values()].filter(g => g.shown.length)
+    .sort((a, b) => (Number(b.mine) - Number(a.mine)) || (T.gs === 'busy' ? (b.n - a.n) || act(a, b) : act(a, b)));
+}
+function groupOpen(g) { return !T.gshut.has(g.about) && (T.gopen.has(g.about) || g.mine || g.ry); }
+function drawGroups(L, every, rows) {
+  const gs = groupsOf(every, rows), show = gs.filter((g, i) => T.gall || i < GROUPS_FIRST || groupOpen(g));
+  show.forEach(g => L.append(groupCard(g)));
+  const rest = gs.length - show.length;
+  if (rest > 0) {
+    const li = el('li', 'dg-more');
+    li.append(btn('btn btn-line', rest === 1 ? tt('Show 1 more discussion') : tt('Show {n} more discussions', { n: rest }), () => { T.gall = true; drawTalk(); }));
+    L.append(li);
+  }
+}
+/* Open or close one card. The list is drawn again, so the card is found again, kept in view and given the focus. */
+function groupFlip(about, open) {
+  if (open) { T.gopen.add(about); T.gshut.delete(about); } else { T.gopen.delete(about); T.gshut.add(about); }
+  drawTalk();
+  const c = [...T.list.children].find(li => li.getAttribute('data-about') === about);
+  if (!c) return;
+  if (!open || c.getBoundingClientRect().top < 0) c.scrollIntoView({ block: 'start' });
+  const f = c.querySelector(open ? '.dg-x' : '.dg-p');
+  if (f) try { f.focus({ preventScroll: true }); } catch (x) { }
+}
+function groupCard(g) {
+  const open = groupOpen(g), name = nameOf(g.about, g.subject), path = pathOf(g.about);
+  const li = el('li', 'dg' + (open ? ' dg-on' : ''), null, { 'data-about': g.about });
+  const head = el('div', 'dg-h');
+  /* The name leads to the page the discussion is on: the page itself for a mission (its card on the board), the page's
+     discussion for the rest. The front page's own discussion is the page the reader is on, so its name leads nowhere. */
+  head.append(path != null && g.about !== 'page:home'
+    ? el('a', 'dg-t', name, { href: keyKind(g.about) === 'quest' ? hrefOf(g.about, '') : root + path + '#discussion' })
+    : el('span', 'dg-t', name));
+  if (open) {
+    const x = btn('dg-x', tt('Close'), () => groupFlip(g.about, false));
+    x.setAttribute('aria-expanded', 'true');
+    head.append(x);
+  }
+  const n = g.n === 1 ? tt('1 post') : tt('{n} posts', { n: g.n }), ppl = g.who.size === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: g.who.size });
+  head.append(el('p', 'dg-m', n + ' · ' + ppl + ' · ' + ago(g.last)));
+  li.append(head);
+  if (open) {
+    const ul = el('ul', 'votes dg-l');
+    g.shown.forEach(p => ul.append(row(p, false)));
+    li.append(ul);
+    return li;
+  }
+  const go = btn('dg-p', null, () => groupFlip(g.about, true)), p = g.newest;
+  go.setAttribute('aria-expanded', 'false');
+  if (p) {
+    const cut = (t, k) => t.length > k ? t.slice(0, k - 3).replace(/\s+\S*$/, '') + '...' : t;
+    const q = el('span', 'dg-q', null, ML ? { dir: dirOf(lgOf(p)) } : null);
+    q.append(el('b', null, p.name + ': '), p.text ? cut(p.text.replace(/\s+/g, ' '), 160) : tt('Video shared by {name}', { name: p.name }));
+    go.append(q);
+  }
+  go.append(el('span', 'dg-go', tt('Open the discussion') + ' (' + dig(g.n) + ')'));
+  li.append(go);
+  return li;
+}
 /* The kinds a reader can narrow a discussion to. Opinions, videos, corrections and bugs sit in one list,
    each with its tag; these let a reader who came for one kind see only that. */
 const ONLY = {
@@ -2290,12 +2399,6 @@ const WHERE = { race: tt('Races'), member: tt('Politicians'), state: tt('States'
 let NAMES = null, namesAsked = false;
 /* What a page is called: from the build's own list once it has loaded, until then from the post. */
 function nameOf(about, fallback) { return (NAMES && typeof NAMES[about] === 'string' && NAMES[about]) || fallback || tt('Open the page'); }
-/* The discussions with the most posts among the newest ones loaded, the front page's own left out. */
-function busiest(every) {
-  const by = new Map();
-  every.forEach(p => { if (p.about === 'page:home' || pathOf(p.about) == null) return; const b = by.get(p.about) || { about: p.about, n: 0, subject: '' }; b.n++; if (!b.subject && !p.parent) b.subject = p.subject; by.set(p.about, b); });
-  return [...by.values()].filter(b => b.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
-}
 /* The order and the kinds, above the list. Not drawn until there are three posts: with fewer there is
    nothing to sort, and a row of switches over one post is noise. */
 function drawCtl(every) {
@@ -2314,7 +2417,10 @@ function drawCtl(every) {
   const chip = (text, on, fn) => { const c = btn('chip', text, () => { fn(); drawTalk(); }); c.setAttribute('aria-pressed', String(on)); chips.append(c); };
   if (every.length < 3) { C.append(langRow()); return; }
   if (!T.feed) [['top', tt('Most liked')], ['new', tt('Newest')]].forEach(([s, w]) => chip(w, T.sort === s, () => { T.sort = s; }));
-  if (!T.feed) chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
+  /* All discussions: the order of the cards (groupCard). Busiest took the place of the row of the five busiest
+     discussions, which counted only the newest 300 posts. */
+  else [['act', tt('Newest')], ['busy', tt('Busiest')]].forEach(([s, w]) => chip(w, T.gs === s, () => { T.gs = s; }));
+  chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
   chip(tt('Everything'), !T.only && !T.where, () => { T.only = ''; T.where = ''; });
   Object.keys(ONLY).forEach(k => { if (every.some(ONLY[k][1])) chip(ONLY[k][0], T.only === k, () => { T.only = k; }); });
   /* All discussions (the front page): every page's posts are in one list, so a reader can also narrow it by
@@ -2326,15 +2432,9 @@ function drawCtl(every) {
       chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
       kinds.forEach(k => chip(WHERE[k], T.where === k, () => { T.where = T.where === k ? '' : k; }));
     }
-    const busy = busiest(T.posts.filter(p => !p.gone));
-    if (busy.length) {
-      const box = el('div', 'busy');
-      box.append(el('p', 'busy-h', tt('Busiest discussions')));
-      const ul = el('ul', 'busy-l');
-      busy.forEach(b => { const li = el('li'), a = el('a', 'busy-a', null, { href: keyKind(b.about) === 'quest' ? hrefOf(b.about, '') : root + pathOf(b.about) + '#discussion' }); a.append(el('span', null, nameOf(b.about, b.subject)), el('b', 'num', dig(b.n))); li.append(a); ul.append(li); });
-      box.append(ul);
-      C.append(box);
-    }
+    /* How big it is, in one line over the cards: every post, every discussion, every person. */
+    const all = every.flatMap(threadOf), n = all.length, ds = new Set(every.map(p => p.about)).size, ppl = new Set(all.map(p => p.uid).filter(Boolean)).size;
+    C.append(el('p', 'dg-sum', [n === 1 ? tt('1 post') : tt('{n} posts', { n }), ds === 1 ? tt('1 discussion') : tt('{n} discussions', { n: ds }), ppl === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: ppl })].join(' · ')));
   }
   C.append(chips);
   if (both) C.append(langRow());
@@ -2344,9 +2444,10 @@ function drawCtl(every) {
 function setCount(n) {
   const b = $('disc-n'), p = $('band-p');
   discCount = n > 0 ? n : 0;
-  /* The real number, up to what one count can see (the count asks for at most 300: initPeek). Until 8 October 2026
-     it stopped at "99+", and a reader pointed out that says nothing once there are more than that. */
-  const most = 300, shown = n >= most ? dig(most) + '+' : dig(n);
+  /* The real number. Until 8 October 2026 it stopped at "99+", then at "300+" (Armin, 31 October 2026: "The number of
+     discussions showing 300+ is useless"). A count may see COUNT_MAX posts (the rules' limit), so the plus is left for a
+     site past that. */
+  const shown = n >= COUNT_MAX ? dig(COUNT_MAX) + '+' : dig(n);
   if (b) { b.hidden = !(n > 0); b.textContent = shown; }
   if (n > 0 && p && !p.hasAttribute('data-set')) { p.textContent = n === 1 ? tt('1 post so far. Read it, and say where you stand.') : tt('{n} posts so far. Read them, and say where you stand.', { n }); }
   /* The same number on the question high on the record. */
@@ -2377,7 +2478,7 @@ function initPeek() {
       return;
     }
     /* The limit is what the rules ask of every list of posts; a count under it still costs one read. */
-    const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: 300 }, aggregations: [{ alias: 'n', count: {} }] } };
+    const q = { structuredAggregationQuery: { structuredQuery: { from: [{ collectionId: 'posts' }], where: restWhere(), limit: COUNT_MAX }, aggregations: [{ alias: 'n', count: {} }] } };
     const res = await within(15000, fetch(restBase('runAggregationQuery'), { method: 'POST', body: JSON.stringify(q) }));
     if (!res.ok) return;
     const got = await res.json(), n = Number((((Array.isArray(got) ? got[0] : got) || {}).result || { aggregateFields: { n: {} } }).aggregateFields.n.integerValue || 0);
@@ -2447,9 +2548,10 @@ function talkCounts(keys) {
       if (OFF || hook('lpbreak')) throw { code: 'lp/off' };
       const all = await snapOnce();
       if (all) {
-        const rows = all.filter(r => r.status === 'live' && part.includes(r.about)).sort(byId).slice(0, 300), by = new Map(part.map(k => [k, { n: 0, who: new Set() }]));
+        /* The copy is every live post, so every one is counted (until 31 October 2026 it kept 300 and said "300+"). */
+        const rows = all.filter(r => r.status === 'live' && part.includes(r.about)), by = new Map(part.map(k => [k, { n: 0, who: new Set() }]));
         rows.forEach(r => { const b = by.get(r.about); b.n++; if (r.uid) b.who.add(r.uid); });
-        return { by, full: rows.length >= 300 };
+        return { by, full: false };
       }
       const q = { structuredQuery: { select: { fields: [{ fieldPath: 'about' }, { fieldPath: 'uid' }] }, from: [{ collectionId: 'posts' }],
         where: { compositeFilter: { op: 'AND', filters: [
@@ -2656,7 +2758,9 @@ function row(p, best) {
   }
   head.append(faceLink(p.name, p.uid), meta);
   li.append(head);
-  if (T.feed && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: hrefOf(p.about, p.id) }));
+  /* The page a post is on. On the list of all discussions the card it sits in names it (groupCard), so only a short
+     list of the newest posts from every page says it on each post. */
+  if (T.feed && !T.all && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: hrefOf(p.about, p.id) }));
   /* A post opened from one line of a page (one vote on a member's page) says which line. */
   else if (!T.feed && !p.parent && p.subject && p.subject !== T.name) {
     /* On a site with two languages the line may have been written on the page in the other one: it is kept
@@ -2901,7 +3005,12 @@ function drawJump() {
       li.append(btn('btn btn-line jump-b', tt('Answer {name}', { name: p.name }), () => {
         /* A filter that hides the post would leave the reply box nowhere: show everything first. */
         if (T.only || T.where || T.lang) { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); }
-        if (T.v2 && hasPost(p.id)) { T.replying = { id: p.id, at: '', pre: '', text: '' }; redraw(p, 'reply-in'); }
+        if (T.v2 && hasPost(p.id)) {
+          T.replying = { id: p.id, at: '', pre: '', text: '' };
+          /* On the list of all discussions the post may sit in a card that is closed: the card opens with the box under it. */
+          if (T.feed && T.all && !$('p-' + p.id)) { groupFlip(p.about, true); const r = $('p-' + p.id), i = r && r.querySelector('.reply-in'); if (r) r.scrollIntoView({ block: 'center' }); if (i) try { i.focus({ preventScroll: true }); } catch (x) { } }
+          else redraw(p, 'reply-in');
+        }
         else location.href = hrefOf(p.about, p.id);
       }));
       ul.append(li);

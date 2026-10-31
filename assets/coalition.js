@@ -154,6 +154,24 @@
     box.classList.toggle('is-empty', empty);
   }
 
+  // ---------------------------------------------------------------- the betting markets, woven into the sentence
+  // C.mk.pm: {party: [the market's spelling of its leader, chance in 100]} (build/markets.py pm_payload). The sentence
+  // names the chance of the biggest party's leader; a reader with "Betting odds" off never sees it (markets.css hides
+  // .coal-mk under html.mk-off). markets.js hands over this hour's prices as lp:markets.
+  function pmOdds(i) {
+    var m = C.mk && C.mk.pm && C.mk.pm[i];
+    if (!m) return '';
+    return ' <span class="coal-mk">The betting markets give ' + esc(surname(i)) + ' <b class="num">' + m[1] + ' in 100</b> to be the next prime minister.</span>';
+  }
+  D.addEventListener('lp:markets', function (ev) {
+    var w = C.mk && ev.detail && ev.detail.w && ev.detail.w[C.mk.slug];
+    if (!w) return;
+    var by = {};
+    w.o.forEach(function (o) { by[o[0]] = o[1]; });
+    Object.keys(C.mk.pm).forEach(function (i) { var n = C.mk.pm[i][0]; if (by[n] != null) C.mk.pm[i][1] = by[n]; });
+    words();
+  });
+
   // ---------------------------------------------------------------- the number, the bar, the sentence
   function words() {
     var g = sum(gov), o = sum(out), t = g + o;
@@ -174,7 +192,7 @@
     box.classList.toggle('is-maj', g >= MAJ);
     box.classList.toggle('is-min', g < MAJ && t >= MAJ);
     var big = gov.slice().sort(function (a, b) { return P[b].seats - P[a].seats; })[0];
-    var biggest = big ? ' The biggest party in it is ' + esc(P[big].name) + ', led by ' + esc(P[big].leader) + '.' : '';
+    var biggest = big ? ' The biggest party in it is ' + esc(P[big].name) + ', led by ' + esc(P[big].leader) + '.' + pmOdds(big) : '';
     var s;
     if (!gov.length && !out.length) s = 'Tap a party to start a government. No party has ' + MAJ + ' on its own.';
     else if (g >= MAJ) s = '<b>A majority.</b> ' + g + ' seats, ' + (g - MAJ ? (g - MAJ) + ' more than it needs' : 'not one to spare') + '. ' + (ALL - g) + ' seats would sit in opposition.' + biggest;
@@ -195,6 +213,7 @@
     box.classList.toggle('is-bad', hard(hit, gov).length > 0);
     RESET.hidden = !(gov.length || out.length);
     SHARE.hidden = !gov.length;
+    if (PIC) PIC.hidden = !gov.length;      // "Make a picture" beside Share (the picture to post, below)
   }
 
   // ---------------------------------------------------------------- the buttons
@@ -441,6 +460,110 @@
     var pr = preset(s.getAttribute('data-pre-n'));
     if (pr) s.textContent = sum(pr.gov) + (pr.out && pr.out.length ? ' + ' + sum(pr.out) : '');
   });
+  // ---------------------------------------------------------------- the picture to post (build/shareimg.js)
+  // Armin, 30 October 2026: "when people play around with these tools, they should be able to produce an image that they
+  // could post on social media. It has our website and our branding on it". The chamber exactly as the reader picked it
+  // (the circles of the chamber on the page, in their colours), the count against the majority, the bar to the line,
+  // what the government is and how likely, and the parties in it with their leaders' faces. The frame (the brand, the
+  // title, the address at the foot) is shareimg.js's; url() and text() are the Share button's.
+  var PIC = null;
+  function picVerdict() {
+    var g = sum(gov), o = sum(out), t = g + o;
+    if (!gov.length) return { title: (MAJ - t) + ' seats short', line: 'No party has ' + MAJ + ' on its own.' };
+    if (t >= MAJ) {
+      var O = g >= MAJ ? [] : out, nm = name(gov, O), jd = judge(gov, O);
+      return { title: nm.title, tier: jd.tier, why: jd.why[0],
+        line: g >= MAJ ? 'A majority: ' + g + ' seats, ' + (g - MAJ ? (g - MAJ) + ' more than it needs.' : 'not one to spare.') : 'A minority government: ' + g + ' inside and ' + o + ' outside make ' + t + '.' };
+    }
+    return { title: (MAJ - t) + ' seat' + (MAJ - t === 1 ? '' : 's') + ' short', line: g + ' seats' + (o ? ' and ' + o + ' outside' : '') + '. A government needs ' + MAJ + '.' };
+  }
+  function picDraw(ctx, bx, kit) {
+    var c = kit.c, list = gov.concat(out);
+    var faceOf = function (i) { return box.querySelector('.coal-row[data-id="' + i + '"] .coal-face'); };
+    return Promise.all(list.map(function (i) { var f = faceOf(i); return kit.img(f && f.tagName === 'IMG' ? f.getAttribute('src') : ''); })).then(function (ims) {
+      var g = sum(gov), o = sum(out), empty = !list.length;
+      // the parties, as chips that wrap: measured first, so the chamber takes what is left
+      var chipH = 76, cg = 12, maxRows = bx.h >= 680 ? 3 : 2, chips = [], cx = 0, row = 0;
+      list.forEach(function (i, k) {
+        ctx.font = kit.font(26, 700, 'body');
+        var nw = ctx.measureText(P[i].name).width;
+        ctx.font = kit.font(32, 800, 'display');
+        var sw = ctx.measureText(String(P[i].seats)).width, w = 10 + 56 + 14 + nw + 14 + sw + 22;
+        w = Math.min(w, bx.w);
+        if (cx && cx + w > bx.w) { row++; cx = 0; }
+        chips.push({ i: i, im: ims[k], x: cx, row: row, w: w, out: out.indexOf(i) >= 0, nw: nw, sw: sw });
+        cx += w + cg;
+      });
+      var shown = chips.filter(function (ch) { return ch.row < maxRows; }), rows = shown.length ? shown[shown.length - 1].row + 1 : 0;
+      if (shown.length < chips.length) {      // the ones that do not fit are counted on one more chip, after the last that fits
+        var last = shown[shown.length - 1], mw = 160;
+        if (last.x + last.w + cg + mw <= bx.w) shown.push({ x: last.x + last.w + cg, row: last.row, w: mw, more: chips.length - shown.length });
+        else { last.more = chips.length - shown.length + 1; last.w = mw; }
+      }
+      var chipsH = rows ? rows * chipH + (rows - 1) * cg : 0, barH = 30, fixed = 26 + 44 + barH + (rows ? 34 + chipsH : 0);
+      var sc = Math.min(bx.w * 0.86 / 400, (bx.h - fixed) / 212), total = 212 * sc + fixed, y = bx.y + Math.max(0, (bx.h - total) / 2);
+      // the chamber
+      var hx = bx.x + (bx.w - 400 * sc) / 2, hy = y, svg = dots.length && dots[0].ownerSVGElement, mid = svg && svg.querySelector('.coal-mid');
+      if (mid) {
+        ctx.save(); ctx.strokeStyle = c.field; ctx.globalAlpha = empty ? 0.35 : 0.8; ctx.lineWidth = Math.max(2, 1.5 * sc); ctx.setLineDash([3 * sc, 4 * sc]);
+        ctx.beginPath(); ctx.moveTo(hx + +mid.getAttribute('x1') * sc, hy + +mid.getAttribute('y1') * sc); ctx.lineTo(hx + +mid.getAttribute('x2') * sc, hy + +mid.getAttribute('y2') * sc); ctx.stroke(); ctx.restore();
+      }
+      dots.forEach(function (d) {
+        var k = d.getAttribute('class') || '', col = d.getAttribute('fill') || c.dim, r = +d.getAttribute('r') * sc;
+        ctx.beginPath(); ctx.arc(hx + +d.getAttribute('cx') * sc, hy + +d.getAttribute('cy') * sc, r, 0, Math.PI * 2);
+        ctx.globalAlpha = /\bd-o\b/.test(k) ? 0.22 : /\bd-x\b/.test(k) ? 0.13 : 1; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+        if (/\bd-o\b/.test(k)) { ctx.lineWidth = Math.max(1.5, 1.6 * sc); ctx.strokeStyle = col; ctx.stroke(); }
+      });
+      // the count in the middle of the chamber
+      var ccx = bx.x + bx.w / 2, base = hy + 198 * sc;
+      kit.text(ctx, String(empty ? ALL : g), ccx, base - 26 * sc, { px: Math.min(150, 62 * sc), weight: 900, fam: 'display', color: g >= MAJ ? c.field : c.ink, align: 'center' });
+      kit.text(ctx, empty ? 'seats' : 'of ' + MAJ + ' needed', ccx, base, { px: Math.min(30, 13 * sc), weight: 600, fam: 'body', color: c.dim, align: 'center' });
+      // the bar to the majority line
+      var by = hy + 212 * sc + 26 + 44, pc = function (n) { return bx.w * n / ALL; }, ax = bx.x;
+      kit.round(ctx, bx.x, by, bx.w, barH, barH / 2); ctx.fillStyle = c.sunk; ctx.fill();
+      ctx.save(); kit.round(ctx, bx.x, by, bx.w, barH, barH / 2); ctx.clip();
+      gov.forEach(function (i) { ctx.fillStyle = P[i].color; ctx.fillRect(ax, by, Math.max(0, pc(P[i].seats) - 3), barH); ax += pc(P[i].seats); });
+      out.forEach(function (i) { ctx.globalAlpha = 0.4; ctx.fillStyle = P[i].color; ctx.fillRect(ax, by, Math.max(0, pc(P[i].seats) - 3), barH); ctx.globalAlpha = 1; ax += pc(P[i].seats); });
+      ctx.restore();
+      var lx = bx.x + pc(MAJ);
+      ctx.fillStyle = c.field; ctx.fillRect(lx - 2, by - 10, 4, barH + 20);
+      kit.text(ctx, MAJ + ' for a majority', lx, by - 18, { px: 26, weight: 700, fam: 'body', color: c.field, align: 'center' });
+      // the parties in it, with their leaders' faces
+      var cy0 = by + barH + 34;
+      shown.forEach(function (ch) {
+        var x0 = bx.x + ch.x, y0 = cy0 + ch.row * (chipH + cg), p = P[ch.i];
+        kit.round(ctx, x0, y0, ch.w, chipH, chipH / 2); ctx.fillStyle = c.panel; ctx.fill();
+        if (ch.out) { ctx.setLineDash([6, 6]); ctx.lineWidth = 2; ctx.strokeStyle = p.color; ctx.stroke(); ctx.setLineDash([]); }
+        if (ch.more) {
+          kit.text(ctx, '+' + ch.more + ' more', x0 + ch.w / 2, y0 + chipH / 2 + 1, { px: 28, weight: 700, fam: 'body', color: c.dim, align: 'center', base: 'middle' });
+          return;
+        }
+        var f = faceOf(ch.i);
+        kit.face(ctx, ch.im, x0 + 10 + 28, y0 + chipH / 2, 56, { ring: p.color, ringW: 4, initials: f && f.tagName !== 'IMG' ? f.textContent : kit.initials(p.leader) });
+        var tx = x0 + 10 + 56 + 14;
+        kit.text(ctx, p.name, tx, y0 + chipH / 2 + 1, { px: 26, weight: 700, fam: 'body', color: c.ink, base: 'middle', max: ch.w - 80 - ch.sw - 34 });
+        kit.text(ctx, String(p.seats), x0 + ch.w - 20, y0 + chipH / 2 + 2, { px: 32, weight: 800, fam: 'display', color: ch.out ? c.dim : c.ink, align: 'end', base: 'middle' });
+      });
+    });
+  }
+  (function picture() {
+    if (!SHARE || !SHARE.parentNode) return;
+    PIC = D.createElement('button');
+    PIC.type = 'button'; PIC.id = 'coal-pic'; PIC.className = 'btn btn-line shot-make'; PIC.hidden = true; PIC.setAttribute('data-shot', 'coalition');
+    PIC.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg><span>Make a picture</span>';
+    SHARE.parentNode.insertBefore(PIC, SHARE.nextSibling);
+    (W.LPShotQ = W.LPShotQ || []).push({
+      id: 'coalition', el: '#coalition',
+      kicker: 'Build ' + C.country + '’s next government',
+      cta: 'Can you get to ' + MAJ + '? Build yours at',
+      title: function () { return 'My government for ' + C.country + ': ' + picVerdict().title; },
+      sub: function () { var v = picVerdict(); return v.line + (v.tier ? ' ' + TIER[v.tier] + '. ' + v.why + '.' : ''); },
+      text: function () { save(); return SHARE.getAttribute('data-text'); },
+      url: function () { save(); return SHARE.getAttribute('data-url'); },
+      draw: picDraw
+    });
+  })();
+
   box.classList.add('is-live');
   load();
   draw();

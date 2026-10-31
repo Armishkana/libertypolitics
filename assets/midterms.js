@@ -14,8 +14,11 @@
   var $ = function (id) { return D.getElementById(id); };
   var reduce = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var M, RS = [], BY = {}, TODAY = parseFloat(box.getAttribute('data-today')) || 0;
-  var mood = TODAY, pick = {}, real = {}, night = null, tab = 'S', where = 'close', showAll = false;
-  var MK = null;      // the betting markets (assets/markets.json, build/markets.py): {at, us: {S|H: {D, R}}, r: {id: [L%, R%, $, feeds]}}
+  var mood = TODAY, pick = {}, real = {}, realM = {}, night = null, tab = 'S', where = 'close', showAll = false;
+  var MK = null;      // the betting markets (assets/markets.json, build/markets.py): {at, us: {S|H: {D, R}, V: {m}}, r: {id: [L%, R%, $, feeds]}}
+  var MKALL = null;   // the same file as read; MK is null while the reader has "Betting odds" switched off (markets.js, lp:odds)
+  // a market link, through the affiliate door when markets.js is on the page (plain until a code exists, never tagged without it)
+  function mkA(u, t) { return W.LPAff ? W.LPAff.a(u, esc(t)) : '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(t) + '</a>'; }
   var SNEED = 51, HNEED = 218;
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -203,6 +206,9 @@
       if (mk) {
         h += row('<span class="mt-vs-l">Betting markets</span><span class="mt-vs-s">Markets</span>', mk.D, ' is-mk');
         if ((mk.D >= 50 ? 'D' : 'R') !== lead && Math.abs(mk.D - 50) >= 5) h += '<span class="mt-vs-say">Your map and the markets pick different winners.</span>';
+        // where the number was read: every market link through the one door (markets.js LPAff, build/affiliate.py)
+        h += '<span class="mt-vs-src">' + (mk.u || []).map(function (u) { return mkA(u, /kalshi\.com/.test(u) ? 'Kalshi' : 'Polymarket'); }).join(' and ')
+          + (W.LPAff && W.LPAff.note(mk.u) ? ' <span class="mk-aff">' + esc(W.LPAff.note(mk.u)) + '</span>' : '') + '</span>';
       }
       o.innerHTML = h;
     });
@@ -278,13 +284,32 @@
         b.disabled = !!real[x.id] || !!x.lock || !!night;
         b.querySelector('.mt-win').textContent = won ? (real[x.id] ? 'Won' : pick[x.id] ? 'Your call' : 'Wins') : '';
       });
-      var st = li.querySelector('.mt-state');
-      st.textContent = real[x.id] ? 'Called on the night' : pick[x.id] ? 'Your call' : x.lock ? '' : night ? '' : (Math.abs(v) < 0.05 ? 'Dead even' : 'Wins by ' + r1(Math.abs(v)) + ' pts');
+      var st = li.querySelector('.mt-state'), sw = stateWords(x, s, v);
+      if (st._t !== sw.t + sw.p) { st._t = sw.t + sw.p; st.innerHTML = sw.h; st.className = 'mt-state' + (sw.p ? ' is-' + sw.p : '') + (sw.k ? ' is-' + sw.k : ''); st.title = sw.t; }
       var mi = li.querySelector('.mt-meter-in'), w = Math.min(50, Math.abs(v) * 2.5);
       mi.style.width = (x.lock || pick[x.id] || real[x.id] ? 0 : w) + '%';
       mi.style.left = v > 0 ? (50 - w) + '%' : '50%';
       mi.className = 'mt-meter-in is-' + (v > 0 ? x.L.p : 'R');
     });
+  }
+
+  // The words at the right of a card's head: who wins and by how many percentage points (Elysa, 30 October 2026: "show
+  // the actual percentage points for margin of victory"). Before the night it is the forecast margin at the slider; on a
+  // pretend night, the margin that night's run drew for a race once it is called; on the real night, the counted margin.
+  // A race the reader called, or with one side on the ballot, has no margin to show.
+  // {h: the pill's html, t: the same in words for its title, p: the party colour, k: what kind}
+  function marginWords(x, s, pts, lead) {
+    var p = sideParty(x, s), n = r1(Math.abs(pts)).toFixed(1), who = surname(x[s].n);
+    return { h: (lead ? '<span class="mt-sk">' + lead + '</span> ' : '') + '<b class="num">' + p + ' +' + n + '</b> <span class="mt-su">pts</span>', t: who + ' by ' + n + ' percentage points', p: p };
+  }
+  function stateWords(x, s, v) {
+    var o;
+    if (real[x.id]) { o = realM[x.id] != null ? marginWords(x, real[x.id], realM[x.id], 'Called') : { h: 'Called on the night', t: 'Called on the night', p: sideParty(x, real[x.id]) }; o.k = 'real'; return o; }
+    if (pick[x.id]) return { h: 'Your call', t: 'You called this race', p: '', k: 'mine' };
+    if (x.lock) return { h: '', t: '', p: '' };
+    if (night) { if (night.v[x.id] != null && s) { o = marginWords(x, s, night.v[x.id], 'Won'); o.k = 'won'; return o; } return { h: '', t: '', p: '' }; }
+    if (Math.abs(v) < 0.05) return { h: '<b>Dead even</b>', t: 'Dead even at this setting', p: '' };
+    return marginWords(x, v > 0 ? 'L' : 'R', v);
   }
 
   // the short counts: the line under the slider and the bar that stays on screen among the race cards
@@ -311,7 +336,7 @@
     var n = Object.keys(pick).length;
     $('mt-mine').hidden = !n;
     $('mt-mine').innerHTML = n ? 'You called ' + n + ' race' + (n === 1 ? '' : 's') + ' yourself. <button type="button" class="mt-clear" id="mt-clear">Hand them all back to the mood</button>' : '';
-    $('mt-reset').hidden = !(n || r1(mood) !== r1(TODAY));
+    runLabel();
     boldSum();
     oddsSoon();
     save();
@@ -320,7 +345,7 @@
   // The line under step 3: how many of the reader's calls go against the betting markets, and a tap to see them.
   function boldSum() {
     var el = $('mt-boldsum'), mk = $('mt-mk');
-    if (!MK) { el.hidden = true; return; }
+    if (!MK) { el.hidden = true; mk.hidden = true; return; }
     mk.hidden = false;
     mk.setAttribute('aria-pressed', isMarketMap() ? 'true' : 'false');
     var sh = mood - TODAY, S = againstAll('S', sh), H = againstAll('H', sh);
@@ -335,21 +360,51 @@
     el.innerHTML = '<span class="mt-bs-i" aria-hidden="true">&#9889;</span><span>You go against the betting markets in ' + say.join(' and ') + '. '
       + '<button type="button" class="mt-bs-go" id="mt-bs-go">Show them</button></span>';
   }
-  // the map the markets would draw: today's polls, and every race they price given to their favorite
+  // the map the markets would draw: the national vote they expect (the Markets mark; today's polls when they price none),
+  // and every race they price given to their favorite
+  function mkMood() { return MK && MK.us && MK.us.V && isFinite(MK.us.V.m) ? Math.max(-MAX, Math.min(-MIN, MK.us.V.m)) : TODAY; }
   function isMarketMap() {
-    if (!MK || r1(mood) !== r1(TODAY)) return false;
-    return RS.every(function (x) { var f = fav(x); return !f || real[x.id] || f.p <= 50 || sideAt(x, 0) === f.s; })
+    if (!MK || r1(mood) !== r1(mkMood())) return false;
+    var sh = mood - TODAY;
+    return RS.every(function (x) { var f = fav(x); return !f || real[x.id] || f.p <= 50 || sideAt(x, sh) === f.s; })
       && Object.keys(pick).every(function (i) { var f = fav(BY[i]); return f && pick[i] === f.s; });
   }
-  // the calls Betting favorites makes: every race the markets price where their favorite is not already ahead in the polls
+  // the calls Betting favorites makes: every race the markets price where their favorite is not already ahead at that vote
   function marketPicks() {
-    var keep = pick, out = {};
+    var keep = pick, out = {}, sh = mkMood() - TODAY;
     pick = {};
-    RS.forEach(function (x) { var f = fav(x); if (f && f.p > 50 && !real[x.id] && sideAt(x, 0) !== f.s) out[x.id] = f.s; });
+    RS.forEach(function (x) { var f = fav(x); if (f && f.p > 50 && !real[x.id] && sideAt(x, sh) !== f.s) out[x.id] = f.s; });
     pick = keep;
     return out;
   }
-  function marketMap() { mood = TODAY; pick = marketPicks(); IN.value = String(-mood); }
+  function marketMap() { mood = mkMood(); pick = marketPicks(); IN.value = String(-mood); }
+  // THE READER'S SWITCH (markets.js: "Betting odds", remembered, heard here as lp:odds). Off takes every market number off
+  // the board: the chips, the market row under each chamber, the Markets mark, Betting favorites and the line that counts
+  // the races called against them. The markets' own calls are handed back; calls the reader made stay.
+  function oddsOn() {
+    var on = !D.documentElement.classList.contains('mk-off');
+    if (!on && MK) dropMarketPicks();
+    MK = on ? MKALL : null;
+    if (!MK && where === 'against') where = 'close';
+    $('mt-mksw').hidden = !MKALL;
+    mkPin();
+    options(); list(); draw();
+  }
+  // The Markets mark sits under the slider with Polls today. Closer than a label's width, the two labels stand back to back,
+  // each still pointing at its own place (the marks are often under a point apart: polls D+8.9, markets D+9.7 on 31 Oct).
+  function mkPin() {
+    var v = MK && MK.us && MK.us.V, tr = IN.parentNode, a = $('mt-pin-mk'), b = $('mt-pin-today');
+    pin('mt-pin-mk', v ? v.m : null);
+    a.style.transform = b.style.transform = '';
+    var w = IN.offsetWidth || 300, gap = v ? (posOf(TODAY) - posOf(v.m)) * w / 100 : 999, near = !!v && Math.abs(gap) < 96;
+    tr.classList.toggle('is-mk-l', near && gap > 0);
+    tr.classList.toggle('is-mk-r', near && gap <= 0);
+    if (near) {      // each label leans away from the other with its narrow triangle on its own point, 2px apart even at 0
+      var x = Math.min(3, (Math.abs(gap) - 2) / 2);
+      (gap > 0 ? a : b).style.transform = 'translateX(calc(-100% + ' + x + 'px))';
+      (gap > 0 ? b : a).style.transform = 'translateX(' + (-x) + 'px)';
+    }
+  }
   // Another setting after Betting favorites hands the markets' calls back, so "Dead even" is a dead-even map; calls the
   // reader made by hand stay, as they do when the slider moves.
   function dropMarketPicks() {
@@ -366,7 +421,7 @@
   }
   function runNight() {
     var shift = mood - TODAY, nat = gauss() * NAT, calls = [];
-    night = { side: {}, at: 0, done: false, feed: [], flash: {} };
+    night = { side: {}, v: {}, at: 0, done: false, feed: [], flash: {} };
     RS.forEach(function (x) {
       var s, v;
       if (fixed(x)) { s = sideAt(x, shift); v = s === 'L' ? 30 : -30; }
@@ -384,7 +439,8 @@
     $('mt-feed').innerHTML = '';
     $('mt-clock-l').textContent = 'Eastern time · one pretend night at ' + short(mood);
     box.classList.add('is-night');
-    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-year,#mt-run,#mt-reset'))).forEach(function (b) { b.disabled = true; });
+    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-year'))).forEach(function (b) { b.disabled = true; });
+    runLabel();
     var nb = $('mt-night');
     if (nb.getBoundingClientRect().top > W.innerHeight * 0.6 || nb.getBoundingClientRect().top < 0) {
       $('mt-b-S').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
@@ -404,7 +460,7 @@
   }
   function step(upto) {
     var n = night, newer = [];
-    while (n.k < n.calls.length && n.calls[n.k].cw <= upto + 1e-9) { var c = n.calls[n.k++]; n.side[c.x.id] = c.s; newer.push(c); }
+    while (n.k < n.calls.length && n.calls[n.k].cw <= upto + 1e-9) { var c = n.calls[n.k++]; n.side[c.x.id] = c.s; if (!fixed(c.x)) n.v[c.x.id] = c.v; newer.push(c); }
     if (!newer.length && n.k) return;
     var now = n.k ? n.calls[n.k - 1].t : 19;
     $('mt-clock').textContent = hm(now);
@@ -423,13 +479,14 @@
       }
       counts(ch, t);
     });
-    $('mt-called').textContent = n.k + ' of ' + n.calls.length + ' races called';
+    $('mt-called').innerHTML = '<span>' + n.k + ' of ' + n.calls.length + ' races called</span><span class="mt-prog" aria-hidden="true"><i style="width:' + (100 * n.k / n.calls.length).toFixed(1) + '%"></i></span>';
     var feed = $('mt-feed'), add = '';
     newer.forEach(function (c) {
       var x = c.x, p = sideParty(x, c.s), flip = x.hold && x.hold !== p, close = Math.abs(x.m) < M.model.safeFloor;
       if (!close && !flip) return;
       var who = c.s === 'L' ? x.L.n : x.R.n;
-      add = '<li class="is-' + p + '"><span class="mt-feed-t num">' + hm(c.t) + '</span><span><b>' + esc(x.lb) + '</b> ' + esc(who) + (flip ? ' <em>' + party(p).replace(/s$/, '') + ' gain</em>' : '') + '</span></li>' + add;
+      add = '<li class="is-' + p + '"><span class="mt-feed-t num">' + hm(c.t) + '</span><span><b>' + esc(x.lb) + '</b> ' + esc(who) + (flip ? ' <em>' + party(p).replace(/s$/, '') + ' gain</em>' : '') + '</span>'
+        + (fixed(x) ? '' : '<b class="mt-feed-m num">' + p + '+' + r1(Math.abs(c.v)).toFixed(1) + '</b>') + '</li>' + add;
     });
     if (add) {
       feed.insertAdjacentHTML('afterbegin', add);
@@ -466,11 +523,24 @@
     $('mt-skip').hidden = true;
     cards();
   }
-  function endNight() {
+  // Step 2's own buttons stay live through a pretend night and after it (Elysa, 30 October 2026: "the start button ...
+  // not visible after you click run election night ... need to refresh the page to run a new simulation"). Run election
+  // night stayed greyed out once a night had run, Start again was hidden unless a race had been called by hand, and the
+  // one live button, Run it again, sat at the foot of the night's feed, a phone screen and more below. Now Run says
+  // "Run it again" and Start again shows for as long as a night is on screen, both right under the chambers.
+  function runLabel() {
+    $('mt-run').lastChild.textContent = night ? ' Run it again' : ' Run election night';
+    $('mt-reset').hidden = !(night || Object.keys(pick).length || r1(mood) !== r1(TODAY));
+  }
+  function leaveNight() {
     night = null;
     $('mt-night').hidden = true; $('mt-skip').hidden = false;
     box.classList.remove('is-night');
-    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-year,#mt-run,#mt-reset'))).forEach(function (b) { b.disabled = false; });
+    [IN].concat([].slice.call(box.querySelectorAll('.mt-pre,#mt-year'))).forEach(function (b) { b.disabled = false; });
+    runLabel();
+  }
+  function endNight() {
+    leaveNight();
     draw();
   }
 
@@ -507,13 +577,16 @@
   function realCalls() {
     W.fetch(ROOT + 'assets/election-results.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (doc) {
       if (!doc || doc.mock) return;
-      var sen = ((doc.offices || {}).senate || {}).races || {}, n = 0;
+      var sen = ((doc.offices || {}).senate || {}).races || {}, hou = ((doc.offices || {}).house || {}).races || {}, n = 0;
       RS.forEach(function (x) {
-        if (x.c !== 'S') return;
-        var c = (sen[x.st] || {}).called;
+        var row = x.c === 'S' ? sen[x.st] : hou[x.id];
+        var c = (row || {}).called;
         if (!c) return;
         var s = c === 'R' ? 'R' : (x.L && x.L.p === c ? 'L' : null);
         if (s) { if (real[x.id] !== s) n++; real[x.id] = s; delete pick[x.id]; }
+        var vs = ((row || {}).candidates || []).map(function (k) { return k.votes || 0; }).sort(function (a, b) { return b - a; });
+        var tot = vs.reduce(function (a, b) { return a + b; }, 0), m = tot && vs.length > 1 ? r1(100 * (vs[0] - vs[1]) / tot) : null;
+        if (s && realM[x.id] !== m) { realM[x.id] = m; n++; }
       });
       if (n) { options(); list(); draw(); }
       if (doc.live && !realCalls.t) realCalls.t = setInterval(realCalls, 60000);
@@ -534,16 +607,19 @@
     realCalls();
     stick();
     markets();
+    picture();      // the picture to post (build/shareimg.js): "Make a picture" beside Share
   }
 
   // The betting markets: read once; a file over 48 hours old is not shown (the hourly push has stopped).
   function markets() {
     W.fetch(ROOT + 'assets/markets.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
       if (!d || !d.at || !d.r || (Date.now() - Date.parse(d.at)) > 48 * 3600 * 1000) return;
-      MK = d;
-      options(); list(); draw();
+      MKALL = d;
+      oddsOn();
     }).catch(function () {});
   }
+  D.addEventListener('lp:odds', function () { if (MKALL) oddsOn(); });
+  W.addEventListener('resize', function () { if (MK) mkPin(); });
 
   // The small scoreboard that stays on screen once both chambers have scrolled away above (among the race cards, on
   // election night). It sits at the top of the whole section, so it never lies over the Senate and House tabs (it did
@@ -579,7 +655,7 @@
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest && ev.target.closest('button');
     if (!b || !box.contains(b) || b.disabled) return;
-    if (night && !/^mt-(skip|back|again|more)$/.test(b.id) && !b.classList.contains('mt-tab')) return;
+    if (night && !/^mt-(skip|back|again|more|run|reset)$/.test(b.id) && !b.classList.contains('mt-tab')) return;
     if (b.classList.contains('mt-pick')) {
       var i = b.getAttribute('data-id'), k = b.getAttribute('data-side');
       if (pick[i] === k) delete pick[i]; else pick[i] = k;
@@ -589,6 +665,7 @@
     } else if (b.classList.contains('mt-pre') && b.hasAttribute('data-mood')) {
       dropMarketPicks(); mood = parseFloat(b.getAttribute('data-mood')); IN.value = String(-mood); draw();
     } else if (b.id === 'mt-reset') {
+      if (night) leaveNight();
       mood = TODAY; pick = {}; IN.value = String(-mood); where = 'close'; options(); list(); draw();
     } else if (b.id === 'mt-mk') {
       marketMap(); options(); list(); draw();
@@ -618,6 +695,130 @@
   });
   WHERE.addEventListener('change', function () { where = WHERE.value; showAll = false; list(); });
   $('mt-year').addEventListener('change', function () { var v = parseFloat(this.value); if (!isNaN(v) && !night) { dropMarketPicks(); mood = v; IN.value = String(-mood); draw(); } });
+
+  // ---------------------------------------------------------------- the picture to post (build/shareimg.js)
+  // Armin, 30 October 2026: "when people play around with these tools, they should be able to produce an image that they
+  // could post on social media. It has our website and our branding on it". The Congress as the reader built it: both
+  // chambers seat by seat in the party colours, who controls each, and four close races with the candidates' faces (the
+  // reader's own calls first). Drawn from the map (the mood and the calls), never from a pretend night in progress.
+  // The frame (the brand, the title, the address at the foot) is shareimg.js's; url() and text() are the Share button's.
+  var PIC_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>';
+  function picSay(ch) {
+    var t = tally(ch, mood - TODAY), c = control(ch, t), name = ch === 'S' ? 'Senate' : 'House';
+    if (c === 'I') return { t: t, c: c, p: 'Independents', w: 'decide the ' + name, vp: false };
+    return { t: t, c: c, p: party(c), w: gainWord(ch, c) + ' the ' + name, vp: ch === 'S' && c === 'R' && t.R === SNEED - 1 };
+  }
+  function picRaces() {
+    var shift = mood - TODAY, two = function (x) { return x.L && x.R && !x.lock; };
+    var mine = RS.filter(function (x) { return pick[x.id] && two(x); }).sort(function (a, b) { return Math.abs(a.m) - Math.abs(b.m); });
+    var rest = RS.filter(function (x) { return !pick[x.id] && two(x); })
+      .sort(function (a, b) { return ((a.c === 'S' ? 0 : 1) - (b.c === 'S' ? 0 : 1)) || (Math.abs(a.m + shift) - Math.abs(b.m + shift)); });
+    return mine.concat(rest).slice(0, 4);
+  }
+  function picDraw(ctx, box, kit) {
+    var c = kit.c, col = { D: c.dem, R: c.rep, I: c.ind, U: '#2E2D2A' }, shift = mood - TODAY;
+    var side = function (x) { return sideAt(x, shift); };
+    var races = picRaces(), src = function (k) { return k && k.f && /\.(jpg|jpeg|png|webp)$/i.test(k.f) ? ROOT + k.f : ''; };
+    var want = [];
+    races.forEach(function (x) { want.push(kit.img(src(x.L)), kit.img(src(x.R))); });
+    return Promise.all(want).then(function (ims) {
+      var gap = 24, cw = (box.w - gap) / 2, cardH = 96, rows = races.length > 2 && box.h >= 560 ? 2 : (races.length ? 1 : 0), vp = picSay('S').vp || picSay('H').vp;
+      var racesH = rows ? 42 + rows * cardH + (rows - 1) * 14 : 0, between = rows ? 26 : 0;
+      var fixedH = 40 + 74 + 44 + 22 + (vp ? 28 : 0), sc = Math.min((cw - 40) / 400, Math.max(0.5, (box.h - racesH - between - fixedH) / 212));
+      var panelH = fixedH + 212 * sc, total = panelH + between + racesH, y = box.y + Math.max(0, (box.h - total) / 2);
+      // the two chambers
+      ['S', 'H'].forEach(function (ch, k) {
+        var x0 = box.x + k * (cw + gap), say = picSay(ch), t = say.t, cx = x0 + cw / 2;
+        kit.round(ctx, x0, y, cw, panelH, 28); ctx.fillStyle = c.sunk; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = c.line; ctx.stroke();
+        ctx.save(); kit.round(ctx, x0, y, cw, panelH, 28); ctx.clip(); ctx.fillStyle = col[say.c] || c.line; ctx.fillRect(x0, y, cw, 9); ctx.restore();
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+        kit.text(ctx, ch === 'S' ? 'SENATE' : 'HOUSE', x0 + 22, y + 50, { px: 30, weight: 800, fam: 'display', color: c.ink });
+        if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+        kit.text(ctx, (ch === 'S' ? SNEED : HNEED) + ' TO WIN', x0 + cw - 22, y + 50, { px: 26, weight: 800, fam: 'display', color: c.dim, align: 'end' });
+        // the chamber, seat by seat, on the page's own seat plan (the circles of the chamber on the page)
+        var hx = cx - 200 * sc, hy = y + 40, row = seatsOf(ch, side), dots = DOTS[ch] || [];
+        var svg = dots.length && dots[0].ownerSVGElement, mid = svg && svg.querySelector('.mt-mid');
+        if (mid) {
+          ctx.save(); ctx.strokeStyle = c.field; ctx.globalAlpha = 0.75; ctx.lineWidth = Math.max(1.5, 1.6 * sc); ctx.setLineDash([3 * sc, 4 * sc]);
+          ctx.beginPath(); ctx.moveTo(hx + +mid.getAttribute('x1') * sc, hy + +mid.getAttribute('y1') * sc); ctx.lineTo(hx + +mid.getAttribute('x2') * sc, hy + +mid.getAttribute('y2') * sc); ctx.stroke(); ctx.restore();
+        }
+        dots.forEach(function (d, i) {
+          var s = row[i];
+          if (!s) return;
+          var r = +d.getAttribute('r') * sc;
+          ctx.beginPath(); ctx.arc(hx + +d.getAttribute('cx') * sc, hy + +d.getAttribute('cy') * sc, r, 0, Math.PI * 2);
+          ctx.globalAlpha = s.fx ? 0.4 : 1; ctx.fillStyle = col[s.p] || col.U; ctx.fill(); ctx.globalAlpha = 1;
+          if (s.pin) { ctx.lineWidth = Math.max(1.2, r * 0.45); ctx.strokeStyle = c.field; ctx.stroke(); }
+        });
+        // the count, big, in the party colours
+        var ny = hy + 212 * sc + 74, dn = t.D + (t.I ? '+' + t.I : '');
+        kit.text(ctx, dn, cx - 26, ny, { px: 84, weight: 900, fam: 'display', color: c.dem, align: 'end' });
+        kit.text(ctx, String(t.R), cx + 26, ny, { px: 84, weight: 900, fam: 'display', color: c.rep, align: 'start' });
+        kit.text(ctx, '–', cx, ny - 6, { px: 56, weight: 800, fam: 'display', color: c.dim, align: 'center' });
+        // who controls it: the party in its colour, the rest in ink
+        var p1 = say.p + ' ', p2 = say.w, wy = ny + 44, px = kit.fit(ctx, p1 + p2, cw - 36, 28, 700, 'body');
+        var w1 = ctx.measureText(p1).width, w2 = ctx.measureText(p2).width, sx = cx - (w1 + w2) / 2;
+        kit.text(ctx, p1, sx, wy, { px: px, weight: 700, fam: 'body', color: col[say.c] || c.ink, align: 'left' });
+        kit.text(ctx, p2, sx + w1, wy, { px: px, weight: 700, fam: 'body', color: c.ink, align: 'left' });
+        if (say.vp) kit.text(ctx, 'on the Vice President’s vote', cx, wy + 30, { px: 22, weight: 600, fam: 'body', color: c.dim, align: 'center', max: cw - 36 });
+      });
+      if (!rows) return;
+      // four close races, the reader's own calls first
+      var ry = y + panelH + between, nMine = races.filter(function (x) { return pick[x.id]; }).length;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '2px';
+      kit.text(ctx, nMine ? 'MY CALLS' + (nMine < races.length ? ', AND THE CLOSEST RACES' : '') : 'THE CLOSEST RACES', box.x, ry + 30, { px: 30, weight: 800, fam: 'display', color: c.dim, max: box.w });
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      races.slice(0, rows * 2).forEach(function (x, i) {
+        var x0 = box.x + (i % 2) * (cw + gap), y0 = ry + 48 + Math.floor(i / 2) * (cardH + 16);
+        var s = side(x), wk = s === 'R' ? 'R' : 'L', lk = wk === 'L' ? 'R' : 'L', win = x[wk], lose = x[lk], wp = sideParty(x, s), v = x.m + shift;
+        kit.round(ctx, x0, y0, cw, cardH, 22); ctx.fillStyle = c.panel; ctx.fill();
+        ctx.save(); kit.round(ctx, x0, y0, cw, cardH, 22); ctx.clip(); ctx.fillStyle = col[wp] || c.line; ctx.fillRect(x0, y0, 8, cardH); ctx.restore();
+        var fx = x0 + 24 + 34, fy = y0 + cardH / 2 - 3;
+        kit.face(ctx, ims[i * 2 + (lk === 'L' ? 0 : 1)], fx + 36, fy + 24, 38, { ring: c.panel, ringW: 3, dim: 0.35, initials: lose.f && !src(lose) ? lose.f : kit.initials(lose.n) });
+        kit.face(ctx, ims[i * 2 + (wk === 'L' ? 0 : 1)], fx, fy, 68, { ring: col[wp], ringW: 4, initials: win.f && !src(win) ? win.f : kit.initials(win.n) });
+        // what it says at the end: the reader's call, or who wins by how many points at this mood
+        var pill = pick[x.id] ? 'MY CALL' : Math.abs(v) < 0.05 ? 'EVEN' : wp + ' +' + r1(Math.abs(v)).toFixed(1);
+        ctx.font = kit.font(26, 800, 'display');
+        var pw = ctx.measureText(pill).width + 24, ph = 40, px0 = x0 + cw - 18 - pw, py0 = y0 + (cardH - ph) / 2;
+        kit.round(ctx, px0, py0, pw, ph, ph / 2); ctx.fillStyle = pick[x.id] ? c.field : kit.alpha(col[wp] || c.ink, 0.18); ctx.fill();
+        kit.text(ctx, pill, px0 + pw / 2, py0 + ph / 2 + 1, { px: 26, weight: 800, fam: 'display', color: pick[x.id] ? c.onField : (col[wp] || c.ink), align: 'center', base: 'middle' });
+        var tx = x0 + 24 + 68 + 30, tw = px0 - 12 - tx;
+        kit.text(ctx, win.n, tx, y0 + 43, { px: 28, weight: 700, fam: 'body', color: c.ink, max: tw });
+        ctx.font = kit.font(23, 600, 'body');
+        // the race and who lost it, or the race alone where both do not fit
+        var l2 = x.lb + ', beats ' + surname(lose.n);
+        if (ctx.measureText(l2).width > tw) l2 = x.lb;
+        kit.text(ctx, l2, tx, y0 + 74, { px: 23, weight: 600, fam: 'body', color: c.dim, max: tw });
+      });
+    });
+  }
+  function picture() {
+    var sh = $('mt-share');
+    if (!sh || !sh.parentNode || $('mt-pic')) return;
+    var b = D.createElement('button');
+    b.type = 'button'; b.id = 'mt-pic'; b.className = 'btn btn-line shot-make'; b.setAttribute('data-shot', 'midterms');
+    b.innerHTML = PIC_ICON + '<span>Make a picture</span>';
+    sh.parentNode.insertBefore(b, sh.nextSibling);
+    (W.LPShotQ = W.LPShotQ || []).push({
+      id: 'midterms', el: '#midterms',
+      kicker: 'Call the midterms',
+      cta: 'Who wins Congress? Call it yourself at',
+      title: function () {
+        var S = picSay('S'), H = picSay('H'), hv = H.w.split(' ')[0], sv = S.w.split(' ')[0];
+        // one party with both chambers is said once: "Republicans keep the House and the Senate"
+        var said = S.c === H.c && S.c !== 'I' ? H.p + ' ' + (hv === sv ? hv + ' the House and the Senate' : H.w + ' and ' + S.w) : H.p + ' ' + H.w + ', ' + S.p + ' ' + S.w;
+        return 'My ' + String(M.election || '2026').slice(0, 4) + ' Congress: ' + said;
+      },
+      sub: function () {
+        var a = r1(Math.abs(mood)), n = Object.keys(pick).length;
+        var at = r1(mood) === r1(TODAY) ? 'At today’s polls, ' + moodWords(mood) : a === 0 ? 'If the country splits dead even' : 'If the country votes ' + moodWords(mood);
+        return at + (n ? '. I called ' + n + ' race' + (n === 1 ? '' : 's') + ' myself.' : '.');
+      },
+      text: function () { saveNow(); return sh.getAttribute('data-text'); },
+      url: function () { saveNow(); return sh.getAttribute('data-url'); },
+      draw: picDraw
+    });
+  }
 
   W.fetch(ROOT + 'assets/midterms.json').then(function (r) { return r.json(); }).then(start).catch(function () {});
 })();

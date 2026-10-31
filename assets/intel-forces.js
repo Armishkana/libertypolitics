@@ -977,7 +977,10 @@
   }
   function market(m) {
     var p = Math.round((+m.p || 0) * 100);
-    return '<a class="irf-mk" href="' + esc(safeU(m.u)) + '" target="_blank" rel="noopener"><span class="irf-mk-p"><b>' + N(p) + '%</b><small>' + esc(T('say yes')) + '</small></span><span class="irf-mk-q">' + esc(m.q) + '<small>' + esc(T('${n} bet on Polymarket', { n: fmtN(m.vol || 0) }) + (m.end ? ' · ' + T('closes {date}', { date: day(m.end) }) : '')) + '</small></span></a>';
+    // through the affiliate door (build/markets.js LPAff, build/affiliate.py): plain until a code exists, and always plain on
+    // Iran Uncensored, which never loads the door and which the door itself refuses
+    var L = !IU && window.LPAff ? window.LPAff.link(safeU(m.u)) : { href: safeU(m.u), rel: 'noopener' };
+    return '<a class="irf-mk" href="' + esc(L.href) + '" target="_blank" rel="' + L.rel + '"><span class="irf-mk-p"><b>' + N(p) + '%</b><small>' + esc(T('say yes')) + '</small></span><span class="irf-mk-q">' + esc(m.q) + '<small>' + esc(T('${n} bet on Polymarket', { n: fmtN(m.vol || 0) }) + (m.end ? ' · ' + T('closes {date}', { date: day(m.end) }) : '')) + '</small></span></a>';
   }
   var SITE_MARK = CFG.mark || 'libertypolitics.com/intel';          // the room's own address, on what is copied for a show
   function copy(id, btn) {

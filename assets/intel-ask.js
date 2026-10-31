@@ -251,7 +251,11 @@
     }
     if (has(/\b(newest|most recent) first\b|\bnewest\b/) && canSort('new')) { want = 'new'; eat(/\b(newest|most recent)( first)?\b/); }
     if (has(/\boldest\b/) && canSort('old')) { want = 'old'; eat(/\boldest( first)?\b/); }
-    if (has(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream)( sources?| outlets?)?\b/) && V.creds && V.creds.length > 1) { ns.crmin = 70; eat(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream)( sources?| outlets?)?\b/); }
+    // the word alone is a guess: "the tensions are getting serious" in a pasted headline is not asking for credible outlets
+    // (30 Oct 2026, ask gate: that post found nothing in every reading, since only "credible sources" said outright is an
+    // order); choose() also reads a guessed one without the filter, as it does a guessed kind or platform
+    var crGuess = false;
+    if (has(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream)( sources?| outlets?)?\b/) && V.creds && V.creds.length > 1) { ns.crmin = 70; crGuess = !has(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream) (sources?|outlets?)\b/); eat(/\b(credible|reliable|trusted|trustworthy|reputable|serious|mainstream)( sources?| outlets?)?\b/); }
     if (wantTop && lens === 'bank') ns.top = true;
     if (has(/\bexplainers?\b/) && V.hasEdu) { ns.edu = true; eat(/\bexplainers?\b/); }
 
@@ -377,7 +381,7 @@
     var allw = (' ' + (V.stopFa ? tw.replace(V.stopFa, ' ') : tw) + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9_\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim().split(' ')
       .filter(function (w, i, a) { return (w.length > 2 || /^(uk|un|eu)$/.test(w) || (w.length === 2 && /[\u0600-\u06ff]/.test(w))) && !/^\d+$/.test(w) && a.indexOf(w) === i && (!claim || w !== claim.w); });
     var allq = (claim ? [claim.said || claim.w] : []).concat(allw.filter(function (w) { return !claim || w !== claim.said; })).slice(0, 6).join(' ');
-    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, allq: allq, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess };
+    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, allq: allq, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess, crGuess: crGuess };
   }
 
   /* ------------------------------------------------------------------ saying what a set of filters is, in one line */
@@ -611,13 +615,13 @@
     var V = R.vocab(), cp = function (x) { return JSON.parse(JSON.stringify(x)); }, here = ns.lens, cands = [];
     var A = cp(ns); if (A.q && !A.qm) A.qm = 'best';
     cands.push({ ns: A, pref: 0.03 });
-    var guessed = (ns.tp || []).length || (ns.fx || []).length || ns.place || Object.keys(ns.ext || {}).length || (p.kindGuess && ns.kind) || p.hotGuess || (p.pfGuess && (ns.pf || []).length);
-    if (guessed || p.allq !== ns.q) { var B = cp(ns); B.tp = []; B.fx = []; B.place = ''; B.ext = {}; if (p.kindGuess) B.kind = ''; if (p.hotGuess) B.hot = ''; if (p.pfGuess) B.pf = []; B.q = p.allq; B.qm = 'best'; cands.push({ ns: B, pref: p.allq.split(' ').length >= 5 ? 0.08 : 0.02, words: 1 }); }
+    var guessed = (ns.tp || []).length || (ns.fx || []).length || ns.place || Object.keys(ns.ext || {}).length || (p.kindGuess && ns.kind) || p.hotGuess || (p.pfGuess && (ns.pf || []).length) || (p.crGuess && ns.crmin);
+    if (guessed || p.allq !== ns.q) { var B = cp(ns); B.tp = []; B.fx = []; B.place = ''; B.ext = {}; if (p.kindGuess) B.kind = ''; if (p.hotGuess) B.hot = ''; if (p.pfGuess) B.pf = []; if (p.crGuess) B.crmin = 0; B.q = p.allq; B.qm = 'best'; cands.push({ ns: B, pref: p.allq.split(' ').length >= 5 ? 0.08 : 0.02, words: 1 }); }
     // A HEADLINE OR A CAPTION PASTED WHOLE (a sentence of eight words or more, four of them searched) is also read with no
     // facet at all, a platform or kind said outright included: «از طریق این نشانی در تلگرام» at the end of a pasted caption
     // says where it was sent, not where to look (29 Oct 2026, ask gate: that caption, an X post, found nothing on Telegram).
     // This reading never wins on its own score; only the rule below picks it, for an item that says all of it.
-    var C = cp(ns); C.tp = []; C.fx = []; C.place = ''; C.ext = {}; C.kind = ''; C.hot = ''; C.pf = []; C.q = p.allq; C.qm = 'best';
+    var C = cp(ns); C.tp = []; C.fx = []; C.place = ''; C.ext = {}; C.kind = ''; C.hot = ''; C.pf = []; if (p.crGuess) C.crmin = 0; C.q = p.allq; C.qm = 'best';
     if (p.allq.split(' ').length >= 4 && p.raw.split(/\s+/).length >= 8 && JSON.stringify(C) !== JSON.stringify(cands[cands.length - 1].ns)) cands.push({ ns: C, pref: 0, words: 2, last: true });
     var other = here === 'live' ? 'bank' : here === 'bank' && V.live ? 'live' : '';
     if (other && V.sorts[other] && !p.timed && !p.toBank && !p.intent && !(ns.hot && !p.hotGuess) && !ns.who && !(/^(likes|views|viral)$/.test(p.want || '') && (V.sorts[other] || []).indexOf(p.want) < 0) && !ns.lmin && !ns.vmin) {
@@ -675,6 +679,14 @@
         if (R.peek(c.ns, true).some(says) && (!lvAll || c.score > lvAll.score)) lvAll = c;
       });
       if (lvAll || lv) best = lvAll || lv;
+    }
+    // A QUESTION ABOUT HISTORY IS ANSWERED FROM THE BANK (31 Oct 2026, ask gate: "history of the conflict" went to the last 24
+    // hours on a day three headlines there said the word: a "war in history" interview, a hack "largest in history", "Pope Leo
+    // makes history"). The past is not in the last 24 hours: with no time said, the best bank reading that finds something wins.
+    if (best && best.ns.lens === 'live' && !p.timed && !so && /\bhistor/i.test(p.raw)) {
+      var bk = null;
+      cands.forEach(function (c) { if (c.n && !c.last && c.ns.lens === 'bank' && (!bk || c.score > bk.score)) bk = c; });
+      if (bk) best = bk;
     }
     if (!best) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
     // the filters it read stay one tap away when the words won

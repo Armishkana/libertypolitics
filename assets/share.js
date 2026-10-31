@@ -31,6 +31,11 @@
    Words: the English here is the key; a site's other words come from window.LPSITE.strings through tt(),
    the same table community.js and discussion.js read.
 
+   THE PICTURE TO POST (30 October 2026, build/shareimg.js, README "The picture to post"). A tool that registers a
+   picture in window.LPShotQ gets two things from here: assets/shareimg.js?v=f7f548e971 is loaded (while the browser is idle, or on
+   the first tap), and the panel shows that picture at its top with Save picture, so every Share tap also offers it.
+   Anything carrying data-shot="<id>" ("Make a picture") opens the picture's own sheet.
+
    WITH THIS FILE MISSING the Share button still works: discussion.js copies the link. In a browser with no
    <dialog>, this file does the same. */
 (function () {
@@ -143,6 +148,14 @@
     top.append(h, x);
     var body = el('div', 'sheet-body');
     var lead = el('p', 'shr-lead', tt('Who is the one person who should see this?'));
+    // the picture to post, when the page has one (build/shareimg.js): its own small row at the top
+    var shot = el('div', 'shr-shot'), shotPic = el('button', 'shr-shot-pic'), shotImg = el('img'), shotT = el('div', 'shr-shot-t');
+    var shotSave = el('button', 'btn btn-key shr-shot-save', tt('Save picture'));
+    shot.hidden = true; shotPic.type = 'button'; shotPic.setAttribute('aria-label', tt('See the picture')); shotImg.alt = ''; shotImg.width = 1080; shotImg.height = 1350;
+    shotSave.type = 'button';
+    shotPic.appendChild(shotImg);
+    shotT.append(el('p', 'shr-shot-l', tt('Your picture, ready to post')), shotSave);
+    shot.append(shotPic, shotT);
     var card = el('figure', 'shr-card'), pic = el('img', 'shr-pic'), cap = el('figcaption', 'shr-meta'), t = el('b', 'shr-t'), host = el('span', 'shr-h');
     pic.alt = ''; pic.width = 1200; pic.height = 630;
     /* A picture that did not come is put away, and its address forgotten, so the next opening asks for it again
@@ -170,7 +183,23 @@
     var after = el('p', 'shr-after'), afterText = el('span'), afterGo = el('a', 'shr-after-a');
     after.hidden = true; after.append(afterText, afterGo);
     var note = el('p', 'shr-note', typeof CFG.note === 'string' ? CFG.note : ''); note.hidden = !note.textContent;
-    body.append(lead, card, row, say, apps, after, note);
+    body.append(shot, lead, card, row, say, apps, after, note);
+    shotPic.addEventListener('click', function () {
+      var id = P.shotId, o = P.opener;
+      if (!id) return;
+      shut();
+      shotLib().then(function (L) { L.open(id, o); }, function () { });
+    });
+    shotSave.addEventListener('click', function () {
+      var id = P.shotId;
+      if (!id) return;
+      shotLib().then(function (L) { return L.save(id, 'post'); }).then(function () {
+        if (P.shotId !== id) return;
+        shotSave.textContent = tt('Saved');
+        setTimeout(function () { shotSave.textContent = tt('Save picture'); }, 2600);
+        done('picture');
+      }, function () { });
+    });
     inner.append(top, body); dlg.appendChild(inner);
 
     function done(method) {
@@ -215,7 +244,52 @@
       if (o && D.contains(o)) { try { o.focus({ preventScroll: true }); } catch (e) { } }
     });
     D.body.appendChild(dlg);
-    P = { dlg: dlg, card: card, pic: pic, t: t, host: host, url: url, go: go, goIc: goIc, goLab: goLab, say: say, links: links, after: after, opener: null };
+    P = { dlg: dlg, card: card, pic: pic, t: t, host: host, url: url, go: go, goIc: goIc, goLab: goLab, say: say, links: links, after: after, opener: null,
+      shot: shot, shotImg: shotImg, shotSave: shotSave, shotId: null, shotObj: '' };
+  }
+
+  /* ---- the picture to post (build/shareimg.js), loaded only on a page that registered one ---- */
+  var SHOTQ = W.LPShotQ = W.LPShotQ || [], SHOT_P = null, VQ = (function () { var s = D.currentScript && D.currentScript.src, m = s && /\?[^#]*/.exec(s); return m ? m[0] : ''; })();
+  function hasShots() { return !!((W.LPShot && W.LPShot.list && W.LPShot.list().length) || (W.LPShotQ && W.LPShotQ.length)); }
+  function shotLib() {
+    if (W.LPShot && W.LPShot.ready) return Promise.resolve(W.LPShot);
+    if (SHOT_P) return SHOT_P;
+    SHOT_P = new Promise(function (res, rej) {
+      var s = D.createElement('script'), base = ROOT || (D.documentElement.getAttribute('data-root') || '');
+      // the same ?v= as this file's own address, so a new build never pairs this file with yesterday's picture code
+      var src = base + 'assets/shareimg.js?v=f7f548e971';
+      s.src = src + (src.indexOf('?') < 0 ? VQ : '');
+      s.onload = function () { if (W.LPShot && W.LPShot.ready) res(W.LPShot); else { SHOT_P = null; rej(new Error('no picture code')); } };
+      s.onerror = function () { SHOT_P = null; s.remove(); rej(new Error('no picture code')); };
+      D.head.appendChild(s);
+    });
+    return SHOT_P;
+  }
+  function shotSoon() {
+    if (W.LPShot || SHOT_P || !hasShots()) return;
+    var go = function () { shotLib().catch(function () { }); };
+    if (W.requestIdleCallback) W.requestIdleCallback(go, { timeout: 2500 }); else setTimeout(go, 1200);
+  }
+  if (Array.isArray(SHOTQ)) { var push0 = SHOTQ.push; SHOTQ.push = function () { var n = push0.apply(SHOTQ, arguments); shotSoon(); return n; }; }
+  if (D.readyState === 'complete') shotSoon(); else W.addEventListener('load', shotSoon);
+  // the picture row of the panel: shown at once when the page has a picture, filled when it is drawn
+  function shotRow(from, s) {
+    var on = hasShots();
+    P.shot.hidden = !on; P.dlg.classList.toggle('shr-has-shot', on); P.shotId = null;
+    P.shotSave.textContent = tt('Save picture');
+    if (!on) return;
+    P.shotImg.removeAttribute('src');
+    shotLib().then(function (L) {
+      var id = L.pick(from);
+      if (NOW !== s) return;
+      if (!id) { P.shot.hidden = true; P.dlg.classList.remove('shr-has-shot'); return; }
+      P.shotId = id;
+      return L.png(id, 'post').then(function (b) {
+        if (NOW !== s || P.shotId !== id) return;
+        if (P.shotObj) URL.revokeObjectURL(P.shotObj);
+        P.shotObj = URL.createObjectURL(b); P.shotImg.src = P.shotObj;
+      });
+    }).catch(function () { if (NOW === s) { P.shot.hidden = true; P.dlg.classList.remove('shr-has-shot'); } });
   }
   function shut() { if (P && P.dlg.open) P.dlg.close(); }
 
@@ -230,16 +304,23 @@
     Object.keys(P.links).forEach(function (k) { if (APPS[k].href) P.links[k].href = APPS[k].href(s); });
     clearTimeout(sayTimer);
     P.go.classList.remove('ok'); P.goIc.innerHTML = ICON.copy; P.goLab.textContent = tt('Copy link'); P.say.classList.remove('shr-say-on'); P.say.textContent = ''; P.after.hidden = true;
+    shotRow(from, s);
     if (!P.dlg.open) { P.opener = from && from.focus ? from : D.activeElement; P.dlg.showModal(); }
     try { P.go.focus({ preventScroll: true }); } catch (e) { }
   }
 
   D.addEventListener('click', function (ev) {
+    var shotFrom = ev.target && ev.target.closest ? ev.target.closest('[data-shot]') : null;
+    if (shotFrom && !ev.defaultPrevented) {      // "Make a picture": the picture's own sheet
+      ev.preventDefault();
+      shotLib().then(function (L) { L.open(shotFrom.getAttribute('data-shot'), shotFrom); }, function () { });
+      return;
+    }
     var from = ev.target && ev.target.closest ? ev.target.closest('#share,[data-share]') : null;
     if (!from || ev.defaultPrevented) return;
     ev.preventDefault();
     open(from);
   });
   /* For the page's other scripts: discussion.js leaves the Share button alone once this is here. */
-  W.LPShare = { open: open, close: shut, apps: ORDER.slice() };
+  W.LPShare = { open: open, close: shut, apps: ORDER.slice(), shot: function (id, from) { return shotLib().then(function (L) { return L.open(id, from); }); } };
 })();

@@ -213,3 +213,78 @@ html.em-clear .em-map{background:transparent;border-color:transparent}
 /* The Liberty Score beside a candidate on the results map (results.js rows): filled on votes, outlined on the record. */
 .em-gr{display:inline-block;min-width:1.6em;padding:0 .3em;border-radius:4px;background:var(--gd);color:var(--on-grade);font-weight:800;font-size:.75rem;line-height:1.5;text-align:center;vertical-align:1px}
 .em-gr-o{background:transparent;color:var(--gd);box-shadow:inset 0 0 0 1.5px var(--gd)}
+/* the margin in percentage points, and how the counted votes were cast, where the official source splits them (Elysa, 30 October 2026) */
+.em-mg{font-weight:800;color:var(--ink)}
+.em-mg.m-r{color:var(--em-rl)}
+.em-mg.m-d{color:var(--em-dl)}
+.em-modes-h{font-size:var(--t4);margin:var(--s5) 0 var(--s1)}
+.em-modes{width:100%;border-collapse:collapse;margin-top:var(--s2);font-size:.8125rem}
+.em-modes th{text-align:left;color:var(--dim);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--line)}
+.em-modes td{padding:7px 4px;border-bottom:1px solid var(--line)}
+.em-modes .num{text-align:right;white-space:nowrap}
+.em-modes .lead-r{color:var(--em-rl);font-weight:800}
+.em-modes .lead-d{color:var(--em-dl);font-weight:800}
+.em-modes-n{font-size:.8125rem;margin-top:var(--s2)}
+
+/* THE HOUSE TAB (Elysa, 30 October 2026): one tile per seat (results.js drawHex), the state map and its small-state
+   chips stand aside. A white rim is a state's edge; a light dot is a seat changing hands. */
+.em-hex{display:none}
+.em-h .em-map>svg.em-us,.em-h .em-small{display:none}
+.em-h .em-map>svg.em-hex{display:block}
+.em-h .em-map{padding-right:var(--s3)}
+.em-tiles path{stroke:rgba(10,10,10,.55);stroke-width:.7;stroke-linejoin:round;cursor:pointer;transition:fill .35s,filter .15s}
+.em-tiles path:hover{filter:brightness(1.15)}
+.em-tiles .s-u{stroke:var(--em-ue)}
+.em-hedge path{fill:none;stroke:rgba(243,241,234,.7);stroke-width:1.3;stroke-linecap:round;pointer-events:none}
+.em-hlab text{font:800 6.4px/1 var(--body);fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none;paint-order:stroke;stroke:rgba(10,10,10,.6);stroke-width:1.6px;letter-spacing:.02em}
+.em-flips circle{display:none;pointer-events:none;stroke:rgba(10,10,10,.5);stroke-width:.6}
+.em-flips circle.on{display:block}
+.em-flips .g-d{fill:#E3ECFF}.em-flips .g-r{fill:#FFE4E0}.em-flips .g-i{fill:#F4EFD6}
+.em-hex .em-rings .ring-sel{stroke-width:2.2}
+.em-hex .em-rings .ring-hov{stroke-width:1.5}
+.em-hex-n{display:none;font-size:.75rem;margin-top:var(--s2);max-width:70ch}
+.em-h .em-hex-n{display:block}
+.k-gain,.k-xs{display:none!important}
+.em-h .k-gain{display:inline-flex!important}
+.em-part .k-xs{display:inline-flex!important}
+.em-h .k-nr{display:none}
+.k-g{background:var(--em-u);border-radius:50%!important;box-shadow:inset 0 0 0 4px var(--em-u),inset 0 0 0 7px #E3ECFF}
+.k-x{background:repeating-linear-gradient(45deg,#1d2025 0 3px,#3b414b 3px 5px);border:1px solid var(--em-ue)}
+
+/* a state that does not report early votes apart, on the early-vote and Election Day views */
+.s-x{fill:url(#em-hatch)}
+.em-states .s-x{stroke:var(--em-ue)}
+.em-small .s-x{background:repeating-linear-gradient(45deg,#1d2025 0 4px,#3b414b 4px 7px);color:var(--dim)}
+
+/* All votes / Early + mail / Election Day */
+.em-votes{display:inline-flex;padding:3px;gap:3px;background:var(--sunk);border:1px solid var(--line);border-radius:99px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.em-votes button{font:700 .8125rem/1 var(--body);color:var(--dim);background:none;border:0;border-radius:99px;padding:0 12px;min-height:40px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.em-votes button:hover{color:var(--ink)}
+.em-votes button[aria-checked="true"]{background:var(--ink);color:var(--bg)}
+.em-p .em-votes{visibility:hidden}
+.em-part-n{font-size:.8125rem;margin-top:var(--s2);color:var(--ink);max-width:75ch}
+.em-part-n:empty{display:none}
+.em-part .em-tally{border-color:rgba(243,241,234,.35);border-style:dashed}
+@media(max-width:700px){.em-bar{gap:var(--s2)}.em-votes{order:3;width:100%;justify-content:space-between}.em-votes button{flex:1;padding:0 8px}}
+
+/* seats changing hands, and early versus Election Day in one line */
+.em-gain{display:inline-flex;align-items:center;font-weight:800;font-size:.75rem;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:4px;border:1px solid currentColor}
+.em-gain-s{font-size:.6875rem;text-transform:uppercase;letter-spacing:.05em;font-weight:800}
+.em-ml{display:flex;flex-wrap:wrap;gap:4px 14px;margin:10px 0 0;font-size:.8125rem;color:var(--dim)}
+.em-ml b{font-weight:800}
+.em-fc-n{font-size:.75rem;margin-top:var(--s2)}
+.em-fc-n a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+
+/* every seat in the state, beside the one picked */
+.dk-del h3{font-size:var(--t4);margin-bottom:var(--s2);display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.dk-del h3 small{font:600 .75rem/1.2 var(--body)}
+.em-del{max-height:none}
+.em-del button{grid-template-columns:auto minmax(0,1fr) auto auto}
+.em-del button[aria-current="true"]{border-color:var(--field);background:rgba(244,196,48,.08)}
+.em-del .sw{width:12px;height:12px;border-radius:3px;display:inline-block;background:var(--em-u)}
+.em-del .sw.s-rw{background:var(--em-r)}.em-del .sw.s-rl{background:var(--em-rl)}.em-del .sw.s-dw{background:var(--em-d)}.em-del .sw.s-dl{background:var(--em-dl)}
+.em-del .sw.s-iw{background:var(--em-i)}.em-del .sw.s-il{background:var(--em-il)}.em-del .sw.s-x{background:repeating-linear-gradient(45deg,#1d2025 0 3px,#3b414b 3px 5px)}
+.dk-one{grid-template-columns:1fr}
+@media(min-width:820px) and (max-width:1099px){.em-deep .dk-grid:has(.dk-del){grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+.em-s .em-deep .dk-grid:has(.dk-del){grid-template-columns:1fr}
+@media(max-width:600px){.em-hlab text{font-size:9.5px;stroke-width:2.2px}.em-hedge path{stroke-width:1.6}}

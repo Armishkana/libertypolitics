@@ -180,13 +180,97 @@
       }
     });
   }
+  // ---- THE PAGE'S TWO SIDES -------------------------------------------------------------------------------------
+  // One home for why: the header of ownerfb.py, "THE PAGE'S TWO SIDES". Every .pane of the page but the first (the record)
+  // is a part of its own, named by the switch that opens it, and each section on it is named for its own heading. Only
+  // attributes are added, before the box reads the page.
+  function txt(el) { return el ? String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80) : ''; }
+  function partName(s) {
+    var by = (s.getAttribute('aria-labelledby') || '').split(/\s+/)[0], h = by ? d.getElementById(by) : null;
+    if (!h) h = s.querySelector('h2,h3');
+    if (!h) h = s.querySelector('label,legend:not(.vh)');
+    return txt(h) || plainLine(s.getAttribute('aria-label'), 80);
+  }
+  function markSides(root) {
+    var ps = root.querySelectorAll('.pane[id]');
+    for (var i = 1; i < ps.length; i++) {
+      // named by the switch's own words, never its count of posts (a number that changes is not a name)
+      var p = ps[i], sw = d.querySelector('a[href="#' + p.id + '"]'), sc = sw && sw.cloneNode(true);
+      if (sc) [].forEach.call(sc.querySelectorAll('b,.num,[hidden]'), function (x) { x.parentNode.removeChild(x); });
+      var name = txt(sc) || p.id;
+      if (!p.hasAttribute('data-fbk-title')) p.setAttribute('data-fbk-title', name + ' (all of it)');
+      // its sections: the outermost ones, or, where an outermost one only holds others, those others
+      var all = p.querySelectorAll('section'), parts = [], k;
+      var up = function (s) { var u = s.parentElement && s.parentElement.closest('section'); return (u && p.contains(u)) ? u : null; };
+      for (k = 0; k < all.length; k++) {
+        var s = all[k], u = up(s);
+        if (!u) { var inner = [].filter.call(s.querySelectorAll('section'), function (x) { return up(x) === s; }); if (!inner.length) parts.push(s); }
+        else if (!up(u)) parts.push(s);
+      }
+      parts.forEach(function (s) { var n = partName(s); if (n && !s.hasAttribute('data-fbk-title')) s.setAttribute('data-fbk-title', name + ': ' + n); });
+    }
+  }
+  // The page's own button sits under the page's h1, which is on one side only. When it is not on screen it moves under
+  // the first heading that is, and back under the h1 when that side returns. Never while his open box is inside it.
+  var topHome = null;
+  function drawn(el) { return !!(el && el.getClientRects().length); }
+  function homeTop() {
+    var host = d.querySelector('.fbktop'), root = main() || d.body;
+    if (!host || drawn(host) || host.querySelector('.fbkin.fbkdocked')) return;
+    var ref = (topHome && drawn(topHome)) ? topHome : null, sel = ['h1', 'h2,h3'], i, j;
+    for (j = 0; j < sel.length && !ref; j++) {
+      var hs = root.querySelectorAll(sel[j]);
+      for (i = 0; i < hs.length && !ref; i++) if (drawn(hs[i]) && !hs[i].closest('#ownerFbkHost,.fbka')) ref = hs[i];
+    }
+    if (!ref) return;
+    if (ref !== topHome) {
+      // out of a wrapper that holds only the heading or sets its children in a row, so the line sits under the heading's block
+      while (ref.parentElement && ref.parentElement !== root) {
+        var pe = ref.parentElement, cs = W.getComputedStyle(pe);
+        if (pe.children.length === 1 || (/flex|grid/.test(cs.display) && !/column/.test(cs.flexDirection))) ref = pe; else break;
+      }
+    }
+    if (ref.nextSibling !== host) ref.parentNode.insertBefore(host, ref.nextSibling);
+  }
+  var sideT = 0;
+  function sides(full) {
+    if (!mounted) return;
+    if (full && typeof W.__fbkViewStep === 'function') { try { W.__fbkViewStep(); } catch (e) { } }
+    try { homeTop(); } catch (e) { }
+    if (full && typeof W.__fbkSync === 'function') { try { W.__fbkSync(); } catch (e) { } }
+  }
+  function watchSides(root) {
+    var H = d.documentElement;
+    try { var h = d.querySelector('.fbktop'); topHome = h && h.previousElementSibling; } catch (e) { }
+    var soon = function () { W.clearTimeout(sideT); sideT = W.setTimeout(function () { sides(true); }, 60); };
+    if (W.MutationObserver) {
+      new MutationObserver(soon).observe(H, { attributes: true, attributeFilter: ['data-mode'] });
+      // a part of the page shown or put away by its own script: the box follows it itself; its page button is moved here
+      if (root) new MutationObserver(function () { try { homeTop(); } catch (e) { } }).observe(root, { attributes: true, attributeFilter: ['hidden', 'class', 'style'], subtree: true });
+    }
+    W.addEventListener('hashchange', soon);
+    sides(true);
+  }
+  // The box reads the page once, when it mounts. A part a script draws after the page loads (the discussion, a member's
+  // own page, a room's views) is only seen if it is there by then, so it mounts once the main area has been still for
+  // 600ms, or after 4 seconds of a page that never stops.
+  function settle() {
+    var root = main();
+    if (!root || !W.MutationObserver) return Promise.resolve();
+    return new Promise(function (res) {
+      var t0 = Date.now(), last = Date.now();
+      var mo = new MutationObserver(function () { last = Date.now(); });
+      mo.observe(root, { childList: true, subtree: true });
+      (function tick() { var n = Date.now(); if (n - last >= 600 || n - t0 >= 4000) { mo.disconnect(); res(); } else W.setTimeout(tick, 150); })();
+    });
+  }
   function jsonTag(id, text) { var s = d.createElement('script'); s.type = 'application/json'; s.id = id; s.textContent = text || ''; return s; }
   function mount(F, db, meta, box) {
     if (mounted) return; mounted = true;
     W.__BOARD = BOARD;
     if (meta.emoji) W.__BOARDEMOJI = meta.emoji;
     var root = main();
-    if (root) { try { prep(root); } catch (e) { } W.__fbkRoot = function () { return root; }; }
+    if (root) { try { prep(root); } catch (e) { } try { markSides(root); } catch (e) { } W.__fbkRoot = function () { return root; }; }
     F0 = F; DB0 = db;
     var db1 = dbDoor(F, db), as1 = assetsDoor(F, db);
     // Only the box's two doors. Nothing else on these pages looks for window.claude.
@@ -203,6 +287,7 @@
     var sc = d.createElement('script'); sc.textContent = box.js; d.body.appendChild(sc);
     say(d.getElementById('fbkBar') ? 'on' : 'failed');
     try { screens(); } catch (e) { }
+    try { watchSides(root); } catch (e) { }
   }
 
   // ---- THE SHOW SCREEN, AND ANY OTHER FULL-SCREEN LAYER THAT MARKS ITSELF ---------------------------------------
@@ -308,7 +393,7 @@
         return F.getDoc(F.doc(db, 'ownerfb', 'meta')).then(function (m) {
           if (!m.exists()) { say('no box yet'); return; }
           var meta = m.data();
-          return code(F, db, meta).then(function (box) { mount(F, db, meta, box); });
+          return code(F, db, meta).then(function (box) { return settle().then(function () { mount(F, db, meta, box); }); });
         });
       });
     }).then(function () { checking = false; }, function (e) { checking = false; say('failed: ' + ((e && (e.code || e.message)) || e)); });

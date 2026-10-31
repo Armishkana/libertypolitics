@@ -21,7 +21,7 @@
 .rg-time{margin-top:var(--s5);padding:var(--s4);background:var(--panel);border-radius:var(--r2)}
 @media(min-width:720px){.rg-time{padding:var(--s5)}}
 .rg-time-top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3)}
-.rg-time h2,.rg-next h2,.rg-chairs h2{font-size:clamp(1.6rem,6vw,2.3rem)}
+.rg-time h2,.rg-chairs h2{font-size:clamp(1.6rem,6vw,2.3rem)}
 .rg-time-top p{margin-top:4px;font-size:.9rem}
 .rg-play{flex:none;min-height:44px;display:inline-flex;align-items:center;gap:8px}
 .rg-play-i{width:0;height:0;border-block:7px solid transparent;border-inline-start:11px solid currentColor}
@@ -85,7 +85,7 @@
 .rg-t.is-killed .rg-s,.rg-t.is-down .rg-s{color:var(--rg-kill)}
 .rg-t.is-unknown .rg-s,.rg-t.is-wounded .rg-s{color:var(--rg-unk)}
 /* a fall: the face goes grey and takes the red cross */
-.rg-t.is-killed img,.rg-t.is-died img,.rg-cl.is-killed img,.rg-cl.is-died img,.rg-slot.is-killed img{filter:grayscale(1) brightness(.72)}
+.rg-t.is-killed img,.rg-t.is-died img,.rg-cl.is-killed img,.rg-cl.is-died img,.rg-cp.is-killed img,.rg-cp.is-died img{filter:grayscale(1) brightness(.72)}
 .rg-x{position:absolute;inset-inline-end:-4px;top:-4px;width:30px;height:30px;border-radius:50%;background:var(--rg-kill);box-shadow:0 0 0 3px var(--bg)}
 .rg-x::before,.rg-x::after{content:"";position:absolute;left:50%;top:50%;width:16px;height:3px;border-radius:2px;background:#fff;transform:translate(-50%,-50%) rotate(45deg)}
 .rg-x::after{transform:translate(-50%,-50%) rotate(-45deg)}
@@ -93,14 +93,12 @@
 .rg-q{position:absolute;inset-inline-end:-4px;top:-4px;width:28px;height:28px;border-radius:50%;background:var(--rg-unk);color:#1A1406;font:900 1.05rem/28px var(--body);text-align:center;font-style:normal;box-shadow:0 0 0 3px var(--bg)}
 /* the timeline moving: at a past day a fall that has not happened yet shows the face in colour; a successor not yet in the
    chair is faint; at today everything is as the register says */
-.is-past .rg-t.is-killed:not(.is-down) img,.is-past .rg-t.is-died:not(.is-down) img,.is-past .rg-cl:not(.is-down) img{filter:none}
-.is-past .rg-t:not(.is-down) .rg-x,.is-past .rg-cl:not(.is-down) .rg-x{display:none}
-.is-past .rg-t.is-killed:not(.is-down) .rg-s,.is-past .rg-t.is-died:not(.is-down) .rg-s{visibility:hidden}
-.rg-t.is-down img{filter:grayscale(1) brightness(.72)}
-.rg-t.is-pre,.rg-cl.is-pre{opacity:.22}
+.is-past .rg-t.is-killed:not(.is-down) img,.is-past .rg-t.is-died:not(.is-down) img,.is-past .rg-cl:not(.is-down) img,.is-past .rg-cp.is-killed:not(.is-down) img,.is-past .rg-cp.is-died:not(.is-down) img{filter:none}
+.is-past .rg-t:not(.is-down) .rg-x,.is-past .rg-cl:not(.is-down) .rg-x,.is-past .rg-cp:not(.is-down) .rg-x{display:none}
+.is-past .rg-t.is-killed:not(.is-down) .rg-s,.is-past .rg-t.is-died:not(.is-down) .rg-s,.is-past .rg-cp.is-killed:not(.is-down) .rg-cps,.is-past .rg-cp.is-died:not(.is-down) .rg-cps{visibility:hidden}
+.rg-t.is-down img,.rg-cp.is-down img{filter:grayscale(1) brightness(.72)}
+.rg-t.is-pre,.rg-cl.is-pre,.rg-cp.is-pre{opacity:.22}
 .rg-t.is-dim{opacity:.18}
-/* a pick in the game: the target ring */
-.rg-t.is-picked .rg-face::after{content:"";position:absolute;inset:-8px;border-radius:50%;border:2px dashed var(--field);pointer-events:none}
 .rg-none{margin-top:var(--s4);color:var(--dim)}
 
 /* factions and day by day */
@@ -128,29 +126,10 @@
 .rg-arrow{flex:none;width:18px;height:2px;background:var(--line);position:relative;margin-bottom:34px}
 .rg-arrow::after{content:"";position:absolute;inset-inline-end:-1px;top:-4px;border-block:5px solid transparent;border-inline-start:7px solid var(--line)}
 
-/* who goes next */
-.rg-next{margin-top:var(--s7);padding:var(--s4);border-radius:var(--r2);background:var(--panel);border:2px solid var(--field)}
-@media(min-width:720px){.rg-next{padding:var(--s6)}}
-.rg-next > p{margin-top:4px;max-width:62ch}
-.rg-slots{display:grid;gap:var(--s2);margin-top:var(--s4)}
-@media(min-width:720px){.rg-slots{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.rg-slot{display:flex;align-items:center;gap:var(--s3);min-height:76px;padding:var(--s2) var(--s3);border:1.5px dashed var(--line);border-radius:var(--r2);background:var(--sunk);color:var(--ink);font:inherit;text-align:start;cursor:pointer}
-.rg-slot.is-full{border-style:solid;border-color:var(--field)}
-.rg-slot .rg-face{width:56px;height:56px}
-.rg-slot .rg-x,.rg-slot .rg-q{width:22px;height:22px;line-height:22px;font-size:.85rem}
-.rg-slot-n{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--raise);font:900 1rem/1 var(--display);color:var(--dim);flex:none}
-.rg-slot-e{color:var(--dim);font-size:.9rem}
-.rg-slot-t{display:flex;flex-direction:column;min-width:0}
-.rg-slot-t b{font-size:.95rem}
-.rg-slot-t small{font-size:.75rem;color:var(--dim);line-height:1.3}
-.rg-slot-s.is-hit{color:var(--ga)!important;font-weight:800}
-.rg-score{margin-top:var(--s3);font:900 1.3rem/1.2 var(--display);color:var(--field)}
+/* share the board, make a picture of it */
 .rg-acts{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin-top:var(--s4)}
 .rg-acts .btn{min-height:44px}
-.rg-clear{min-height:44px;padding:0 12px;border:0;background:transparent;color:var(--dim);font:600 .85rem/1 var(--body);text-decoration:underline;cursor:pointer}
-.rg-safe{margin-top:var(--s3);font-size:.8rem;color:var(--dim)}
-.rg-their{margin-top:var(--s4);padding:var(--s3);border-radius:var(--r2);background:var(--sunk)}
-.rg-their h3{font-size:1.05rem}
+.rg-acts [hidden]{display:none}
 .rg-side{display:grid;gap:var(--s4);margin-top:var(--s5)}
 @media(min-width:900px){.rg-side{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .rg-side h3{font-size:1.05rem}
@@ -160,6 +139,10 @@
 .rg-mk li{display:flex;gap:10px;align-items:baseline}
 .rg-mk li b{font:900 1.2rem/1 var(--display);color:var(--field);flex:none;min-width:3.2em}
 .rg-mk small{display:block;margin-top:2px;font-size:.75rem;color:var(--dim);line-height:1.35}
+.rg-mk-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.rg-mk-h .mk-sw{margin-inline-start:auto}
+.rg-mk-t{font-size:.75rem;color:var(--dim)}
+.rg-mk .mk-aff{margin-top:var(--s2);font-size:.75rem;color:var(--dim)}
 .rg-now p{margin-top:var(--s2)}
 .rg-foot{margin-top:var(--s5);font-size:.85rem;color:var(--dim);max-width:70ch}
 
@@ -200,24 +183,11 @@ html.rg-lock{overflow:hidden}
 .rg-sh-in h3{margin-top:var(--s4);font-size:1.05rem}
 .rg-sh-in > p{margin-top:4px}
 .rg-sh-past{margin:4px 0 0;padding-inline-start:20px;font-size:.88rem}
-.rg-sh-pick{margin-top:var(--s4);width:100%;min-height:48px}
 .rg-sh-src{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;margin-top:var(--s4);font-size:.8rem}
 .rg-sh-src a{color:var(--dim);min-height:24px}
 .rg-sh-cr{margin-top:var(--s2);font-size:.75rem;color:var(--dim)}
 
-/* the tray: your picks, at hand while you scroll the board */
-.rg-tray{position:fixed;inset-inline:0;bottom:12px;z-index:30;display:flex;justify-content:center;pointer-events:none}
-.rg-next-on .rg-tray{display:none}
-.rg-tray-in{pointer-events:auto;display:flex;align-items:center;gap:6px;min-height:52px;padding:6px 16px 6px 8px;border-radius:999px;background:var(--ink);color:var(--bg);font:800 .9rem/1 var(--body);text-decoration:none;box-shadow:0 6px 24px rgba(0,0,0,.5)}
-.rg-tray-in .rg-face{width:38px;height:38px}
-.rg-tray-in .rg-x,.rg-tray-in .rg-q{display:none}
-
-/* second pass, 31 Oct 2026: the game sits above the board, a pick mode, folded branches, a slimmer sticky bar */
-.rg-next{margin-top:var(--s5)}
-.rg-steps{list-style:none;counter-reset:st;margin:var(--s3) 0 0;padding:0;display:grid;gap:6px}
-@media(min-width:720px){.rg-steps{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.rg-steps li{counter-increment:st;display:flex;align-items:center;gap:10px;font-size:.92rem;font-weight:600;min-width:0}
-.rg-steps li::before{content:counter(st);flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--field);color:var(--panel);font:900 .95rem/1 var(--display)}
+/* second pass, 31 Oct 2026: folded branches, a slimmer sticky bar */
 .rg-intel{margin-top:var(--s3);background:var(--panel);border-radius:var(--r2)}
 .rg-intel summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px;padding:var(--s2) var(--s4);font-weight:700;list-style:none}
 .rg-intel summary::-webkit-details-marker{display:none}
@@ -235,13 +205,6 @@ html.rg-lock{overflow:hidden}
 .rg-fil .rg-f{flex:none}
 .rg-fil .rg-find{order:-1;flex:0 0 140px;min-width:0}
 @media(min-width:720px){.rg-fil{flex:1 1 280px}.rg-fil .rg-find{order:0;flex:1 1 160px}}
-.rg-picking .rg-board .rg-t{cursor:copy}
-.rg-picking .rg-t.is-killed,.rg-picking .rg-t.is-died{opacity:.35}
-.rg-picking .rg-t.is-picked .rg-face{outline:3px solid var(--field);outline-offset:3px}
-.rg-picking .rg-tray{display:flex!important}
-.rg-tray-in.is-picking{gap:8px;padding:6px 6px 6px 10px}
-.rg-tray-say{max-width:46vw;font-size:.85rem;line-height:1.2}
-.rg-tray-done{min-height:40px;padding:0 18px;border:0;border-radius:999px;background:var(--field);color:var(--panel);font:800 .9rem/1 var(--body);cursor:pointer}
 .rg-chairs.is-folded > ul > li.is-over{display:none}
 @media(max-width:719px){.rg-camps{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}.rg-camps::-webkit-scrollbar{display:none}.rg-ck{flex:none}}
 /* the wars on the timeline (31 Oct 2026): a name under each burst, a badge by the date, a button per war */
@@ -259,12 +222,87 @@ html.rg-lock{overflow:hidden}
 .rg-war.is-on{border-color:var(--rg-kill);background:rgba(229,72,77,.12)}
 .rg-war.is-on span{color:var(--rg-kill)}
 @media(min-width:720px){.rg-wars{flex-wrap:wrap;overflow:visible}}
-.rg-clues{margin-top:var(--s3);border-top:1px solid var(--line)}
-.rg-clues summary{cursor:pointer;min-height:48px;display:flex;align-items:center;gap:10px;font-weight:800;list-style:none}
-.rg-clues summary::-webkit-details-marker{display:none}
-.rg-clues summary::before{content:"💡";flex:none}
-.rg-clues ol{margin:0;padding-inline-start:1.2em;display:grid;gap:var(--s2)}
-.rg-clues li{font-size:.9rem;line-height:1.5}
-.rg-clues a{display:inline-flex;align-items:center;min-height:40px;margin-inline-end:8px;font-size:.8rem;color:var(--dim)}
 .rg-wl.is-two{height:42px}
 .rg-wlab.is-row2{top:20px}
+
+/* THE WHOLE CHART (30 Oct 2026): the Supreme Leader on top, every branch a column under him, in a window that zooms.
+   The chart is drawn at its real size (a face 64px, words 12px and up) and scaled by one transform (regime.js), so the
+   faces stay sharp; touch-action:none only inside the window, so the page still scrolls everywhere else. */
+.rg-zw{position:relative;margin-top:var(--s4);background:var(--panel);border-radius:var(--r2);overflow:hidden}
+.rg-zbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px}
+.rg-zb{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;min-width:44px;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--bg);color:var(--ink);font:700 .85rem/1 var(--body);cursor:pointer}
+.rg-zb:hover{border-color:var(--ink)}
+.rg-zb:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-zb svg{flex:none}
+#rg-zin,#rg-zout{padding:0}
+.rg-zhint{flex:1 1 150px;min-width:0;font-size:.78rem;line-height:1.3;color:var(--dim);text-align:end}
+.rg-vpw{position:relative}
+.rg-zfl{position:absolute;inset-inline-end:10px;top:10px;display:flex;flex-direction:column;gap:8px;z-index:2}
+.rg-zfl .rg-zb{background:var(--panel);box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.rg-vp{position:relative;overflow:hidden;height:62vh;height:min(62svh,640px);min-height:340px;background:var(--sunk);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;outline:none}
+@media(min-width:720px){.rg-vp{height:clamp(460px,calc(100vh - 200px),980px)}}
+.rg-vp:focus-visible{box-shadow:inset 0 0 0 3px var(--field)}
+.rg-vp.is-moving{cursor:grabbing}
+.rg-vp img{pointer-events:none;-webkit-user-drag:none}
+.rg-chart{position:absolute;left:0;top:0;width:max-content;padding:44px;transform-origin:0 0}
+.rg-c-head{position:absolute;inset-inline-start:44px;top:40px;max-width:560px}
+.rg-c-h1{font:900 2.6rem/1.02 var(--display)}
+.rg-c-sub{margin-top:10px;font-size:1.3rem;font-weight:800;color:var(--rg-kill)}
+.rg-c-top{display:flex;flex-direction:column;align-items:center;position:relative;padding-bottom:34px}
+.rg-c-top::after{content:"";position:absolute;left:50%;bottom:0;width:3px;height:34px;background:var(--line);transform:translateX(-50%)}
+.rg-c-topl{font:800 1rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+[lang=fa] .rg-c-topl{letter-spacing:0;text-transform:none}
+.rg-c-chain{display:flex;align-items:center;gap:14px;margin-top:10px;padding:14px 20px;border:2px solid var(--line);border-radius:18px;background:var(--panel)}
+.rg-c-chain .rg-arrow{width:44px;height:3px;margin-bottom:60px}
+.rg-c-chain .rg-arrow::after{top:-5px;border-block-width:6px;border-inline-start-width:10px}
+.rg-c-cols{display:flex;align-items:flex-start;gap:24px;padding-top:30px;border-top:3px solid var(--line)}
+.rg-cs{display:flex;flex-direction:column;align-items:center;gap:30px;flex:none}
+.rg-cc{position:relative;flex:none;padding:16px;border:2px dashed var(--line);border-radius:16px;background:var(--panel)}
+.rg-cc::before{content:"";position:absolute;left:50%;top:-34px;width:3px;height:32px;background:var(--line);transform:translateX(-50%)}
+.rg-cch{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;margin-bottom:12px;max-width:calc(var(--n,1) * 118px)}
+.rg-cch h3{font-size:1.65rem;line-height:1.05;min-width:0;overflow-wrap:anywhere}
+.rg-cchc{font-size:1.15rem;font-weight:800;color:var(--dim)}
+.rg-cchc b{color:var(--rg-kill)}
+.rg-cch .rg-bp{flex-basis:100%;height:5px}
+.rg-cg + .rg-cg{margin-top:10px}
+.rg-cgl{margin-bottom:6px;padding-top:8px;border-top:1px solid var(--line);font:800 .8rem/1.2 var(--body);letter-spacing:.04em;text-transform:uppercase;color:var(--dim)}
+[lang=fa] .rg-cgl{letter-spacing:0;text-transform:none}
+.rg-cg:first-of-type .rg-cgl{border-top:0;padding-top:0}
+.rg-cgg{display:grid;grid-template-columns:repeat(var(--n,1),112px);gap:6px}
+.rg-cp{position:relative;display:flex;flex-direction:column;align-items:center;width:112px;height:134px;padding:6px 3px 0;border-radius:12px;text-align:center;color:var(--ink);cursor:pointer}
+.rg-cp .rg-face{width:64px;height:64px}
+.rg-cp .rg-x{width:24px;height:24px;inset-inline-end:-6px;top:-5px}
+.rg-cp .rg-x::before,.rg-cp .rg-x::after{width:13px;height:3px}
+.rg-cp .rg-q{width:22px;height:22px;line-height:22px;font-size:.85rem;inset-inline-end:-6px;top:-5px}
+.rg-cp > b{margin-top:7px;max-width:100%;font-size:.95rem;line-height:1.12;font-weight:800;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.rg-cps{max-width:100%;margin-top:2px;font-size:.75rem;line-height:1.25;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rg-cp.is-killed .rg-cps,.rg-cp.is-down .rg-cps{color:var(--rg-kill);font-weight:700}
+.rg-cp.is-unknown .rg-cps{color:var(--rg-unk);font-weight:700}
+.rg-cp.is-top{width:200px;height:auto;padding-bottom:4px}
+.rg-cp.is-top .rg-face{width:136px;height:136px}
+.rg-cp.is-top .rg-x{width:40px;height:40px}.rg-cp.is-top .rg-x::before,.rg-cp.is-top .rg-x::after{width:22px;height:4px}
+.rg-cp.is-top .rg-q{width:36px;height:36px;line-height:36px;font-size:1.3rem}
+.rg-cp.is-top > b{font-size:1.45rem}
+.rg-cp.is-top .rg-cps{font-size:.95rem;white-space:normal}
+.rg-cp.is-dim{opacity:.16}
+.rg-cp.is-hit{background:color-mix(in srgb,var(--field) 22%,transparent);box-shadow:0 0 0 3px var(--field)}
+.rg-zcap{display:none}
+.rg-zcap input{flex:1 1 220px;min-width:0;height:44px;accent-color:var(--rg-kill);cursor:pointer}
+.rg-zcap b{font:900 1.35rem/1 var(--display);white-space:nowrap}
+.rg-zcap .num:not(b){font-size:.95rem;font-weight:800;color:var(--rg-kill);white-space:nowrap}
+.rg-zplay .rg-play-i{margin-inline-start:2px}
+/* full screen (the live show): the browser's own, or the window filled when a phone has none */
+.rg-zw.is-full{display:flex;flex-direction:column;margin:0;border-radius:0;background:var(--bg)}
+.rg-zw.rg-full{position:fixed;inset:0;z-index:90}
+.rg-zw.is-full .rg-vpw{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.rg-zw.is-full .rg-vp{flex:1 1 auto;height:auto;min-height:0}
+.rg-zw.is-full .rg-zcap{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px))}
+.rg-zw.is-full .rg-zbar{padding-top:calc(8px + env(safe-area-inset-top,0px))}
+.rg-zw:fullscreen{width:100%;height:100%}
+.rg-zw .rg-sheet{z-index:95}
+/* the chart is a window of its own: the filter bar stops following the page over it, and on a wide screen the window uses the whole width */
+.rg-on-chart .rg-bar{position:static}
+@media(min-width:1200px){.rg-zw:not(.is-full){margin-inline:calc(50% - 50vw + 24px)}}
+/* on a phone the hint sits over the chart until the first touch, so the window keeps its height */
+@media(max-width:519px){.rg-zhint{position:absolute;top:70px;inset-inline-start:10px;max-width:calc(100% - 80px);padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;text-align:start;pointer-events:none;z-index:2}
+.rg-zw.rg-used .rg-zhint:not(.is-q){display:none}.rg-zw.is-full .rg-zhint{top:calc(66px + env(safe-area-inset-top,0px))}}
