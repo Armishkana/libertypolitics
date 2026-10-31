@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=95fe996bb7) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=5258bd4c36) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -741,6 +741,15 @@
      file was built on the same hour of the feed; otherwise there are none (never country buckets, 24 Oct 2026). Its name
      is the one data/show-words.json gives it, else its own headline, cut. */
   function cut(t, n) { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1).replace(/[\s,:;.'"-]+\S*$/, '') + '…' : t; }
+  // A story's name is the words of its headline, never the post's addressing: the @handles, links and Latin #hashtags an
+  // X post ENDS with are cut from the name (30 Oct 2026, ask gate: the Persian page's biggest story was named «زادروزتان
+  // خجسته، رضاشاه دوم، امید ملت ایران @PahlaviReza», English on a Persian card). At the start or inside a sentence they
+  // stay ("@SenTimKaine says ..." is the subject); a name that is nothing else is kept as it is.
+  function storyName(s) {
+    var tag = '(?:@[A-Za-z0-9_]+|https?:\\/\\/\\S+|#[A-Za-z0-9_]+)', t = String(s || '');
+    var r = t.replace(new RegExp('(?:[\\s,.:;|\\u2013\\u2014-]*' + tag + ')+\\s*(\\u2026?)\\s*$'), '$1').trim();
+    return r && /[a-z0-9\u0600-\u06ff]/i.test(r) ? r : t;
+  }
   function makeHots() {
     HOTS = []; HOTALL = {}; STORY_OF = {};
     if (!LIVE.length) return;
@@ -765,7 +774,7 @@
     list.forEach(function (h) {
       var w = WORDS && WORDS.stories && WORDS.stories[h.lead];
       // the written name, else the one build/show_packs.py chip_name() makes whole every hour, else the headline cut at a word
-      h.name = w && w.name ? w.name : h.s && h.s.name ? String(h.s.name) : cut(unshout(h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, '')), 56);
+      h.name = storyName(w && w.name ? w.name : h.s && h.s.name ? String(h.s.name) : cut(unshout(h.title.replace(/^(LIVE|WATCH|BREAKING|TRENDING)[!:]?\s*/i, '')), 56));
       h.w = w || null;
       h.score = h.hot * (0.6 + 0.4 * Math.min(1, h.its.length / 3));
       h.ids = {}; h.all.forEach(function (it) { h.ids[it.id] = 1; }); h.its.forEach(function (it) { STORY_OF[it.id] = h; });
@@ -783,9 +792,14 @@
   // a Blindspot item: its own story says so, or the topic it belongs to does (who covered it, above)
   function isBlind(it) { var o = spreadOf(it); return !!(o && o.bs); }
   function hotById(id) { return HOTS.filter(function (h) { return h.id === id; })[0] || null; }
+  // A FOUND ITEM LIVES INSIDE ITS STORY: an item intel_deep.py found for a story (_deep) is listed only while that story
+  // (or All hot) is picked. pass() asks this, and so does every add-on that counts items for a list (IRoom.canList): until
+  // 31 Oct 2026 the Forces layer counted found items too, so Al Udeid's one mention, a found item, gave it a "Show its
+  // news" that listed nothing (LP phone test).
+  function canList(it) { return !it._deep || !!(S.lens === 'live' && S.hot && S.hot !== 'blind' && (S.hot === 'all' ? HOTALL[it.id] : (hotById(S.hot) || { ids: {} }).ids[it.id])); }
   function pass(it, skip) {
     if (skip !== 'link' && LSET && !LSET[it.id]) return false;
-    if (it._deep && skip !== 'hot' && !(S.lens === 'live' && S.hot && S.hot !== 'blind' && (S.hot === 'all' ? HOTALL[it.id] : (hotById(S.hot) || { ids: {} }).ids[it.id]))) return false;          // a found item lives inside its story
+    if (skip !== 'hot' && !canList(it)) return false;
     if (S.who && whoKey(it) !== S.who) return false;          // one account's posts (WHO POSTED IT)
     if (skip !== 'hot' && S.hot && S.lens === 'live') {
       if (S.hot === 'all') { if (!HOTALL[it.id]) return false; }
@@ -809,7 +823,7 @@
       var b = bucketOf(it); if (b < S.from || b > S.to) return false;
       if (S.days && !(String(it.d || '') >= dayCut())) return false;
     }
-    if (S.q && S.qm === 'best' && skip !== 'q') { var sc0 = qScore(it); if (!(sc0 > 0 && sc0 >= qCut())) return false; }
+    if (S.q && S.qm === 'best' && skip !== 'q') { var sc0 = qScore(it, null, true); if (!(sc0 > 0 && sc0 >= qCut())) return false; }
     else if (S.q && S.qm !== 'rank' && skip !== 'q') {
       var w = wsOf(it), tq = qTerms(), hit = 0;
       for (var i = 0; i < tq.length; i++) { if (tq[i].some(function (a) { return qHas(w, a); })) hit++; else if (!S.qm) return false; }
@@ -847,6 +861,19 @@
   function faNorm(s) { return String(s).replace(/\u200c/g, '').replace(/[\u064a\u0649]/g, '\u06cc').replace(/\u0643/g, '\u06a9').replace(/\u0629/g, '\u0647').replace(/[\u0623\u0625\u0622]/g, '\u0627').replace(/[\u064b-\u0652]/g, ''); }
   function wsOf(it) { return it._ws || (it._ws = ' ' + faNorm(words(it)).replace(/[^a-z0-9\u0590-\u06ff]+/g, ' ') + ' '); }
   function hsOf(it) { return it._hs || (it._hs = ' ' + faNorm(String(it.t || '').toLowerCase()).replace(/[^a-z0-9\u0590-\u06ff]+/g, ' ') + ' '); }
+  // what the item itself SAYS (headline, note, quote, who posted it) and where it is (its place and country: an execution
+  // in Ilam Prison is in Iran whether or not its Persian headline says so). A bank item's tags were put on by a person, so
+  // their names are its words, and so are the topics those tags stand for (BANK_TP: "Blood libels debunked" is Media and
+  // Judaism and antisemitism). A topic read off an item's own text by the topic's pattern (tkOf) is left out: it is a loose
+  // word match on the item's other words, and the War topic's pattern names Israel, so until 30 Oct 2026 an X post about
+  // Israel's coalition politics "said" war, and "israel iran war" put it first while every "Iran war" headline fell under
+  // the cut (ask gate). Left out, such a name still counts, as a word of the same meaning (qScore).
+  function osOf(it) {
+    if (it._os) return it._os;
+    var tg = '';
+    if (it.hot == null && !it.pend) (it.tp || []).forEach(function (i) { tg += ' ' + (topics[i] || ''); (BANK_TP[topics[i]] || []).forEach(function (k) { if (TOPN[k]) tg += ' ' + TOPN[k][1]; }); });
+    return (it._os = ' ' + faNorm((String(it.t || '') + ' ' + (it.n || '') + ' ' + (it.o || '') + ' ' + (it.h || '') + ' ' + (it.nm || '') + ' ' + (it.by || '') + ' ' + placeName(it.p) + ' ' + (P[it.p] ? P[it.p][1] : '') + ' ' + tg).toLowerCase()).replace(/[^a-z0-9\u0590-\u06ff]+/g, ' ') + ' ');
+  }
   function qHas(s, a) {
     if (a.length <= 2) return s.indexOf(' ' + a + ' ') >= 0;
     if (!/^[a-z0-9 ]+$/.test(a)) return s.indexOf(a) >= 0;
@@ -878,12 +905,16 @@
     }).filter(function (alts) { var k = alts.join('|'); if (seen[k]) return false; seen[k] = 1; return true; });
     return (QX[q] = t);
   }
-  // how much a word decides: rare across everything the room holds weighs more (an inverse document frequency)
+  // how much a word decides: rare across everything the room holds weighs more (an inverse document frequency). Counted on
+  // what the items SAY (osOf), never on the room's labels: a label put on 300 items made "war" look common when 60 said it,
+  // so a headline that really says war weighed less than one that only names Israel (30 Oct 2026). A word no item says,
+  // only a label carries, is counted on the labels.
   function qWeight(alts) {
     var k = alts.join('|');
     if (QW[k] == null) {
-      var all = BANK.concat(LIVE), n = 0;
-      for (var i = 0; i < all.length; i++) { var w = wsOf(all[i]); if (alts.some(function (a) { return qHas(w, a); })) n++; }
+      var all = BANK.concat(LIVE), n = 0, nl = 0;
+      for (var i = 0; i < all.length; i++) { if (alts.some(function (a) { return qHas(osOf(all[i]), a); })) n++; else if (alts.some(function (a) { return qHas(wsOf(all[i]), a); })) nl++; }
+      if (!n) n = nl;
       QW[k] = Math.min(3, Math.log(1 + (all.length + 1) / (n + 1))) * (QMETA.test(alts[0]) ? 0.35 : 1) * (qSubject(alts[0]) ? 2 : 1);
     }
     return QW[k];
@@ -894,32 +925,67 @@
   // standards on israel" is about the double standards. The stemmer cuts a final i, s or e (Houthi -> houth), so those
   // are put back before the actor's own pattern is asked.
   function qSubject(w) { return ['', 'i', 's', 'e'].some(function (x) { var ws = ' ' + w + x + ' '; return (ACTORS || []).some(function (a) { return a[2].test(ws); }); }); }
-  function qScore(it, q) {
-    var w = wsOf(it), h = hsOf(it), sc = 0;
-    // the word itself counts in full, a word of the same meaning (QSYN) at 0.6; in the headline in full, elsewhere at 0.7
-    qTerms(q).forEach(function (alts) {
+  function qPlace(w) { return ['', 'i', 's', 'e'].some(function (x) { var ws = ' ' + w + x + ' '; return (NAMES || []).some(function (a) { return a[1].test(ws); }); }); }
+  // A PLACE IS WHERE, THE OTHER WORDS ARE WHAT (30 Oct 2026, ask gate "israel iran war"). "Countries stay single" (above)
+  // was the rule, but a word's weight is how rare it is, and in a room where few items name Israel, "israel" weighed 3 to
+  // "war"'s 2.4: an item naming Israel and Iran beat every one saying "Iran war", and the reading "Israel, the War topic"
+  // won the box. In a question that also asks for something other than a place, a country's name (NAMES) weighs at most
+  // half of its heaviest other word, so an item that says what was asked, anywhere, comes before one that only names the
+  // place. A question of places alone ("iran israel") keeps its weights. The weights of a whole question, in qTerms order.
+  var QWQ = {};
+  function qWeights(q) {
+    q = q == null ? S.q : q;
+    if (QWQ[q]) return QWQ[q];
+    var tq = qTerms(q), ws = tq.map(qWeight), pl = tq.map(function (alts) { return !alts.own && qPlace(alts[0]); }), top = 0;
+    ws.forEach(function (x, i) { if (!pl[i] && x > top) top = x; });
+    return (QWQ[q] = top ? ws.map(function (x, i) { return pl[i] ? Math.min(x, top / 2) : x; }) : ws);
+  }
+  // one word's weight inside a question (intel-ask.js weighs each word of a reading with it)
+  function qwIn(w, q) { var t = qTerms(w), k = t.length ? t[0].join('|') : '', tq = qTerms(q), i = -1; tq.forEach(function (a, j) { if (i < 0 && a.join('|') === k) i = j; }); return i >= 0 ? qWeights(q)[i] : t.length ? qWeight(t[0]) : 0; }
+  function qScore(it, q, bare) {
+    var w = wsOf(it), o = osOf(it), h = hsOf(it), sc = 0, tq = qTerms(q), wq = qWeights(q);
+    // the word itself counts in full, a word of the same meaning (QSYN) at 0.6; in the headline in full, elsewhere in what
+    // the item says at 0.7, and only in a topic name read off its text by a pattern (osOf, above) at 0.42, as a word of
+    // the same meaning outside the headline is: the name stands for one of the item's own words ("rioters" put it in
+    // Protests and unrest), never for the asked word itself
+    tq.forEach(function (alts, ti) {
       var own = alts[0], syn = alts.own ? [] : alts.slice(1); if (alts.own) own = alts;
-      var m = Array.isArray(own) ? (own.some(function (a) { return qHas(h, a); }) ? 1 : own.some(function (a) { return qHas(w, a); }) ? 0.7 : 0) : qHas(h, own) ? 1 : syn.some(function (a) { return qHas(h, a); }) ? 0.6 : qHas(w, own) ? 0.7 : syn.some(function (a) { return qHas(w, a); }) ? 0.42 : 0;
-      if (m) sc += m * qWeight(alts);
+      var m = Array.isArray(own) ? (own.some(function (a) { return qHas(h, a); }) ? 1 : own.some(function (a) { return qHas(o, a); }) ? 0.7 : own.some(function (a) { return qHas(w, a); }) ? 0.42 : 0) :
+        qHas(h, own) ? 1 : syn.some(function (a) { return qHas(h, a); }) ? 0.6 : qHas(o, own) ? 0.7 : syn.some(function (a) { return qHas(o, a); }) ? 0.42 : qHas(w, own) ? 0.42 : syn.some(function (a) { return qHas(w, a); }) ? 0.25 : 0;
+      if (m) sc += m * wq[ti];
     });
+    // TWO WORDS ASKED TOGETHER, SAID TOGETHER (30 Oct 2026, ask gate "israel iran war"): two words next to each other in the
+    // question that stand next to each other in the headline (in either order, at most one word between: "Iran war", "war
+    // with Iran", «جنگ ایران») are said about one thing, and count again at half. A headline that names the two apart is
+    // only near the question. relOf (how much of the question an item carries) leaves this out (bare).
+    if (!bare && tq.length > 1) {
+      var tk = it._htk || (it._htk = h.trim().split(' ')), at = tq.map(function (alts) {
+        var ps = []; if (alts.own) return ps;
+        for (var i = 0; i < tk.length; i++) { var t1 = ' ' + tk[i] + ' '; if (alts.some(function (a) { return qHas(t1, a); })) ps.push(i); }
+        return ps;
+      });
+      for (var j = 0; j + 1 < tq.length; j++) if (at[j].some(function (p) { return at[j + 1].some(function (r) { return r !== p && Math.abs(r - p) <= 2; }); })) sc += 0.5 * (wq[j] + wq[j + 1]);
+    }
     return sc;
   }
-  // the score an item needs in 'best': half of the best score among what every other filter lets through
+  // the score an item needs in 'best': half of the best score among what every other filter lets through, both read
+  // bare (without the two-words-together bonus, which only orders: with it, "blood libels" set the bar so high that the
+  // items tagged "Blood libels debunked" fell under it, 30 Oct 2026, LP ask gate)
   function qCut() {
     var k = JSON.stringify(Object.assign({}, S, { sort: '' })) + '|' + items.length;
     if (QC.k === k) return QC.v;
     var best = 0;
-    for (var i = 0; i < items.length; i++) if (pass(items[i], 'q')) { var sc = qScore(items[i]); if (sc > best) best = sc; }
+    for (var i = 0; i < items.length; i++) if (pass(items[i], 'q')) { var sc = qScore(items[i], null, true); if (sc > best) best = sc; }
     QC.k = k; QC.v = best * 0.5;
     return QC.v;
   }
   // 0 to 1: how much of a question's words an item carries, weighed
   function relOf(it, q) {
-    var tq = qTerms(q), tot = 0; tq.forEach(function (alts) { tot += qWeight(alts); });
-    return tot ? qScore(it, q) / tot : 0;
+    var tot = 0; qWeights(q).forEach(function (x) { tot += x; });
+    return tot ? qScore(it, q, true) / tot : 0;
   }
-  function qwOf(w) { var t = qTerms(w); return t.length ? qWeight(t[0]) : 0; }
-  function qwOf(w) { var t = qTerms(w); return t.length ? qWeight(t[0]) : 0; }
+  // a word's weight; with q, its weight inside that question (a place beside other words weighs less, qWeights)
+  function qwOf(w, q) { if (q != null) return qwIn(w, q); var t = qTerms(w); return t.length ? qWeight(t[0]) : 0; }
   function sortList(a) {
     var by = function (x, y) { return (y.d || y.sent || '').toString().localeCompare((x.d || x.sent || '').toString()); };
     if (S.lens === 'readers') by = function (x, y) { return (y.ms || 0) - (x.ms || 0); };
@@ -1340,7 +1406,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=95fe996bb7): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=5258bd4c36): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -3044,7 +3110,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=95fe996bb7,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=5258bd4c36,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -4088,7 +4154,7 @@
         // an add-on's marks can stand clear of them and never hide a count (23 Oct 2026, Armin: "The military stuff is
         // blocking the number in the middle of that circle")
         marks: function () { return pinData.map(function (m) { return { x: m.x, y: m.y, r: m.exp ? footR(m.m) + 3 : pinR(m.n) + 7 }; }); } },
-      items: function () { return items.slice(); }, place: function (k) { return P[k] ? { name: P[k][0], country: P[k][1], lat: P[k][2], lon: P[k][3] } : null }, keys: keysOf,
+      items: function () { return items.slice(); }, canList: canList, listKey: function () { return S.lens + "|" + S.hot; }, place: function (k) { return P[k] ? { name: P[k][0], country: P[k][1], lat: P[k][2], lon: P[k][3] } : null }, keys: keysOf,
       open: function (it) { var i = shown.indexOf(it); if (i < 0) return false; openSpot(i); return true; },
       // an add-on's own list in the spotlight, stepping through it, with "Back to <label>" calling back (24 Oct 2026, SPOTL)
       openList: function (list, i, o) {
@@ -4127,7 +4193,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=95fe996bb7'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=5258bd4c36'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

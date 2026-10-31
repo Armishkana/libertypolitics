@@ -32,7 +32,7 @@
    the same table community.js and discussion.js read.
 
    THE PICTURE TO POST (30 October 2026, build/shareimg.js, README "The picture to post"). A tool that registers a
-   picture in window.LPShotQ gets two things from here: assets/shareimg.js?v=95fe996bb7 is loaded (while the browser is idle, or on
+   picture in window.LPShotQ gets two things from here: assets/shareimg.js?v=5258bd4c36 is loaded (while the browser is idle, or on
    the first tap), and the panel shows that picture at its top with Save picture, so every Share tap also offers it.
    Anything carrying data-shot="<id>" ("Make a picture") opens the picture's own sheet.
 
@@ -257,7 +257,7 @@
     SHOT_P = new Promise(function (res, rej) {
       var s = D.createElement('script'), base = ROOT || (D.documentElement.getAttribute('data-root') || '');
       // the same ?v= as this file's own address, so a new build never pairs this file with yesterday's picture code
-      var src = base + 'assets/shareimg.js?v=95fe996bb7';
+      var src = base + 'assets/shareimg.js?v=5258bd4c36';
       s.src = src + (src.indexOf('?') < 0 ? VQ : '');
       s.onload = function () { if (W.LPShot && W.LPShot.ready) res(W.LPShot); else { SHOT_P = null; rej(new Error('no picture code')); } };
       s.onerror = function () { SHOT_P = null; s.remove(); rej(new Error('no picture code')); };

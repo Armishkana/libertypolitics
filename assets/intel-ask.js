@@ -555,8 +555,13 @@
     if (intent === 'trending') {
       list = R.peek(ns, true); var by = {}, order = [];
       list.forEach(function (it) { var s = R.storyOf ? R.storyOf(it) : null; if (!s) return; if (!by[s.id]) { by[s.id] = { id: s.id, name: s.name, n: 0, hot: s.hot }; order.push(by[s.id]); } by[s.id].n++; });
-      order.sort(function (a, b) { return (b.hot - a.hot) || (b.n - a.n); });
-      if (!order.length) order = (V.hots || []).filter(function (h) { return V.top.indexOf(h.id) >= 0; }).map(function (h) { return { id: h.id, name: h.name, n: h.n, hot: h.hot }; });
+      // on the Persian page a story named in Persian comes before one the feed could only name in English (a story with no
+      // Persian item keeps its English headline as its name, build/news_packs.py names_for): the card answers in the
+      // reader's language first, hottest first inside each (30 Oct 2026, ask gate: English on the Persian card)
+      var inFa = function (s) { var t = String(s.name || ''); return FA && (t.match(/[\u0600-\u06ff]/g) || []).length > (t.match(/[A-Za-z]/g) || []).length ? 1 : 0; };
+      var bySay = function (a, b) { return (inFa(b) - inFa(a)) || (b.hot - a.hot) || (b.n - a.n); };
+      order.sort(bySay);
+      if (!order.length) order = (V.hots || []).filter(function (h) { return V.top.indexOf(h.id) >= 0; }).map(function (h) { return { id: h.id, name: h.name, n: h.n, hot: h.hot }; }).sort(function (a, b) { return inFa(b) - inFa(a); });
       if (!order.length) return '';
       return '<div class="ira-ans"><p>' + esc(T('The biggest stories right now. Tap one to see only it:')) + '</p><ol>' + order.slice(0, 3).map(function (s) {
         return '<li><button type="button" data-ira-hot="' + esc(s.id) + '"' + (FA ? ' dir="auto"' : '') + '><b>' + esc(s.name) + '</b><small>' + esc(T('Hot {n}', { n: N(s.hot) })) + '</small></button></li>';
@@ -634,17 +639,23 @@
     }
     var bankW = V.sorts.bank ? Math.min(1, R.peek(R.blank('bank')) / 200) : 0;
     var ev = EVID.test(p.raw), so = SOCIAL.test(p.raw), W = [0.6, 0.25, 0.15], best = null, aw = p.allq.split(' ').filter(Boolean);
-    var wt = aw.map(function (w) { return R.qw ? R.qw(w) : 1; }), wsum = wt.reduce(function (a, b) { return a + b; }, 0) || 1;
-    // how much of the question an item answers: each word by its weight; a word a filter of this reading stands for
-    // ("Harvard" read as the campus place) counts half for every item the filter lets through
-    // (a place or region read from a name, Harvard or the Islamic Republic, stands for its word better than a topic does: 0.6, 0.45)
+    var wt = aw.map(function (w) { return R.qw ? R.qw(w, p.allq) : 1; }), wsum = wt.reduce(function (a, b) { return a + b; }, 0) || 1;
+    // how much of the question an item answers: each word by its weight inside the question (a place beside other words
+    // weighs less, intel.js qWeights); a word a filter of this reading stands for ("Harvard" read as the campus place)
+    // counts for every item the filter lets through: a place or region read from a name, Harvard or the Islamic Republic,
+    // stands for its word better than a topic does (0.6, 0.45). But a topic that, beside the reading's other filters, lets
+    // everything through stands for nothing (30 Oct 2026, ask gate "israel iran war": the War topic's own pattern names
+    // Israel, so every item in the place Israel is in it, and "war" counted 0.6 for items that never said it); then every
+    // filtered word that is not the place's own name counts only where the item says it.
+    var placeW = function (w) { return (V.places || []).some(function (pw) { return pw[0].test(' ' + w + ' '); }); };
     var relC = function (it, c) {
-      var inQ = ' ' + (c.ns.q || '') + ' ', facet = (c.ns.tp || []).length || (c.ns.fx || []).length || c.ns.place || c.ns.kind, s0 = 0;
-      aw.forEach(function (w, i) { var r = R.rel(it, w); if (facet && inQ.indexOf(' ' + w + ' ') < 0) r = Math.max(r, c.ns.place || (c.ns.fx || []).length ? 0.6 : 0.45); s0 += wt[i] * r; });
+      var inQ = ' ' + (c.ns.q || '') + ' ', pf = c.ns.place || (c.ns.fx || []).length, facet = pf || (c.ns.tp || []).length || c.ns.kind, s0 = 0;
+      aw.forEach(function (w, i) { var r = R.rel(it, w); if (facet && inQ.indexOf(' ' + w + ' ') < 0) r = Math.max(r, pf && placeW(w) ? 0.6 : c.tpIdle ? 0 : pf ? 0.6 : 0.45); s0 += wt[i] * r; });
       return s0 / wsum;
     };
     cands.forEach(function (c) {
       var list = R.peek(c.ns, true); c.n = list.length; if (!c.n) return;
+      if ((c.ns.tp || []).length) { var nt = cp(c.ns); nt.tp = []; c.tpIdle = R.peek(nt) <= c.n; }          // the topic took nothing away
       var ws = 0; c.q = 0; for (var k = 0; k < 3 && k < list.length; k++) { c.q += W[k] * relC(list[k], c); ws += W[k]; }
       c.q = c.q / ws + 0.03 * Math.log(Math.min(c.n, 8)) / Math.LN2;          // more of the same quality is a little better
       // with no time said, the curated bank answers by default and the last 24 hours answer what is social or recent ("most

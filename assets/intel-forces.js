@@ -326,7 +326,12 @@
   function inGroup(g, w, wf) { return (g[2].test(w) && (!g[3] || g[3].test(w))) || (!!g[5] && g[5].test(wf) && (!g[6] || g[6].test(wf))); }
   function groupsOf(a) { return GOF[a.id] || []; }
   function match() {
-    var its = R.items(), key = R.lens() + ':' + its.length + ':' + (its[0] ? its[0].id : '') + ':' + (its.length ? its[its.length - 1].id : '');
+    // only what the room's list can show (IRoom.canList, the rule pass() itself uses): a found item lives inside its story,
+    // so counted outside it, it gave a site a "Show its news" that listed nothing (31 Oct 2026, LP phone test: Al Udeid's
+    // one mention was a found item). The picked story is in the key, since picking it lets its found items in.
+    var its = R.items(), lk = R.listKey ? R.listKey() : R.lens();
+    if (R.canList) its = its.filter(R.canList);
+    var key = lk + ':' + its.length + ':' + (its[0] ? its[0].id : '') + ':' + (its.length ? its[its.length - 1].id : '');
     if (key === MKEY) return false;
     MKEY = key; NEWS = {}; NEAR = {}; OF_ITEM = {}; GNEWS = {}; GOF = {};
     var all = ASSETS.concat(SHIPS), sites = ASSETS;
@@ -459,7 +464,7 @@
   function lvClass(p) { return 'lv' + Math.min(4, Math.floor(((p && p.lvl) || 0) / 20)); }
   // the picker: every conflict with how hot it is today, tap to add or take away; the map and the list move behind it
   function warPicker() {
-    var on = wars(), its = R.items();
+    var on = wars(), its = R.items().filter(R.canList || function () { return true; });          // what the list can show (match, above)
     var rows = CF_ORDER.slice().sort(function (a, b) { return ((pulseOf(b) || {}).lvl || 0) - ((pulseOf(a) || {}).lvl || 0); }).map(function (k) {
       var p = pulseOf(k), n = its.filter(function (it) { return inWar(it, k); }).length, ns = ASSETS.filter(function (a) { return a.th === k; }).length + SHIPS.filter(function (s) { return s.th === k && !s._nomap; }).length;
       var tr = !p || p.prev == null ? '' : p.now > p.prev ? ' · <span class="up">' + esc(T('rising')) + '</span>' : p.now < p.prev ? ' · <span class="dn">' + esc(T('easing')) + '</span>' : ' · ' + esc(T('holding'));
