@@ -683,7 +683,9 @@
     // A QUESTION ABOUT HISTORY IS ANSWERED FROM THE BANK (31 Oct 2026, ask gate: "history of the conflict" went to the last 24
     // hours on a day three headlines there said the word: a "war in history" interview, a hack "largest in history", "Pope Leo
     // makes history"). The past is not in the last 24 hours: with no time said, the best bank reading that finds something wins.
-    if (best && best.ns.lens === 'live' && !p.timed && !so && /\bhistor/i.test(p.raw)) {
+    // Never for a headline pasted or asked in its own words (eight words or more): that item is the answer wherever it is
+    // (ask gate the same night: the "war in history" interview asked in its own words).
+    if (best && best.ns.lens === 'live' && !p.timed && !so && /\bhistor/i.test(p.raw) && p.raw.trim().split(/\s+/).length < 8) {
       var bk = null;
       cands.forEach(function (c) { if (c.n && !c.last && c.ns.lens === 'bank' && (!bk || c.score > bk.score)) bk = c; });
       if (bk) best = bk;
