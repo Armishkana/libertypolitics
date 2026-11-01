@@ -269,7 +269,7 @@
 /* the phone: the board fills the screen, the panel is a sheet from the bottom */
 @media (max-width:759px){
   .up-stage{height:calc(100svh - 56px);min-height:560px}
-  .up-top{top:10px;inset-inline-start:12px}.up-top .lpt-doors{display:none}
+  .up-top{top:10px;inset-inline-start:12px;align-items:flex-start}      /* flex-start: the tour's door (40px) never pushes the title onto the city button (1 Nov 2026, its tour added) */
   .up-h1{font-size:18px}
   .up-city{top:38px;inset-inline-start:12px}.up-cityn{padding:6px 10px;min-height:40px}.up-cn{font-size:17px}.up-cf{font-size:12px}
   .up-hud{top:auto;bottom:calc(46svh + 8px);inset-inline:12px;width:auto;padding:8px 10px}

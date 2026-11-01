@@ -1,4 +1,5 @@
-/* THE TOURS OF THE TOOLS (libertypolitics.com): Call the Midterms, Build a government, the Regime Board, Beat the Markets.
+/* THE TOURS OF THE TOOLS (libertypolitics.com, and iranuncensored.com since 1 November 2026): Call the Midterms, Build a
+   government, the Regime Board, Beat the Markets, the Conflict Simulator, the Tools page.
    The Intel Room keeps its own tours (build/intel-tour.js, IRoomTour); this is the same idea for every other tool.
 
    Armin, 31 October 2026: "all of these tools need to have a tour or a tutorial that people could click on so they could
@@ -41,7 +42,14 @@
 
    THE DOOR. The tool's builder prints <div class="lpt-doors" data-lpt="<tool>"> holding <button class="lpt-how" hidden>,
    among the tool's own controls; this file shows it and wires it (build/stream.js does the same for .lps-go, the Stream view
-   button beside it). Never opens by itself. The look is in build/stream.css ("the tour card").
+   button beside it). Never opens by itself. The look of the doors, the spotlight and the card is in THIS file (CSS, injected
+   once as <style id="lpt-css">; 1 November 2026, so Iran Uncensored's pages carry the same look with no second copy): a
+   progress line, the emoji, "Step 2 of 7", the heading, the words, a dot per step, Back and Next.
+
+   TWO LANGUAGES (1 November 2026). On a Persian page (html lang="fa") a step reads its fa: { h, p, act } (spoken Persian,
+   ../site-iu/PERSIAN.md) and the tool's fa name; the card's own words are UI below. A tool with a step that has no Persian
+   keeps its door shut there (never English on a Persian page) and audit() lists the step as nolang, which the Iran
+   site's phone test fails. Right-to-left pages swap the arrow keys.
    It never hides content and animates it back: the spotlight and the card simply appear. Keys: Right arrow or Enter next,
    Left arrow back, Esc close; focus stays in the card. Every card's words are 12px or more, every button 40px or more. */
 (function () {
@@ -64,7 +72,9 @@
   /* ------------------------------------------------------------------ THE REGISTER */
   var TOOLS = {
     midterms: {
-      name: 'Call the Midterms', root: '#midterms', ready: '#midterms.is-live', v: 1,
+      // v2, 1 November 2026: the win chance row on each race (your map against the markets, and the edge), the chambers'
+      // edge line, and Biggest edges against the markets under step 3
+      name: 'Call the Midterms', root: '#midterms', ready: '#midterms.is-live', v: 2,
       surf: ['#midterms > *', '#midterms .mt-mood > *', '#midterms .mt-pre-row > *', '#midterms .mt-boards > *', '#midterms .mt-tools > *',
         '#midterms .mt-tools-b > *', '#midterms .mt-night-top > *', '#midterms .mt-night-end > *', '#midterms .mt-races > *', '#midterms .mt-tabs > *'],
       skip: { 'mt-score': 'the count that stays on screen among the race cards; a tap goes back to the slider', '.mt-head': 'the title',
@@ -81,8 +91,8 @@
         { k: 'odds', at: ['#mt-mksw'], opt: true, e: '🎲', h: 'Betting odds, on or off',
           p: 'This switch takes every betting market number off the board, and brings it back. Off, you see only the forecasters and your own calls.',
           covers: ['mt-mksw'] },
-        { k: 'boards', at: ['#mt-b-S', '#mt-b-H'], all: true, e: '🏛️', h: 'The Senate and the House',
-          p: 'Every seat, blue for the Democrats and red for the Republicans. The big numbers are the seats each side wins on your map, and the line under them says who controls it.',
+        { k: 'boards', at: ['#mt-b-S', '#mt-b-H'], all: true, e: '🏛️', h: 'The Senate and the House', v: 2,
+          p: 'Every seat, blue for the Democrats and red for the Republicans. The big numbers are the seats each side wins on your map. Under them: your map’s chance to win the chamber, the betting markets’ chance, and the edge between the two.',
           covers: ['.mt-boards', 'mt-b-*'] },
         { k: 'night', at: ['#mt-run'], e: '🌙', h: 'Run election night',
           p: 'Watch a pretend election night: races are called in the order the polls close, the close ones last. Skip to the end any time.',
@@ -90,8 +100,11 @@
         { k: 'share', at: ['#mt-share'], e: '📤', h: 'Share your Congress',
           p: 'Share sends a link that opens your exact map. Make a picture gives you an image of it to post.',
           covers: ['mt-share', 'mt-pic', '.acct-ask'] },
-        { k: 'races', at: ['#midterms .mt-tabs', '#mt-races'], e: '✅', h: 'Call any race yourself',
-          p: 'Tap a candidate to call that race for them. Tap again to give it back to the slider. Switch between the Senate and the House, or pick which races to see.',
+        { k: 'edges', at: ['#mt-gaps'], opt: true, e: '📐', h: 'Biggest edges against the markets', v: 2,
+          p: 'The races where your map and the betting markets disagree most about the same candidate: the bar is your map, the yellow tick is the markets. Tap Show every edge to list them all, biggest first.',
+          covers: ['mt-gaps'] },
+        { k: 'races', at: ['#midterms .mt-tabs', '#mt-races'], e: '✅', h: 'Call any race yourself', v: 2,
+          p: 'Tap a candidate to call that race for them. Tap again to give it back to the slider. Under each race the markets price: your map’s chance, the markets’ chance (the yellow tick) and the edge.',
           covers: ['mt-races', 'mt-how', '.mt-tabs', 'mt-tab-*', 'mt-where', 'mt-list', '.mt-more-p', 'mt-more', 'mt-mine'] },
         { k: 'calls', at: ['#midterms .lpc'], opt: true, e: '🎯', h: 'Make your call',
           p: 'Pick your answer to what the betting markets are asking. You see the markets’ number and the readers’ number, and yours once you sign in.',
@@ -102,7 +115,8 @@
       ]
     },
     coalition: {
-      name: 'Build the next government', root: '#coalition', ready: '#coalition.is-live', v: 1,
+      // v2, 1 November 2026: the prime minister card against the markets under the chamber, each party's size bar
+      name: 'Build the next government', root: '#coalition', ready: '#coalition.is-live', v: 2,
       surf: ['#coalition > *', '#coalition .coal-grid > *', '#coalition .coal-stage > *', '#coalition .coal-side > *', '#coalition .coal-tools > *',
         '#coalition .coal-pres > *', '#coalition .coal-ways > *'],
       skip: { 'coal-data': 'the data the calculator reads', '.coal-head': 'the title', '.coal-src': 'where the seats come from, read under the tool',
@@ -112,14 +126,14 @@
           p: function () { return 'Each dot is one seat. The number in the middle counts the seats of the government you build. It needs ' + num('#coalition .coal-bar-line .num', 'a majority') + '.'; },
           covers: ['.coal-grid', '.coal-stage', '.coal-chamber', '.coal-bar'] },
         { k: 'parties', at: ['#coalition .coal-list'], e: '👆', h: 'Tap parties to build it',
-          p: 'Tap a party to put it in the government. Tap Outside for a party that keeps the government alive without joining it. The chamber fills as you go.',
+          p: 'Tap a party to put it in the government. Tap Outside for a party that keeps the government alive without joining it. The chamber fills as you go; the thin bar under each party is its size.', v: 2,
           covers: ['.coal-side', '.coal-list'] },
         { k: 'presets', at: ['#coalition .coal-pres'], e: '⚡', h: 'Or start from a plan',
           p: 'Each button builds a government people are talking about. The number on it is its seats.',
           act: { label: 'Show me', run: function () { click('#coalition .coal-pre'); } },
           covers: ['.coal-pres', '.coal-pre-row'] },
-        { k: 'say', at: ['#coal-say'], e: '💬', h: 'What you built',
-          p: 'This line names the government you built and says how likely it is, from what the leaders have said. A warning shows when a party said it will not sit with another.',
+        { k: 'say', at: ['#coal-say'], e: '💬', h: 'What you built', v: 2,
+          p: 'This names the government you built and how likely it is, from what the leaders have said. Once it has a majority, a card sets its prime minister against the betting markets’ favorite, with the market one tap away.',
           covers: ['coal-say', 'coal-warn'] },
         { k: 'share', at: ['#coal-share'], when: function () { return shown($('#coal-share')); }, e: '📤', h: 'Share your government',
           p: 'Share sends a link that opens your exact government. Make a picture gives you an image of it to post. Start again clears it.',
@@ -139,51 +153,109 @@
       ]
     },
     regime: {
-      // ONE STAGE (31 Oct 2026, regime.js): views and filters on the top edge, the board, the timeline docked under it
-      name: 'The Regime Board', root: '#regime', ready: '#rg-bar:not([hidden])', v: 2,
-      surf: ['#regime .wrap > *', '#regime .rg-head > *', '#regime .rg-count > *', '#regime .rg-acts > *', '#rg-zw > *', '#regime .rg-ctl > *', '#regime .rg-seg > *',
-        '#regime .rg-fil > *', '#regime .rg-vpw > *', '#regime .rg-zfl > *', '#rg-time > *', '#regime .rg-dk1 > *'],
+      // ONE STAGE (31 Oct 2026, regime.js): views and filters on the top edge, the board, the timeline docked under it.
+      // 1 Nov 2026 (v3): the head is a scoreboard (.rg-hl the title side, .rg-hr the numbers, the bar of how much is gone and
+      // the latest falls), the odds board (build/oddsboard.py, Liberty Politics only), and Persian for Iran Uncensored.
+      name: 'The Regime Board', fa: 'سران رژیم', root: '#regime', ready: '#rg-bar:not([hidden])', v: 3,
+      surf: ['#regime .wrap > *', '#regime .rg-head > *', '#regime .rg-hl > *', '#regime .rg-hr > *', '#regime .rg-count > *', '#regime .rg-acts > *', '#rg-zw > *', '#regime .rg-ctl > *', '#regime .rg-seg > *',
+        '#regime .rg-fil > *', '#regime .rg-vpw > *', '#regime .rg-zfl > *', '#rg-time > *', '#regime .rg-dk1 > *', '#regime .ob-hd > *', '#regime .ob-body > *'],
       skip: { '.rg-kick': 'the date it was checked', 'h1': 'the title', '.rg-lede': 'the line under the title',
         'rg-none': 'a line that shows when a search finds nobody', '.rg-foot': 'where the chart comes from', '.rg-zhint': 'a hint on how to zoom', '.vh': 'a label for screen readers',
-        '.lpt-doors': 'the tour and stream doors themselves' },
+        '.lpt-doors': 'the tour and stream doors themselves', '.rg-hl': 'the title side of the head (its parts are toured one by one)', '.rg-hr': 'the numbers side of the head (its parts are toured one by one)',
+        '.ob-hw': 'the heading of the odds board (its words are read, not tapped)', 'nudge': 'the way into the page’s discussion (Iran Uncensored draws it inside the board)' },
       steps: [
         { k: 'count', at: ['#regime .rg-count'], e: '🔢', h: 'The count',
-          p: 'How many of the Islamic Republic’s leaders were taken out, how many are still in place, and how many nobody can confirm. Tap a number to see those people on the board.',
-          covers: ['.rg-head', '.rg-count'] },
+          p: 'How many of the Islamic Republic’s leaders were taken out, how many are still in place, and how many nobody can confirm. The bar shows how much of the board is gone. Tap a number to see those people on the board.',
+          fa: { h: 'شمارش', p: 'چند نفر از سران جمهوری اسلامی حذف شدن، چند نفر هنوز سر کارن، و سرنوشت چند نفر معلوم نیست. نوار زیرش نشون می‌ده چقدر از این تابلو رفته. روی هر عدد بزنید تا همون آدما رو روی تابلو ببینید.' },
+          covers: ['.rg-head', '.rg-count', '.rg-cn', '.rg-share'], v: 3 },
+        { k: 'latest', at: ['#regime .rg-latest'], opt: true, e: '❌', h: 'The latest to fall',
+          p: 'The newest faces taken out, newest first. Tap one for the whole story: how and when, and who sat in that chair before.',
+          fa: { h: 'آخرین کسایی که حذف شدن', p: 'جدیدترین صورت‌هایی که از تابلو افتادن، اول از همه تازه‌ترین. روی هر کدوم بزنید تا کل ماجراش رو ببینید: کی و چطور، و کی قبلش سر اون صندلی بود.' },
+          covers: ['.rg-latest'], v: 3 },
         { k: 'views', at: ['#regime .rg-seg'], e: '🗂️', h: 'Four ways to see it',
           p: 'The whole chart, by faction, day by day, or a plain list. Every one zooms, and the board stays right under your finger.',
+          fa: { h: 'چهار جور دیدن', p: 'کل نمودار، جناح‌ها، روز به روز، یا یه فهرست ساده. همه‌شون زوم می‌شن و تابلو همیشه زیر دستتونه.' },
           covers: ['rg-zw', 'rg-bar', '.rg-ctl2', '.rg-seg', 'v=*'] },
         { k: 'find', at: ['#regime .rg-fil'], e: '🔎', h: 'Who to show',
           p: 'Show only who was taken out, who is still in place or whose fate is unknown, light up one faction, or type a name. The board under it changes as you tap.',
+          fa: { h: 'کیا رو نشون بده', p: 'فقط کشته‌شده‌ها، اونایی که هنوز سر کارن یا سرنوشتشون نامعلومه رو ببینید، یه جناح رو روشن کنید، یا یه اسم بنویسید. تابلو همون لحظه عوض می‌شه.' },
           covers: ['.rg-fil', 'f=*', 'rg-q', 'rg-campkey'] },
         { k: 'chart', at: ['#rg-vp', '#rg-list'], all: false, e: '🔍', h: 'Zoom in',
           p: 'Pinch or scroll to zoom, drag to move, or use + and −. Tap any face for the whole story: how and when they fell, and everyone who has sat in that chair.',
+          fa: { h: 'زوم کنید', p: 'با دو انگشت یا چرخ ماوس زوم کنید، بکشید تا جابه‌جا بشه، یا + و − رو بزنید. روی هر صورت بزنید تا کل ماجراش رو ببینید: کی و چطور افتاد، و همهٔ کسایی که اون صندلی رو داشتن.' },
           covers: ['.rg-vpw', 'rg-vp', 'rg-list', 'rg-ev', '.rg-zfl', 'rg-zin', 'rg-zout', 'rg-sheet'] },
         { k: 'fit', at: ['#rg-zfit', '#rg-zfull'], all: false, e: '🖥️', h: 'Fit it, or fill the screen',
           p: 'Fit shows everyone again. Full screen fills the screen with the board, its filters and its timeline, for a live show.',
+          fa: { h: 'همه رو ببینید، یا کل صفحه', p: 'دکمهٔ «کل نمودار» دوباره همه رو نشون می‌ده. «کل صفحه» تابلو رو با فیلترها و خط زمانش تمام‌صفحه می‌کنه، برای برنامهٔ زنده.' },
           covers: ['rg-zfit', 'rg-zfull'] },
         { k: 'time', at: ['#rg-time'], e: '⏳', h: 'The timeline',
           p: 'Drag it, or press Replay, and watch each face fall on the day it fell, right above it. The buttons jump to each war, and Today brings it back.',
+          fa: { h: 'خط زمان', p: 'بکشیدش، یا «دوباره ببین» رو بزنید و ببینید هر کس همون روزی که افتاد از تابلو می‌افته. دکمه‌ها می‌برنتون سراغ هر جنگ و «امروز» برتون می‌گردونه.' },
           covers: ['rg-time', '.rg-dk1', 'rg-play', '.rg-day', '.rg-track', 'rg-wars'] },
         { k: 'share', at: ['#rg-share'], e: '📤', h: 'Share the board',
           p: 'Share sends a link to the board as you see it. Make a picture gives you an image of it to post.',
+          fa: { h: 'صفحه رو بفرستید', p: '«صفحه رو بفرستید» لینک تابلو رو همون‌طوری که می‌بینید می‌فرسته. «یه عکس بسازید» یه عکس ازش بهتون می‌ده که پست کنید.' },
           covers: ['.rg-acts', 'rg-share', 'rg-shot'] },
+        { k: 'odds', at: ['#regime .ob-tiles', '#regime .ob'], lp: true, opt: true, e: '💵', h: 'What the money says',
+          p: 'The betting markets on the regime, read every hour: will it fall, who heads it, Prince Reza Pahlavi. Each number opens its market.',
+          covers: ['odds', '.ob-tiles', '.mk-sw', '.ob-lds'], v: 3 },
+        { k: 'curve', at: ['#regime .ob-ld'], lp: true, opt: true, e: '📈', h: 'When the money expects it',
+          p: 'Some markets are sold as a row of dates. The curve shows the chance at each one, and the line under it says where it moves most.',
+          covers: ['.ob-ld'], v: 3 },
         { k: 'intel', at: ['#regime .rg-intel'], opt: true, e: '🧭', h: 'Where the war stands',
           p: 'Open this for what the US and Israel have said, and what the betting markets give.',
+          fa: { h: 'جنگ الان کجاست', p: 'اینو باز کنید تا ببینید آمریکا و اسرائیل چی گفتن و بازارهای پیش‌بینی چی می‌گن.' },
           covers: ['.rg-intel'] },
-        { k: 'calls', at: ['#regime .lpc'], opt: true, e: '🎯', h: 'Make your call',
+        { k: 'calls', at: ['#regime .lpc'], lp: true, opt: true, e: '🎯', h: 'Make your call',
           p: 'Pick your answer to what the betting markets are asking. You see the markets’ number and the readers’ number, and yours once you sign in.',
           covers: ['.lpc'] }
+      ]
+    },
+    // The Tools page (tools/, both sites; build/tools.py, ../TOOLS.md). 1 November 2026: every tool, and the vote on the next.
+    tools: {
+      name: 'Tools', fa: 'ابزارها', root: '#tk', ready: '#built .tk-tool', v: 1,
+      surf: ['#tk .tk-hero .wrap > *', '#tk .tk-jump > *', '#built .wrap > *', '#tk .tk-tools > *', '#next .wrap > *', '#next .tk-nh > *', '#suggest > *'],
+      skip: { '.tk-k': 'the word Tools over the title', 'h1': 'the title', '.tk-lede': 'the line under the title', '.tk-nums': 'three counts, read, not tapped',
+        '.tk-jump': 'the row of the two links and this tour', 'a': 'the two links under the title say where they go (the tools, the vote)', 'h2': 'a section title', 'tk-built-h': 'a section title', 'tk-next-h': 'a section title', 'tk-mk-h': 'a section title', 'h3': 'a section title', '.vh': 'a label for screen readers',
+        'talk-h': 'a title for screen readers', '.tk-p': 'the line under the title of the vote', '.tk-sp': 'the line under Suggest a tool', '.tk-read': 'when the odds were read',
+        '.lpt-doors': 'the tour door itself' },
+      steps: [
+        { k: 'tools', at: ['#built .tk-tools'], e: '🧰', h: 'Every tool, one tap away',
+          p: 'Each card is a tool I built: what it does in one line, and a button that opens it. They work without an account.',
+          fa: { h: 'همهٔ ابزارها، با یه ضربه', p: 'هر کارت یه ابزاره که ساختم: یه خط می‌گه چی کار می‌کنه و یه دکمه بازش می‌کنه. بدون حساب هم کار می‌کنن.' },
+          covers: ['.tk-tools', '.tk-tool'] },
+        { k: 'number', at: ['#built .tk-stat'], opt: true, e: '📊', h: 'A live number from each',
+          p: 'The number on a card comes from the tool itself: what the betting markets say right now, or how many it counts today.',
+          fa: { h: 'یه عدد زنده از هر ابزار', p: 'عدد روی هر کارت از خود ابزار میاد: همین الان چند نفر حذف شدن، یا ابزار چی شمرده.' },
+          covers: ['.tk-stat'] },
+        { k: 'vote', at: ['#talk .tk-row', '#tk-ideas .tk-card', '#next .tk-nh'], e: '🗳️', h: 'Vote on what I build next',
+          p: 'These are the tools I could build next, in order of votes. Tap I want this on the ones you would use. I build from the top of this list.',
+          fa: { h: 'به ابزار بعدی رأی بدید', p: 'اینا ابزارهاییه که می‌تونم بعدی بسازم، به ترتیب رأی. روی «اینو می‌خوام» بزنید برای هر کدوم که استفاده می‌کنید. از بالای همین فهرست می‌سازم.' },
+          covers: ['.tk-nh', '.tk-sw', 'tk-pulse', 'talk', 'tk-ideas'] },
+        { k: 'markets', at: ['#next .tk-mks'], lp: true, opt: true, e: '🎲', h: 'The markets behind each idea',
+          p: 'Every idea shows the betting markets that inspired it, with their odds and the money traded. Tap one to see it on the market.',
+          covers: ['.tk-mks'] },
+        { k: 'suggest', at: ['#suggest'], e: '💡', h: 'Suggest your own',
+          p: 'Name a tool and say what it would do. It joins the list, and everyone can vote on it.',
+          fa: { h: 'ایدهٔ خودتون رو بگید', p: 'اسم یه ابزار رو بنویسید و بگید چی کار می‌کنه. می‌ره تو فهرست و همه می‌تونن بهش رأی بدن.' },
+          covers: ['suggest', 'tk-namerow', 'feedback'] }
       ]
     },
     // Beat the Markets (markets/, CALLS.md; build/calls.py and calls.js belong to their own builder). Written on 31 October
     // 2026 against the page as first built (#btm, the call widget .lpc in #btm-list); no longer pending (the page is built).
     // Its doors (R.tool_doors("markets")) and its stream layout (html.lp-stream rules in calls.css) are its builder's to add.
     markets: {
-      name: 'Beat the Markets', root: '#btm', ready: '#btm-list > *', v: 1,
-      surf: ['#btm .btm-tabs > *', '#btm .btm-bar .chips > *', '#btm .btm-row > *', '#btm .btm-f > *', '#btm .btm-sec'],
-      skip: { '.lpt-doors': 'the tour and stream doors themselves', 'label': 'the name of the box beside it', '.chips-gap': 'a gap between two groups of chips' },
+      // v2, 1 November 2026: how a call scores is drawn in the head, three rails over the list (closing soon, coin flips,
+      // biggest moves) open a market whole in the box under them, and a card says the readers' edge on the market
+      name: 'Beat the Markets', root: '#btm', ready: '#btm-list > *', v: 2,
+      surf: ['#btm .btm-tabs > *', '#btm .btm-bar .chips > *', '#btm .btm-row > *', '#btm .btm-f > *', '#btm .btm-sec', '#btm .btm-top > *', '#btm-all .wrap > div',
+        '#btm .btm-tile', '#btm-focus .btm-focus-top > *'],
+      skip: { '.lpt-doors': 'the tour and stream doors themselves', 'label': 'the name of the box beside it', '.chips-gap': 'a gap between two groups of chips',
+        '.btm-intro': 'the title, its line and the count of open markets', '.btm-bar': 'the filters, each explained by its own step', '.btm-focus-h': 'the heading of the market you opened' },
       steps: [
+        { k: 'score', at: ['#btm .btm-score'], e: '🧮', h: 'How a call scores', v: 2,
+          p: 'Read the two bars: back a 20% long shot and it comes in, you get 80 points; back an 80% favorite, 20. Miss, and you lose what the market thought it was worth.',
+          covers: ['.btm-score'] },
         { k: 'tabs', at: ['#btm .btm-tabs'], e: '🗂️', h: 'Every market, or your record',
           p: 'Every market shows what the betting markets are asking right now. Your record shows the calls you made and how they did.',
           covers: ['.btm-tabs', '.btm-tab'] },
@@ -195,45 +267,195 @@
           covers: ['.btm-f', 'btm-q', 'btm-sort'] },
         { k: 'odds', at: ['#btm .btm-sw'], opt: true, e: '🎲', h: 'Betting odds, on or off',
           p: 'This switch hides every betting market number on the site, and brings it back.', covers: ['.btm-sw'] },
-        { k: 'calls', at: ['#btm-list'], e: '🎯', h: 'Make your call',
-          p: 'Each card is one question the betting markets are pricing. Pick your answer on it. Markets is what bettors say, Readers is what people here say, You is yours.',
+        { k: 'rails', at: ['#btm-rails'], opt: true, e: '⏱️', h: 'Closing soon, coin flips, big moves', v: 2,
+          p: 'Tap a tile and its market opens whole right under the rows, ready to call. Closing soon pays your points first; a coin flip pays big either way. Close puts it away.',
+          covers: ['btm-rails', '.btm-tile', 'btm-focus', 'btm-focus-x'] },
+        { k: 'calls', at: ['#btm-list'], e: '🎯', h: 'Make your call', v: 2,
+          p: 'Each card is one market. Tap an option to make it your call: the shaded bar behind it is its price. Markets is the money, Readers is people here, You is yours, and Edge says where readers part with the market.',
           covers: ['btm-all', 'btm-list', '.lpc'] },
         { k: 'record', at: ['#btm-recbox'], opt: true, e: '🏆', h: 'Your record',
           p: 'Come back after a market closes to see how you did. Back a long shot and it comes in: big points. Miss: you lose what the market thought it was worth.',
           covers: ['btm-rec', 'btm-recbox'] }
       ]
     },
-    // Wargames (wargame/iran/, wargame/ukraine/, wargame/taiwan/; build/wargame.py, .js, .css). Steps written against the
-    // real page by the wargame session, 31 October 2026 (the first draft guessed at what the controls meant).
+    // Your Liberty Score (you/; render.py you(), build/you.js, build/you.css). Added 1 November 2026, when Armin asked that
+    // every tool have a tour. The result steps show only once a grade is on the page (when): before that they are not.
+    you: {
+      name: 'Your Liberty Score', root: '#you', ready: '#you.is-live', v: 1,
+      surf: ['#you .yq-top > *', '#you .yq-b > *', '#yq-end > *', '#yq-res .wrap > *', '#yq-like > *'],
+      skip: { '.yq-h1': 'the title', '.big': 'the line under the title (class big yq-lede)', 'nudge': 'the invitation to talk about your grade in the discussion',
+        'tband': 'the band that invites you onto the live show', '.yq-priv': 'a line that says your answers stay on your device',
+        'yq-got': 'a line that says what the friend who sent you here got', '.lpt-doors': 'the tour and stream doors themselves', 'noscript': 'what shows with scripts off',
+        'yq-sh': 'a line that says the Share button now sends your grade', '.dim': 'a line that says changing an answer moves the grade (class dim yq-chg)', '.nudge': 'the invitation to the community call',
+        '.yq-h2': 'a heading', 'yq-like-p': 'a line that says how the members were compared', 'label': 'the name of the box beside it' },
+      steps: [
+        { k: 'answer', at: ['#q1 .yq-b'], e: '🗳️', h: 'Vote on each question',
+          p: 'Tap Yes or No, the way you would have voted in Congress. Not sure? Skip. Each question stands for one of my eight principles, named at its top.',
+          covers: ['v=*'] },
+        { k: 'progress', at: ['#yq-prog'], e: '📶', h: 'Eight marks, one per question',
+          p: 'Each mark lights up as you answer. Four answers are enough for a letter; all eight make it fairer.',
+          covers: ['yq-prog'] },
+        { k: 'grade', at: ['#yq-go'], e: '🎓', h: 'See your grade',
+          p: 'Tap See my grade once you have answered four. You get a letter on the same scale as every member of Congress, and every question shows which side I count as the liberty side.',
+          covers: ['yq-go', 'yq-left'] },
+        { k: 'letter', at: ['#yq-ring'], when: function () { return shown($('#yq-ring')); }, e: '🏅', h: 'Your letter',
+          p: 'The ring fills to your score out of 100. Change any answer below and the letter follows.',
+          covers: ['.yq-grade', 'yq-rank'] },
+        { k: 'dist', at: ['#yq-dist'], when: function () { return shown($('#yq-dist')); }, e: '📊', h: 'Where you sit among Congress',
+          p: 'Every graded member of Congress by score, blue for Democrats and red for Republicans. The yellow line is you.',
+          covers: ['yq-dist'] },
+        { k: 'like', at: ['#yq-near'], when: function () { return shown($('#yq-near')); }, e: '🤝', h: 'Who votes like you',
+          p: 'The four members who vote most like you, and the four who vote least like you. Tap one to open their record.',
+          covers: ['yq-like', 'yq-near', 'yq-far'] },
+        { k: 'state', at: ['#yq-state'], when: function () { return shown($('#yq-state')); }, e: '📍', h: 'The people who represent you',
+          p: 'Pick your state and see your senators and representatives, each with how closely they match you.',
+          covers: ['.yq-st', 'yq-mine'] }
+      ]
+    },
+    // The Uprising Simulator (uprising/; build/uprising.py, .js, .css; another session's tool, 1 November 2026). Its tour
+    // added the same day so every built tool has one. Only the board's fixed controls are toured; what each pane holds
+    // (the city's facts, the condition sliders, the strategy choices, the advisors) is read in the pane itself. No stream
+    // view: the board already fills the screen (phone-test.html TOOL_PAGES, stream: false).
+    uprising: {
+      name: 'Uprising Simulator', root: '#uprising', ready: '#up-p-city > *', v: 1,
+      surf: ['#up-pickb', '#uprising .up-tab', '#up-hud', '#up-play', '#up-oddsgo', '#up-bestgo', '#up-feed', '#up-bar > *', '#up-howb'],
+      skip: { '.lpt-doors': 'the tour door itself' },
+      steps: [
+        { k: 'city', at: ['#up-pickb'], e: '🏙️', h: 'Pick your city',
+          p: 'Tap the city name to open the map of Iran and pick a city. A city whose streets are still being mapped is marked as coming.', covers: ['up-pickb'] },
+        { k: 'board', at: ['#up-gl'], e: '🗺️', h: 'The city on its real streets',
+          p: 'Every district is lit by who holds it. Drag to move, scroll or pinch to zoom, and the right mouse button or two fingers to turn.' },
+        { k: 'hud', at: ['#up-hud'], e: '📊', h: 'Who is winning',
+          p: 'The bar is the balance between the people and the regime. Under it: how many are on the streets, the regime’s forces, how many crossed over to the people, and the lives lost. The icons say whether the internet and the power are on.',
+          covers: ['up-hud'] },
+        { k: 'tabs', at: ['#uprising .up-tab[data-tab]'], all: true, e: '🧭', h: 'Set it up',
+          p: 'City tells you about the place. Conditions sets the internet, the power and whether people are armed. Strategy is your plan. Advisors are the experts and the past uprisings. The last button hides the panel.',
+          covers: ['.up-tab', 'up-min'] },
+        { k: 'play', at: ['#up-play'], e: '▶️', h: 'Play the uprising',
+          p: 'Press Play and watch it unfold hour by hour on the board. The feed beside it says what is happening.', covers: ['up-play', 'up-feed'] },
+        { k: 'bar', at: ['#up-bar'], when: function () { return shown($('#up-bar')); }, e: '⏯️', h: 'Pause, speed, timeline',
+          p: 'Pause, run it faster, or drag the timeline to any hour. Results opens how the run ended.',
+          covers: ['up-pp', '.up-spd', '.up-clock', 'up-scrub', 'up-resb'] },
+        { k: 'odds', at: ['#up-oddsgo'], e: '🎲', h: 'Run the odds',
+          p: 'Your scenario runs hundreds of times with different luck. You get the odds of liberation, how the runs ended, the cost in lives, and what the winning runs had.',
+          covers: ['up-oddsgo'] },
+        { k: 'best', at: ['#up-bestgo'], e: '🧠', h: 'Find the best plan',
+          p: 'It tries many strategies under your conditions and shows the one most likely to win.', covers: ['up-bestgo'] },
+        { k: 'model', at: ['#up-howb'], opt: true, e: '📖', h: 'How the model works',
+          p: 'What the simulation counts, where its numbers come from, and the sources.', covers: ['up-howb'] }
+      ]
+    },
+    // The Conflict Simulator (simulator/iran/, simulator/ukraine/, simulator/taiwan/; build/wargame.py, .js, .css; "Wargames" at
+    // wargame/ until 1 November 2026, its id here kept). Rewritten the same day for the 3D board: every control of the command
+    // interface drawn over the board, the panel's tabs (Simulate, Replay, Briefing room) and the after-action report.
     wargame: {
-      name: 'Wargames', root: '#wargame', ready: '#wargame .wg-tab', v: 1,
-      surf: ['#wargame .wg-tab', '#wargame [data-lens]', '#wargame .wg-ex', '#wargame .wg-seat', '#wargame [data-lv]', '#wargame .wg-date', '#wargame #wg-run',
-        '#wargame [data-replay]', '#wargame #wg-play', '#wargame #wg-speed', '#wargame #wg-fit', '#wargame #wg-full', '#wargame .wg-p'],
+      name: 'Conflict Simulator', root: '#wargame', ready: '#wargame .wg-tab', v: 2,
+      surf: ['#wargame .wg-tab', '#wargame .wg-th', '#wg-play', '#wg-speed', '#wg-cam', '#wg-full', '#wg-orbt', '#wg-zin', '#wg-zout', '#wg-rot', '#wg-fit',
+        '#wg-grab', '#wg-scrub', '#wg-mini', '#wg-stage', '#wargame [data-lens]', '#wargame [data-room]', '#wargame .wg-ex', '#wargame .wg-seat', '#wargame .wg-date',
+        '#wargame [data-lv]', '#wargame [data-pm]', '#wg-reset', '#wg-run', '#wg-report', '#wg-watch', '#wg-again', '#wg-back', '#wg-share', '#wargame [data-replay]'],
       skip: { '.lpt-doors': 'the tour and stream doors themselves' },
       steps: [
-        { k: 'tabs', at: ['#wargame .wg-tab'], all: true, e: '🗺️', h: 'Three ways in',
-          p: 'Run the next war, replay a war that already happened, or pick the experts in your war room.', covers: ['.wg-tab'] },
-        { k: 'lens', at: ['#wargame [data-lens]'], all: true, opt: true, e: '🧮', h: 'Whose numbers run the war',
-          p: 'Your war room, every expert averaged, the betting markets, or your own numbers on sliders. The war runs on the one you pick.', covers: ['lens=*'] },
-        { k: 'room', at: ['#wargame .wg-ex'], all: true, opt: true, e: '🎖️', h: 'Seat your advisors',
-          p: 'Tap a face to hear their briefing and see where it comes from. Seat puts them in your war room; the war runs on the average of the ones you seat.', covers: ['.wg-ex', '.wg-seat'] },
-        { k: 'date', at: ['#wargame .wg-date'], all: true, opt: true, e: '📅', h: 'When it starts',
-          p: 'The dates people talk about for the next round, each with its reason. Pick one and the map counts the days from it.', covers: ['.wg-date'] },
-        { k: 'moves', at: ['#wargame [data-lv]'], all: true, opt: true, e: '♟️', h: 'Make your moves',
-          p: 'Who strikes first, who joins, what they use. Each choice changes how the war is fought.', covers: ['lv=*'] },
-        { k: 'run', at: ['#wg-run'], opt: true, e: '🎲', h: 'Run it 1,000 times',
-          p: 'The war is fought 1,000 times with different luck. You see how they ended, and the most typical one plays on the map, day by day.', covers: ['wg-run'] },
-        { k: 'replay', at: ['#wargame [data-replay]'], all: true, opt: true, e: '⏪', h: 'Replay a past war',
-          p: 'Every strike of a real war on the day it happened, each with its source.', covers: ['replay=*'] },
-        { k: 'play', at: ['#wg-play', '#wg-speed'], all: true, e: '⏯️', h: 'Pause and speed',
-          p: 'Pause the war, or play it faster or slower.', covers: ['wg-play', 'wg-speed'] },
-        { k: 'map', at: ['#wg-fit', '#wg-full'], all: true, e: '🖥️', h: 'Fit it, or fill the screen',
-          p: 'Pinch or scroll to zoom into the map. Fit shows the whole theatre again; full screen fills the screen with it.', covers: ['wg-fit', 'wg-full'] },
-        { k: 'places', at: ['#wargame .wg-p'], opt: true, e: '📍', h: 'Tap any base or site',
-          p: 'Every symbol is a real place: what it is, whose it is, what happened to it, and where that comes from.', covers: ['.wg-p'] }
+        { k: 'board', at: ['#wg-stage'], e: '🛰️', v: 2, h: 'The theatre, in 3D',
+          p: 'Satellite ground with its real mountains. Drag to move, pinch or scroll to zoom, two fingers or the right mouse button to turn. Tap any marker to see what it is, whose it is, what happened there and the source.', covers: ['wg-stage'] },
+        { k: 'tabs', at: ['#wargame .wg-tab'], all: true, e: '🗺️', v: 2, h: 'Three ways in',
+          p: 'Simulate the next round, replay a war that already happened, or pick the experts who brief you.', covers: ['.wg-tab'] },
+        { k: 'play', at: ['#wg-play', '#wg-speed'], all: true, e: '⏯️', v: 2, h: 'Play, pause, speed',
+          p: 'Play starts the latest war on the board when nothing is playing. Speed runs it at 1x, 2x or 4x.', covers: ['wg-play', 'wg-speed'] },
+        { k: 'timeline', at: ['#wg-scrub'], e: '🕑', v: 2, h: 'The timeline and the intel feed',
+          p: 'Every tick is a day. Drag to any day and the board shows it. Above it: the day’s headline, and each event with its source.', covers: ['wg-scrub'] },
+        { k: 'forces', at: ['#wg-orbt'], e: '📊', v: 2, h: 'The forces on each side',
+          p: 'Missiles, drones, air defence, aircraft, ships and troops, from the published counts. The bars run down as the days play.', covers: ['wg-orbt'] },
+        { k: 'camera', at: ['#wg-cam', '#wg-zin', '#wg-zout', '#wg-rot', '#wg-fit'], all: true, e: '🎥', v: 2, h: 'The camera',
+          p: 'With the camera on, it flies to each day’s action. Zoom in or out, turn the map, or show the whole theatre again.', covers: ['wg-cam', 'wg-zin', 'wg-zout', 'wg-rot', 'wg-fit'] },
+        { k: 'mini', at: ['#wg-mini'], opt: true, e: '🧭', v: 2, h: 'The minimap',
+          p: 'The gold box is what you see. Tap anywhere on the minimap to go there.', covers: ['wg-mini'] },
+        { k: 'full', at: ['#wg-full'], e: '🖥️', v: 2, h: 'Full screen',
+          p: 'Fill the screen with the board. Esc gives the page back.', covers: ['wg-full'] },
+        { k: 'theatres', at: ['#wargame .wg-th'], all: true, opt: true, e: '🌍', v: 2, h: 'Three theatres',
+          p: 'Iran, Ukraine and Taiwan, each on its own board.', covers: ['.wg-th'] },
+        { k: 'sheet', at: ['#wg-grab'], opt: true, e: '↕️', v: 2, h: 'The panel',
+          p: 'Tap or drag the handle to make the panel bigger or smaller. The board stays above it.', covers: ['wg-grab'] },
+        { k: 'lens', at: ['#wargame [data-lens]'], all: true, opt: true, e: '🧮', v: 2, h: 'Whose numbers run it',
+          p: 'Your briefing room, every expert averaged, the betting markets, or your own numbers on sliders. The simulation runs on the one you pick.', covers: ['lens=*', '.wg-chip', '.wg-pmr', 'wg-reset'] },
+        { k: 'room', at: ['#wargame .wg-ex'], all: true, opt: true, e: '🎖️', v: 2, h: 'Your briefing room',
+          p: 'Tap a face and that expert briefs you over the map, with what they published. Seat puts them in your room; the simulation runs on the average of the ones you seat.', covers: ['.wg-ex', '.wg-seat'] },
+        { k: 'date', at: ['#wargame .wg-date'], all: true, opt: true, e: '📅', v: 2, h: 'When it starts',
+          p: 'The dates people talk about for the next round, each with its reason. Pick one and the board counts the days from it.', covers: ['.wg-date'] },
+        { k: 'moves', at: ['#wargame [data-lv]'], all: true, opt: true, e: '♟️', v: 2, h: 'Make your moves',
+          p: 'Who strikes first, who joins, what they use. Each choice changes how it is fought.', covers: ['lv=*'] },
+        { k: 'run', at: ['#wg-run', '#wg-watch'], opt: true, e: '🎲', v: 2, h: 'Run it 1,000 times',
+          p: 'It runs 1,000 times with different luck. The after-action report shows how the runs ended, each next to the betting market that asks the same thing, and the most typical run plays on the board.',
+          covers: ['wg-run', 'wg-report', 'wg-watch', 'wg-again', 'wg-back', 'wg-share'] },
+        { k: 'replay', at: ['#wargame [data-replay]'], all: true, opt: true, e: '⏪', v: 2, h: 'Replay a past war',
+          p: 'Every strike of a real war on the day it happened, each with its source.', covers: ['replay=*'] }
       ]
     }
   };
+
+  /* ------------------------------------------------------------------ the words of the tour itself, in the page's language
+     A Persian page (iranuncensored.com/fa/...) reads every step's fa {h, p, act} and these words; a tool with a step that
+     has no Persian keeps its door shut on a Persian page (never English there), and audit() names the step (nolang). */
+  var FA = /^fa\b/i.test(D.documentElement.getAttribute('lang') || '');
+  var RTL = (D.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
+  var UI = FA ? { back: 'قبلی', next: 'بعدی', done: 'تموم', close: 'بستن تور', step: 'قدم {n} از {t}', fresh: 'تازه: {n} از {t}', all: 'کل تور', how: 'چطور کار می‌کنه', aria: 'چطور کار می‌کنه: یه تور کوتاه از {name}', isNew: 'تازه', since: 'از آخرین باری که اومدید تازه‌ست' }
+    : { back: 'Back', next: 'Next', done: 'Done', close: 'Close the tour', step: 'Step {n} of {t}', fresh: 'New: {n} of {t}', all: 'The whole tour', how: 'How it works', aria: 'How it works: a short tour of {name}', isNew: 'New', since: 'New since your last visit' };
+  function fill(s, v) { return String(s).replace(/\{(\w+)\}/g, function (m, k) { return k in v ? v[k] : m; }); }
+  function dig(s) { return FA ? String(s).replace(/[0-9]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.charAt(+d); }) : String(s); }
+  // a step's words in this page's language (k: 'h', 'p' or 'act'); '' when it has none
+  function txt(s, k) {
+    if (FA) { var f = s.fa || {}; return k === 'act' ? (f.act || '') : words(f[k]) || ''; }
+    return k === 'act' ? (s.act ? s.act.label : '') : words(s[k]) || '';
+  }
+  function nameOf(T) { return FA ? (T.fa || T.name) : T.name; }
+  // a step marked lp: true is Liberty Politics only (its control is never on Iran Uncensored): a Persian page leaves it out
+  function here(s) { return !(FA && s.lp); }
+  function spoken(name) { return !FA || TOOLS[name].steps.filter(here).every(function (s) { return txt(s, 'h') && txt(s, 'p') && (!s.act || txt(s, 'act')); }); }
+
+  /* ------------------------------------------------------------------ the look (one home: here, so both sites carry it)
+     The doors, the spotlight and the card. Injected once, before anything is shown, so nothing flashes unstyled; every
+     colour is the site's own token (--field is Liberty Politics' yellow and Iran Uncensored's gold). The card: a progress
+     line, the emoji, "Step 2 of 7", the heading, two short lines, the dots, Back and Next. Nothing hides and animates in. */
+  var CSS =
+    '.lpt-doors{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:var(--s3,12px)}' +
+    '.lpt-how,.lps-go{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 14px 0 11px;border:1px solid #3a3936;border-radius:999px;background:none;color:var(--ink);font:650 var(--t1,.8125rem)/1 var(--body);cursor:pointer;white-space:nowrap}' +
+    '.lpt-how{color:var(--field)}.lpt-how:hover,.lps-go:hover{border-color:var(--dim)}' +
+    '.lpt-how[hidden],.lps-go[hidden]{display:none}' +
+    '.lpt-how.is-new::after{content:attr(data-new);margin-inline-start:2px;padding:3px 7px;border-radius:999px;background:var(--field);color:var(--on-field,#14120B);font:800 .75rem/1 var(--body)}' +
+    '@media(max-width:899px){.lps-go{display:none!important}}' +
+    '@media(min-width:960px){#midterms,#coalition{position:relative}.mt-head .lpt-doors,.coal-head .lpt-doors{position:absolute;top:var(--s4,16px);right:var(--s4,16px);margin:0}}' +
+    '.rg-acts .lpt-doors{display:contents}' +
+    '.rg-acts .lpt-how,.rg-acts .lps-go{min-height:48px;padding:0 18px 0 14px;border:1.5px solid currentColor;font-size:1rem;font-weight:700}.rg-acts .lpt-how{color:var(--ink)}' +
+    '.lpt{position:fixed;inset:0;z-index:2147483000;font-family:var(--body)}.lpt[hidden]{display:none}' +
+    '.lpt.is-center{background:rgba(8,7,5,.74)}' +
+    '.lpt-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 200vmax rgba(8,7,5,.74),0 0 0 2px var(--field),0 0 0 6px color-mix(in srgb,var(--field) 18%,transparent),0 0 28px 6px color-mix(in srgb,var(--field) 22%,transparent);pointer-events:none}' +
+    '.lpt-tip{position:fixed;box-sizing:border-box;max-width:calc(100vw - 24px);padding:0 18px 16px;border:1px solid color-mix(in srgb,var(--field) 38%,transparent);border-radius:18px;background:#1B1A16;color:var(--ink);box-shadow:0 24px 60px rgba(0,0,0,.6),0 2px 0 rgba(255,255,255,.04) inset;outline:none;overflow:hidden}' +
+    '.lpt-line{display:block;height:4px;margin:0 -18px 14px;background:rgba(255,255,255,.07)}' +
+    '.lpt-line i{display:block;height:100%;width:var(--lpt-p,0%);background:var(--field);border-radius:0 4px 4px 0}' +
+    '.lpt-top{display:flex;align-items:center;gap:12px;margin:0 0 10px}' +
+    '.lpt-e{display:grid;place-items:center;flex:none;width:44px;height:44px;border-radius:12px;background:color-mix(in srgb,var(--field) 12%,transparent);font-size:24px;line-height:1}' +
+    '.lpt-n{margin:0;color:var(--field);font:800 .78rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase}' +
+    '.lpt-x{margin-inline-start:auto;flex:none;width:40px;height:40px;border:0;border-radius:50%;background:rgba(255,255,255,.05);color:var(--dim);font-size:22px;line-height:1;cursor:pointer}' +
+    '.lpt-x:hover{color:var(--ink);background:rgba(255,255,255,.1)}' +
+    '.lpt-tip h3{margin:0 0 6px;font:800 1.45rem/1.05 var(--display);letter-spacing:.01em;text-transform:uppercase;color:var(--ink)}' +
+    '.lpt-p{margin:0 0 14px;font:450 var(--t2,.9375rem)/1.55 var(--body);color:var(--ink);opacity:.92}' +
+    '.lpt-b{display:flex;flex-wrap:wrap;align-items:center;gap:10px}' +
+    '.lpt-dots{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0;flex:1 1 auto}' +
+    '.lpt-dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.18)}' +
+    '.lpt-dots i.is-done{background:color-mix(in srgb,var(--field) 55%,transparent)}.lpt-dots i.is-on{width:20px;border-radius:4px;background:var(--field)}' +
+    '.lpt-bs{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-inline-start:auto}' +
+    '.lpt-b button{min-height:44px;padding:0 18px;border-radius:999px;font:700 var(--t2,.9375rem)/1 var(--body);cursor:pointer}' +
+    '.lpt-b button[hidden]{display:none}' +
+    '.lpt-back{border:1px solid #3a3936;background:none;color:var(--ink)}.lpt-back:hover{border-color:var(--dim)}' +
+    '.lpt-act{border:1px solid var(--field);background:none;color:var(--field)}' +
+    '.lpt-next{border:0;background:var(--field);color:var(--on-field,#14120B)}.lpt-next:hover{filter:brightness(1.08)}' +
+    '.lpt-next::after{content:" \\2192"}[dir=rtl] .lpt-next::after{content:" \\2190"}.lpt-next.is-done::after{content:""}' +
+    '@media(max-width:640px){.lpt-tip{padding:0 14px 12px;border-radius:16px}.lpt-line{margin:0 -14px 12px}.lpt-tip h3{font-size:1.3rem}.lpt-b button{padding:0 15px}.lpt-e{width:40px;height:40px;font-size:22px}}' +
+    'html.lpt-on #calls{visibility:hidden}';
+  function style() {
+    if (D.getElementById('lpt-css')) return;
+    var st = D.createElement('style'); st.id = 'lpt-css'; st.textContent = CSS;
+    (D.head || D.documentElement).appendChild(st);
+  }
 
   /* ------------------------------------------------------------------ the audit (IT KEEPS UP) */
   var DATA = ['data-v', 'data-f', 'data-pre', 'data-mood', 'data-lens', 'data-lv', 'data-replay'];
@@ -246,8 +468,8 @@
   function named(names, k) { return names.some(function (n) { return n === k || (n.slice(-1) === '*' && k.indexOf(n.slice(0, -1)) === 0); }); }
   function audit(name) {
     var T = TOOLS[name];
-    if (!T) return { tool: name, missing: ['no tool of that name in build/tour.js'], loose: [], controls: 0 };
-    if (!$(T.root)) return { tool: name, pending: !!T.pending, missing: T.pending ? [] : ['the tool is not on this page (' + T.root + ')'], loose: [], controls: 0 };
+    if (!T) return { tool: name, missing: ['no tool of that name in build/tour.js'], loose: [], nolang: [], controls: 0 };
+    if (!$(T.root)) return { tool: name, pending: !!T.pending, missing: T.pending ? [] : ['the tool is not on this page (' + T.root + ')'], loose: [], nolang: [], controls: 0 };
     var missing = [], loose = [], seen = {}, covered = Object.keys(T.skip || {}).concat(['.lpt-doors']);
     T.steps.forEach(function (s) { covered = covered.concat(s.covers || []); });
     T.steps.forEach(function (s) {
@@ -262,7 +484,8 @@
         if (!named(covered, k)) loose.push(k);
       });
     });
-    return { tool: name, missing: missing, loose: loose, controls: Object.keys(seen).length };
+    var nolang = FA ? T.steps.filter(here).filter(function (s) { return !(txt(s, 'h') && txt(s, 'p') && (!s.act || txt(s, 'act'))); }).map(function (s) { return s.k; }) : [];
+    return { tool: name, missing: missing, loose: loose, nolang: nolang, controls: Object.keys(seen).length };
   }
 
   /* ------------------------------------------------------------------ the card */
@@ -270,16 +493,21 @@
   function seenV(name) { var s = get('lpt-' + name); return s ? (parseInt(s, 10) || 0) : 0; }
   function fresh(name, since) { return TOOLS[name].steps.filter(function (s) { return (s.v || 1) > since; }); }
   function build() {
+    style();
     ov = D.createElement('div');
     ov.className = 'lpt lps-keep';          // lps-keep: the stream view (build/stream.js) hides the rest of the page, never this
     ov.hidden = true;
     ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-labelledby', 'lpt-h');
-    ov.innerHTML = '<div class="lpt-hole" aria-hidden="true"></div><div class="lpt-tip" tabindex="-1"><div class="lpt-top"><span class="lpt-e" aria-hidden="true"></span>' +
-      '<p class="lpt-n"></p><button type="button" class="lpt-x" data-t="end" aria-label="Close the tour">×</button></div><h3 id="lpt-h"></h3><p class="lpt-p"></p>' +
-      '<div class="lpt-b"><button type="button" class="lpt-back" data-t="back">Back</button><span><button type="button" class="lpt-act" data-t="act"></button>' +
-      '<button type="button" class="lpt-next" data-t="next">Next</button></span></div></div>';
+    if (RTL) ov.setAttribute('dir', 'rtl');
+    ov.innerHTML = '<div class="lpt-hole" aria-hidden="true"></div><div class="lpt-tip" tabindex="-1"><span class="lpt-line" aria-hidden="true"><i></i></span>' +
+      '<div class="lpt-top"><span class="lpt-e" aria-hidden="true"></span><p class="lpt-n"></p><button type="button" class="lpt-x" data-t="end">×</button></div>' +
+      '<h3 id="lpt-h"></h3><p class="lpt-p"></p>' +
+      '<div class="lpt-b"><span class="lpt-dots" aria-hidden="true"></span><span class="lpt-bs"><button type="button" class="lpt-back" data-t="back"></button>' +
+      '<button type="button" class="lpt-act" data-t="act"></button><button type="button" class="lpt-next" data-t="next"></button></span></div></div>';
     D.body.appendChild(ov);
     hole = $('.lpt-hole', ov); tip = $('.lpt-tip', ov); ov.tabIndex = -1;
+    $('.lpt-x', ov).setAttribute('aria-label', UI.close);
+    $('.lpt-back', ov).textContent = UI.back;
     ov.addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-t]');
       if (!b || !list) { if (list && !tip.contains(ev.target)) main().focus({ preventScroll: true }); return; }
@@ -295,9 +523,10 @@
     ov.addEventListener('keydown', function (ev) {
       if (!list) return;
       ev.stopPropagation();          // the tool's own keys wait while the tour talks
+      var fwd = RTL ? 'ArrowLeft' : 'ArrowRight', bwd = RTL ? 'ArrowRight' : 'ArrowLeft';
       if (ev.key === 'Escape') { ev.preventDefault(); end(); }
-      else if (ev.key === 'ArrowRight') { ev.preventDefault(); $('.lpt-next', ov).click(); }
-      else if (ev.key === 'ArrowLeft') { ev.preventDefault(); if (!$('.lpt-back', ov).hidden) go(at - 1, -1); }
+      else if (ev.key === fwd) { ev.preventDefault(); $('.lpt-next', ov).click(); }
+      else if (ev.key === bwd) { ev.preventDefault(); if (!$('.lpt-back', ov).hidden) go(at - 1, -1); }
       else if (ev.key === 'Tab') {
         var f = $$('button', tip).filter(function (b) { return !b.hidden; });
         if (ev.shiftKey && D.activeElement === f[0]) { ev.preventDefault(); f[f.length - 1].focus(); }
@@ -351,14 +580,20 @@
     var real = list.filter(function (x) { return x === s || usable(x) || (x.when && !x.opt); });          // a step that waits for an earlier "Show me" keeps its number
     var n = real.indexOf(s), fin = last();
     $('.lpt-e', ov).textContent = s.e || '';
-    $('.lpt-n', ov).textContent = (mode === 'news' ? 'New: ' : '') + (n + 1) + ' of ' + real.length;
-    $('#lpt-h', ov).textContent = s.h;
-    $('.lpt-p', ov).textContent = words(s.p);
+    $('.lpt-n', ov).textContent = fill(mode === 'news' ? UI.fresh : UI.step, { n: dig(n + 1), t: dig(real.length) });
+    $('#lpt-h', ov).textContent = txt(s, 'h');
+    $('.lpt-p', ov).textContent = txt(s, 'p');
     $('.lpt-back', ov).hidden = n <= 0;
+    // the progress: a line across the top of the card and one dot a step (the one shown long, the ones behind lit)
+    tip.style.setProperty('--lpt-p', Math.round(100 * (n + 1) / real.length) + '%');
+    var dots = $('.lpt-dots', ov); dots.textContent = '';
+    if (real.length <= 14) real.forEach(function (x, k) { var d = D.createElement('i'); if (k < n) d.className = 'is-done'; if (k === n) d.className = 'is-on'; dots.appendChild(d); });
     var a = $('.lpt-act', ov);
-    if (fin && mode === 'news') { a.hidden = false; a.textContent = 'The whole tour'; }
-    else { a.hidden = !s.act; a.textContent = s.act ? s.act.label : ''; }
-    $('.lpt-next', ov).textContent = fin ? 'Done' : 'Next';
+    if (fin && mode === 'news') { a.hidden = false; a.textContent = UI.all; }
+    else { a.hidden = !s.act; a.textContent = s.act ? txt(s, 'act') : ''; }
+    var nx = $('.lpt-next', ov);
+    nx.textContent = fin ? UI.done : UI.next;
+    nx.classList.toggle('is-done', fin);
     ov.classList.toggle('is-center', !els.length);
     placeNow();
     setTimeout(placeNow, 80);          // a scroll or a "Show me" moves the page under the spotlight: measure again
@@ -369,7 +604,7 @@
   function placeNow() {
     if (!ov || !list || ov.hidden) return;
     var s = list[at], els = targets(s), vw = D.documentElement.clientWidth, vh = W.innerHeight, phone = vw < 640;
-    var tw = Math.min(phone ? vw - 24 : 380, vw - 24);
+    var tw = Math.min(phone ? vw - 24 : 400, vw - 24);
     tip.style.width = tw + 'px';
     if (!els.length) {
       hole.style.display = 'none';
@@ -398,12 +633,12 @@
   }
   function start(name, how) {
     var T = TOOLS[name];
-    if (!T || !$(T.root)) return false;
+    if (!T || !$(T.root) || !spoken(name)) return false;
     if (!ov) build();
     if (list) end();
     var since = seenV(name);
     mode = how === 'news' || (how !== 'all' && since > 0 && since < T.v && fresh(name, since).length) ? 'news' : 'all';
-    list = mode === 'news' ? fresh(name, since) : T.steps.slice();
+    list = (mode === 'news' ? fresh(name, since) : T.steps.slice()).filter(here);
     tool = name; at = 0;
     back = D.activeElement;
     ov.hidden = false; D.documentElement.classList.add('lpt-on');
@@ -427,7 +662,7 @@
     wait = wait || 250;
     return new Promise(function (done) {
       var seen = [], bad = [], guard = 0;
-      if (!start(name, 'all')) { done({ seen: seen, bad: ['the ' + name + ' tour did not start (no ' + (TOOLS[name] || {}).root + ' on the page)'] }); return; }
+      if (!start(name, 'all')) { done({ seen: seen, bad: ['the ' + name + ' tour did not start (no ' + (TOOLS[name] || {}).root + ' on the page' + (FA && TOOLS[name] && !spoken(name) ? ', or a step has no Persian' : '') + ')'] }); return; }
       function look() {
         if (!list || ++guard > 40) { if (list) { bad.push('the tour did not end after 40 steps'); end(); } done({ seen: seen, bad: bad }); return; }
         var s = list[at], vw = D.documentElement.clientWidth, vh = W.innerHeight, r = tip.getBoundingClientRect();
@@ -438,7 +673,9 @@
           if (el.textContent.trim() && parseFloat(W.getComputedStyle(el).fontSize) < 12) bad.push(s.k + ': words under 12px (' + el.className + ')');
           if (el.tagName === 'BUTTON' && el.getBoundingClientRect().height < 40) bad.push(s.k + ': a button under 40px (' + el.className + ')');
         });
-        if (!words(s.p) || /undefined|NaN|\{\w+\}/.test(words(s.p) + s.h)) bad.push(s.k + ': its words are missing or unfilled');
+        var said = txt(s, 'p') + ' ' + txt(s, 'h');
+        if (!txt(s, 'p') || !txt(s, 'h') || /undefined|NaN|\{\w+\}/.test(said)) bad.push(s.k + ': its words are missing or unfilled');
+        if (FA && /[A-Za-z]{4,}/.test(said.replace(/Polymarket|Kalshi|IRGC|X\b/g, ''))) bad.push(s.k + ': English words on a Persian page');
         var els = targets(s);
         if (s.at && !els.length) bad.push(s.k + ': its control is not on the page');
         if (els.length) {
@@ -459,14 +696,17 @@
   /* ------------------------------------------------------------------ the doors */
   var ICO = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2 1-1.2 1.9v.4"/><path d="M12 17.2h.01"/></svg>';
   function doors() {
-    $$('.lpt-doors[data-lpt]').forEach(function (box) {
+    var any = $$('.lpt-doors[data-lpt]');
+    if (any.length) style();
+    any.forEach(function (box) {
       var name = box.getAttribute('data-lpt'), T = TOOLS[name], b = $('.lpt-how', box);
-      if (!T || !b || b.getAttribute('data-wired')) return;
+      if (!T || !b || b.getAttribute('data-wired') || !spoken(name)) return;          // a Persian page with a step not yet in Persian: no door
       b.setAttribute('data-wired', '1');
       if (!$('svg', b)) b.insertAdjacentHTML('afterbegin', ICO);
-      b.setAttribute('aria-label', 'How it works: a short tour of ' + T.name);
+      b.setAttribute('aria-label', fill(UI.aria, { name: nameOf(T) }));
+      b.setAttribute('data-new', UI.isNew);
       var since = seenV(name);
-      if (since > 0 && since < T.v && fresh(name, since).length) { b.classList.add('is-new'); b.title = 'New since your last visit'; }
+      if (since > 0 && since < T.v && fresh(name, since).length) { b.classList.add('is-new'); b.title = UI.since; }
       b.addEventListener('click', function () { start(name); });
       b.hidden = false;
     });
@@ -476,8 +716,8 @@
   W.LPTour = {
     tools: function () { return Object.keys(TOOLS); },
     here: function () { return Object.keys(TOOLS).filter(function (n) { return !!$(TOOLS[n].root); }); },
-    info: function (n) { var T = TOOLS[n]; return T ? { name: T.name, root: T.root, ready: T.ready, v: T.v, pending: !!T.pending, steps: T.steps.length } : null; },
-    required: function (n) { return TOOLS[n].steps.filter(function (s) { return !s.opt && !s.when; }).map(function (s) { return s.k; }); },
+    info: function (n) { var T = TOOLS[n]; return T ? { name: T.name, root: T.root, ready: T.ready, v: T.v, pending: !!T.pending, steps: T.steps.length, spoken: spoken(n) } : null; },
+    required: function (n) { return TOOLS[n].steps.filter(function (s) { return !s.opt && !s.when && here(s); }).map(function (s) { return s.k; }); },
     start: start, end: end, audit: audit, walk: walk, keyOf: keyOf,
     at: function () { return list ? { tool: tool, mode: mode, i: at, k: list[at].k } : null; }
   };

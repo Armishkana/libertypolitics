@@ -1,0 +1,60 @@
+/* THE ODDS BOARD (build/oddsboard.py, oddsboard.js). Every rule starts with ob-, so nothing here reaches another part of the
+   site (deploy_guard style-clash). Site tokens only; the money's colour is the site's yellow, a move up is green and down is
+   red, as on every market page. Nothing is hidden and animated in. Words 12px or more, every link 44px or more. */
+.ob{position:relative;margin:var(--s6) 0 0;padding:var(--s5) var(--s4);border-radius:var(--r2);background:var(--panel);border:1px solid color-mix(in srgb,var(--field) 35%,var(--line));min-width:0}
+@media(min-width:720px){.ob{padding:var(--s5) var(--s5) var(--s5)}}
+.ob-hd{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:var(--s3) var(--s4)}
+.ob-hw{min-width:0;flex:1 1 280px}
+.ob-k{display:flex;align-items:center;gap:8px;margin:0 0 var(--s2);font:800 .78rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--field)}
+.ob-at{color:var(--dim);font-weight:700;letter-spacing:.04em;text-transform:none}
+.ob-dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none}
+.ob.is-live .ob-dot{background:var(--ga);box-shadow:0 0 0 3px rgba(70,204,130,.18)}
+.ob h2{font-size:clamp(1.6rem,4.6vw,2.2rem);line-height:1;margin:0;max-width:24ch}
+.ob-lede{margin:var(--s2) 0 0;max-width:60ch;color:var(--dim);font-size:var(--t2,.9375rem);line-height:1.5}
+.ob-body{margin-top:var(--s4)}
+html.mk-off .ob-body,html.mk-off .ob-lede{display:none}
+
+/* the headline numbers */
+.ob-tiles{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s2);list-style:none;margin:0;padding:0}
+@media(min-width:560px){.ob-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1100px){.ob-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ob-t{min-width:0}
+.ob-t a{display:grid;grid-template-rows:auto 1fr auto;gap:6px;height:100%;min-height:44px;box-sizing:border-box;padding:var(--s3) var(--s4);border-radius:var(--r);background:var(--bg);border:1px solid var(--line);color:inherit;text-decoration:none;transition:border-color .15s,transform .15s}
+.ob-t a:hover{border-color:var(--field);transform:translateY(-2px)}
+.ob-l{display:block;font-weight:700;font-size:var(--t2,.9375rem);line-height:1.3;color:var(--ink);overflow-wrap:break-word}
+.ob-n{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;min-width:0}
+.ob-p{font:800 clamp(2.2rem,8vw,2.8rem)/1 var(--display);color:var(--field);font-variant-numeric:tabular-nums lining-nums}
+.ob-who{font-weight:700;font-size:var(--t2,.9375rem);color:var(--ink);overflow-wrap:anywhere}
+.ob-mv{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font:700 .75rem/1.2 var(--body);background:var(--raise);color:var(--dim);white-space:nowrap}
+.ob-mv.is-up{color:var(--ga);background:rgba(70,204,130,.12)}
+.ob-mv.is-dn{color:var(--gf,#FF5A48);background:rgba(255,90,72,.12)}
+.ob-m{display:block;font-size:.75rem;line-height:1.35;color:var(--dim)}
+/* on a phone a number is one row: what it is on the left, the number on the right, so four of them are one screen */
+@media(max-width:559px){
+  .ob-t a{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;column-gap:var(--s3);align-items:center}
+  .ob-t .ob-l{grid-column:1;grid-row:1}
+  .ob-t .ob-m{grid-column:1;grid-row:2}
+  .ob-t .ob-n{grid-column:2;grid-row:1/3;flex-direction:column;align-items:flex-end;gap:2px;text-align:end}
+  .ob-p{font-size:2.1rem}
+  .ob-who{font-size:.8125rem;max-width:9.5rem}
+}
+
+/* the ladders: a market sold as a row of dates, drawn as the curve it is */
+.ob-lds{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3);margin-top:var(--s3)}
+@media(min-width:760px){.ob-lds{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
+.ob-ld{margin:0;min-width:0;padding:var(--s3) var(--s3) var(--s3);border-radius:var(--r);background:var(--bg);border:1px solid var(--line)}
+.ob-ld figcaption{display:grid;gap:2px;padding:0 4px}
+.ob-svg{display:block;width:100%;max-width:430px;height:auto;margin:var(--s2) auto 0;overflow:visible}
+.ob-g{stroke:var(--line);stroke-width:1}
+.ob-ax{font:600 12px/1 var(--body);fill:var(--dim)}
+.ob-ar{fill:var(--field);fill-opacity:.1}
+.ob-ln{fill:none;stroke:var(--field);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.ob-pt circle{fill:var(--bg);stroke:var(--field);stroke-width:2.5}
+.ob-pt:hover circle,.ob-pt:focus-visible circle{fill:var(--field)}
+.ob-pt:focus-visible{outline:none}
+.ob-pv{font:800 14px/1 var(--body);fill:var(--ink);font-variant-numeric:tabular-nums}
+.ob-dx{font:600 12.5px/1 var(--body);fill:var(--dim)}
+.ob-say{margin:var(--s2) 4px 0;font-size:var(--t2,.9375rem);line-height:1.45;color:var(--dim)}
+.ob-say b{color:var(--ink)}
+/* the switch sits in the heading row; off, the board is that one row (markets.css draws the switch) */
+.ob .mk-sw{flex:none}

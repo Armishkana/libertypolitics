@@ -1,43 +1,82 @@
 /* Tools (tools/), both sites. Every rule starts with a tk- class, so nothing here can reach another part of the site
-   (deploy_guard style-clash). The look is the front page's tool strip (.playstrip) and the site's tokens; the plan is
-   ../TOOLS.md. Logical sides throughout, so the Persian page mirrors by itself. */
+   (deploy_guard style-clash). The site's tokens only; the plan is ../TOOLS.md. Logical sides throughout, so the Persian page
+   mirrors by itself. 1 November 2026 (Armin: "they don't visually look good at all"): a showcase. Each tool opens on a stage
+   with its own drawing and what kind of tool it is, then its name, one line, a live number from it, and its verb; the
+   vote list ranks itself, every idea with its place and a bar of how wanted it is. Nothing hides and animates in; a card
+   answering a finger is the only movement. */
 .tk{min-width:0;overflow-x:clip}
 .tk .wrap{min-width:0}
-.tk-hero .tk-k{margin:0 0 var(--s2);font:800 .85rem/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
+.tk-hero .tk-k{margin:0 0 var(--s2);font:800 .85rem/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--field)}
 .tk-hero h1{max-width:18ch}
 .tk-lede{margin:var(--s3) 0 0;max-width:56ch;color:var(--dim);font-size:var(--t4,1.1875rem);line-height:1.5}
-.tk-jump{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s4)}
+.tk-jump{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s4)}
 .tk-jump a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line);color:var(--ink);font-weight:700;text-decoration:none}
-.tk-jump a:last-child{background:var(--field);border-color:var(--field);color:var(--on-field)}
+.tk-jump a:nth-child(2){background:var(--field);border-color:var(--field);color:var(--on-field)}
 .tk-jump a:hover{border-color:var(--field)}
+.tk-jump .lpt-doors{margin:0}
+.tk-jump .lpt-how{min-height:44px;padding:0 16px 0 12px;font-size:var(--t2,.9375rem);font-weight:700}
+/* the hero's numbers: real counts of this build */
+.tk-nums{display:flex;flex-wrap:wrap;gap:var(--s3) var(--s5);list-style:none;margin:var(--s5) 0 0;padding:0}
+.tk-nums li{display:flex;flex-direction:column;gap:2px;min-width:0;padding-inline-start:var(--s4);border-inline-start:1px solid var(--line)}
+.tk-nums li:first-child{padding-inline-start:0;border:0}
+.tk-nums b{font:900 clamp(1.9rem,6vw,2.6rem)/1 var(--display);color:var(--field)}
+.tk-nums span{font-size:var(--t1,.8125rem);font-weight:700;color:var(--dim)}
+@media(max-width:519px){.tk-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2)}.tk-nums li{padding-inline-start:var(--s2)}.tk-nums li:first-child{padding-inline-start:0}.tk-nums b{font-size:1.7rem}.tk-nums span{font-size:.75rem;line-height:1.25}}
 .tk-sec h2{margin-bottom:var(--s4)}
 .tk-sec{scroll-margin-top:72px}
 
-/* the built tools: each card is one door */
+/* the built tools: each card is one door, opening on a stage */
 .tk-tools{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s3);list-style:none;margin:0;padding:0}
 @media(min-width:640px){.tk-tools{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(min-width:1000px){.tk-tools{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .tk-tool{min-width:0}
-.tk-tool a{display:grid;grid-template-rows:auto auto 1fr auto;gap:6px;height:100%;box-sizing:border-box;padding:var(--s4);border-radius:var(--r2);background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none}
-.tk-tool a:hover{border-color:var(--field)}
-.tk-art{display:flex;align-items:flex-end;height:64px}
-.tk-art svg{max-width:100%;height:auto}
-.tk-tn{font:800 1.35rem/1.05 var(--display);text-transform:uppercase;min-width:0;overflow-wrap:break-word}
+.tk-tool>a{display:flex;flex-direction:column;height:100%;box-sizing:border-box;overflow:hidden;border-radius:var(--r2);background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none;transition:transform .15s var(--ease,ease),border-color .15s}
+.tk-tool>a:hover{transform:translateY(-3px);border-color:var(--field)}
+.tk-tool>a:focus-visible{outline:3px solid var(--field);outline-offset:2px}
+.tk-art{position:relative;display:grid;place-items:center;height:150px;padding:var(--s3);box-sizing:border-box;border-bottom:1px solid var(--line);
+  background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--field) 9%,transparent),transparent 60%),var(--sunk,#0A0A0A)}
+.tk-art svg{width:min(100%,240px);height:auto;max-height:120px}
+.tk-kind{position:absolute;top:10px;inset-inline-start:10px;padding:4px 9px;border-radius:999px;background:rgba(16,16,16,.82);border:1px solid var(--line);font:800 .75rem/1.1 var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--field)}
+.tk-tb{display:flex;flex-direction:column;gap:6px;flex:1;min-width:0;padding:var(--s4)}
+.tk-tn{font:800 1.45rem/1.02 var(--display);text-transform:uppercase;min-width:0;overflow-wrap:break-word}
 .tk-tl{color:var(--dim);font-size:var(--t2,.9375rem);line-height:1.45;min-width:0;overflow-wrap:break-word}
-.tk-go{justify-self:start;display:inline-flex;align-items:center;min-height:44px;margin-top:6px;padding:0 18px;border-radius:999px;background:var(--field);color:var(--on-field);font-weight:800}
-/* on a phone a tool is one compact row: the art small beside the words, so eight tools are not eight screens */
-@media(max-width:639px){
-  .tk-tool a{grid-template-columns:72px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:var(--s3);row-gap:4px;padding:var(--s3)}
-  .tk-art{grid-row:1/4;align-self:start;height:auto;width:72px;padding-top:2px;overflow:hidden}
-  .tk-art svg{width:72px;height:auto}
-  .tk-faces i{width:24px;height:32px;border-width:1px}.tk-faces i+i{margin-inline-start:-8px}
-  .tk-tn{font-size:1.15rem}.tk-tl{font-size:var(--t2,.9375rem)}
-  .tk-go{margin-top:4px}
+.tk-stat{display:flex;align-items:center;gap:10px;margin-top:auto;padding-top:var(--s3);border-top:1px solid var(--line);min-width:0}
+.tk-sn{flex:none;font:900 2rem/1 var(--display);color:var(--field);font-variant-numeric:tabular-nums lining-nums}
+.tk-sl{min-width:0;font-size:var(--t1,.8125rem);line-height:1.35;color:var(--dim);font-weight:600;overflow-wrap:break-word}
+.tk-tl+.tk-go{margin-top:auto}
+.tk-go{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:var(--s2);padding:0 18px;border-radius:999px;background:var(--field);color:var(--on-field);font-weight:800}
+.tk-go::after{content:"\2192";font-weight:800}
+html[dir="rtl"] .tk-go::after{content:"\2190"}
+/* the first tool leads when that fills the rows (8 tools: 2 + 7 = three rows of three; tools.py adds tk-lead): on a
+   computer it takes two columns, its stage beside its words */
+@media(min-width:1000px){
+  .tk-lead .tk-tool:first-child{grid-column:span 2}
+  .tk-lead .tk-tool:first-child>a{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+  .tk-lead .tk-tool:first-child .tk-art{height:auto;min-height:250px;border-bottom:0;border-inline-end:1px solid var(--line)}
+  .tk-lead .tk-tool:first-child .tk-art svg{width:min(100%,320px);max-height:160px}
+  .tk-lead .tk-tool:first-child .tk-tn{font-size:2rem}
+  .tk-lead .tk-tool:first-child .tk-sn{font-size:2.6rem}
 }
-.tk-faces{display:flex}
-.tk-faces i{position:relative;width:46px;height:58px;border-radius:8px;border:2px solid var(--panel);background:var(--line) center/cover;filter:grayscale(1)}
-.tk-faces i+i{margin-inline-start:-10px}
-.tk-faces i::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,transparent calc(50% - 1.5px),#E5484D calc(50% - 1.5px),#E5484D calc(50% + 1.5px),transparent calc(50% + 1.5px))}
+/* on a phone a tool is one compact row: its stage small beside the words, so eight tools are not eight screens */
+@media(max-width:639px){
+  .tk-tool>a{flex-direction:row;align-items:stretch}
+  .tk-art{flex:none;width:88px;height:auto;min-height:100%;padding:8px;border-bottom:0;border-inline-end:1px solid var(--line);align-content:center}
+  .tk-art svg{width:100%}
+  .tk-kind{position:static;order:2;justify-self:center;margin-top:6px;padding:3px 7px;font-size:.75rem;letter-spacing:.03em;text-align:center}
+  .tk-tb{padding:var(--s3);gap:4px}
+  .tk-go{padding:0 14px;white-space:nowrap;max-width:100%}
+  .tk-tn{font-size:1.2rem}
+  .tk-tl{font-size:var(--t1,.8125rem)}
+  .tk-stat{padding-top:var(--s2);gap:8px}
+  .tk-sn{font-size:1.55rem}
+  .tk-sl{font-size:.75rem}
+  .tk-faces i{width:30px;height:38px}.tk-faces i+i{margin-inline-start:-12px}
+  .tk-faces i:nth-child(n+4){display:none}
+}
+.tk-faces{display:flex;justify-content:center}
+.tk-faces i{position:relative;width:58px;height:74px;border-radius:10px;border:2px solid var(--panel);background:var(--line) center 20%/cover;filter:grayscale(1) contrast(1.05)}
+.tk-faces i+i{margin-inline-start:-14px}
+.tk-faces i::after{content:"";position:absolute;inset:0;border-radius:8px;background:linear-gradient(to top right,transparent calc(50% - 1.5px),#E5484D calc(50% - 1.5px),#E5484D calc(50% + 1.5px),transparent calc(50% + 1.5px))}
 
 /* what should I build next: the live list (the page's own discussion) and the printed cards */
 .tk-nh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s3)}
@@ -49,6 +88,7 @@
 .tk-board .talk-list>li.tk-row{margin:0}
 .tk-name{margin:var(--s2) 0 0;font:800 1.45rem/1.05 var(--display);text-transform:uppercase;overflow-wrap:break-word}
 .tk-card .tk-name{margin-top:0}
+.tk-board .vote h3.tk-name{margin:var(--s2) 0 0;font:800 1.45rem/1.05 var(--display);text-transform:uppercase;letter-spacing:.005em}          /* site.css .vote h3 is a reply's plain title */
 .tk-row blockquote,.tk-pitch{margin:var(--s2) 0 0;font-size:var(--t3,1rem);line-height:1.5;color:var(--ink);overflow-wrap:break-word}
 .tk-by{margin:4px 0 0;color:var(--field);font-weight:700;font-size:var(--t2,.9375rem)}
 .tk-row .vt-down{display:none}
@@ -103,3 +143,24 @@ html.mk-off .tk-mks,html.mk-off .tk-mh{display:none}
 .tk-namerow input{width:100%;box-sizing:border-box;min-height:48px;padding:0 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--bg);color:var(--ink);font:1rem var(--body)}
 .tk-namerow input:focus{outline:2px solid var(--field);outline-offset:1px}
 .tk-sw{flex:none}
+
+/* the vote, alive (1 November 2026): every idea on the live list carries its place (the printed cards, the list without
+   the database, carry none: they are in the register's order, not the votes'), the first is marked, a bar shows how wanted
+   each is against the leader (tools.js), and one line above the list says how many votes are in and who leads */
+.tk-pulse{display:inline-flex;align-items:center;gap:8px;margin:0 0 var(--s3);padding:8px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:var(--t2,.9375rem)}
+.tk-pulse::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ga);box-shadow:0 0 0 3px rgba(70,204,130,.18);flex:none}
+.tk-pulse[hidden]{display:none}
+.tk-board .talk-list{counter-reset:tk}
+.tk-board .talk-list>li.tk-row{counter-increment:tk;padding-inline-start:calc(var(--s4) + 44px)}
+.tk-board .talk-list>li.tk-row::before{content:counter(tk);position:absolute;top:var(--s4);inset-inline-start:var(--s4);display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--raise);color:var(--ink);font:900 1.15rem/1 var(--display)}
+.tk-board .talk-list>li.tk-row:first-child{border-color:var(--field)}
+.tk-board .talk-list>li.tk-row:first-child::before{background:var(--field);color:var(--on-field)}
+.tk-meter{display:flex;align-items:center;gap:10px;margin:var(--s2) 0 0}
+.tk-meter>span{position:relative;flex:1;height:8px;border-radius:999px;background:var(--raise);overflow:hidden}
+.tk-meter>span>i{position:absolute;inset-block:0;inset-inline-start:0;width:var(--tk-v,0%);border-radius:999px;background:var(--field)}
+.tk-meter>b{flex:none;font-size:var(--t1,.8125rem);font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+@media(max-width:639px){
+  .tk-board .talk-list>li.tk-row{padding-inline-start:var(--s4)}
+  .tk-board .talk-list>li.tk-row::before{inset-inline-start:auto;inset-inline-end:var(--s3);top:var(--s3)}
+  .tk-row .tk-name{padding-inline-end:42px}
+}

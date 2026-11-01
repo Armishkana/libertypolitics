@@ -179,7 +179,38 @@
     });
     if (hit !== (box.className.indexOf(' duck') > -1)) box.className = hit ? box.className + ' duck' : box.className.replace(' duck', '');
   }
-  function redraw() { draw(); duck(); }
+  /* DOCKED ON A TOOL'S PAGE (1 November 2026). On a page that carries a tool (its How it works doors, the Intel Room, a
+     simulator's board) the corner bubble sat on the tool itself: the Liberty Score's opening words at 360px, a card of the
+     Tools page and the Regime Board's chart at 1280, the Conflict Simulator's side panel at 1440. A tool is the page, so
+     nothing may lie on it. There the bubble docks into the header, which is always on screen (it is sticky): the
+     YouTube mark carries the red live dot while a show is on, its link opens the live stream, and its name says what is
+     on now or when the next show starts. The bubble keeps its place in the page (class dock), so the cross, the tests and
+     the stream view still find it. Every other page keeps the bubble in the corner, and the footer leaves room under it
+     (footer padding-bottom in site.css) so the end of a page is never under it. One home for the look: CSS below. */
+  var TOOL_PAGE = '.lpt-doors, #ir, #wargame, #scenarios, #uprising';
+  root.LPOn.toolPage = TOOL_PAGE;      // the one list of what makes a page a tool's page (build/phone-test.html reads it here)
+  var yt = document.querySelector('header.top a.yt'), docked = !!(yt && document.querySelector(TOOL_PAGE));
+  if (docked) {
+    box.className += ' dock';
+    var ytHref = yt.getAttribute('href'), ytName = yt.getAttribute('aria-label') || '';
+    if (!document.getElementById('calls-dock-css')) {
+      var st = document.createElement('style'); st.id = 'calls-dock-css';
+      st.textContent = '.calls.dock{display:none!important}header.top a.yt{position:relative}' +
+        'header.top a.yt.calls-live::after{content:"";position:absolute;top:7px;inset-inline-end:5px;width:10px;height:10px;border-radius:50%;background:#C8102E;box-shadow:0 0 0 2px #0A0A0A,0 0 0 5px rgba(200,16,46,.35)}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+  }
+  function dock() {
+    if (!docked) return;
+    var top = box.querySelector('.calls-a'), live = box.querySelector('.calls-a.live');
+    if (!top) return;
+    var say = [top.querySelector('b'), top.querySelector('small')].map(function (x) { return x ? x.textContent.trim() : ''; }).filter(Boolean).join(', ');
+    yt.className = yt.className.replace(/ calls-live\b/g, '') + (live ? ' calls-live' : '');
+    yt.setAttribute('href', live ? live.getAttribute('href') : ytHref);
+    yt.setAttribute('aria-label', live ? say : ytName);
+    yt.setAttribute('title', say);
+  }
+  function redraw() { draw(); dock(); duck(); }
   redraw();
   setInterval(redraw, 30000);
   var dk = 0, soon = function () { if (!dk) dk = setTimeout(function () { dk = 0; duck(); }, 60); };

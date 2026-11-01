@@ -213,6 +213,18 @@
     return g;
   }
   function scored(mid) { var sc = REC && REC.sc; return sc && sc[mid] && typeof sc[mid][1] === 'number' ? sc[mid][1] : null; }
+  // THE EDGE (1 November 2026, Armin: "Make our tools a lot more useful for the betting markets"): where the people here
+  // read a market differently from the money, said in one plain line on the card. Readers' share on the option the Markets
+  // number names, minus the market's price, in points. Only once three or more readers have called it (a single caller is
+  // not a crowd), never on a settled market, and it goes with the odds switch (calls.css).
+  function edgeLine(m) {
+    if (m.st === 'resolved' || isShut(m)) return '';
+    var r = readers(m), L = lead(m);
+    if (r.n < 3 || !m.o[L]) return '';
+    var d = Math.round(((r.c[L] || 0) / r.n - (+m.o[L][1] || 0)) * 100), on = esc(m.o[L][0]);
+    if (Math.abs(d) < 5) return '<p class="lpc-edge is-even"><span class="lpc-edge-k">Edge</span><span>Readers agree with the market on ' + on + ' (within 5 points).</span></p>';
+    return '<p class="lpc-edge ' + (d > 0 ? 'is-up' : 'is-down') + '"><span class="lpc-edge-k">Edge</span><span>Readers are <b class="num">' + Math.abs(d) + ' points ' + (d > 0 ? 'above' : 'below') + '</b> the market on ' + on + '.</span></p>';
+  }
   function spark(d) {
     if (!Array.isArray(d) || d.length < 2) return '';
     var lo = Math.min.apply(null, d), hi = Math.max.apply(null, d), span = Math.max(hi - lo, 0.02);
@@ -268,7 +280,7 @@
   function card(m) {
     var mk = aff(), r = readers(m), L = lead(m), my = MINE[m.mid], p = pend()[m.mid], shut = isShut(m), resolved = m.st === 'resolved', winIx = typeof m.win === 'number' && m.o[m.win] ? m.win : -1;
     var picked = my ? my.o : (p ? p.o : -1);
-    var meta = [srcName(m), money(m.v) + ' traded'];
+    var meta = [money(m.v) + ' traded'];
     var cl = closes(m); if (cl) meta.push(cl);
     var st = resolved ? '<span class="lpc-st is-won">Settled</span>' : (shut ? '<span class="lpc-st">Closed</span>' : '');
     // Readers: the share of callers on the same option the Markets number names, so the two compare at a glance
@@ -297,14 +309,15 @@
     if (!all) opts += '<button type="button" class="lpc-more1" data-lpc-all>Show all ' + order.length + '</button>';
     var l = mk.link(m.u);
     return '<article class="lpc-c" id="m-' + esc(m.mid) + '" data-lpc-c="' + esc(m.mid) + '">'
-      + '<p class="lpc-meta">' + st + '<span>' + meta.map(esc).join(' &middot; ') + '</span></p>'
+      + '<p class="lpc-meta"><span class="lpc-pf is-' + (m.src === 'k' ? 'k' : 'p') + '">' + srcName(m) + '</span>' + st + '<span>' + meta.map(esc).join(' &middot; ') + '</span></p>'
       + '<h3 class="lpc-q">' + esc(m.q) + '</h3>'
       + '<div class="lpc-3"><div class="lpc-n lpc-n-m"><span class="lpc-k">Markets</span>' + mCell + '</div>'
       + '<div class="lpc-n lpc-n-r"><span class="lpc-k">Readers</span>' + rCell + '</div>' + youCell(m) + '</div>'
+      + edgeLine(m)
       + buildLine(m, b, picked, shut)
       + '<div class="lpc-o" role="group" aria-label="Your call">' + opts + '</div>'
       + sayLine(m)
-      + '<p class="lpc-src">Market: <a href="' + esc(l.href) + '" target="_blank" rel="' + esc(l.rel) + '">' + srcName(m) + '</a></p>'
+      + '<p class="lpc-src"><a href="' + esc(l.href) + '" target="_blank" rel="' + esc(l.rel) + '">See it on ' + srcName(m) + ' <span aria-hidden="true">&#8599;</span></a></p>'
       + '</article>';
   }
 
@@ -535,9 +548,67 @@
       return true;
     }
     function onDraw(rows) {
+      rails(rows);
       if (!count) return;
       count.textContent = rows.length + (rows.length === 1 ? ' market' : ' markets') + (onlyTool ? ' from one tool. ' : '');
       if (onlyTool) { var a = D.createElement('a'); a.href = W.location.pathname; a.textContent = 'Show every market'; count.appendChild(a); }
+    }
+    // ---------------------------------------------------------------- the rails and the market you opened (1 November 2026)
+    // Three short rows over the list, drawn from the markets the filters show (so a topic chip changes them too), open
+    // markets only: Closing soon (the next to settle: your points arrive first), Coin flips (heavily traded and closest to
+    // even: big points whichever way it goes) and Biggest moves (the most change over the days the catalog has priced, once
+    // it has two days or more). A tile opens its market, whole, in the box under the rails; Close puts it away.
+    var railBox = D.getElementById('btm-rails'), focus = D.getElementById('btm-focus'), one = D.getElementById('btm-one'), focusId = '';
+    function leadP(m) { var L = lead(m); return [L, +m.o[L][1] || 0]; }
+    function tile(m, kind) {
+      var lp = leadP(m), L = lp[0], p = lp[1], sub;
+      if (kind === 'soon') sub = closes(m) || 'Closing soon';
+      else if (kind === 'flip') sub = money(m.v) + ' traded';
+      else { var d = m.d, ch = Math.round(((+d[d.length - 1] || 0) - (+d[0] || 0)) * 100); sub = (ch > 0 ? '+' : ch < 0 ? '−' : '') + Math.abs(ch) + ' points in ' + (d.length - 1) + ' day' + (d.length === 2 ? '' : 's'); }
+      return '<button type="button" class="btm-tile" data-btm-open="' + esc(m.mid) + '" aria-pressed="' + (focusId === m.mid ? 'true' : 'false') + '">'
+        + '<span class="btm-tile-q">' + esc(m.q) + '</span>'
+        + '<span class="btm-tile-p"><b class="num">' + pct(p) + '</b><span>' + esc(m.o[L][0]) + '</span></span>'
+        + '<span class="btm-tile-bar" aria-hidden="true"><i style="width:' + Math.round(p * 100) + '%"></i></span>'
+        + '<span class="btm-tile-s">' + esc(sub) + '</span></button>';
+    }
+    function rails(rows) {
+      if (!railBox) return;
+      var open = rows.filter(function (m) { return !isShut(m) && m.o.length; });
+      if (S.status !== 'open' || open.length < 4) { railBox.hidden = true; railBox.innerHTML = ''; return; }
+      var soon = open.filter(function (m) { return Date.parse(m.end || '') > NOW(); }).sort(function (a, b) { return (Date.parse(a.end) - Date.parse(b.end)) || popular(a, b); }).slice(0, 3);
+      var big = open.slice().sort(popular).slice(0, 40);
+      var flips = big.filter(function (m) { var p = leadP(m)[1]; return p >= 0.3 && p <= 0.7; }).sort(function (a, b) { return Math.abs(leadP(a)[1] - 0.5) - Math.abs(leadP(b)[1] - 0.5); }).slice(0, 3);
+      var moved = open.filter(function (m) { return Array.isArray(m.d) && m.d.length >= 2; }).map(function (m) { return [m, Math.abs((+m.d[m.d.length - 1] || 0) - (+m.d[0] || 0))]; })
+        .filter(function (x) { return x[1] >= 0.03; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 3).map(function (x) { return x[0]; });
+      var part = function (k, h, line, list) {
+        return list.length ? '<section class="btm-rail btm-rail-' + k + '" aria-label="' + esc(h) + '"><p class="btm-rail-h"><b>' + esc(h) + '</b><span>' + esc(line) + '</span></p><div class="btm-rail-l">' + list.map(function (m) { return tile(m, k); }).join('') + '</div></section>' : '';
+      };
+      var h = part('soon', 'Closing soon', 'Your points arrive first', soon) + part('flip', 'Coin flips', 'Big points either way', flips) + part('move', 'Biggest moves', 'Where the money changed its mind', moved);
+      railBox.innerHTML = h; railBox.hidden = !h;
+    }
+    function openOne(mid) {
+      if (!one || !focus) return;
+      focusId = mid;
+      focus.hidden = !mid;
+      [].forEach.call(D.querySelectorAll('[data-btm-open]'), function (t) { t.setAttribute('aria-pressed', t.getAttribute('data-btm-open') === mid ? 'true' : 'false'); });
+      if (!mid) { one.innerHTML = ''; return; }
+      mount(one, { page: true, n: 1, filter: function (m) { return m.mid === focusId; } }).then(function () {
+        try { focus.scrollIntoView({ behavior: W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' }); } catch (e) { }
+      });
+    }
+    D.addEventListener('click', function (ev) {
+      var b = ev.target && ev.target.closest && ev.target.closest('[data-btm-open],#btm-focus-x');
+      if (!b || !root.contains(b)) return;
+      if (b.id === 'btm-focus-x') openOne(''); else openOne(focusId === b.getAttribute('data-btm-open') ? '' : b.getAttribute('data-btm-open'));
+    });
+    // the line under the title: how many markets are open, how much money is on them, and on which platforms
+    function statLine() {
+      var el = D.getElementById('btm-stat');
+      if (!el || !CAT) return;
+      var o = CAT.m.filter(function (m) { return !isShut(m); }), v = 0, nk = 0;
+      o.forEach(function (m) { v += +m.v || 0; if (m.src === 'k') nk++; });
+      el.innerHTML = '<b class="num">' + o.length.toLocaleString('en-US') + '</b> open markets <span aria-hidden="true">&middot;</span> <b class="num">' + money(v) + '</b> traded on them <span aria-hidden="true">&middot;</span> '
+        + (o.length - nk) + ' on Polymarket, ' + nk + ' on Kalshi';
     }
     var opts = { page: true, n: 24, filter: filter, sort: function (a, b) { return sorts[S.sort](a, b); }, onDraw: onDraw };
     function apply() { chips(); keep(); W.LPCalls.refresh(list); }
@@ -554,6 +625,7 @@
     chips();
     mount(list, opts).then(function () {
       if (age && CAT) age.textContent = CAT.stale ? 'The market prices are paused: they are more than two days old.' : agoText(CAT.t);
+      statLine();
     });
     // the two views: every market, and Your record (markets/#record, or markets/?u=<account> for someone's public record).
     // Switching rewrites the address without a jump; the record/discussion switch of the page keeps its own #record.

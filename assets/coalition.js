@@ -158,14 +158,29 @@
   // C.mk.pm: {party: [the market's spelling of its leader, chance in 100]} (build/markets.py pm_payload). The sentence
   // names the chance of the biggest party's leader; a reader with "Betting odds" off never sees it (markets.css hides
   // .coal-mk under html.mk-off). markets.js hands over this hour's prices as lp:markets.
+  // 1 November 2026 (Armin: "Make our tools a lot more useful for the betting markets"): the sentence became a card. The
+  // government built here names its prime minister; the card sets the markets' chance for that leader as a bar, beside
+  // the favourite's when it is someone else, with the market itself one tap away through the affiliate door (LPAff).
   function pmOdds(i) {
     var m = C.mk && C.mk.pm && C.mk.pm[i];
     if (!m) return '';
-    return ' <span class="coal-mk">The betting markets give ' + esc(surname(i)) + ' <b class="num">' + m[1] + ' in 100</b> to be the next prime minister.</span>';
+    var best = null;
+    Object.keys(C.mk.pm).forEach(function (k) { if (!best || C.mk.pm[k][1] > C.mk.pm[best][1]) best = k; });
+    var row = function (k, mine) {
+      var q = C.mk.pm[k];
+      return '<span class="coal-pm-r' + (mine ? ' is-mine' : '') + '"><span class="coal-pm-n">' + esc(surname(k)) + (mine ? ' <small>your build</small>' : ' <small>the favorite</small>') + '</span>'
+        + '<span class="coal-pm-b" aria-hidden="true"><i style="width:' + q[1] + '%"></i></span><b class="num">' + q[1] + '%</b></span>';
+    };
+    var u = C.mk.u, lk = '';
+    if (u) { var l = W.LPAff ? W.LPAff.link(u) : { href: u, rel: 'noopener' }; lk = ' <a href="' + esc(l.href) + '" target="_blank" rel="' + esc(l.rel) + '">See the market <span aria-hidden="true">&#8599;</span></a>'; }
+    return ' <span class="coal-mk coal-pm"><span class="coal-pm-h">Your prime minister against the betting markets</span>'
+      + row(i, true) + (best && best !== i ? row(best, false) : '')
+      + '<span class="coal-pm-s">' + (best === i ? 'Your build agrees with the money: ' + esc(surname(i)) + ' is the favorite.' : 'The money says ' + esc(surname(best)) + ', not ' + esc(surname(i)) + '.') + lk + '</span></span>';
   }
   D.addEventListener('lp:markets', function (ev) {
     var w = C.mk && ev.detail && ev.detail.w && ev.detail.w[C.mk.slug];
     if (!w) return;
+    if (w.u) C.mk.u = w.u;
     var by = {};
     w.o.forEach(function (o) { by[o[0]] = o[1]; });
     Object.keys(C.mk.pm).forEach(function (i) { var n = C.mk.pm[i][0]; if (by[n] != null) C.mk.pm[i][1] = by[n]; });

@@ -31,7 +31,7 @@
   var CANVAS = [1280, 720];
   // a tool's box; what zooms inside it is the tool's own CSS. Wargames (#wargame) zooms nothing on its map (#wg-stage reads the
   // pointer, like the Regime Board's chart): build/wargame.css says what does.
-  var TOOLS = { midterms: '#midterms', coalition: '#coalition', regime: '#regime', markets: '#btm', wargame: '#wargame' };
+  var TOOLS = { midterms: '#midterms', coalition: '#coalition', regime: '#regime', markets: '#btm', wargame: '#wargame', you: '#you' };      // you: Your Liberty Score (build/you.css lays it out), 1 Nov 2026
   var root = null, name = '', fsMine = false, y0 = 0, bar = null, marked = [];
   function $(s, r) { return (r || D).querySelector(s); }
   function wanted() { return /[?&]stream=1(&|$)/.test(location.search); }

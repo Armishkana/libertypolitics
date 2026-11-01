@@ -10,7 +10,11 @@
       without the database, and for an idea not yet posted).
    3. puts this hour's odds on a market the site tracks every hour (assets/calls.json on Liberty Politics), matched by id
       or address; otherwise the register's numbers and their date stay.
-   4. turns the box under Suggest a tool into a suggestion: a name (the post's subject) and what it would do (tag idea). */
+   4. turns the box under Suggest a tool into a suggestion: a name (the post's subject) and what it would do (tag idea).
+   5. (1 November 2026) keeps the vote alive: each dressed row gets a bar of how wanted it is against the leader and its
+      count ("12 want it"), and one line above the list says how many votes are in and which idea leads. Its place on the
+      list (1, 2, 3 ...) is drawn by tools.css from the order community.js gives. A built tool's live number from a market
+      (.tk-stat[data-mid]) takes this hour's price, like the ideas' markets (3). */
 (function () {
   'use strict';
   var D = document, data;
@@ -39,6 +43,11 @@
   var live = null;
   function liven(scope) {
     if (!live) return;
+    Array.prototype.forEach.call((scope || D).querySelectorAll('.tk-stat[data-mid]'), function (st) {
+      var m = live[st.getAttribute('data-mid')], want = st.getAttribute('data-o');
+      var o = m && Array.isArray(m.o) && m.o.filter(function (x) { return x[0] === want; })[0];
+      if (o && typeof o[1] === 'number') st.querySelector('.tk-sn').textContent = pct(o[1]);
+    });
     Array.prototype.forEach.call((scope || D).querySelectorAll('.tk-mk'), function (li) {
       var m = live[li.getAttribute('data-mid')] || live['u:' + li.getAttribute('data-u')];
       if (!m || !Array.isArray(m.o)) return;
@@ -95,7 +104,32 @@
     var rb = li.querySelector('.reply-b');
     if (rb && rb.getAttribute('aria-expanded') !== 'true') rb.textContent = W.talk + (n ? ' (' + dig(n) + ')' : '');
     var best = li.querySelector('.tag.best'); if (best) best.textContent = W.best;
+    li.setAttribute('data-ups', String(p.ups || 0));
+    li.setAttribute('data-name', name);
     hideCards();
+    meters();
+  }
+  /* ---- 5. the vote, alive: a bar per idea against the leader, and the line above the list ---- */
+  function meters() {
+    var t = D.getElementById('talk');
+    if (!t) return;
+    var rows = Array.prototype.filter.call(t.querySelectorAll('li.tk-row'), function (li) { return !li.closest('[hidden]'); });
+    var max = 0, sum = 0, top = null;
+    rows.forEach(function (li) { var k = +li.getAttribute('data-ups') || 0; sum += k; if (k > max) { max = k; top = li; } });
+    rows.forEach(function (li) {
+      var k = +li.getAttribute('data-ups') || 0, m = li.querySelector('.tk-meter');
+      if (!m) {
+        m = el('div', 'tk-meter'); var bar = el('span'); bar.appendChild(el('i')); m.appendChild(bar); m.appendChild(el('b'));
+        var h = li.querySelector('.tk-name'), by = li.querySelector('.tk-by'), after = by || h;
+        if (after) after.after(m); else li.prepend(m);
+      }
+      m.querySelector('i').style.setProperty('--tk-v', (max ? Math.round(100 * k / max) : 0) + '%');
+      m.querySelector('b').textContent = fill(W.votes, { n: dig(k) });
+    });
+    var pl = D.getElementById('tk-pulse');
+    if (!pl || !rows.length) return;
+    pl.textContent = !sum ? W.pulse0 : fill(sum === 1 ? W.pulse1 : W.pulse, { v: dig(sum), top: top ? top.getAttribute('data-name') : '' });
+    pl.hidden = false;
   }
   (window.LPTalkRows = window.LPTalkRows || []).push(dress);
   /* Every printed card whose idea is on the live list is hidden; the list of printed cards goes when it is empty. */

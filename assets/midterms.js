@@ -36,6 +36,31 @@
     return { s: s, p: s === 'L' ? m[0] : m[1], n: x[s].n };
   }
   function surname(n) { var w = String(n).replace(/,?\s+(Jr|Sr|II|III|IV)\.?$/, '').trim().split(/\s+/); return w[w.length - 1]; }
+  // THE EDGE, race by race (1 November 2026, Armin: "Make our tools a lot more useful for the betting markets"). The map's
+  // chance for a side is the same pretend election the chamber chances run (a national miss and a race miss, NAT and RACE
+  // below), worked out in closed form: the margin at this setting over the spread of both misses. Set beside the markets'
+  // price for the same side, the gap is the edge: where the forecasters, moved by the reader's slider, part with the money.
+  function phi(z) {      // the normal curve's area left of z (Abramowitz and Stegun 7.1.26, good to 1 in 10 million)
+    var t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z / 2);
+    return z >= 0 ? (1 + y) / 2 : (1 - y) / 2;
+  }
+  function mapChance(x, shift) { return phi((x.m + shift) / Math.sqrt(NAT * NAT + RACE * RACE)); }      // the chance side L wins
+  // Only on races the forecasters rate as contests (|m| under the safe floor). A seat every forecaster calls safe is placed
+  // by its lean alone, and where a state drew new lines for 2026 that lean can be the old district's: measured 1 November
+  // 2026, Utah 1 and California 1 came out at 1 in 100 on the map against 96 to 98 in the markets. That is a gap in the
+  // map, not an edge, so a safe seat shows the markets' number alone.
+  function edgeOf(x, shift) {
+    var f = fav(x);
+    if (!f || real[x.id] || pick[x.id] || !(Math.abs(x.m) < M.model.safeFloor)) return null;
+    var pl = mapChance(x, shift), ps = Math.round(100 * (f.s === 'L' ? pl : 1 - pl));
+    ps = Math.max(1, Math.min(99, ps));
+    return { s: f.s, n: f.n, map: ps, mk: f.p, d: ps - f.p };
+  }
+  var GAP = 8;      // points: a smaller gap is inside what the two numbers' own roughness can explain
+  function gapsAll(ch, shift) {
+    return RS.filter(function (x) { var g = (!ch || x.c === ch) && edgeOf(x, shift); return g && Math.abs(g.d) >= GAP; })
+      .sort(function (a, b) { return Math.abs(edgeOf(b, shift).d) - Math.abs(edgeOf(a, shift).d); });
+  }
   // a call goes against the markets when the side it picks is the one they give under 45 in 100
   function against(x, s) { var f = fav(x); return !!(f && s && s !== f.s && f.p >= 55); }
   function againstAll(ch, shift) { return RS.filter(function (x) { return (!ch || x.c === ch) && !real[x.id] && against(x, sideAt(x, shift)); }); }
@@ -169,7 +194,10 @@
     });
     $('mt-flips').innerHTML = parts.join('');
     // two marks closer than a tag's width stand one above the other, never on top of each other
-    var w = IN.offsetWidth || 300, near = at.S != null && at.H != null && Math.abs(posOf(at.S) - posOf(at.H)) * w / 100 < 70;
+    // the room the two tags need is measured, not assumed: in the stream view the words are bigger and 70px was too little
+    // (1 November 2026: "Senat" under "House" at 1920 x 1080)
+    var tS = $('mt-pin-S'), tH = $('mt-pin-H'), room = Math.max(70, ((tS.offsetWidth || 0) + (tH.offsetWidth || 0)) / 2 + 6);
+    var w = IN.offsetWidth || 300, near = at.S != null && at.H != null && Math.abs(posOf(at.S) - posOf(at.H)) * w / 100 < room;
     IN.parentNode.classList.toggle('is-stack', !!near);
   }
 
@@ -205,7 +233,11 @@
       var mk = MK && MK.us[ch], h = '<span class="mt-vs-h">Chance to win it</span>' + row('Your map', p, '');
       if (mk) {
         h += row('<span class="mt-vs-l">Betting markets</span><span class="mt-vs-s">Markets</span>', mk.D, ' is-mk');
-        if ((mk.D >= 50 ? 'D' : 'R') !== lead && Math.abs(mk.D - 50) >= 5) h += '<span class="mt-vs-say">Your map and the markets pick different winners.</span>';
+        // the edge, in one line: how far the map's chance for the Democrats sits from the money's
+        var ed = p - mk.D;
+        if ((mk.D >= 50 ? 'D' : 'R') !== lead && Math.abs(mk.D - 50) >= 5) h += '<span class="mt-vs-say mt-vs-edge is-big">Your map and the markets pick different winners.</span>';
+        else h += '<span class="mt-vs-say mt-vs-edge' + (Math.abs(ed) >= GAP ? ' is-big' : '') + '">' + (Math.abs(ed) < 3 ? 'Your map agrees with the markets.'
+          : 'Edge: your map gives the Democrats <b class="num">' + Math.abs(ed) + ' points ' + (ed > 0 ? 'more' : 'less') + '</b> than the markets do.') + '</span>';
         // where the number was read: every market link through the one door (markets.js LPAff, build/affiliate.py)
         h += '<span class="mt-vs-src">' + (mk.u || []).map(function (u) { return mkA(u, /kalshi\.com/.test(u) ? 'Kalshi' : 'Polymarket'); }).join(' and ')
           + (W.LPAff && W.LPAff.note(mk.u) ? ' <span class="mk-aff">' + esc(W.LPAff.note(mk.u)) + '</span>' : '') + '</span>';
@@ -233,33 +265,47 @@
         + '<span class="mt-win" aria-hidden="true"></span></button>';
     };
     return '<li class="mt-race" data-id="' + esc(x.id) + '"><p class="mt-rhead"><a class="mt-rname" href="' + esc(ROOT + 'races/' + x.id + '/') + '">' + esc(x.lb) + '</a>'
-      + '<span class="mt-rate" title="The forecasters’ average rating">' + (x.lock ? '' : 'Experts: ') + esc(x.w) + '</span>' + mkChip(x) + '<span class="mt-state"></span></p>'
+      + '<span class="mt-rate" title="The forecasters’ average rating">' + (x.lock ? '' : 'Experts: ') + esc(x.w) + '</span><span class="mt-state"></span></p>'
       + '<div class="mt-pair">' + who('L') + who('R') + '</div>'
-      + '<div class="mt-meter" aria-hidden="true"><span class="mt-meter-in"></span></div></li>';
+      + '<div class="mt-meter" aria-hidden="true"><span class="mt-meter-in"></span></div>'
+      + (fav(x) ? '<p class="mt-pr"></p>' : '') + '</li>';
   }
-  function mkChip(x) {
+  // The win chance row of a card the markets price: the favourite's chance on the reader's map (a bar) and in the markets
+  // (a yellow tick on the same bar, and the number), and the edge between them. It replaces the 30 October chip
+  // "Markets: Talarico 71%" and keeps its class, mt-mk, on the market's half (the odds switch and the phone test read it).
+  // A race the reader called, or that was called on the night, shows the market alone: the map has no chance left to give.
+  function mkChip(x, shift) {
     var f = fav(x);
     if (!f) return '';
-    return '<span class="mt-mk is-' + (f.s === 'R' ? 'R' : x.L.p) + '" title="The betting markets’ chance: Polymarket and Kalshi">Markets: ' + esc(surname(f.n)) + ' <b class="num">' + f.p + '%</b></span>';
+    var g = edgeOf(x, shift), pc = 'is-' + (f.s === 'R' ? 'R' : x.L.p), nm = esc(surname(f.n));
+    var mkp = '<span class="mt-mk ' + pc + '" title="The betting markets’ chance: Polymarket and Kalshi">Markets <b class="num">' + f.p + '%</b></span>';
+    if (!g) return '<span class="mt-pr-who">' + nm + '</span>' + mkp;
+    var big = Math.abs(g.d) >= GAP;
+    return '<span class="mt-pr-who">' + nm + '</span>'
+      + '<span class="mt-pr-bar ' + pc + '" aria-hidden="true"><i style="width:' + g.map + '%"></i><b style="left:' + f.p + '%"></b></span>'
+      + '<span class="mt-pr-map" title="The chance on your map, from the forecasters moved by your slider">Your map <b class="num">' + g.map + '%</b></span>' + mkp
+      + '<span class="mt-pr-e' + (big ? ' is-big' : '') + '" title="Your map minus the markets, in points">' + (Math.abs(g.d) < 1 ? 'Even' : (g.d > 0 ? '+' : '−') + Math.abs(g.d) + ' edge') + '</span>';
   }
   function chosen() {
     var c = RS.filter(function (x) { return x.c === tab; });
     if (where === 'close') c = c.filter(function (x) { return Math.abs(x.m) < M.model.safeFloor; });
     else if (where === 'mine') c = c.filter(function (x) { return pick[x.id]; });
     else if (where === 'against') { var sh = mood - TODAY; c = c.filter(function (x) { return against(x, sideAt(x, sh)); }); }
+    else if (where === 'gaps') return gapsAll(tab, mood - TODAY);      // the biggest edges first
     else if (where !== 'all') c = c.filter(function (x) { return x.st === where; });
     return c.sort(function (a, b) { return (Math.abs(a.m) - Math.abs(b.m)) || (a.lb < b.lb ? -1 : 1); });
   }
   function options() {
     var c = RS.filter(function (x) { return x.c === tab; }), sts = {}, nClose = 0;
     c.forEach(function (x) { sts[x.st] = x.lb.replace(/ (Senate.*|\d+|at large)$/, ''); if (Math.abs(x.m) < M.model.safeFloor) nClose++; });
-    var nMine = c.filter(function (x) { return pick[x.id]; }).length, nAg = againstAll(tab, mood - TODAY).length;
+    var nMine = c.filter(function (x) { return pick[x.id]; }).length, nAg = againstAll(tab, mood - TODAY).length, nGap = MK ? gapsAll(tab, mood - TODAY).length : 0;
     var h = '<option value="close">The close races (' + nClose + ')</option><option value="all">Every ' + (tab === 'S' ? 'Senate' : 'House') + ' race (' + c.length + ')</option>'
       + (nMine ? '<option value="mine">The races you called (' + nMine + ')</option>' : '')
+      + (nGap ? '<option value="gaps">Biggest edges against the markets (' + nGap + ')</option>' : '')
       + (nAg ? '<option value="against">Where you go against the markets (' + nAg + ')</option>' : '')
       + Object.keys(sts).sort(function (a, b) { return sts[a] < sts[b] ? -1 : 1; }).map(function (s) { return '<option value="' + s + '">' + esc(sts[s]) + '</option>'; }).join('');
     WHERE.innerHTML = h;
-    if ((where === 'mine' && !nMine) || (where === 'against' && !nAg)) where = 'close';
+    if ((where === 'mine' && !nMine) || (where === 'against' && !nAg) || (where === 'gaps' && !nGap)) where = 'close';
     WHERE.value = where;
   }
   function list() {
@@ -286,6 +332,8 @@
       });
       var st = li.querySelector('.mt-state'), sw = stateWords(x, s, v);
       if (st._t !== sw.t + sw.p) { st._t = sw.t + sw.p; st.innerHTML = sw.h; st.className = 'mt-state' + (sw.p ? ' is-' + sw.p : '') + (sw.k ? ' is-' + sw.k : ''); st.title = sw.t; }
+      var pr = li.querySelector('.mt-pr');
+      if (pr) { var ph = night ? '' : mkChip(x, shift); if (pr._h !== ph) { pr._h = ph; pr.innerHTML = ph; pr.hidden = !ph; } }
       var mi = li.querySelector('.mt-meter-in'), w = Math.min(50, Math.abs(v) * 2.5);
       mi.style.width = (x.lock || pick[x.id] || real[x.id] ? 0 : w) + '%';
       mi.style.left = v > 0 ? (50 - w) + '%' : '50%';
@@ -338,6 +386,7 @@
     $('mt-mine').innerHTML = n ? 'You called ' + n + ' race' + (n === 1 ? '' : 's') + ' yourself. <button type="button" class="mt-clear" id="mt-clear">Hand them all back to the mood</button>' : '';
     runLabel();
     boldSum();
+    gapsPanel();
     oddsSoon();
     save();
   }
@@ -359,6 +408,27 @@
     if (H.length) say.push('<b class="num">' + H.length + '</b> House race' + (H.length === 1 ? '' : 's'));
     el.innerHTML = '<span class="mt-bs-i" aria-hidden="true">&#9889;</span><span>You go against the betting markets in ' + say.join(' and ') + '. '
       + '<button type="button" class="mt-bs-go" id="mt-bs-go">Show them</button></span>';
+  }
+  // THE BIGGEST EDGES (1 November 2026): the four races, either chamber, where the reader's map and the betting markets are
+  // furthest apart on the same candidate, each with both chances, the gap, and the market it was read from through the one
+  // affiliate door. "Show these races" lists every such race of the chamber on show, biggest gap first ("Which races").
+  function gapsPanel() {
+    var el = $('mt-gaps');
+    if (!el) return;
+    var sh = mood - TODAY, all = MK && !night ? gapsAll('', sh) : [];
+    if (!all.length) { el.hidden = true; el.innerHTML = ''; return; }
+    var rows = all.slice(0, 4).map(function (x) {
+      var g = edgeOf(x, sh), p = g.s === 'R' ? 'R' : x.L.p, mk = (RACEMK && RACEMK[x.id] || []).slice().sort(function (a, b) { return (+b.v || 0) - (+a.v || 0); })[0];
+      return '<li class="mt-gap"><a class="mt-gap-n" href="' + esc(ROOT + 'races/' + x.id + '/') + '">' + esc(x.lb) + '</a>'
+        + '<span class="mt-gap-w is-' + p + '">' + esc(surname(g.n)) + '</span>'
+        + '<span class="mt-gap-b" aria-hidden="true"><i class="is-' + p + '" style="width:' + g.map + '%"></i><b style="left:' + g.mk + '%"></b></span>'
+        + '<span class="mt-gap-v">Your map <b class="num">' + g.map + '%</b> &middot; Markets <b class="num">' + g.mk + '%</b></span>'
+        + '<span class="mt-gap-e">' + (g.d > 0 ? '+' : '−') + Math.abs(g.d) + '</span>'
+        + (mk && mk.u ? '<span class="mt-gap-l">' + mkA(mk.u, (mk.src === 'k' ? 'Kalshi' : 'Polymarket') + ' ↗') + '</span>' : '') + '</li>';
+    }).join('');
+    el.innerHTML = '<p class="mt-gaps-h"><b>Biggest edges against the markets</b><span>Your map’s chance minus the money’s, on the same candidate, in points, in the races the forecasters call contests. A big gap can also mean the money knows something the ratings do not yet: read the race before you trust it.</span></p><ol class="mt-gaps-l">' + rows + '</ol>'
+      + '<button type="button" class="btn btn-line mt-gaps-go" id="mt-gaps-go">Show every edge of ' + GAP + ' points or more (' + all.length + ')</button>';
+    el.hidden = false;
   }
   // the map the markets would draw: the national vote they expect (the Markets mark; today's polls when they price none),
   // and every race they price given to their favorite
@@ -730,7 +800,7 @@
   IN.addEventListener('input', function () { mood = -parseFloat(IN.value); draw(); optionsSoon(); });
   // the counts in "Which races" follow the slider a moment after it stops
   var optT = null;
-  function optionsSoon() { clearTimeout(optT); optT = setTimeout(function () { options(); if (where === 'against') list(); }, 300); }
+  function optionsSoon() { clearTimeout(optT); optT = setTimeout(function () { options(); if (where === 'against' || where === 'gaps') list(); }, 300); }
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest && ev.target.closest('button');
     if (!b || !box.contains(b) || b.disabled) return;
@@ -755,6 +825,13 @@
       }
       where = 'against'; showAll = false; options(); list();
       var hw = $('mt-how'); if (hw.scrollIntoView) hw.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    } else if (b.id === 'mt-gaps-go') {
+      if (!gapsAll(tab, mood - TODAY).length) {
+        tab = tab === 'S' ? 'H' : 'S';
+        [].forEach.call(box.querySelectorAll('.mt-tab'), function (t) { t.setAttribute('aria-selected', t.id === 'mt-tab-' + tab ? 'true' : 'false'); });
+      }
+      where = 'gaps'; showAll = false; options(); list();
+      var hg = $('mt-how'); if (hg.scrollIntoView) hg.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
     } else if (b.id === 'mt-clear') {
       pick = {}; if (where === 'mine') where = 'close'; options(); list(); draw();
     } else if (b.id === 'mt-run' || b.id === 'mt-again') {

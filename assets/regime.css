@@ -5,26 +5,63 @@
    so whatever is tapped, its effect is in view (Armin: "it's all the way at the top, and I can't even see what's happening"). */
 .rg{--rg-kill:#E5484D;--rg-unk:#E8A33D;padding:var(--s5) 0 var(--s7)}
 .rg-dim{color:var(--dim)}
-.rg-head{max-width:66ch}
+.rg-head{display:flex;flex-direction:column}
+/* THE HEAD AS A SCOREBOARD (1 November 2026). On a phone one column in the reading order (kick, title, line, the numbers,
+   Share, the latest falls); from 1100px the title and Share on the left, the numbers and the faces on the right. */
+.rg-hl,.rg-hr{display:contents}
+.rg-kick{order:1}.rg h1{order:2}.rg-lede{order:3;max-width:62ch}.rg-count{order:4}.rg-acts{order:5}.rg-latest{order:6}
+@media(min-width:1100px){
+  .rg-head{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);column-gap:var(--s6);align-items:start}
+  .rg-hl,.rg-hr{display:block;min-width:0}
+  .rg-hr{padding:var(--s4);border-radius:var(--r2);background:var(--panel);border:1px solid var(--line)}
+  .rg-hr .rg-count{margin-top:0}
+  .rg-hr .rg-cn{background:var(--bg)}
+  .rg-hr .rg-cn:hover{background:var(--raise)}
+}
 .rg-kick{display:flex;align-items:center;gap:8px;font-size:.8rem;font-weight:700;color:var(--dim);letter-spacing:.02em}
 .rg-live{width:8px;height:8px;border-radius:50%;background:var(--rg-kill);box-shadow:0 0 0 3px rgba(229,72,77,.22);flex:none}
 .rg h1{margin-top:var(--s2);font-size:clamp(2.1rem,8.5vw,4rem)}
 .rg-lede{margin-top:var(--s3);font-size:1.05rem;color:var(--dim)}
 /* the three counts: also the filters (a tap lights that group on the board below) */
 .rg-count{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s2);margin-top:var(--s5)}
-.rg-cn{display:block;width:100%;padding:var(--s3);background:var(--panel);border:0;border-radius:var(--r2);border-top:3px solid var(--line);min-width:0;color:var(--ink);font:inherit;text-align:start;cursor:pointer}
+.rg-cn{display:block;width:100%;padding:var(--s3);background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);min-width:0;color:var(--ink);font:inherit;text-align:start;cursor:pointer}
 .rg-cn:hover{background:var(--raise)}
 .rg-cn:focus-visible{outline:2px solid var(--field);outline-offset:2px}
 .rg-cn.is-on{box-shadow:inset 0 0 0 2px var(--ink)}
 .rg-cn b{display:block;font:900 clamp(2rem,9vw,3.4rem)/.9 var(--display)}
 .rg-cn span{display:block;margin-top:4px;font-size:.78rem;line-height:1.25;color:var(--dim);font-weight:600}
-.rg-cn.is-k{border-top-color:var(--rg-kill)}.rg-cn.is-k b{color:var(--rg-kill)}
-.rg-cn.is-a{border-top-color:var(--field)}
-.rg-cn.is-u{border-top-color:var(--rg-unk)}.rg-cn.is-u b{color:var(--rg-unk)}
+.rg-cn.is-k b{color:var(--rg-kill)}
+.rg-cn.is-u b{color:var(--rg-unk)}
+.rg-cn:hover{border-color:var(--dim)}
+.rg-cn span::before{content:"";display:inline-block;width:8px;height:8px;margin-inline-end:6px;border-radius:50%;background:var(--raise);vertical-align:1px}
+.rg-cn.is-k span::before{background:var(--rg-kill)}.rg-cn.is-u span::before{background:var(--rg-unk)}
 .rg-nojs{margin-top:var(--s4);color:var(--dim)}
 .rg-acts{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin-top:var(--s4)}
 .rg-acts .btn{min-height:44px}
 .rg-acts [hidden]{display:none}
+/* how much of the board is gone: one bar, red for taken out, amber for unknown, the rest still in their chairs */
+.rg-share{grid-column:1/-1;margin-top:var(--s2)}
+.rg-sb{position:relative;display:block;height:10px;border-radius:999px;background:var(--raise);overflow:hidden}
+.rg-sb i{position:absolute;top:0;bottom:0;inset-inline-start:0}
+.rg-sb-k{width:var(--k,0%);background:var(--rg-kill)}
+.rg-sb-u{inset-inline-start:var(--k,0%)!important;width:var(--u,0%);background:var(--rg-unk)}
+.rg-share-l{margin:6px 0 0;font-size:.875rem;line-height:1.35;color:var(--dim)}
+.rg-share-l b{color:var(--ink);font-weight:800}
+/* the latest to fall: four faces, each opening its sheet */
+.rg-latest{margin-top:var(--s4);min-width:0}
+.rg-lt-h{margin:0 0 var(--s2);font:800 .78rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.rg-lt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2);list-style:none;margin:0;padding:0}
+.rg-lt li{min-width:0}
+.rg-lf{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;min-height:44px;padding:8px 4px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--ink);font:inherit;text-align:center;cursor:pointer}
+.rg-hr .rg-lf{background:var(--bg)}
+.rg-lf:hover{border-color:var(--rg-kill)}
+.rg-lf-f{position:relative;display:block;width:56px;height:70px}
+.rg-lf-f img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;border-radius:8px;filter:grayscale(1) contrast(1.05)}
+.rg-lf-f .rg-x{width:22px;height:22px;inset-inline-end:-6px;top:-6px}
+.rg-lf-f .rg-x::before,.rg-lf-f .rg-x::after{width:12px;height:2.5px}
+.rg-lf-n{display:block;max-width:100%;font-weight:700;font-size:.8125rem;line-height:1.2;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rg-lf-d{display:block;font-size:.75rem;color:var(--dim);font-variant-numeric:tabular-nums}
+@media(max-width:379px){.rg-lf-f{width:46px;height:58px}}
 
 /* ---------------------------------------------------------------- the stage */
 .rg-stage{position:relative;margin-top:var(--s5);background:var(--panel);border-radius:var(--r2);overflow:hidden}
@@ -300,7 +337,11 @@ html.rg-lock{overflow:hidden}
    What the war stands at and the source line stay on the page. */
 html.lp-stream #regime .wrap{display:grid;grid-template-columns:minmax(0,1fr) calc(330px * var(--lps-z));grid-template-rows:minmax(0,1fr);column-gap:calc(16px * var(--lps-z));
   height:100%;max-width:none;margin:0;padding:calc(10px * var(--lps-z)) calc(14px * var(--lps-z))}
-html.lp-stream #regime .wrap>noscript,html.lp-stream #regime .rg-intel,html.lp-stream #regime .rg-foot{display:none!important}
+html.lp-stream #regime .wrap>noscript,html.lp-stream #regime .rg-intel,html.lp-stream #regime .rg-foot,html.lp-stream #regime .ob,html.lp-stream #regime .wrap>.lpc,html.lp-stream #regime .rg-latest{display:none!important}
+html.lp-stream .rg-head{display:block}
+html.lp-stream .rg-hl,html.lp-stream .rg-hr{display:block;padding:0;border:0;background:none}
+html.lp-stream .rg-hr{margin-top:14px}
+html.lp-stream .rg-hr .rg-count{margin-top:0}
 html.lp-stream .rg-head{grid-column:2;grid-row:1;zoom:var(--lps-z);max-width:none;min-height:0;overflow:hidden;padding-top:46px}
 html.lp-stream .rg h1{margin-top:6px;font-size:2.3rem}
 html.lp-stream .rg-lede{margin-top:8px;font-size:.85rem;line-height:1.45}

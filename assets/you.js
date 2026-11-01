@@ -39,6 +39,10 @@
   }
 
   function progress(t) {
+    /* the strip of eight under the title: one mark per question, lit once it is answered (1 November 2026) */
+    var pd = document.querySelectorAll('#yq-prog i'), pt = $('yq-prog-t');
+    items.forEach(function (li, i) { if (pd[i]) pd[i].className = ans[i] === 'skip' ? 'is-skip' : ans[i] ? 'is-on' : ''; });
+    if (pt) pt.textContent = t.done + ' of ' + items.length + ' answered' + (t.grade ? ' · your grade is ready' : '');
     go.disabled = !t.grade;
     if (!t.grade) left.textContent = 'Answer at least ' + C.min + ' to get a letter. ' + (C.min - t.n) + ' to go.';
     else if (t.done < items.length) left.textContent = t.done + ' of ' + items.length + ' answered. See your grade now, or keep going.';
@@ -110,6 +114,46 @@
     $('yq-like-p').textContent = 'Compared on the ' + t.n + ' principle' + (t.n === 1 ? '' : 's') + ' you answered, using every vote I count for each member.';
     $('yq-like').hidden = false;
     mineIn(all);
+    chart(all, t.score);
+  }
+
+  /* WHERE YOU SIT AMONG CONGRESS (1 November 2026): every graded member as a column of the chart, counted in bins of four
+     points and coloured by party, the letter bands under it from the page's own grade table (C.grades), and a yellow line
+     where the reader's score falls. Drawn from data/you.json, the same file the comparison reads; nothing is typed here. */
+  var BIN = 4;
+  function chart(all, score) {
+    var fig = $('yq-dist'), box = $('yq-dist-c');
+    if (!fig || !box || !all.length) return;
+    var nb = Math.ceil(100 / BIN), bins = [], top = 1, k;
+    for (k = 0; k < nb; k++) bins.push({ D: 0, R: 0, I: 0 });
+    all.forEach(function (m) { var b = Math.min(nb - 1, Math.max(0, Math.floor((+m.score || 0) / BIN))); bins[b][m.party === 'D' ? 'D' : m.party === 'R' ? 'R' : 'I']++; });
+    bins.forEach(function (b) { top = Math.max(top, b.D + b.R + b.I); });
+    var W = nb * 10, H = 100, bars = '';
+    bins.forEach(function (b, i) {
+      var y = H;
+      ['R', 'I', 'D'].forEach(function (p) {
+        if (!b[p]) return;
+        var h = b[p] / top * (H - 4);
+        y -= h;
+        bars += '<rect class="yq-b-' + p + '" x="' + (i * 10 + 1) + '" y="' + y.toFixed(2) + '" width="8" height="' + h.toFixed(2) + '" rx="1.5"/>';
+      });
+    });
+    var bands = '', prev = 100;
+    // one band per letter: from the lowest cut of that letter (A-, B-, ...) up to the next letter's
+    var cuts = {};
+    C.grades.forEach(function (g) { var L = g[1].charAt(0); cuts[L] = cuts[L] == null ? g[0] : Math.min(cuts[L], g[0]); });
+    ['A', 'B', 'C', 'D', 'F'].forEach(function (L) {
+      if (cuts[L] == null) return;
+      var lo = L === 'F' ? 0 : cuts[L];
+      bands += '<span class="yq-band r-' + L.toLowerCase() + '" style="left:' + lo + '%;width:' + (prev - lo) + '%"><b>' + L + '</b></span>';
+      prev = lo;
+    });
+    var s = Math.max(0, Math.min(100, +score || 0)), edge = s > 82 ? ' is-r' : s < 18 ? ' is-l' : '';
+    box.innerHTML = '<svg class="yq-dist-s" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' + bars + '</svg>'
+      + '<span class="yq-you-m' + edge + '" style="left:' + s + '%"><span>You <b class="num">' + s + '</b></span></span>'
+      + '<span class="yq-bands" aria-hidden="true">' + bands + '</span>';
+    fig.setAttribute('aria-label', 'Your score, ' + s + ', against the ' + all.length + ' members of Congress I grade');
+    fig.hidden = false;
   }
 
   function mineIn(all) {
@@ -126,6 +170,8 @@
     gEl.textContent = g;
     gEl.className = 'g g-r r-' + g.charAt(0).toLowerCase();
     gEl.setAttribute('aria-label', g + ', from your answers');
+    var ring = $('yq-ring');
+    if (ring) { ring.style.setProperty('--pct', t.score); ring.className = 'yq-ring r-' + g.charAt(0).toLowerCase(); }
     $('yq-h').textContent = 'Your Liberty Score: ' + g;
     $('yq-p').textContent = t.score + ' out of 100. ' + t.ok + ' of your ' + t.n + ' answer' + (t.n === 1 ? ' was' : 's were') + ' on the liberty side.';
     items.forEach(function (li, i) {
@@ -184,7 +230,7 @@
         });
         li.classList.add('done');
         result();
-        if (shown) return;
+        if (shown || document.documentElement.classList.contains('lp-stream')) return;      // the stream view shows all eight at once
         /* Bring the next question the reader has not answered into view; after the last one, the button. */
         var next = null;
         for (var k = 1; k <= items.length && !next; k++) { var j = (i + k) % items.length; if (!ans[j] && j > i) next = items[j]; }
@@ -198,6 +244,7 @@
     if (!tally().grade) return;
     shown = true;
     result();
+    if (document.documentElement.classList.contains('lp-stream')) return;
     try { res.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (x) { res.scrollIntoView(); }
   });
 
@@ -216,5 +263,7 @@
   } catch (x) { }
 
   progress(tally());
+  var tool = $('you');
+  if (tool) tool.classList.add('is-live');      // the tour (build/tour.js, ready) waits for this
   window.LPYou = { tally: tally };      // read by the phone test
 })();

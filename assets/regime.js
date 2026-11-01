@@ -39,6 +39,14 @@
   var GONE = { killed: 1, died: 1 };
   var DIG = '۰۱۲۳۴۵۶۷۸۹';
   function num(n) { var s = String(n); return FA ? s.replace(/[0-9]/g, function (d) { return DIG[+d]; }) : s; }
+  // the bar under the three numbers: how much of the board is gone at the day on the timeline (regime.py, share_bar)
+  function shareBar(c) {
+    var bar = root.querySelector('.rg-share'), l = $('rg-share-l');
+    if (!bar) return;
+    var tot = Math.max(1, c.k + c.a + c.u), pk = Math.round(100 * c.k / tot), pu = Math.round(100 * c.u / tot);
+    bar.style.setProperty('--k', pk + '%'); bar.style.setProperty('--u', pu + '%');
+    var b = l && l.querySelector('b'); if (b) b.textContent = num(pk) + (FA ? '٪' : '%');
+  }
   // every class switch goes through here: the state is forced to true or false, and a class is written only when it changes.
   // classList.toggle(c, undefined) FLIPS the class, which made 24 faces blink on every step of the timeline (31 Oct 2026).
   function tog(n, c, on) { on = !!on; if (n.classList.contains(c) !== on) { if (on) n.classList.add(c); else n.classList.remove(c); } return on; }
@@ -626,6 +634,7 @@
     });
     var c = tally(d);
     $('rg-ck').textContent = num(c.k); $('rg-ca').textContent = num(c.a); $('rg-cu').textContent = num(c.u);
+    shareBar(c);
     [].forEach.call(root.querySelectorAll('.rg-f [data-n]'), function (b) { var k = b.getAttribute('data-n'); b.textContent = num(k === 'all' ? c.all : c[FST[k]]); });
     var said = atEnd ? w.today + ' · ' + say(d) : say(d);
     $('rg-date').textContent = said;
@@ -784,6 +793,10 @@
   list.addEventListener('click', function (ev) {
     var t = ev.target.closest && ev.target.closest('.rg-t');
     if (t && list.contains(t)) open(t.getAttribute('data-id'), t);
+  });
+  // The newest faces taken out, in the head (regime.py, "THE HEAD AS A SCOREBOARD"): a tap opens the same sheet as the board.
+  [].forEach.call(root.querySelectorAll('.rg-lf'), function (b) {
+    b.addEventListener('click', function () { if (BY[b.getAttribute('data-id')]) open(b.getAttribute('data-id'), b); });
   });
 
   /* ---------------------------------------------------------------- a picture to post (build/shareimg.js) */
