@@ -186,17 +186,21 @@
      and even the short pill touched it by 3px, which hid the bubble from the first pixel). Before stepping aside, the pill
      rises just above whatever it touches, as long as it stays below the header; only if there is no room does it hide. */
   function rise() {
-    var a = box.getBoundingClientRect(), up = 0;
-    [].forEach.call(document.querySelectorAll(KEEP), function (el) {
-      var b = el.getBoundingClientRect();
-      if (b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < a.bottom + 6 && b.bottom > a.top - 6) up = Math.max(up, a.bottom - b.top + 12);
-    });
-    if (!up) return false;
-    var head = document.querySelector('header.top'), floor = head ? Math.max(0, head.getBoundingClientRect().bottom) + 8 : 8;
-    if (a.top - up < floor) return false;
-    box.style.translate = '0 ' + (-Math.ceil(up)) + 'px';
-    if (hits()) { box.style.translate = ''; return false; }
-    return true;
+    /* It looks upward in 12px steps for the first place that touches neither a kept-clear button nor any other control
+       (the live Persian method page: one fixed lift put it on the discussion's own button). Words under it are fine, as
+       anywhere else it floats; a control is not. No free place between here and the header: it steps aside. */
+    var a = box.getBoundingClientRect(), vh = window.innerHeight;
+    var head = document.querySelector('header.top'), floor = (head ? Math.max(0, head.getBoundingClientRect().bottom) : 0) + 8;
+    var near = function (b, top, bot) { return b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < bot + 6 && b.bottom > top - 6; };
+    var rects = function (sel, skip) { return [].filter.call(document.querySelectorAll(sel), function (el) { return !box.contains(el) && !(skip && head && head.contains(el)); }).map(function (el) { return el.getBoundingClientRect(); }).filter(function (b) { return b.width > 0 && b.bottom > floor && b.top < vh; }); };
+    var keep = rects(KEEP), ctl = rects('a[href],button,input,textarea,select,[role=button]', true);
+    for (var up = 12; a.top - up >= floor; up += 12) {
+      var top = a.top - up, bot = a.bottom - up, ok = true, i;
+      for (i = 0; ok && i < keep.length; i++) if (near(keep[i], top, bot)) ok = false;
+      for (i = 0; ok && i < ctl.length; i++) if (near(ctl[i], top, bot)) ok = false;
+      if (ok) { box.style.translate = '0 ' + (-up) + 'px'; return true; }
+    }
+    return false;
   }
   function duck() {
     if (box.style.translate) box.style.translate = '';
