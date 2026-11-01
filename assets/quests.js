@@ -459,6 +459,8 @@ function run() {
       lis.forEach(li => { const into = want.includes(li) ? top : rest; const c = q('[data-q-m]', li); if (c && c.open) return; into.appendChild(li); });
       const left = qa('li[data-q-i]', rest).filter(li => !li.hidden).length, cnt = q('[data-q-rest-n]', more);
       if (cnt) cnt.textContent = dig(left);
+      const plural = q('[data-q-rest-s]', more);      /* "The other 1 Enlist mission", never "missions" (missions.py prints the s apart) */
+      if (plural) plural.hidden = left === 1;
       more.hidden = !left;
     });
   }

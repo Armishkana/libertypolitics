@@ -312,82 +312,122 @@
           covers: ['.yq-st', 'yq-mine'] }
       ]
     },
-    // The Uprising Simulator (uprising/; build/uprising.py, .js, .css; another session's tool, 1 November 2026). Its tour
-    // added the same day so every built tool has one. Only the board's fixed controls are toured; what each pane holds
-    // (the city's facts, the condition sliders, the strategy choices, the advisors) is read in the pane itself. No stream
-    // view: the board already fills the screen (phone-test.html TOOL_PAGES, stream: false).
+    // The Uprising Simulator (uprising/; build/uprising.py, .js, .css). v2, 1 November 2026: rewritten from the rebuilt page
+    // (the 3D city, the two modes, the advisors as characters, the live odds, Watch, Compare). Each step asks the reader to
+    // do the thing, and "Show me" does it for them. No stream view: the board already fills the screen (phone-test.html).
     uprising: {
-      name: 'Uprising Simulator', root: '#uprising', ready: '#up-p-city > *', v: 1,
-      surf: ['#up-pickb', '#uprising .up-tab', '#up-hud', '#up-play', '#up-oddsgo', '#up-bestgo', '#up-feed', '#up-bar > *', '#up-howb'],
+      name: 'Uprising Simulator', root: '#uprising', ready: '#up-adv-pane > *, #up-p-start > *', v: 2,
+      surf: ['#up-pickb', '#up-modes > *', '#up-cmpb', '#up-share', '#up-howb', '#up-hud', '#uprising .up-adv', '#uprising .up-tab', '#up-odds', '#up-watch', '#up-addcmp', '#up-bar > *', '#up-feed', '#up-legend'],
       skip: { '.lpt-doors': 'the tour door itself' },
       steps: [
-        { k: 'city', at: ['#up-pickb'], e: '🏙️', h: 'Pick your city',
-          p: 'Tap the city name to open the map of Iran and pick a city. A city whose streets are still being mapped is marked as coming.', covers: ['up-pickb'] },
-        { k: 'board', at: ['#up-gl'], e: '🗺️', h: 'The city on its real streets',
-          p: 'Every district is lit by who holds it. Drag to move, scroll or pinch to zoom, and the right mouse button or two fingers to turn.' },
-        { k: 'hud', at: ['#up-hud'], e: '📊', h: 'Who is winning',
-          p: 'The bar is the balance between the people and the regime. Under it: how many are on the streets, the regime’s forces, how many crossed over to the people, and the lives lost. The icons say whether the internet and the power are on.',
+        { k: 'board', fa: { h: 'شهر، همون‌طور که هست', p: 'خیابان‌ها و ساختمان‌های واقعیش، از اوپن‌استریت‌مپ. روی جاهای رژیم نشان کسی هست که اداره‌شون می‌کنه: سپاه، بسیج، پلیس یا ارتش. برای جابه‌جایی بکشید، با دو انگشت یا اسکرول زوم کنید، با دو انگشت یا دکمهٔ راست موس بچرخونید. روی هر جا بزنید تا ببینید چیه.' }, at: ['#up-gl'], e: '🏙️', v: 2, h: 'The city, as it is',
+          p: 'Its real streets and buildings from OpenStreetMap. The regime’s places carry the emblem of whoever runs them: IRGC, Basij, police or army. Drag to move, pinch or scroll to zoom, two fingers or the right button to turn. Tap any place to see what it is.' },
+        { k: 'city', fa: { h: 'شهرتون رو انتخاب کنید', p: 'روی اسم شهر بزنید تا نقشهٔ ایران باز بشه و یکی از ۳۵ شهر رو انتخاب کنید.' }, at: ['#up-pickb'], e: '📍', v: 2, h: 'Pick your city',
+          p: 'Tap the city name to open the map of Iran and choose one of 35 cities.', covers: ['up-pickb'] },
+        { k: 'hud', fa: { h: 'کی داره می‌بره', p: 'ساعت، توازن بین مردم و رژیم، چند نفر تو خیابان‌ان، نیروها، کیا به مردم پیوستن، بازداشت‌ها و جان‌باخته‌ها. برچسب‌ها می‌گن اینترنت و برق وصله یا نه، رژیم چقدر زور به کار می‌بره، و کیا اعتصاب کردن.' }, at: ['#up-hud'], opt: true, e: '📊', v: 2, h: 'Who is winning',
+          p: 'The clock, the balance between the people and the regime, how many are on the streets, the forces, who crossed over, the arrests and the lives lost. The tags say whether the internet and the power are on, how much force the regime is using, and who is on strike.',
           covers: ['up-hud'] },
-        { k: 'tabs', at: ['#uprising .up-tab[data-tab]'], all: true, e: '🧭', h: 'Set it up',
-          p: 'City tells you about the place. Conditions sets the internet, the power and whether people are armed. Strategy is your plan. Advisors are the experts and the past uprisings. The last button hides the panel.',
-          covers: ['.up-tab', 'up-min'] },
-        { k: 'play', at: ['#up-play'], e: '▶️', h: 'Play the uprising',
-          p: 'Press Play and watch it unfold hour by hour on the board. The feed beside it says what is happening.', covers: ['up-play', 'up-feed'] },
-        { k: 'bar', at: ['#up-bar'], when: function () { return shown($('#up-bar')); }, e: '⏯️', h: 'Pause, speed, timeline',
-          p: 'Pause, run it faster, or drag the timeline to any hour. Results opens how the run ended.',
-          covers: ['up-pp', '.up-spd', '.up-clock', 'up-scrub', 'up-resb'] },
-        { k: 'odds', at: ['#up-oddsgo'], e: '🎲', h: 'Run the odds',
-          p: 'Your scenario runs hundreds of times with different luck. You get the odds of liberation, how the runs ended, the cost in lives, and what the winning runs had.',
-          covers: ['up-oddsgo'] },
-        { k: 'best', at: ['#up-bestgo'], e: '🧠', h: 'Find the best plan',
-          p: 'It tries many strategies under your conditions and shows the one most likely to win.', covers: ['up-bestgo'] },
-        { k: 'model', at: ['#up-howb'], opt: true, e: '📖', h: 'How the model works',
-          p: 'What the simulation counts, where its numbers come from, and the sources.', covers: ['up-howb'] }
+        { k: 'modes', fa: { h: 'دو راه برای پیش رفتن', p: '«یه مشاور هدایت می‌کنه»: یه متخصص انتخاب کنید و برنامه‌ش رو اجرا کنید. «خودم فرمان می‌دم»: خودتون انتخاب کنید از کجا شروع بشه، مردم کجا و کی برن، اعتصاب و ابزارها.', act: 'نشونم بده' }, at: ['#up-modes'], e: '🧭', v: 2, h: 'Two ways to play',
+          p: 'An advisor leads: pick an expert and play their plan. I command: choose where it starts, where people go and when, the strike and the tools yourself.',
+          act: { label: 'Show me', run: function () { click('#up-mode-adv'); } }, covers: ['up-mode-*'] },
+        { k: 'advisors', fa: { h: 'حرف یه مشاور رو بشنوید', p: 'روی یه عکس بزنید. مشاور این شهر رو بررسی می‌کنه و با شواهد از برنامه‌ش دفاع می‌کنه؛ می‌بینید به احتمال زیاد به کجا می‌رسه.', act: 'نشونم بده' }, at: ['#uprising .up-adv'], all: true, opt: true,  e: '🎖️', v: 2, h: 'Hear an advisor',
+          p: 'Tap a portrait. The advisor reads this city and argues their plan from the evidence; you see what it most likely leads to.',
+          act: { label: 'Show me', run: function () { click('#uprising .up-adv[data-a="organizer"]'); } }, covers: ['.up-adv'] },
+        { k: 'use', fa: { h: 'برنامه‌ش رو اجرا کنید', p: 'با یه بار زدن کل برنامه تنظیم و اجرا می‌شه. مشاور دربارهٔ اتفاق‌هایی که میفته نظر می‌ده.' }, at: ['#up-use'], when: function () { return shown($('#up-use')); }, e: '✅', v: 2, h: 'Use their plan',
+          p: 'One tap sets the whole plan and plays it out. The advisor comments on what happens.', covers: ['up-use', 'up-advcmp'] },
+        { k: 'tabs', fa: { h: 'خودتون فرمان بدید', p: '«شروع»: از کجا شروع بشه و با چه رویکردی. «حرکت‌ها»: نقطه‌های تجمع با ساعت‌شون، و مسیرهای راهپیمایی که روی نقشه می‌کشید. «اعتصاب»: بازار، کامیون‌دارها، نفت، معلم‌ها. «ابزارها»: امدادگرها، سنگربندی، دعوت از سربازها، استارلینک. «شرایط»: اینترنت، بقیهٔ ایران، و خیزش‌های واقعی گذشته برای امتحان.', act: 'نشونم بده' }, at: ['#uprising .up-tab'], all: true, opt: true, e: '♟️', v: 2, h: 'Command it yourself',
+          p: 'Start: where it begins and the approach. Moves: gathering points with their hour, and march routes you draw on the map. Strike: the bazaar, the truckers, oil, the teachers. Tools: medics, barricades, appeals to the soldiers, Starlink. Conditions: the internet, the rest of Iran, and real past uprisings to test.',
+          act: { label: 'Show me', run: function () { click('#up-mode-cmd'); } }, covers: ['.up-tab'] },
+        { k: 'odds', fa: { h: 'شانس، همون لحظه که انتخاب می‌کنید', p: 'با هر تغییر، برنامه‌تون پشت صحنه دوباره اجرا می‌شه: رژیم چند بار سقوط می‌کنه، اجراها چطور تموم می‌شن، و چند نفر جون‌شون رو از دست می‌دن. «چرا؟» نشون می‌ده چی بیشتر از همه شانس رو تغییر می‌ده.' }, at: ['#up-odds'], e: '🎲', v: 2, h: 'The odds, as you choose',
+          p: 'Every change runs your plan again in the background: how often the regime falls, how the runs end, and the cost in lives. Why opens what moves the odds most.', covers: ['up-odds'] },
+        { k: 'watch', fa: { h: 'ببینید چطور پیش می‌ره', p: 'بزنیدش تا محتمل‌ترین اجرا روی شهر پخش بشه: جمعیت‌هایی که تو خیابان‌ها راه می‌رن، نیروهایی که صف می‌بندن، گاز اشک‌آور، تیراندازی، نیروهایی که به مردم می‌پیوندن، شب.' }, at: ['#up-watch'], e: '▶️', v: 2, h: 'Watch it play out',
+          p: 'Press it and the most likely run plays on the city: crowds walking the streets, the forces forming lines, tear gas, gunfire, defections, the night.', covers: ['up-watch'] },
+        { k: 'bar', fa: { h: 'توقف، سرعت، خط زمان', p: 'نگهش دارید، سرعت رو عوض کنید، خط زمان رو تا هر ساعتی بکشید. علامت‌های روش لحظه‌های مهمن. «دنبال کردن» دوربین رو روی اتفاق‌ها نگه می‌داره؛ «نتیجه‌ها» می‌گه چطور تموم شد و چرا.' }, at: ['#up-bar'], when: function () { return shown($('#up-bar')); }, e: '⏯️', v: 2, h: 'Pause, speed, timeline',
+          p: 'Pause, change the speed, drag the timeline to any hour. The marks on it are the moments that matter. Follow keeps the camera on the action; Results says how it ended and why.',
+          covers: ['up-pp', '.up-spd', '.up-scrubw', 'up-follow', 'up-resb', 'up-back'] },
+        { k: 'feed', fa: { h: 'چه خبره، و چرا', p: 'هر اتفاق با دلیلش و منبعش. روی هر کدوم بزنید تا برید همون‌جا.' }, at: ['#up-feed'], when: function () { return shown($('#up-feed')); }, e: '📰', v: 2, h: 'What is happening, and why',
+          p: 'Each event with the reason it happens and its source. Tap one to fly there.', covers: ['up-feed'] },
+        { k: 'compare', fa: { h: 'مقایسهٔ برنامه‌ها', p: 'تا چهار برنامه اضافه کنید، برنامهٔ یه مشاور یا برنامهٔ خودتون. «مقایسه» اونا رو کنار هم با همون اتفاق‌های تصادفی اجرا می‌کنه و بهترینش رو برای هدفی که انتخاب می‌کنید علامت می‌زنه: سقوط رژیم، محله‌ها دست مردم، تا آخر سرپا، یا کمترین جان‌باخته.' }, at: ['#up-addcmp', '#up-cmpb'], all: true, e: '⚖️', v: 2, h: 'Compare plans',
+          p: 'Add up to four plans, an advisor’s or yours. Compare runs them with the same luck side by side, and marks the best for the goal you pick: the regime falls, districts held, still standing, or fewest lives lost.',
+          covers: ['up-addcmp', 'up-cmpb'] },
+        { k: 'share', fa: { h: 'برنامه رو بفرستید', p: 'لینک، شهر، برنامه و مقایسه‌تون رو با خودش می‌بره، پس هر کی بازش کنه دقیقاً همون چیزی رو می‌بینه که شما ساختید.' }, at: ['#up-share'], e: '🔗', v: 2, h: 'Share the plan',
+          p: 'The link carries the city, your plan and your comparison, so whoever opens it sees exactly what you built.', covers: ['up-share'] },
+        { k: 'legend', fa: { h: 'دست کیه', p: 'چهار تا نشان. جایی که اوپن‌استریت‌مپ ثبتش نکرده، همون‌جایی گذاشته شده که این‌جور جاها معمولاً هستن، و روش هم همینو نوشته.' }, at: ['#up-legend'], opt: true, e: '🛡️', v: 2, h: 'Who runs it',
+          p: 'The four emblems. A place OpenStreetMap does not map stands where such places typically are, and is labelled so.', covers: ['up-legend'] },
+        { k: 'model', fa: { h: 'مدل', p: 'مدل چی رو می‌شمره، به چه پژوهش‌هایی تکیه داره، و چطور با ۲۰۰۹، ۲۰۱۷، ۲۰۱۹، ۲۰۲۲، ژانویهٔ ۲۰۲۶ و ۱۹۷۹ محک خورده.' }, at: ['#up-howb'], e: '📖', v: 2, h: 'The model',
+          p: 'What the model counts, the research it stands on, and how it is checked against 2009, 2017, 2019, 2022, January 2026 and 1979.', covers: ['up-howb'] }
       ]
     },
-    // The Conflict Simulator (simulator/iran/, simulator/ukraine/, simulator/taiwan/; build/wargame.py, .js, .css; "Wargames" at
-    // wargame/ until 1 November 2026, its id here kept). Rewritten the same day for the 3D board: every control of the command
-    // interface drawn over the board, the panel's tabs (Simulate, Replay, Briefing room) and the after-action report.
+    // The Conflict Simulator (simulator/<theatre>/ on Liberty Politics, <lang>/scenarios/<theatre>/ on Iran Uncensored; build/wargame.py,
+    // .js, .css; its id here kept from "Wargames"). v3, rewritten 1 November 2026 from the finished second rebuild (TOOLS.md): the
+    // plan in four steps (Forces, Targets, Rules, Advisors), Watch, Compare, Replay. Each step asks the reader to do the thing,
+    // and "Show me" does it for them. Its root is the section's class, .wg, the same on both sites.
     wargame: {
-      name: 'Conflict Simulator', root: '#wargame', ready: '#wargame .wg-tab', v: 2,
-      surf: ['#wargame .wg-tab', '#wargame .wg-th', '#wg-play', '#wg-speed', '#wg-cam', '#wg-full', '#wg-orbt', '#wg-zin', '#wg-zout', '#wg-rot', '#wg-fit',
-        '#wg-grab', '#wg-scrub', '#wg-mini', '#wg-stage', '#wargame [data-lens]', '#wargame [data-room]', '#wargame .wg-ex', '#wargame .wg-seat', '#wargame .wg-date',
-        '#wargame [data-lv]', '#wargame [data-pm]', '#wg-reset', '#wg-run', '#wg-report', '#wg-watch', '#wg-again', '#wg-back', '#wg-share', '#wargame [data-replay]'],
+      name: 'Conflict Simulator', fa: 'سناریوها', root: '.wg', ready: '.wg .wg-tab', v: 3,
+      surf: ['.wg .wg-tab', '.wg .wg-th', '#wg-play', '#wg-speed', '#wg-cam', '#wg-full', '#wg-orbt', '#wg-zin', '#wg-zout', '#wg-rot', '#wg-fit', '#wg-grab', '#wg-scrub', '#wg-mini', '#wg-stage',
+        '.wg [data-step]', '.wg [data-force]', '.wg [data-unit]', '.wg [data-preset]', '.wg [data-tgmove]', '.wg [data-tgon]', '.wg [data-lv]', '.wg .wg-date', '.wg [data-lens]', '.wg [data-pm]', '#wg-reset',
+        '.wg [data-seat]', '.wg .wg-use', '.wg [data-brief]', '#wg-run', '#wg-save', '#wg-watch', '#wg-back', '#wg-share', '.wg [data-goal]', '.wg [data-load]', '.wg [data-drop]', '#wg-cmp', '.wg [data-replay]'],
       skip: { '.lpt-doors': 'the tour and stream doors themselves' },
       steps: [
-        { k: 'board', at: ['#wg-stage'], e: '🛰️', v: 2, h: 'The theatre, in 3D',
-          p: 'Satellite ground with its real mountains. Drag to move, pinch or scroll to zoom, two fingers or the right mouse button to turn. Tap any marker to see what it is, whose it is, what happened there and the source.', covers: ['wg-stage'] },
-        { k: 'tabs', at: ['#wargame .wg-tab'], all: true, e: '🗺️', v: 2, h: 'Three ways in',
-          p: 'Simulate the next round, replay a war that already happened, or pick the experts who brief you.', covers: ['.wg-tab'] },
-        { k: 'play', at: ['#wg-play', '#wg-speed'], all: true, e: '⏯️', v: 2, h: 'Play, pause, speed',
-          p: 'Play starts the latest war on the board when nothing is playing. Speed runs it at 1x, 2x or 4x.', covers: ['wg-play', 'wg-speed'] },
-        { k: 'timeline', at: ['#wg-scrub'], e: '🕑', v: 2, h: 'The timeline and the intel feed',
-          p: 'Every tick is a day. Drag to any day and the board shows it. Above it: the day’s headline, and each event with its source.', covers: ['wg-scrub'] },
-        { k: 'forces', at: ['#wg-orbt'], e: '📊', v: 2, h: 'The forces on each side',
-          p: 'Missiles, drones, air defence, aircraft, ships and troops, from the published counts. The bars run down as the days play.', covers: ['wg-orbt'] },
-        { k: 'camera', at: ['#wg-cam', '#wg-zin', '#wg-zout', '#wg-rot', '#wg-fit'], all: true, e: '🎥', v: 2, h: 'The camera',
-          p: 'With the camera on, it flies to each day’s action. Zoom in or out, turn the map, or show the whole theatre again.', covers: ['wg-cam', 'wg-zin', 'wg-zout', 'wg-rot', 'wg-fit'] },
-        { k: 'mini', at: ['#wg-mini'], opt: true, e: '🧭', v: 2, h: 'The minimap',
-          p: 'The gold box is what you see. Tap anywhere on the minimap to go there.', covers: ['wg-mini'] },
-        { k: 'full', at: ['#wg-full'], e: '🖥️', v: 2, h: 'Full screen',
-          p: 'Fill the screen with the board. Esc gives the page back.', covers: ['wg-full'] },
-        { k: 'theatres', at: ['#wargame .wg-th'], all: true, opt: true, e: '🌍', v: 2, h: 'Three theatres',
-          p: 'Iran, Ukraine and Taiwan, each on its own board.', covers: ['.wg-th'] },
-        { k: 'sheet', at: ['#wg-grab'], opt: true, e: '↕️', v: 2, h: 'The panel',
-          p: 'Tap or drag the handle to make the panel bigger or smaller. The board stays above it.', covers: ['wg-grab'] },
-        { k: 'lens', at: ['#wargame [data-lens]'], all: true, opt: true, e: '🧮', v: 2, h: 'Whose numbers run it',
-          p: 'Your briefing room, every expert averaged, the betting markets, or your own numbers on sliders. The simulation runs on the one you pick.', covers: ['lens=*', '.wg-chip', '.wg-pmr', 'wg-reset'] },
-        { k: 'room', at: ['#wargame .wg-ex'], all: true, opt: true, e: '🎖️', v: 2, h: 'Your briefing room',
-          p: 'Tap a face and that expert briefs you over the map, with what they published. Seat puts them in your room; the simulation runs on the average of the ones you seat.', covers: ['.wg-ex', '.wg-seat'] },
-        { k: 'date', at: ['#wargame .wg-date'], all: true, opt: true, e: '📅', v: 2, h: 'When it starts',
-          p: 'The dates people talk about for the next round, each with its reason. Pick one and the board counts the days from it.', covers: ['.wg-date'] },
-        { k: 'moves', at: ['#wargame [data-lv]'], all: true, opt: true, e: '♟️', v: 2, h: 'Make your moves',
-          p: 'Who strikes first, who joins, what they use. Each choice changes how it is fought.', covers: ['lv=*'] },
-        { k: 'run', at: ['#wg-run', '#wg-watch'], opt: true, e: '🎲', v: 2, h: 'Run it 1,000 times',
-          p: 'It runs 1,000 times with different luck. The after-action report shows how the runs ended, each next to the betting market that asks the same thing, and the most typical run plays on the board.',
-          covers: ['wg-run', 'wg-report', 'wg-watch', 'wg-again', 'wg-back', 'wg-share'] },
-        { k: 'replay', at: ['#wargame [data-replay]'], all: true, opt: true, e: '⏪', v: 2, h: 'Replay a past war',
-          p: 'Every strike of a real war on the day it happened, each with its source.', covers: ['replay=*'] }
+        { k: 'board', at: ['#wg-stage'], e: '🛰️', v: 3, h: 'The theatre, in 3D',
+          p: 'Every base, missile site, refinery, power plant and fleet stands as its real model, where it really is. Drag to move, pinch or scroll to zoom. Tap any model: a card tells you what it is, how many, and the source.',
+          fa: { h: 'منطقه، سه‌بعدی', p: 'هر پایگاه، سایت موشکی، پالایشگاه، نیروگاه و ناوگان با مدل واقعیش همون‌جایی که هست ایستاده. بکشید تا جابه‌جا بشه، با دو انگشت یا چرخ ماوس زوم کنید. روی هر مدل بزنید: یه کارت می‌گه چیه، چندتاست و منبعش کجاست.' }, covers: ['wg-stage'] },
+        { k: 'tabs', at: ['.wg .wg-tab'], all: true, e: '🗺️', v: 3, h: 'Plan, Watch, Compare, Replay',
+          p: 'Plan what you would do, watch it play out, compare up to four plans side by side, or replay a war that already happened.',
+          fa: { h: 'برنامه، تماشا، مقایسه، بازپخش', p: 'برنامه‌تون رو بچینید، ببینید چطور پیش می‌ره، تا چهار برنامه رو کنار هم مقایسه کنید، یا یه درگیری که قبلاً اتفاق افتاده رو دوباره ببینید.' }, covers: ['.wg-tab'] },
+        { k: 'steps', at: ['.wg [data-step]'], all: true, e: '🪜', v: 3, h: 'Four steps to a plan',
+          p: 'Forces, Targets, Rules, Advisors. Tap a step to open it; the plan keeps everything you set.',
+          fa: { h: 'چهار قدم تا یه برنامه', p: 'نیروها، هدف‌ها، قاعده‌ها، مشاورها. روی هر قدم بزنید تا باز بشه؛ برنامه هرچی تنظیم کردید رو نگه می‌داره.' }, covers: ['step=*'] },
+        { k: 'forces', at: ['.wg [data-step="forces"]'], e: '✈️', v: 3, h: 'Choose your forces',
+          p: 'Each card is a real unit with its 3D model, its count and whether it is in the region now or days away. Tap Send or Leave out on a card and see the plan change. The quick picks above set whole packages at once.',
+          fa: { h: 'نیروهاتون رو انتخاب کنید', p: 'هر کارت یه یگان واقعیه با مدل سه‌بعدیش، تعدادش، و اینکه الان تو منطقه‌ست یا چند روز فاصله داره. روی «بفرست» یا «کنار بذار» بزنید و ببینید برنامه چطور عوض می‌شه. دکمه‌های بالا یه بستهٔ کامل رو یه‌جا انتخاب می‌کنن.', act: 'نشونم بده' },
+          act: { label: 'Show me', run: function () { if (W.WG && W.WG.step) W.WG.step('forces'); } }, covers: ['force=*', 'preset=*'] },
+        { k: 'unit', at: ['.wg [data-unit]'], all: true, opt: true, e: 'ℹ️', v: 3, h: 'What a unit is',
+          p: 'The small i opens a unit’s card: the model, how many, where it is based, how sure the count is, and the sources.',
+          fa: { h: 'هر یگان چیه', p: 'دکمهٔ کوچیک i کارت یگان رو باز می‌کنه: مدل، تعداد، پایگاهش، چقدر از این عدد مطمئنیم، و منبع‌ها.' }, covers: ['unit=*'] },
+        { k: 'targets', at: ['.wg [data-step="targets"]'], e: '🎯', v: 3, h: 'Rank your targets',
+          p: 'Open Targets and move a set up with the arrow: the first set gets about half of each day’s strikes. Each row says what it buys and what it costs. Switch off what you would not hit.',
+          fa: { h: 'هدف‌ها رو به ترتیب بچینید', p: '«هدف‌ها» رو باز کنید و با فلش یه دسته رو ببرید بالا: دستهٔ اول حدود نصف حمله‌های هر روز رو می‌گیره. هر ردیف می‌گه چی به دست میاره و چه هزینه‌ای داره. هرچی رو نمی‌زنید خاموش کنید.', act: 'نشونم بده' },
+          act: { label: 'Show me', run: function () { if (W.WG && W.WG.step) W.WG.step('targets'); } }, covers: ['tgmove=*', 'tgon=*'] },
+        { k: 'rules', at: ['.wg [data-step="rules"]'], e: '♟️', v: 3, h: 'Set the rules',
+          p: 'Who fires first, how long it is planned to last, what happens at sea, what the other side and the world do. Tap an option and it is in your plan.',
+          fa: { h: 'قاعده‌ها رو بچینید', p: 'کی اول شلیک می‌کنه، قراره چقدر طول بکشه، تو دریا چی می‌شه، طرف مقابل و دنیا چیکار می‌کنن. روی یه گزینه بزنید و می‌ره تو برنامه‌تون.', act: 'نشونم بده' },
+          act: { label: 'Show me', run: function () { if (W.WG && W.WG.step) W.WG.step('rules'); } }, covers: ['lv=*', '.wg-date'] },
+        { k: 'advisors', at: ['.wg [data-step="advisors"]'], e: '🎖️', v: 3, h: 'Ask an advisor',
+          p: 'Each advisor is a real analyst or general. Tap a portrait for their briefing over the map. “Use this plan” sets all four steps to their plan in one tap.',
+          fa: { h: 'از یه مشاور بپرسید', p: 'هر مشاور یه تحلیلگر یا ژنرال واقعیه. روی عکسش بزنید تا گزارشش رو روی نقشه بشنوید. «این برنامه رو بردار» هر چهار قدم رو یه‌جا روی برنامهٔ اون می‌ذاره.', act: 'نشونم بده' },
+          act: { label: 'Show me', run: function () { if (W.WG && W.WG.step) W.WG.step('advisors'); } }, covers: ['brief=*', '.wg-chip', 'seat=*'] },
+        { k: 'lens', at: ['.wg [data-lens]'], all: true, opt: true, e: '🧮', v: 3, h: 'Whose numbers run it',
+          p: 'The advisors you seat, every expert averaged, the betting markets, or your own numbers on sliders.',
+          fa: { h: 'با عددهای کی اجرا بشه', p: 'مشاورهایی که نشوندید، میانگین همهٔ کارشناس‌ها، بازارهای پیش‌بینی، یا عددهای خودتون با اسلایدر.' }, covers: ['lens=*', 'pm=*', 'wg-reset'] },
+        { k: 'run', at: ['#wg-run'], e: '🎲', v: 3, h: 'Run it 1,000 times',
+          p: 'Press it when your plan is set: it runs 1,000 times with different luck. The most typical run plays on the board while the report shows how all of them ended.',
+          fa: { h: 'هزار بار اجراش کنید', p: 'بزنیدش: برنامه‌تون هزار بار با شانس‌های مختلف اجرا می‌شه. معمولی‌ترین حالت روی نقشه پخش می‌شه و گزارش نشون می‌ده همه‌شون چطور تموم شدن.', act: 'نشونم بده' },
+          covers: ['wg-run', 'wg-watch', 'wg-back', 'wg-share'] },
+        { k: 'watch', at: ['#wg-scrub', '#wg-play'], all: true, e: '🎬', v: 3, h: 'Watch it happen',
+          p: 'The aircraft, missiles and drones fly from where they really would. The caption says what is happening and why. Play, pause, change the speed, or drag the timeline to any day.',
+          fa: { h: 'ببینید چطور اتفاق می‌افته', p: 'هواپیماها، موشک‌ها و پهپادها از همون جایی که واقعاً بلند می‌شن پرواز می‌کنن. زیرنویس می‌گه چی داره اتفاق می‌افته و چرا. پخش کنید، نگه دارید، سرعت رو عوض کنید، یا خط زمان رو تا هر روزی بکشید.' }, covers: ['wg-scrub', 'wg-play', 'wg-speed'] },
+        { k: 'compare', at: ['#wg-save', '.wg [data-goal]', '#wg-cmp'], all: true, opt: true, e: '⚖️', v: 3, h: 'Compare plans',
+          p: 'Save to compare keeps the plan. Save up to four, open Compare, pick what matters most, and run them: 1,000 runs each, side by side, the best plan for that goal marked.',
+          fa: { h: 'برنامه‌ها رو مقایسه کنید', p: '«برای مقایسه نگه دار» برنامه رو نگه می‌داره. تا چهارتا نگه دارید، «مقایسه» رو باز کنید، بگید چی براتون مهم‌تره و اجراشون کنید: هر کدوم هزار بار، کنار هم، و بهترینش برای اون هدف علامت می‌خوره.' },
+          covers: ['wg-save', 'goal=*', 'load=*', 'drop=*', 'wg-cmp'] },
+        { k: 'forcebar', at: ['#wg-orbt'], e: '📊', v: 3, h: 'The forces left',
+          p: 'Missiles, drones, interceptors, aircraft, ships and troops on each side. The bars run down as the days play.',
+          fa: { h: 'نیروهایی که مونده', p: 'موشک، پهپاد، رهگیر، هواپیما، کشتی و نیرو برای هر طرف. نوارها با گذشت روزها کم می‌شن.' }, covers: ['wg-orbt'] },
+        { k: 'camera', at: ['#wg-cam', '#wg-zin', '#wg-zout', '#wg-rot', '#wg-fit'], all: true, e: '🎥', v: 3, h: 'The camera',
+          p: 'With the camera on, it follows the action. Zoom, turn the map, or show the whole theatre again.',
+          fa: { h: 'دوربین', p: 'وقتی دوربین روشنه، دنبال اتفاق‌ها می‌ره. زوم کنید، نقشه رو بچرخونید، یا دوباره کل منطقه رو ببینید.' }, covers: ['wg-cam', 'wg-zin', 'wg-zout', 'wg-rot', 'wg-fit'] },
+        { k: 'mini', at: ['#wg-mini'], opt: true, e: '🧭', v: 3, h: 'The minimap', p: 'The gold box is what you see. Tap anywhere on it to go there.',
+          fa: { h: 'نقشهٔ کوچیک', p: 'کادر طلایی همونیه که می‌بینید. هر جاش رو بزنید تا برید اونجا.' }, covers: ['wg-mini'] },
+        { k: 'full', at: ['#wg-full'], e: '🖥️', v: 3, h: 'Full screen', p: 'Fill the screen with the board. Esc gives the page back.',
+          fa: { h: 'تمام‌صفحه', p: 'نقشه کل صفحه رو می‌گیره. Esc صفحه رو برمی‌گردونه.' }, covers: ['wg-full'] },
+        { k: 'theatres', at: ['.wg .wg-th'], all: true, opt: true, e: '🌍', v: 3, h: 'Three theatres', p: 'Iran, Ukraine and Taiwan, each on its own board.',
+          fa: { h: 'سه منطقه', p: 'ایران، اوکراین و تایوان، هر کدوم روی نقشهٔ خودش.' }, covers: ['.wg-th'] },
+        { k: 'sheet', at: ['#wg-grab'], opt: true, e: '↕️', v: 3, h: 'The panel', p: 'Tap or drag the handle to make the panel bigger or smaller. The board stays above it.',
+          fa: { h: 'پنل', p: 'دستگیره رو بزنید یا بکشید تا پنل بزرگ‌تر یا کوچیک‌تر بشه. نقشه بالاش می‌مونه.' }, covers: ['wg-grab'] },
+        { k: 'replay', at: ['.wg [data-replay]'], all: true, opt: true, e: '⏪', v: 3, h: 'Replay what already happened', p: 'Open Replay and pick one: every strike of a real conflict on the day it happened, each with its source.',
+          fa: { h: 'بازپخش گذشته', p: '«بازپخش» رو باز کنید و یکی رو انتخاب کنید: هر حملهٔ یه درگیری واقعی همون روزی که اتفاق افتاد، هر کدوم با منبعش.', act: 'نشونم بده' },
+          act: { label: 'Show me', run: function () { click('.wg .wg-tab[data-tab="replay"]'); } }, covers: ['replay=*'] }
       ]
     }
   };
@@ -458,7 +498,7 @@
   }
 
   /* ------------------------------------------------------------------ the audit (IT KEEPS UP) */
-  var DATA = ['data-v', 'data-f', 'data-pre', 'data-mood', 'data-lens', 'data-lv', 'data-replay'];
+  var DATA = ['data-v', 'data-f', 'data-pre', 'data-mood', 'data-lens', 'data-lv', 'data-replay', 'data-step', 'data-force', 'data-unit', 'data-preset', 'data-tgmove', 'data-tgon', 'data-brief', 'data-goal', 'data-load', 'data-drop', 'data-seat', 'data-pm'];      // the Conflict Simulator's own since 1 November 2026
   function keyOf(el) {
     if (el.id) return el.id;
     for (var i = 0; i < DATA.length; i++) if (el.hasAttribute(DATA[i])) return DATA[i].slice(5) + '=' + el.getAttribute(DATA[i]);
@@ -490,6 +530,7 @@
 
   /* ------------------------------------------------------------------ the card */
   var ov = null, hole = null, tip = null, list = null, at = 0, tool = '', mode = '', back = null, raf = 0;
+  var actT = 0;      // the pending step after a "Show me"
   function seenV(name) { var s = get('lpt-' + name); return s ? (parseInt(s, 10) || 0) : 0; }
   function fresh(name, since) { return TOOLS[name].steps.filter(function (s) { return (s.v || 1) > since; }); }
   function build() {
@@ -517,7 +558,7 @@
       else if (t === 'next') { if (last()) end(); else go(at + 1, 1); }
       else if (t === 'act') {
         if (last() && mode === 'news') { var n = tool; end(); start(n, 'all'); return; }
-        if (s.act) { s.act.run(); setTimeout(function () { if (list) { if (last()) end(); else go(at + 1, 1); } }, 200); }
+        if (s.act && !actT) { s.act.run(); actT = setTimeout(function () { actT = 0; if (list) { if (last()) end(); else go(at + 1, 1); } }, 200); }      // a second press while the first is still running is the same press (it once skipped a step)
       }
     });
     ov.addEventListener('keydown', function (ev) {

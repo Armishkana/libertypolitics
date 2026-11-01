@@ -701,6 +701,19 @@
       cands.forEach(function (c) { if (c.n && !c.last && c.ns.lens === 'bank' && (!bk || c.score > bk.score)) bk = c; });
       if (bk) best = bk;
     }
+    // AN ITEM WHOSE OWN HEADLINE IS THE QUESTION IS THE ANSWER, WHEREVER IT IS (1 Nov 2026, ask gate: "Hamas shooting Gazans"
+    // asked from the bank, where that headline is, went to the last 24 hours because two posts there carried the same three
+    // words in another story, a funeral where Gazans shot in the air, and their top three scored higher). The rule above for
+    // the whole headline only looks at readings with fewer filters; this one looks at every reading: when the chosen one
+    // does not show, in its first ten, an item whose headline is exactly what was asked (three words or more, the question's
+    // own lead-in such as "show me" before it allowed), the best reading that does wins.
+    var nz = function (s) { return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }, rawN = nz(p.raw);
+    var exact = function (it) { var t = nz(it && it.t); return t.split(' ').length >= 3 && (rawN === t || rawN.slice(-t.length - 1) === ' ' + t); };
+    if (best && !R.peek(best.ns, true).slice(0, 10).some(exact)) {
+      var ex = null;
+      cands.forEach(function (c) { if (c.n && (!ex || c.score > ex.score) && R.peek(c.ns, true).slice(0, 10).some(exact)) ex = c; });
+      if (ex) best = ex;
+    }
     if (!best) { if (ns.q && !ns.qm) ns.qm = 'best'; return ns; }
     // the filters it read stay one tap away when the words won
     var a0 = cands[0], hot0 = p.hotGuess && a0.ns.hot ? (V.hots || []).filter(function (h) { return h.id === a0.ns.hot; })[0] : null;

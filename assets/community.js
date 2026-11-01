@@ -25,7 +25,7 @@ const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, 
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=930626b8e0 and assets/community-fa.js?v=930626b8e0, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=ed0f1c329f and assets/community-fa.js?v=ed0f1c329f, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -2507,12 +2507,16 @@ function initPeek() {
     if (!p) return;
     const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
     top.textContent = '';
-    top.append(el('blockquote', null, cut(p.text, 180), ML ? { dir: 'auto' } : null), el('p', null, p.name + ' · ' + niceDate(p.ms)));
+    /* 31 October 2026: the name sits in its own <bdi>, so a Persian name on an English page (or a Latin one on a Persian
+       page) keeps its place before the date and the words; the line itself keeps the page's direction. */
+    const by = el('p'); by.append(el('bdi', null, p.name), ' · ' + niceDate(p.ms));
+    top.append(el('blockquote', null, cut(p.text, 180), ML ? { dir: 'auto' } : null), by);
     top.hidden = false;
     if (ntop) {
       ntop.textContent = '';
-      if (ML) ntop.setAttribute('dir', 'auto');
-      ntop.append(el('b', null, p.name + ': '), cut(p.text, 110));
+      ntop.removeAttribute('dir');
+      const who = el('b'); who.append(el('bdi', null, p.name), ': ');
+      ntop.append(who, el('bdi', null, cut(p.text, 110)));
       ntop.hidden = false;
     }
   };

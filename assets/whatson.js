@@ -170,13 +170,42 @@
   /* 24 Oct 2026 (Armin, with a picture of the Persian Intel Room: the bubble sat over the list's last cards and its "40
      more" button). The same rule now covers every button a reader needs at the bottom of a page: the send button, the
      Intel Room's "Show more" and anything marked data-keepclear. Looked up on each check, since a page draws them late. */
-  var KEEP = '#fbform button[type=submit], #ir-more:not([hidden]), [data-keepclear]';
-  function duck() {
+  /* 31 Oct 2026 (audit: the bubble lay on "Apply to come on", the ON AIR band's button, on the War Room at 1440 and the
+     Missions page at 390): that button is kept clear too. Over a button the bubble first folds to its pill (below), and
+     only if the pill still touches it does it step aside. */
+  var KEEP = '#fbform button[type=submit], #ir-more:not([hidden]), [data-keepclear], .tband-a';
+  function hits() {
     var a = box.getBoundingClientRect(), hit = false;
     if (a.width > 0) [].forEach.call(document.querySelectorAll(KEEP), function (el) {
       var b = el.getBoundingClientRect();
       if (b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < a.bottom + 6 && b.bottom > a.top - 6) hit = true;
     });
+    return hit;
+  }
+  /* 1 Nov 2026 (the Persian method page at 360px: the page is short, so the ON AIR band's button sits in the bubble's corner
+     and even the short pill touched it by 3px, which hid the bubble from the first pixel). Before stepping aside, the pill
+     rises just above whatever it touches, as long as it stays below the header; only if there is no room does it hide. */
+  function rise() {
+    var a = box.getBoundingClientRect(), up = 0;
+    [].forEach.call(document.querySelectorAll(KEEP), function (el) {
+      var b = el.getBoundingClientRect();
+      if (b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < a.bottom + 6 && b.bottom > a.top - 6) up = Math.max(up, a.bottom - b.top + 12);
+    });
+    if (!up) return false;
+    var head = document.querySelector('header.top'), floor = head ? Math.max(0, head.getBoundingClientRect().bottom) + 8 : 8;
+    if (a.top - up < floor) return false;
+    box.style.translate = '0 ' + (-Math.ceil(up)) + 'px';
+    if (hits()) { box.style.translate = ''; return false; }
+    return true;
+  }
+  function duck() {
+    if (box.style.translate) box.style.translate = '';
+    var hit = hits();
+    if (pill && / calls-short\b/.test(box.className)) { pillDraw(false); hit = hits(); }      // back to the whole sentence where it fits
+    if (hit && fold && !held && !folded()) { fold(true); hit = hits(); }
+    if (hit && pill && folded() && !held) { pillDraw(true); hit = hits(); }      // the short form (pillDraw) before stepping aside
+    if (hit && !held && rise()) hit = false;
+    if (held) hit = false;     // the reader opened it with a tap: it stays where they can read it until it folds again
     if (hit !== (box.className.indexOf(' duck') > -1)) box.className = hit ? box.className + ' duck' : box.className.replace(' duck', '');
   }
   /* DOCKED ON A TOOL'S PAGE (1 November 2026). On a page that carries a tool (its How it works doors, the Intel Room, a
@@ -196,7 +225,11 @@
     if (!document.getElementById('calls-dock-css')) {
       var st = document.createElement('style'); st.id = 'calls-dock-css';
       st.textContent = '.calls.dock{display:none!important}header.top a.yt{position:relative}' +
-        'header.top a.yt.calls-live::after{content:"";position:absolute;top:7px;inset-inline-end:5px;width:10px;height:10px;border-radius:50%;background:#C8102E;box-shadow:0 0 0 2px #0A0A0A,0 0 0 5px rgba(200,16,46,.35)}';
+        /* the dot sits on the YouTube mark's corner, wherever the mark is (31 Oct 2026: pinned to the link's end, it lay on
+           the "e" of "Watch live" at 1440). It is a flex item placed right after the mark (the words move after it), pulled
+           back onto the mark by its margins, which also give back its width and one gap: nothing beside it moves. */
+        'header.top a.yt.calls-live>span{order:1}' +
+        'header.top a.yt.calls-live::after{content:"";flex:none;width:10px;height:10px;margin-inline:-15px -3px;transform:translateY(-10px);border-radius:50%;background:#C8102E;box-shadow:0 0 0 2px #0A0A0A,0 0 0 5px rgba(200,16,46,.35)}';
       (document.head || document.documentElement).appendChild(st);
     }
   }
@@ -210,7 +243,76 @@
     yt.setAttribute('aria-label', live ? say : ytName);
     yt.setAttribute('title', say);
   }
-  function redraw() { draw(); dock(); duck(); }
+  /* THE BUBBLE FOLDS TO A PILL (31 October 2026; audit at 1440 and 390: the whole bubble lay on right-hand buttons and, on a
+     phone, on headings). It is still on screen from the first pixel (14 October) and says its whole sentence; after 8
+     seconds with no finger, pointer or keyboard on it, it folds into a small pill in the same corner: red, "Live", while a
+     show is on, otherwise the time to the next one. A tap on the pill opens the sentence again, and it folds again 8 seconds
+     after it is left. Folded once, it opens folded on the reader's next page of the visit. The cross still puts it away for
+     the visit (site.js). Nothing of the page is hidden; only the bubble changes size. One home for its look: the CSS here. */
+  var fold = null, held = false, foldT = 0, pill = null, FOLD_MS = 8000;
+  function folded() { return / fold\b/.test(' ' + box.className); }
+  if (!docked) {
+    if (!document.getElementById('calls-fold-css')) {
+      var fs = document.createElement('style'); fs.id = 'calls-fold-css';
+      fs.textContent = '.calls-pill{display:none}' +
+        '.calls.fold{border-radius:999px}.calls.fold .calls-rows,.calls.fold .calls-x{display:none}' +
+        '.calls.fold .calls-pill{display:inline-flex;align-items:center;gap:8px;min-height:44px;min-width:44px;margin:0;padding:0 16px 0 14px;border:0;border-radius:999px;background:transparent;color:var(--field);font:800 .8125rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;cursor:pointer}' +
+        ':lang(fa) .calls-pill{letter-spacing:0}.calls.calls-short .calls-pill{letter-spacing:0;text-transform:none}' +
+        '.calls-pill i{flex:none;width:10px;height:10px;box-sizing:border-box;border-radius:50%;border:2px solid currentColor}' +
+        '.calls.fold.is-live{background:#C8102E;border-color:#C8102E}.calls.fold.is-live .calls-pill{color:#fff}' +
+        '.calls.fold.is-live .calls-pill i{border:0;background:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.3)}' +
+        '.calls-pill:focus-visible{outline:3px solid var(--field);outline-offset:3px}';
+      (document.head || document.documentElement).appendChild(fs);
+    }
+    pill = document.createElement('button');
+    pill.type = 'button'; pill.className = 'calls-pill'; pill.setAttribute('aria-expanded', 'false');
+    pill.innerHTML = '<i aria-hidden="true"></i><span></span>';
+    box.insertBefore(pill, box.firstChild);
+    fold = function (on) {
+      clearTimeout(foldT); foldT = 0;
+      if (on === folded()) return;
+      box.className = on ? box.className + ' fold' : box.className.replace(/ fold\b/g, '');
+      pill.setAttribute('aria-expanded', on ? 'false' : 'true');
+    };
+    var later = function () {
+      clearTimeout(foldT);
+      foldT = setTimeout(function () {
+        foldT = 0;
+        if (box.matches && box.matches(':hover, :focus-within')) return later();
+        held = false; fold(true);
+        try { sessionStorage.setItem('lp-calls-fold', '1'); } catch (x) { }
+        duck();
+      }, FOLD_MS);
+    };
+    pill.addEventListener('click', function () {
+      held = true; fold(false); duck();
+      var a = box.querySelector('.calls-a');
+      if (a) a.focus({ preventScroll: true });
+      later();
+    });
+    box.addEventListener('pointerleave', function () { if (!folded()) later(); });
+    box.addEventListener('focusout', function () { if (!folded()) later(); });
+    var was = false;
+    try { was = sessionStorage.getItem('lp-calls-fold') === '1'; } catch (x) { }
+    if (was) fold(true); else later();
+  }
+  /* What the pill says: Live while a show is on, otherwise how long until the next one; its name for a screen reader is the
+     bubble's top row. */
+  /* SHORT FORM (1 November 2026, phone test at 375x740): folded, "Live in 5 h 59 min" was wide enough to touch the front
+     page's Apply to come on, so the bubble hid and left the first screen. Where the pill would touch a button it first
+     says only the time, in plain case ("5 h 59 min"), and hides only if even that still touches. Its name for a screen
+     reader keeps the whole sentence. */
+  function pillDraw(short) {
+    if (!pill) return;
+    var top = box.querySelector('.calls-a'), live = !!box.querySelector('.calls-a.live'), say = '';
+    var fa = /^fa/i.test(words.locale || '');
+    try { var p = rows(cfg.items, Date.now())[0]; if (p && !p.on && p.mins > 1) say = short ? (fa ? span(p.mins, words) + ' دیگه' : span(p.mins, words)) : (fa ? 'زنده، ' + span(p.mins, words) + ' دیگه' : 'Live in ' + span(p.mins, words)); } catch (x) { }
+    if (live || !say) { say = fa ? 'زنده' : 'Live'; short = false; }
+    pill.querySelector('span').textContent = say;
+    box.className = box.className.replace(/ is-live\b/g, '').replace(/ calls-short\b/g, '') + (live ? ' is-live' : '') + (short ? ' calls-short' : '');
+    if (top) pill.setAttribute('aria-label', [top.querySelector('b'), top.querySelector('small')].map(function (x) { return x ? x.textContent.trim() : ''; }).filter(Boolean).join(', '));
+  }
+  function redraw() { draw(); dock(); pillDraw(); duck(); }
   redraw();
   setInterval(redraw, 30000);
   var dk = 0, soon = function () { if (!dk) dk = setTimeout(function () { dk = 0; duck(); }, 60); };

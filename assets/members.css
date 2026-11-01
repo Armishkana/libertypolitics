@@ -30,6 +30,11 @@
 /* ---- pages and the board */
 .mb-page{padding-top:var(--s6)}
 .mb-wrap{display:grid;gap:var(--s4)}
+/* The board's title is a page hero like every other page's (31 October 2026: "GATHERINGS" was a plain 32px h1 beside 72px
+   titles everywhere else), and the map keeps a section's distance from the election-night card above it (it was 16px). */
+.mb-page[data-mb="board"] h1[data-mb-h]{font-size:clamp(2.4rem,10.4vw,4.6rem)}
+html[lang="fa"] .mb-page[data-mb="board"] h1[data-mb-h]{font-size:clamp(2rem,8vw,3.6rem)}      /* the Persian heroes' own size (fa/missions/) */
+.mb-body>.mb-map-at:not(:first-child):not(:empty){margin-top:var(--s5)}
 .mb-lede{color:var(--dim);font-size:1.1rem;max-width:40rem}
 .mb-promise{max-width:40rem}
 .mb-go{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:center}

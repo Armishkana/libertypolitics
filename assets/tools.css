@@ -57,21 +57,26 @@ html[dir="rtl"] .tk-go::after{content:"\2190"}
   .tk-lead .tk-tool:first-child .tk-tn{font-size:2rem}
   .tk-lead .tk-tool:first-child .tk-sn{font-size:2.6rem}
 }
-/* on a phone a tool is one compact row: its stage small beside the words, so eight tools are not eight screens */
+/* on a phone a tool is one compact row, so eight tools are not eight screens. 31 October 2026 (audit at 390px: the kind
+   pill stuck out of a narrow full-height rail and sat on the live number, "LIVE ROOM" wrapped, "LIVE BOARD" was cut, and
+   each drawing was small in a tall dark column): the stage is a square tile beside the name, like an app's icon, and the
+   kind of tool is a one-line label above the name, in the words' column. */
 @media(max-width:639px){
-  .tk-tool>a{flex-direction:row;align-items:stretch}
-  .tk-art{flex:none;width:88px;height:auto;min-height:100%;padding:8px;border-bottom:0;border-inline-end:1px solid var(--line);align-content:center}
-  .tk-art svg{width:100%}
-  .tk-kind{position:static;order:2;justify-self:center;margin-top:6px;padding:3px 7px;font-size:.75rem;letter-spacing:.03em;text-align:center}
-  .tk-tb{padding:var(--s3);gap:4px}
+  .tk-tool>a{position:relative;flex-direction:row;align-items:flex-start;gap:12px;padding:12px}
+  .tk-art{position:static;flex:none;width:92px;height:92px;padding:8px;border:1px solid var(--line);border-radius:12px;align-content:center}
+  .tk-art svg{width:100%;max-height:76px}
+  .tk-kind{top:12px;inset-inline-start:116px;max-width:calc(100% - 128px);padding:3px 8px;font-size:.75rem;line-height:1.1;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+  .tk-art:has(.tk-kind)+.tk-tb{padding-top:28px}
+  .tk-tb{padding:0;gap:4px}
   .tk-go{padding:0 14px;white-space:nowrap;max-width:100%}
   .tk-tn{font-size:1.2rem}
   .tk-tl{font-size:var(--t1,.8125rem)}
   .tk-stat{padding-top:var(--s2);gap:8px}
   .tk-sn{font-size:1.55rem}
   .tk-sl{font-size:.75rem}
-  .tk-faces i{width:30px;height:38px}.tk-faces i+i{margin-inline-start:-12px}
-  .tk-faces i:nth-child(n+4){display:none}
+  .tk-art .tk-faces i{width:32px;height:42px;border-radius:8px}.tk-art .tk-faces i+i{margin-inline-start:-12px}      /* .tk-art: the face rule below this block is the same weight and came later, so faces were 58px in a 92px tile */
+  .tk-art .tk-faces i:nth-child(n+4){display:none}
+  .tk-art{overflow:hidden}
 }
 .tk-faces{display:flex;justify-content:center}
 .tk-faces i{position:relative;width:58px;height:74px;border-radius:10px;border:2px solid var(--panel);background:var(--line) center 20%/cover;filter:grayscale(1) contrast(1.05)}

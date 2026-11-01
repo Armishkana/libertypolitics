@@ -237,6 +237,16 @@ span.portrait{display:flex;align-items:center;justify-content:center;font:900 2.
 .verdict .g-n{font-size:1.1rem;text-align:center;padding:8px;line-height:1.15;font-family:var(--body);font-weight:700}
 .verdict h2{font-size:clamp(1.7rem,5vw,2.4rem)}
 .verdict p{margin-top:8px;color:var(--dim)}
+/* A phone: the 112px grade beside the score squeezed the sentence to five words a line (31 October 2026). The grade now sits
+   beside the short heading only ("Gets an F"), and the score and everything under it run the full width below. */
+@media(max-width:599px){
+  .verdict{row-gap:12px}
+  .verdict>div{display:contents}
+  .verdict .g{width:88px;height:88px;font-size:3.6rem}
+  .verdict .g-n{font-size:1rem;padding:6px}
+  .verdict>div>*:not(h2){grid-column:1/-1}
+  .verdict>div>p:first-of-type{margin-top:0}
+}
 .tiles{list-style:none;margin:22px 0 0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 @media(min-width:620px){.tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1100px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -648,7 +658,7 @@ span.face-lg{font-size:1.7rem}
    button, so the side that looked switched on was the one the reader was not on (Armin: "the switch
    between each page and the discussion and back needs to be more intuitive"). The mode is read from the
    html element, which the script in the head sets before the page is drawn. ---- */
-.modes{position:sticky;top:61px;z-index:19;background:var(--sunk);border-bottom:1px solid var(--line)}
+.modes{position:sticky;top:60px;z-index:19;background:var(--sunk);border-bottom:1px solid var(--line)}
 .modes .wrap{display:flex;align-items:center;gap:8px;padding:6px 8px}
 .modes-sw{position:relative;flex:1 1 auto;min-width:0;display:grid;grid-template-columns:1fr 1fr;padding:3px;background:var(--bg);border:1px solid var(--line);border-radius:999px}
 .mode{position:relative;z-index:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:0 10px;border-radius:999px;font:700 .96rem/1 var(--body);text-decoration:none;color:var(--ink);white-space:nowrap;transition:color .2s,background-color .2s,box-shadow .2s}
@@ -748,10 +758,15 @@ html.modes-on{scroll-padding-top:128px}
 .nudge-sec{padding:20px 0}
 .nudge-sec + .sec{border-top:0}
 .nudge-sec .nudge{margin-top:0}
-.nudge-q{display:flex;align-items:flex-start;gap:8px;font-size:1.1rem;line-height:1.3}
-.nudge-q svg{flex:none;margin-top:3px;color:var(--field)}
+/* Directly above the ON AIR band the prompt takes the band's width, so the two right edges line up (31 October 2026: 736px
+   over 1120px on a state page). */
+.nudge:has(+ .tband),.nudge-sec:has(+ .tband) .nudge{max-width:none}
+/* The count chip ("3 people · 15 comments") sits on its own line under the question: beside it, it squeezed the question
+   until "home?" stood alone on a line, and to five words a line on a phone (31 October 2026). */
+.nudge-q{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:8px;row-gap:6px;align-items:start;font-size:1.1rem;line-height:1.3}
+.nudge-q svg{margin-top:3px;color:var(--field)}
 .nudge-q b{font-weight:700}
-.nudge-n{flex:none;margin-left:auto;padding:3px 9px;background:var(--raise);border-radius:999px;font-size:.82rem;font-weight:700;color:var(--field);white-space:nowrap}
+.nudge-n{grid-column:2;justify-self:start;padding:3px 9px;background:var(--raise);border-radius:999px;font-size:.82rem;font-weight:700;color:var(--field);white-space:nowrap}
 .nudge-n[hidden],.nudge-top[hidden]{display:none}
 .nudge-top{display:block;padding-left:12px;border-left:3px solid var(--field-edge);color:var(--dim);font-size:.98rem;line-height:1.45;overflow-wrap:anywhere}
 .nudge-top b{color:var(--ink);font-weight:600}
@@ -1255,9 +1270,9 @@ a.door span{color:var(--dim);line-height:1.45}
 .ec-need{margin-left:auto}
 .ec-need b{color:var(--field)}
 .ec-rows{display:flex;flex-direction:column;gap:10px}
-.ec-row{display:grid;grid-template-columns:44px minmax(0,1fr) 4.6em auto;gap:10px;align-items:center}
+.ec-row{display:grid;grid-template-columns:44px minmax(0,1fr) 4.8em auto;gap:10px;align-items:center}      /* 4.8em holds "132 seats" (72px): at 3.9em it ran over the bar on a phone, 31 Oct 2026 */
 .ec-val{text-align:right}
-@media(max-width:420px){.ec-row{grid-template-columns:38px minmax(0,1fr) 3.9em auto;gap:8px}.ec-row .face{width:38px;height:38px}.ec-body{padding:4px 14px 16px}.ec-head{padding:16px 14px 14px}}
+@media(max-width:420px){.ec-row{grid-template-columns:38px minmax(0,1fr) 4.8em auto;gap:8px}.ec-row .face{width:38px;height:38px}.ec-body{padding:4px 14px 16px}.ec-head{padding:16px 14px 14px}}
 .ec-row .face{width:44px;height:44px}
 .ec-who b{display:block;line-height:1.2;overflow-wrap:anywhere}
 .ec-who small{display:block;color:var(--dim);font-size:.82rem;line-height:1.3;margin-top:1px}
@@ -1543,12 +1558,13 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
   .acts{gap:6px;margin-top:10px}
   .acts .act-l{font-size:var(--t1)}
   .acts .act-c,.acts .act-t{min-height:88px}
-  .acts .act-t{padding:10px 16px;column-gap:12px}
-  .acts .act-n{font-size:2.5rem}
+  .acts .act-t{padding:10px 16px;column-gap:12px;align-content:center}
+  .acts .act-n{font-size:2.5rem;width:3.75rem}
   .acts .act-t b{font-size:1.7rem}
+  /* The main door stands out by its height and its gold edge, never by its own indent: its bigger numeral made a wider
+     column and pushed Scout's words 22px right of the other three (31 October 2026). The numeral column is one fixed width. */
   .acts .act-main .act-c,.acts .act-main .act-t{min-height:150px}
   .acts .act-main .act-t b{font-size:2.4rem}
-  .acts .act-main .act-n{font-size:3.4rem}
 }
 @media(min-width:800px){
   .acts{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
@@ -1565,6 +1581,7 @@ a{text-decoration-thickness:1px;text-underline-offset:.2em}
   .act-c,.act-t{min-height:300px}
   .act-main .act-c,.act-main .act-t{min-height:340px}
   .act-t b{font-size:2.2rem}
+  .act-l{min-height:4.05em}      /* three lines kept for every act's line, so the four names sit on one line (1 Nov 2026: Rally's sat higher) */
 }
 
 /* the record, as one calm door */
@@ -1599,7 +1616,7 @@ body:has(#calls:not(.off)){padding-bottom:120px}
 body:has(#calls:not(.off)) footer{padding-bottom:40px}
 
 /* ---------------------------------------------------------------- the Missions page */
-.q-head .wrap{padding-top:16px;padding-bottom:14px}
+.q-head .wrap{padding-top:32px;padding-bottom:14px}      /* 32, as every painted head: at 16 the headline sat flush under the tab bar on a phone (31 Oct 2026) */
 .q-head h1{font-size:clamp(2.7rem,12.6vw,5.4rem)}
 .q-head .lede{max-width:34ch;margin-top:10px;font-size:var(--t3);font-weight:500;line-height:1.45}
 @media(min-width:900px){
@@ -1926,7 +1943,7 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .tband-on i{width:8px;height:8px;border-radius:50%;background:#C8102E;box-shadow:0 0 0 3px rgba(200,16,46,.25)}
 .tband-l{flex:1 1 18rem;margin:0;font-weight:600;font-size:var(--t3);line-height:1.45}
 @media(min-width:760px){.tband-l{font-size:var(--t4)}}
-.tband-a{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--field);color:var(--field);font-weight:800;text-decoration:none}
+.tband-a{display:inline-flex;align-items:center;gap:.3em;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--field);color:var(--field);font-weight:800;text-decoration:none}      /* gap, 31 Oct 2026: the arrow's own leading space is dropped at the start of its flex item, so it read "on→" */
 .tband-a:hover,.tband-a:focus-visible{background:var(--field);color:var(--on-field);text-decoration:none}
 /* 20 October 2026: the band moved up the page (render.py place_band). Inside a page's own column (after the question near
    the top of a record, or between the Intel Room's map and its list) it is a box of that column, with no .wrap of its own. */
@@ -2022,6 +2039,12 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 .eband:hover .eband-go{background:#000}
 @media(max-width:620px){.eband{grid-template-columns:1fr}.eband-go{grid-column:1;grid-row:auto;justify-self:start}}
 .eband-line{margin:0 0 20px;color:var(--dim)}
+
+/* ---------------------------------------------------------------- a tool's two doors beside the page's own buttons
+   31 October 2026 (audit at 1440: "How it works" and "Stream view" were 40px and 13px words next to 44px buttons on Tools,
+   Beat the Markets, You and Israel). Their look is build/tour.js's (one home, both sites); this only makes them the height
+   and the size of words of the buttons they stand with. A page that sizes them itself (.rg-acts, .tk-jump) still does. */
+.lpt-doors .lpt-how,.lpt-doors .lps-go{min-height:44px;padding:0 16px 0 13px;font-size:var(--t2,.9375rem);font-weight:700}
 /* The share panel (build/share.js): what opens when a reader taps Share. ONE FILE FOR BOTH SITES. Each site's
    render.py adds it to the end of its own site.css, so it is written with the names both stylesheets share
    (--panel --sunk --raise --bg --ink --dim --line --field --on-field --ga --on-grade --r --r2 --body --s1..--s5)
@@ -2910,7 +2933,7 @@ html.lp-stream .mt-vs-edge{padding:0;background:none;box-shadow:none}
 /* ---------------------------------------------------------------- a mount, and its cards */
 .lpc{margin-top:var(--s4)}
 .lpc[hidden]{display:none}
-.lpc-l{display:grid;gap:var(--s3);grid-template-columns:minmax(0,1fr)}
+.lpc-l{display:grid;gap:var(--s3);grid-template-columns:minmax(0,1fr);align-items:start}      /* 31 Oct 2026: a card is as tall as what it says; stretched to the tallest in its row, a two-option card had 150-250px of nothing above its Polymarket link */
 @media(min-width:700px){.lpc-l{grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}}
 .lpc-c{position:relative;display:flex;flex-direction:column;gap:10px;min-width:0;padding:14px;border:1px solid var(--line);border-radius:var(--r2);background:var(--panel);scroll-margin-top:96px}
 .lpc-c:target{box-shadow:0 0 0 2px var(--field)}
@@ -2925,6 +2948,8 @@ html.lp-stream .mt-vs-edge{padding:0;background:none;box-shadow:none}
 .lpc-k{font-size:.75rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 .lpc-n b{font:900 1.55rem/1.05 var(--display);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lpc-n small{font-size:.75rem;line-height:1.3;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 31 Oct 2026 (audit at 1440: "Alexandria O...", "Prince Reza P..."): a name in a number's box takes two lines before it is cut */
+div.lpc-n small:not(:empty){white-space:normal;overflow-wrap:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2}
 .lpc-n-y.is-set{border-color:var(--field-edge)}
 .lpc-n-y.is-set b{color:var(--field)}
 .lpc-n-y.is-won b{color:var(--ga)}
@@ -3195,7 +3220,7 @@ html.lp-stream .lps-bar{display:flex;position:fixed;top:calc(10px * var(--lps-z,
 .lps-x{min-height:max(40px,calc(30px * var(--lps-z,1)));padding:0 calc(12px * var(--lps-z,1));border:1px solid #3a3936;border-radius:999px;background:var(--panel);color:var(--dim);font:700 max(13px,calc(13.5px * var(--lps-z,1)))/1 var(--body);cursor:pointer}
 .lps-x:hover{color:var(--ink);border-color:var(--dim)}
 /* THE CONFLICT SIMULATOR (build/wargame.py, wargame.js). Added to the end of site.css by render.py; Iran Uncensored loads it as
-   assets/scenarios.css?v=930626b8e0. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
+   assets/scenarios.css?v=ed0f1c329f. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
    1 November 2026 (Armin: "a very high-end strategic video game look ... real video game visualizations"): THE BOARD IS THE
    PAGE. The theatre fills the first screen under the site's header, a WebGL board (wargame.js) with the command interface
    drawn over it on dark glass: the top bar, the order of battle (left), the panel (right; on a phone a bottom sheet), the
@@ -3486,6 +3511,7 @@ html.lp-stream .lps-bar{display:flex;position:fixed;top:calc(10px * var(--lps-z,
   .wg-mini,.wg-credit{display:none}
   .wg-panel{left:0;right:0;top:auto;bottom:0;width:auto;height:46%;border-radius:16px 16px 0 0;border-width:1px 0 0;transition:height .25s}
   .wg-panel.aar{width:auto}
+  .wg-panel.aar~.wg-tl{right:8px}.wg-panel.aar~.wg-nav{right:8px}
   .wg-panel[data-sheet="min"]{height:178px}
   .wg-panel[data-sheet="max"]{height:calc(100% - 56px)}
   .wg-grab{display:grid;place-items:center;width:52%;height:40px;flex:none;padding:0;border:0;background:none;touch-action:none;cursor:grab}
@@ -3553,6 +3579,91 @@ html.lp-stream #wargame .lpt-doors button{font-size:14px}
 .wgi-p{display:block;margin:8px 16px 0;color:var(--dim);font-size:.95rem}
 .wgi-m{display:block;margin:10px 16px 0;color:var(--dim);font-size:.82rem}
 .wgi-go{display:inline-flex;align-items:center;justify-content:center;min-height:44px;margin:14px 16px 16px;margin-top:auto;padding:0 16px;border-radius:10px;background:var(--field);color:var(--on-field);font:800 .9rem/1 var(--body);letter-spacing:.06em;text-transform:uppercase}
+
+/* ---------------------------------------------------------------- THE PLAN, WATCH, COMPARE (1 November 2026, TOOLS.md "The second rebuild") */
+.wg-tabs{grid-template-columns:repeat(4,1fr)}
+.wg-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:0 0 12px;padding:0;list-style:none}
+.wg-steps button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:52px;padding:4px 2px;border:1px solid var(--wg-edge);border-radius:9px;background:rgba(255,255,255,.03);color:var(--wg-dim);font:800 12px/1.1 var(--body);letter-spacing:.08em;text-transform:uppercase}
+.wg-steps button i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1px solid currentColor;font:800 12px/1 var(--body);font-style:normal}
+.wg-steps button[aria-selected="true"]{color:#14120B;background:linear-gradient(180deg,#FFD24A,#E8B21A);border-color:var(--wg-gold);box-shadow:0 0 18px rgba(244,196,48,.28)}
+.wg-steps button[aria-selected="true"] i{border-color:#14120B}
+.wg-stepb h4,.wg-body h4{margin:14px 0 8px;font:800 12px/1.3 var(--body);letter-spacing:.16em;text-transform:uppercase;color:var(--wg-gold)}
+.wg-who{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:6px 10px;border-radius:10px;background:rgba(244,196,48,.08);border:1px solid rgba(244,196,48,.35);font:700 13px/1.3 var(--body);color:#FFE7A0}
+.wg-warn{margin:4px 0 10px;padding:8px 10px;border-radius:8px;background:rgba(255,90,72,.1);border:1px solid rgba(255,90,72,.4);color:#FFB4A8;font:700 13px/1.4 var(--body)}
+.wg-foot2{position:sticky;bottom:-76px;z-index:2;margin:14px -12px 0;padding:10px 12px 12px;background:rgba(9,13,19,.97);border-top:1px solid var(--wg-edge);display:flex;flex-wrap:wrap;gap:6px}
+.wg-foot2 .wg-run{flex:1 1 auto;margin:0;min-height:44px;font-size:13px!important;letter-spacing:.08em}
+.wg-foot2{flex-wrap:nowrap;align-items:stretch}
+.wg-foot2 .wg-chip{flex:0 1 auto;font-size:12px;white-space:normal}
+.wg-next{margin-top:12px!important}
+.wg-foot2 .wg-chip{margin:0}
+.wg-fcs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.wg-fc{position:relative;display:flex;flex-direction:column;border:1px solid var(--wg-edge);border-radius:10px;background:linear-gradient(180deg,rgba(26,36,48,.9),rgba(10,14,20,.95));overflow:hidden;transition:border-color .15s,opacity .15s}
+.wg-fc.t-blue.on{border-color:rgba(61,139,255,.75);box-shadow:0 0 0 1px rgba(61,139,255,.35),0 6px 18px rgba(61,139,255,.12)}
+.wg-fc.off{opacity:.55}
+.wg-fc.t-red{border-color:rgba(255,74,58,.35)}
+.wg-fc-pic{display:block;aspect-ratio:4/3;background:radial-gradient(120% 90% at 50% 35%,rgba(140,170,210,.22),rgba(0,0,0,0) 70%),linear-gradient(180deg,#1b2532,#0b1016);border-bottom:1px solid var(--wg-edge)}
+.wg-fc-pic img{display:block;width:100%;height:100%;object-fit:contain}
+.wg-fc-pic img.glyph{object-fit:none;opacity:.8}
+.wg-fc-t{display:flex;flex-direction:column;gap:2px;padding:7px 8px 8px}
+.wg-fc-t b{font:700 13px/1.25 var(--body);color:var(--wg-ink)}
+.wg-fc-n{font:800 18px/1.1 var(--wg-hd);color:#fff;letter-spacing:.03em}
+.wg-fc-w{font:700 12px/1.3 var(--body);color:#8FE3A8}
+.wg-fc-w.far{color:#FFB25A}
+.wg-fc-tg{margin:0 8px 8px;min-height:40px;border-radius:8px;border:1px solid var(--wg-edge2);background:rgba(255,255,255,.04);color:var(--wg-ink);font:800 12px/1 var(--body);letter-spacing:.12em;text-transform:uppercase}
+.wg-fc-tg[aria-pressed="true"]{background:rgba(61,139,255,.22);border-color:#3D8BFF;color:#CFE2FF}
+.wg-fc-i{position:absolute;top:6px;right:6px;width:40px;height:40px;border-radius:50%;border:1px solid var(--wg-edge2);background:rgba(5,7,10,.7);color:var(--wg-ink);font:italic 800 15px/1 Georgia,serif}
+.wg-tgs{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.wg-tg{display:grid;grid-template-columns:34px 1fr;gap:8px;padding:10px;border:1px solid var(--wg-edge);border-radius:10px;background:rgba(255,255,255,.025)}
+.wg-tg.on{border-color:rgba(244,196,48,.45);background:linear-gradient(90deg,rgba(244,196,48,.08),rgba(255,255,255,.02))}
+.wg-tg-r{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;border:1px solid var(--wg-edge2);font:800 18px/1 var(--wg-hd);color:var(--wg-gold)}
+.wg-tg-t b{display:block;font:800 14px/1.3 var(--body);color:#fff}
+.wg-tg-t b .num{float:right;color:var(--wg-gold)}
+.wg-tg-t p{margin:4px 0 0;font-size:13px;line-height:1.4;color:#C6D0DA}
+.wg-tg-t p i{font:800 12px/1 var(--body);font-style:normal;letter-spacing:.12em;text-transform:uppercase;margin-inline-end:4px}
+.wg-buys i{color:#8FE3A8}.wg-costs i{color:#FF9B8A}
+.wg-tg-b{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end}
+.wg-tg-b .wg-chip{margin:0}
+.wg-tg-b .wg-ib:disabled{opacity:.3}
+.wg-advs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0;padding:0;list-style:none}
+.wg-adv{display:flex;flex-direction:column;border:1px solid var(--wg-edge);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#141c26,#0a0e14)}
+.wg-adv.cur{border-color:var(--wg-gold);box-shadow:0 0 0 1px rgba(244,196,48,.4),0 8px 24px rgba(244,196,48,.12)}
+.wg-adv-p{display:block;padding:0;border:0;background:none;cursor:pointer}
+.wg-face.card{width:100%;height:auto;aspect-ratio:4/5;border-radius:0;border:0;border-bottom:2px solid var(--lc,#B9B7A6)}
+.wg-face.card::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(5,7,10,.75),transparent 45%),repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 3px);pointer-events:none}
+.wg-face .wg-bust{display:block;width:100%;height:100%}
+.wg-adv-t{display:flex;flex-direction:column;gap:3px;padding:8px 9px 4px}
+.wg-adv-t b{font:800 14px/1.2 var(--body);color:#fff}
+.wg-adv-t>span{font-size:12px;line-height:1.35;color:var(--wg-dim)}
+.wg-adv-b{display:flex;flex-wrap:wrap;gap:6px;padding:4px 9px 10px;margin-top:auto}
+.wg-adv-b .wg-chip{margin:0;flex:1 1 auto;justify-content:center}
+.wg-use{background:rgba(244,196,48,.14)!important;border-color:rgba(244,196,48,.6)!important;color:#FFE7A0!important}
+.wg-chip.on{border-color:var(--wg-gold);background:rgba(244,196,48,.14);color:#FFE7A0}
+.wg-bf-plan{margin:12px 0;padding:10px 12px;border-radius:10px;border:1px solid rgba(244,196,48,.4);background:rgba(244,196,48,.06)}
+.wg-bf-plan p{margin:4px 0}
+.wg-why{font:600 13px/1.4 var(--body)!important;color:#FFE7A0!important;white-space:normal!important}
+.wg-cmp{overflow-x:auto;margin:10px -12px;padding:0 12px}
+.wg-cmp table{border-collapse:separate;border-spacing:0;min-width:100%;font-size:13px}
+.wg-cmp th,.wg-cmp td{padding:7px 8px;border-bottom:1px solid var(--wg-edge);text-align:start;vertical-align:top}
+.wg-cmp thead th{min-width:130px;vertical-align:bottom}
+.wg-cmp thead th b{display:block;font:800 14px/1.2 var(--body);color:#fff}
+.wg-cmp thead th small{display:block;margin:3px 0 6px;color:var(--wg-dim);font-weight:500;line-height:1.35}
+.wg-cmp tbody th{font-weight:700;color:var(--wg-dim);min-width:120px}
+.wg-cmp td{position:relative;white-space:nowrap;font-weight:700}
+.wg-cmp .best{background:rgba(244,196,48,.08)}
+.wg-bestk{display:inline-block;margin-bottom:4px;padding:2px 7px;border-radius:999px;background:var(--wg-gold);color:#14120B;font:800 12px/1.4 var(--body);letter-spacing:.1em;text-transform:uppercase}
+.wg-bar{position:absolute;left:0;bottom:0;height:3px;width:calc(var(--f) * 100%);background:var(--c)}
+.wg-cmp-b{display:flex;gap:6px;align-items:center}
+.wg-cmp-b .wg-chip{margin:0}
+.wg-unit-pic{display:block;width:100%;max-width:320px;height:auto;margin:6px auto 10px;border-radius:10px;background:radial-gradient(120% 90% at 50% 35%,rgba(140,170,210,.22),rgba(0,0,0,0) 70%),#0e141c}
+.wg-lnk{padding:0;border:0;background:none;color:var(--wg-gold);font:inherit;text-decoration:underline;cursor:pointer;min-height:32px}
+@media(max-width:759px){
+  .wg-fcs,.wg-advs{gap:6px}
+  .wg-steps button{min-height:48px;font-size:12px;letter-spacing:.02em}      /* 12px is the phone floor (phone test) */
+  .wg-tab{font-size:12px!important;letter-spacing:.04em}
+}
+html.lp-stream .wg .wg-steps *,html.lp-stream .wg .wg-stepb *,html.lp-stream .wg .wg-foot2 *,html.lp-stream .wg .wg-next,html.lp-stream .wg .wg-why,html.lp-stream .wg .wg-cmp *,html.lp-stream .wg .wg-who *,html.lp-stream .wg .wg-bf-plan *{font-size:14px!important}      /* the stream view: nothing under 20px at 1920 (phone-test, the tool tours and the stream view) */
+.wg-mini.wg-hid{display:none}      /* it steps aside when the forces panel reaches down to it (layout() in wargame.js) */
+.wg-feed .wg-fh{white-space:normal;align-items:flex-start}#wg-fht{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:clip}      /* the caption wraps to two lines rather than cutting a word */
 /* YOUR LIBERTY SCORE (you/): the look of 1 November 2026. Armin: "significantly improve every single tool. They need to
    look so much better ... beautiful to look at, easy to understand, easy to use, intuitive". The page (render.py you())
    and its script (build/you.js) are unchanged in what they count; this file is how it looks. Added after site.css by
