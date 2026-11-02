@@ -18,7 +18,8 @@
    Never classList.toggle(name, state): tog(el, name, state) (uprising.py stops the build on the first). No browser dialogs. */
 const D = document, W = window;
 const box = D.getElementById('uprising'), src = D.getElementById('up-data');
-let started = null, leaving = false;
+let started = null, leaving = false, pageErr = 0;
+W.addEventListener('error', () => { pageErr++; }); W.addEventListener('unhandledrejection', () => { pageErr++; });      // counted by streetCheck
 W.addEventListener('pagehide', () => { leaving = true; });      // a board still loading when the reader leaves is not an error
 export function start(opts) {
   if (!started) started = run(opts || {}).catch(err => { if (leaving) return; const t = D.getElementById('up-boot-t'); if (t) t.textContent = (box.getAttribute('lang') === 'fa') ? 'بارگذاری شبیه‌ساز به مشکل خورد. صفحه رو دوباره باز کنید.' : 'Something went wrong loading the simulator. Reload the page to try again.'; console.error(err); });
@@ -54,7 +55,8 @@ async function run(opts) {
   await import('./uprising-engine.js');
   const U = W.UPR;
   if (!U) throw new Error('engine missing');
-  let KITM = null;
+  let KITM = null, STM = null;
+  try { STM = await import('./uprising-street.js'); } catch (e) { console.warn('Uprising Simulator: the street movement did not load', e); }
   try { KITM = await import('./simkit/simkit.js'); } catch (e) { console.warn('Uprising Simulator: the 3D kit did not load; drawing without it', e); }
 
   // ================================================================== the words
@@ -214,7 +216,7 @@ async function run(opts) {
 <div class="up-cap" id="up-cap" hidden aria-live="polite"></div>
 <div class="up-bar" id="up-bar" hidden>
   <button type="button" class="up-pp" id="up-pp" aria-label="${tr('Pause')}">❚❚</button>
-  <div class="up-spd" role="group" aria-label="${tr('Speed')}">${[1, 3, 8, 20].map(v => `<button type="button" data-spd="${v}"${v === 3 ? ' class="on"' : ''}>${N_(v)}×</button>`).join('')}</div>
+  <div class="up-spd" role="group" aria-label="${tr('Speed')}" title="${tr('1× is one hour every two seconds')}">${[0.5, 1, 2, 4].map(v => `<button type="button" data-spd="${v}"${v === 1 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"'}>${v === 0.5 ? '½' : N_(v)}×</button>`).join('')}</div><span class="up-pace" id="up-pace" hidden></span>
   <div class="up-scrubw"><input type="range" class="up-scrub" id="up-scrub" min="0" max="1" step="1" value="0" aria-label="${tr('Timeline')}"><div class="up-marks" id="up-marks" aria-hidden="true"></div></div>
   <button type="button" class="up-ib" id="up-follow" aria-pressed="true">🎥 <span>${tr('Follow')}</span></button>
   <button type="button" class="up-ib" id="up-resb">${tr('Results')}</button>
@@ -246,17 +248,22 @@ async function run(opts) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LOWP, powerPreference: 'high-performance', alpha: false, preserveDrawingBuffer: /[?&]shot=1/.test(location.search) });
   renderer.setPixelRatio(Math.min(W.devicePixelRatio || 1, LOWP ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.22;      // brighter and crisper on a stream (1 November 2026)
-  renderer.setClearColor(0x0b0d10, 1);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;      // calm, not glaring (2 November 2026)
+  renderer.setClearColor(0x111418, 1);
   canvas.addEventListener('webglcontextlost', ev => { ev.preventDefault(); console.warn('Uprising Simulator: the WebGL context was lost'); });
   canvas.addEventListener('webglcontextrestored', () => { if (BJ) buildWorld(BJ); });
+  // THE COLOURS, ONE MEANING EACH (2 November 2026; the log: data/uprising/visual-rebuild-2026-11-02.md). A calm dark clay
+  // city; amber is the people (and anyone who crossed over to them), red the regime's forces, white the medics, quiet grey
+  // the traffic and everything neutral, and one accent, ice blue, for what is happening now. Nothing else carries a colour.
+  const COLS = { people: [0.96, 0.72, 0.26], regime: [0.92, 0.27, 0.30], medic: [0.93, 0.95, 0.97], traffic: 0x8d939b, carGreys: [0x9ea4aa, 0x7c828a, 0xb6babe, 0x60666d, 0xcfd2d5, 0x8a8f95], accent: 0x8fdcff,
+    bg: 0x111418, bgNight: 0x07090c };
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0b0d10, 0.00004);
+  scene.fog = new THREE.FogExp2(COLS.bg, 0.00004);
   const camera = new THREE.PerspectiveCamera(40, 1, 5, 200000);
   const world = new THREE.Group(); scene.add(world);
   let K = null, FX = null, LIGHTS = null;
   if (KITM && KITM.createKit) { try { K = KITM.createKit(THREE); } catch (e) { K = null; console.warn('Uprising Simulator: the kit failed to start', e); } }
-  if (K) { LIGHTS = K.lights(scene, { hemi: 1.15, sunI: 2.2, sky: 0xcfdcff, ground: 0x4a3f30 }); FX = K.fx(scene, camera, { scale: 1, max: LOWP ? 2200 : 5000 }); }
+  if (K) { LIGHTS = K.lights(scene, { hemi: 1.15, sunI: 2.2, sky: 0xcfdcff, ground: 0x2a2e35 }); FX = K.fx(scene, camera, { scale: 1, max: LOWP ? 2200 : 5000 }); }
   else { const h = new THREE.HemisphereLight(0xcfdcff, 0x4a3f30, 1.2), sn = new THREE.DirectionalLight(0xfff1dc, 2); sn.position.set(-550, 1000, 350); scene.add(h, sn); LIGHTS = { hemi: h, sun: sn }; }
   const has = t => !!(K && K.has && K.has(t));
   const make = (t, o) => { if (!has(t)) return null; try { const m = K.make(t, o || {}); m.traverse(x => { x.userData.shared = true; }); return m; } catch (e) { return null; } };      // kit geometry is cached and shared: never disposed here
@@ -273,24 +280,21 @@ async function run(opts) {
   const U_ = { tHex: { value: hexTex }, uTime: { value: 0 }, uNight: { value: 0 }, uHexW: { value: HEXW } };
   // streets: lit by who holds the district (gold the people, red the regime), dark where the power is cut
   const roadVS = `attribute float hx; attribute float tier; uniform sampler2D tHex; uniform float uTime; uniform float uNight; uniform float uHexW; varying vec3 vC; varying float vA;
-    void main() { vec4 st = texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)); float ppl = st.r, reg = st.g, pw = st.b, heat = st.a;
-      vec3 day = tier < 0.5 ? vec3(0.34, 0.33, 0.32) : tier < 1.5 ? vec3(0.30, 0.29, 0.28) : tier < 2.5 ? vec3(0.27, 0.26, 0.25) : vec3(0.23, 0.22, 0.21);
-      vec3 ngt = tier < 0.5 ? vec3(0.72, 0.5, 0.25) : tier < 1.5 ? vec3(0.62, 0.44, 0.22) : tier < 2.5 ? vec3(0.44, 0.33, 0.2) : vec3(0.3, 0.24, 0.17);
-      vec3 c = mix(day, ngt * mix(0.08, 1.0, pw), uNight);
-      float tb = tier < 1.5 ? 1.0 : tier < 2.5 ? 0.7 : 0.45;
-      c = mix(c, vec3(1.0, 0.78, 0.30), ppl * 0.55 * tb); c = mix(c, vec3(0.95, 0.20, 0.22), reg * 0.18 * tb);
-      c += vec3(1.0, 0.7, 0.25) * heat * (0.25 + 0.2 * sin(uTime * 2.6 + hx * 1.7)) * tb;
-      vC = c; vA = tier < 1.5 ? 1.0 : tier < 2.5 ? 0.9 : 0.7; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+    void main() { vec4 st = texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)); float ppl = st.r, pw = st.b;
+      vec3 day = tier < 0.5 ? vec3(0.40, 0.41, 0.43) : tier < 1.5 ? vec3(0.33, 0.34, 0.36) : tier < 2.5 ? vec3(0.25, 0.26, 0.28) : vec3(0.19, 0.20, 0.215);
+      vec3 ngt = (tier < 0.5 ? vec3(0.34, 0.33, 0.32) : tier < 1.5 ? vec3(0.28, 0.275, 0.27) : tier < 2.5 ? vec3(0.19, 0.19, 0.195) : vec3(0.13, 0.13, 0.14)) * mix(0.45, 1.0, pw);      // neutral at night too: amber is the people
+      vec3 c = mix(day, ngt, uNight);
+      c = mix(c, vec3(0.96, 0.72, 0.26), ppl * 0.16 * (tier < 2.5 ? 1.0 : 0.5));
+      vC = c; vA = tier < 1.5 ? 1.0 : tier < 2.5 ? 0.95 : 0.8; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
   const roadMat = new THREE.ShaderMaterial({ uniforms: U_, vertexShader: roadVS, fragmentShader: 'varying vec3 vC; varying float vA; void main(){ gl_FragColor = vec4(vC, vA); }', transparent: true, depthWrite: false });
   roadMat.polygonOffset = true; roadMat.polygonOffsetFactor = -2;
   // the districts of the model: a soft fill and an edge, gold where the people hold it, red where the regime does
   const hexVS = `attribute float hx; attribute float edge; uniform sampler2D tHex; uniform float uTime; uniform float uHexW; varying vec4 vC;
-    void main() { vec4 st = texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)); float ppl = st.r, reg = st.g, heat = st.a;
-      float contest = step(0.06, ppl) * step(0.06, heat) * step(0.25, reg + heat);
-      float a = ppl * 0.16 + contest * (0.06 + 0.05 * sin(uTime * 5.0 + hx));
-      vec3 c = vec3(1.0, 0.76, 0.28); if (edge > 0.5) { a = ppl * 0.55 + reg * 0.10; c = ppl > reg ? vec3(1.0, 0.8, 0.3) : vec3(0.9, 0.15, 0.2); }
+    void main() { vec4 st = texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)); float ppl = st.r, reg = st.g;
+      float a = ppl * 0.14 + max(0.0, reg - 0.3) * 0.07; vec3 c = ppl >= reg ? vec3(0.96, 0.72, 0.26) : vec3(0.92, 0.27, 0.30);
+      if (edge > 0.5) a = 0.0;
       vC = vec4(c, a); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-  const hexMat = new THREE.ShaderMaterial({ uniforms: U_, vertexShader: hexVS, fragmentShader: 'varying vec4 vC; void main(){ gl_FragColor = vC; }', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const hexMat = new THREE.ShaderMaterial({ uniforms: U_, vertexShader: hexVS, fragmentShader: 'varying vec4 vC; void main(){ if (vC.a < 0.004) discard; gl_FragColor = vC; }', transparent: true, depthWrite: false });
   // glowing points: lives lost (a quiet white light each), arrests (pale violet), phone lights at night
   const ptVS = `attribute vec3 col; attribute float sz; attribute float al; varying vec3 vC; varying float vA; uniform float uPx;
     void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(sz * uPx / -mv.z, 1.5, 22.0); vC = col; vA = al; gl_Position = projectionMatrix * mv; }`;
@@ -301,12 +305,13 @@ async function run(opts) {
   bldMat.onBeforeCompile = sh => {
     sh.uniforms.tHex = U_.tHex; sh.uniforms.uNight = U_.uNight; sh.uniforms.uHexW = U_.uHexW;
     sh.vertexShader = 'attribute float hx; varying float vHx; varying float vY; varying float vUp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vHx = hx; vY = position.y; vUp = normal.y;');
-    sh.fragmentShader = 'uniform sampler2D tHex; uniform float uNight; uniform float uHexW; varying float vHx; varying float vY; varying float vUp;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>',
-      '#include <emissivemap_fragment>\n { vec4 st = texture2D(tHex, vec2((vHx + 0.5) / uHexW, 0.5)); float band = step(0.42, fract(vY / 3.2)) * step(fract(vY / 3.2), 0.78) * step(vUp, 0.5) * step(1.0, vY);\n   float lit = step(0.5, fract(sin(floor(vY / 3.2) * 12.9898 + vHx * 78.233) * 43758.5453));\n   totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * band * uNight * st.b * (0.25 + 0.55 * lit); }');
+    sh.fragmentShader = 'uniform sampler2D tHex; uniform float uNight; uniform float uHexW; varying float vHx; varying float vY; varying float vUp;\n' + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n { float l = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(vec3(l), diffuseColor.rgb, 0.28) * mix(0.74, 0.7, uNight) + vec3(0.012, 0.014, 0.02); }').replace('#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n { vec4 st = texture2D(tHex, vec2((vHx + 0.5) / uHexW, 0.5)); float band = step(0.42, fract(vY / 3.2)) * step(fract(vY / 3.2), 0.78) * step(vUp, 0.5) * step(1.0, vY);\n   float lit = step(0.5, fract(sin(floor(vY / 3.2) * 12.9898 + vHx * 78.233) * 43758.5453));\n   totalEmissiveRadiance += vec3(1.0, 0.9, 0.74) * band * uNight * st.b * (0.12 + 0.3 * lit); }');
   };
 
   let layers = [];
   function clearWorld() {
+    if (typeof LOCAL !== 'undefined' && LOCAL) { world.remove(LOCAL); LOCAL.traverse(m => { if (m.geometry) m.geometry.dispose(); }); LOCAL = null; localAt = null; }
     for (const o of layers) { world.remove(o); o.traverse(m => { if (m.isMesh || m.isPoints || m.isLine || m.isLineSegments || m.isSprite) { if (m.geometry && !m.userData.shared) m.geometry.dispose(); } }); if (K && K.drop) o.traverse(m => { if (K.live && K.live.has(m)) K.live.delete(m); }); }
     layers = [];
     if (FX && FX.clear) FX.clear();
@@ -340,7 +345,7 @@ async function run(opts) {
 
   // ---- scales: the board is real metres; landmarks, the regime's places and the people are drawn larger, as a strategy game
   // draws its units, so they read from the whole-city view; the people shrink to life size as the camera comes down
-  let G = 2, KU = 1, KUMAX = 30, HP = [], SITES = [], SEC = [], CHK = [];
+  let G = 1.3, KU = 1, KUMAX = 1, HP = [], SITES = [], SEC = [], CHK = [];
   const TILT = 0.95;
 
   let BUILDS = 0, BLDS = 0;      // how many times the world and the building layer were built (the phone test: once per city)
@@ -348,14 +353,17 @@ async function run(opts) {
     BUILDS++;
     clearWorld();
     const N = B.hex.x.length, s = B.s, R = B.r;
-    G = clamp(s / 260, 1.4, 5); KUMAX = clamp(s / 16, 14, 90);
+    // landmarks and the regime's places a little larger than life so they read from the city view; never so large that they
+    // stand over the streets (they were up to five times life size, people up to ninety: the cheap-game look, 2 November 2026)
+    G = clamp(s / 900, 1.1, 1.6); KUMAX = 1;
     HEXKEY = {}; for (let i = 0; i < N; i++) HEXKEY[hexKey(B.hex.x[i], B.hex.y[i], s)] = i;
     HP = B.hex.pts.map((a, i) => (a && a.length >= 2 ? a : [B.hex.x[i], B.hex.y[i]]));
     // the ground: warm dusty earth with a faint noise, the city's circle a shade lighter
     const gc = D.createElement('canvas'); gc.width = gc.height = 512; const g = gc.getContext('2d');
-    const grd = g.createRadialGradient(256, 256, 20, 256, 256, 256); grd.addColorStop(0, '#7d7568'); grd.addColorStop(0.62, '#655d52'); grd.addColorStop(1, '#2e2a25');
+    // the ground: a calm dark slate, the city's circle a shade lighter, a fine grain so it is not flat plastic
+    const grd = g.createRadialGradient(256, 256, 20, 256, 256, 256); grd.addColorStop(0, '#2a2e35'); grd.addColorStop(0.62, '#22262c'); grd.addColorStop(1, '#111418');
     g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 9000; i++) { const x = Math.random() * 512, y = Math.random() * 512, v = Math.random(); g.fillStyle = `rgba(${v > 0.5 ? '255,240,220' : '20,15,10'},${0.025 + Math.random() * 0.03})`; g.fillRect(x, y, 2, 2); }
+    for (let i = 0; i < 6000; i++) { const x = hash(i, 1) * 512, y = hash(i, 2) * 512, v = hash(i, 3); g.fillStyle = `rgba(${v > 0.5 ? '200,210,225' : '0,0,0'},${0.012 + hash(i, 4) * 0.02})`; g.fillRect(x, y, 2, 2); }
     const gt = new THREE.CanvasTexture(gc); gt.colorSpace = THREE.SRGBColorSpace;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(R * 2.9, R * 2.9), new THREE.MeshStandardMaterial({ map: gt, roughness: 1, metalness: 0 }));
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.5; ground.receiveShadow = true; add(ground);
@@ -366,10 +374,12 @@ async function run(opts) {
       const m = new THREE.Mesh(mergeGeos(geos), new THREE.MeshStandardMaterial({ color, transparent: op < 1, opacity: op, roughness: 1, depthWrite: false }));
       m.position.y = y; add(m);
     };
-    polys(B.parks, 0x3d5a32, 0.95, 0.2);
-    polys((B.water || {}).areas, 0x1e3f57, 1, 0.3);
+    polys(B.parks, 0x253428, 0.95, 0.2);
+    polys((B.water || {}).areas, 0x182c3d, 1, 0.3);
     // streets
-    for (const [tk, tier, wd0] of [['t3', 3, 0], ['t2', 2, 7], ['t1', 1, 13], ['t0', 0, 22]]) {
+    // streets as ribbons as wide as the street a figure may walk in (uprising-street.js HALFW), so a crowd fills the avenue
+    // it stands in; alleys are lines on slower machines
+    for (const [tk, tier, wd0] of [['t3', 3, LOWP ? 0 : 4.4], ['t2', 2, 8.4], ['t1', 1, 15], ['t0', 0, 18]]) {
       const wd = LOD2 && tier >= 1 ? 0 : wd0;      // on a phone only the motorways are ribbons; every other street is a line
       const ways = (B.roads || {})[tk] || [];
       if (!wd) {      // alleys as lines
@@ -396,7 +406,10 @@ async function run(opts) {
       const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, o * 18), 3)); ge.setAttribute('hx', new THREE.BufferAttribute(hx.subarray(0, o * 6), 1)); ge.setAttribute('tier', new THREE.BufferAttribute(ti.subarray(0, o * 6), 1));
       add(new THREE.Mesh(ge, roadMat));
     }
-    buildLamps(B); buildTraffic(B);
+    // THE STREET NETWORK (uprising-street.js): every figure and every car moves on it
+    if (STM && !ST) ST = STM.createStreets(THREE, { add, K, LOD2, LOWP, hash, uPx, colours: COLS });
+    if (ST) { const info = ST.build(B, hxAt); NETINFO = info; }
+    buildLamps(B); if (ST) ST.buildTraffic(LOD2 ? 120 : LOWP ? 260 : 520);
     // the districts of the model
     {
       const pos = new Float32Array(N * 18 * 3), hx = new Float32Array(N * 18), ed = new Float32Array(N * 18);
@@ -426,7 +439,7 @@ async function run(opts) {
   // the street lamps along the avenues: one draw call, lit at night where the district has power (the same texture as the
   // windows), and the traffic: cars moving on the main roads, thinning as the strike stops the trucks and the fighting
   // empties the streets (street life that reads the run)
-  let LAMPS = null, CARS = null;
+  let LAMPS = null, ST = null, NETINFO = null;
   function buildLamps(B) {
     const step = LOD2 ? 140 : LOWP ? 90 : 60, cap = LOD2 ? 1400 : LOWP ? 3200 : 7000, pos = [], hx = [];
     for (const tk of LOD2 ? ['t0', 't1'] : ['t0', 't1', 't2']) for (const a of (B.roads || {})[tk] || []) {
@@ -436,40 +449,10 @@ async function run(opts) {
     if (!pos.length) { LAMPS = null; return; }
     const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('hx', new THREE.Float32BufferAttribute(hx, 1));
     const m = new THREE.ShaderMaterial({ uniforms: { uNight: U_.uNight, uPx, tHex: U_.tHex, uHexW: U_.uHexW },
-      vertexShader: 'attribute float hx; uniform float uPx; uniform float uNight; uniform sampler2D tHex; uniform float uHexW; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(14.0 * uPx / -mv.z, 1.6, 9.0); vA = uNight * texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)).b; gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = dot(d, d); if (r > 0.25) discard; gl_FragColor = vec4(1.0, 0.74, 0.38, vA * smoothstep(0.25, 0.0, r) * 0.9); }',
+      vertexShader: 'attribute float hx; uniform float uPx; uniform float uNight; uniform sampler2D tHex; uniform float uHexW; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(10.0 * uPx / -mv.z, 1.2, 5.0); vA = uNight * texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)).b; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = dot(d, d); if (r > 0.25) discard; gl_FragColor = vec4(1.0, 0.93, 0.82, vA * smoothstep(0.25, 0.0, r) * 0.45); }',
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     LAMPS = new THREE.Points(ge, m); LAMPS.frustumCulled = false; LAMPS.visible = false; add(LAMPS);
-  }
-  const CAR_C = [[0.93, 0.93, 0.9], [0.72, 0.74, 0.76], [0.93, 0.76, 0.2], [0.2, 0.55, 0.38], [0.25, 0.27, 0.3], [0.62, 0.16, 0.14]];      // white, silver, the yellow and green taxis, dark, red
-  function buildTraffic(B) {
-    const ways = [];
-    for (const tk of ['t0', 't1', 't2']) for (const a of (B.roads || {})[tk] || []) { const pts = []; decode(a, (x, y) => pts.push(x, y)); if (pts.length >= 4) ways.push(pts); }
-    if (!ways.length) { CARS = null; return; }
-    const n = LOD2 ? 140 : LOWP ? 320 : 700, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), al = new Float32Array(n);
-    const car = [];
-    for (let i = 0; i < n; i++) { const w = ways[Math.floor(hash(i, 41) * ways.length)], sg = Math.floor(hash(i, 42) * (w.length / 2 - 1)); car.push({ w, sg, u: hash(i, 43), dir: hash(i, 44) < 0.5 ? 1 : -1, v: 8 + hash(i, 45) * 9 }); const c = CAR_C[Math.floor(hash(i, 46) * CAR_C.length)]; col.set(c, i * 3); }
-    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage)); ge.setAttribute('col', new THREE.BufferAttribute(col, 3)); ge.setAttribute('al', new THREE.BufferAttribute(al, 1).setUsage(THREE.DynamicDrawUsage));
-    const m = new THREE.ShaderMaterial({ uniforms: { uNight: U_.uNight, uPx },
-      vertexShader: 'attribute vec3 col; attribute float al; uniform float uPx; uniform float uNight; varying vec3 vC; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(6.0 * uPx / -mv.z, 1.3, 8.0); vC = mix(col, vec3(1.0, 0.92, 0.7), uNight * 0.85); vA = al; gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'varying vec3 vC; varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; if (dot(d, d) > 0.25) discard; gl_FragColor = vec4(vC, vA); }', transparent: true, depthWrite: false });
-    const pts = new THREE.Points(ge, m); pts.frustumCulled = false; add(pts);
-    CARS = { n, car, pos, al, ge, dens: 1 };
-  }
-  function stepTraffic(dt) {
-    if (!CARS) return;
-    const { n, car, pos, al } = CARS, want = CARS.dens, k = REDUCED ? 0 : 1;
-    for (let i = 0; i < n; i++) {
-      const c = car[i], w = c.w, segs = w.length / 2 - 1;
-      const x1 = w[c.sg * 2], y1 = w[c.sg * 2 + 1], x2 = w[c.sg * 2 + 2], y2 = w[c.sg * 2 + 3], L = Math.hypot(x2 - x1, y2 - y1) || 1;
-      c.u += c.dir * c.v * dt * k / L;
-      if (c.u > 1) { if (c.sg < segs - 1) { c.sg++; c.u = 0; } else { c.dir = -1; c.u = 1; } }
-      else if (c.u < 0) { if (c.sg > 0) { c.sg--; c.u = 1; } else { c.dir = 1; c.u = 0; } }
-      const off = 3 * c.dir, nx = -(y2 - y1) / L * off, ny = (x2 - x1) / L * off;
-      pos[i * 3] = x1 + (x2 - x1) * c.u + nx; pos[i * 3 + 1] = 1.6; pos[i * 3 + 2] = -(y1 + (y2 - y1) * c.u + ny);
-      const on = i < n * want ? 1 : 0; al[i] += (on - al[i]) * Math.min(1, dt * 1.5);
-    }
-    CARS.ge.attributes.position.needsUpdate = true; CARS.ge.attributes.al.needsUpdate = true;
   }
   function mergeGeos(geos) {
     let n = 0; for (const g of geos) n += (g.index ? g.index.count : g.attributes.position.count);
@@ -519,12 +502,16 @@ async function run(opts) {
   let SHOPS = { open: null, shut: null };
   function buildFill(B) {
     const N = B.hex.x.length, R = B.r;
-    const fillCap = LOD2 ? 450 : LOWP ? 1100 : 5200, per = new Int32Array(N);
+    if (ST) ST.clearBuildings();      // the footprints the street audit checks figures against (filled again below)
+    const AUD = [], OSMFP = osmFootprints(B);
+    if (ST) ST.addBuildings(OSMFP.map(o => o.fpB));
+    const onOSM = fp => { if (!ST) return false; for (const q of fp) if (ST.inBuildingAt(q[0], q[1])) return true; let cx = 0, cy = 0; for (const q of fp) { cx += q[0]; cy += q[1]; } return ST.inBuildingAt(cx / fp.length, cy / fp.length); };
+    const fillCap = LOD2 ? 1800 : LOWP ? 22000 : 30000, per = new Int32Array(N);      // more of the city stands (2 November 2026: empty districts read as an unfinished map)
     const osmHex = new Int32Array(N);
     if (BLD && BLD.b) for (const a of BLD.b) { const h = hxAt(a[2], a[3]); if (h >= 0) osmHex[h]++; }
     const near = Array.from({ length: N }, (_, i) => i).sort((a, b) => (Math.hypot(B.hex.x[a], B.hex.y[a]) - B.hex.p[a] / 2000) - (Math.hypot(B.hex.x[b], B.hex.y[b]) - B.hex.p[b] / 2000));
     const want = new Float32Array(N); let wsum = 0;
-    for (const i of near) { const cov = clamp(osmHex[i] / 60, 0, 1); want[i] = (1 - cov) * (0.4 + B.hex.p[i] / 60000) / (1 + Math.hypot(B.hex.x[i], B.hex.y[i]) / (R * 0.5)); wsum += want[i]; }
+    for (const i of near) { const cov = clamp(osmHex[i] / 900, 0, 0.85); want[i] = (1 - cov) * (0.4 + B.hex.p[i] / 60000) / (1 + Math.hypot(B.hex.x[i], B.hex.y[i]) / (R * 0.5)); wsum += want[i]; }
     for (let i = 0; i < N; i++) per[i] = Math.round(fillCap * want[i] / (wsum || 1));
     // procedural blocks: plain footprints (one merged mesh, a few dozen triangles each, windows lit by district at night);
     // a few hundred shop rows along the avenues are the kit's shops, so the strike can pull their shutters down
@@ -544,12 +531,18 @@ async function run(opts) {
         const r0 = hash(Math.round(x1 + d), Math.round(y1 + side * 7));
         const bx = x1 + ux * d - uy * sb * side, by = y1 + uy * d + ux * sb * side;
         const dc = Math.hypot(bx, by) / R;
-        if (kA >= 1 && r0 < 0.3 && SO.length < soCap) { SO.push(mat4(bx, by, rot + (side > 0 ? Math.PI : 0), 1)); per[h]--; continue; }
+        if (kA >= 1 && r0 < 0.3 && SO.length < soCap) {
+          const nx0 = -uy * side, ny0 = ux * side, fpS = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a2, b2]) => [bx + ux * a2 * 6 + nx0 * b2 * 5, by + uy * a2 * 6 + ny0 * b2 * 5]);
+          if (ST && (!ST.clearOfRoads(fpS) || onOSM(fpS))) continue;      // a block never stands on another street or on a mapped building (2 November 2026)
+          SO.push(mat4(bx, by, rot + (side > 0 ? Math.PI : 0), 1)); AUD.push(fpS); per[h]--; continue;
+        }
         const apt = r0 < 0.3 + 0.35 * (1 - dc), w = step - 2 - r0 * 3, dp = apt ? 16 + r0 * 6 : 11 + r0 * 4;
         const ht = apt ? 12 + r0 * 18 * (1.25 - dc) : 6 + r0 * 5;
         const nx = -uy * side, ny = ux * side, cxh = bx - nx * (dp / 2 - 6), cyh = by - ny * (dp / 2 - 6);
         const c = (a2, b2) => [cxh + ux * a2 * w / 2 + nx * b2 * dp / 2, -(cyh + uy * a2 * w / 2 + ny * b2 * dp / 2)];
-        LST.push({ footprint: [c(-1, -1), c(1, -1), c(1, 1), c(-1, 1)], height: ht, style: apt ? 'apartment' : (kA >= 1 && r0 < 0.5 ? 'shops' : 'house') });
+        const fp3 = [c(-1, -1), c(1, -1), c(1, 1), c(-1, 1)], fpB = fp3.map(q => [q[0], -q[1]]);
+        if (ST && (!ST.clearOfRoads(fpB) || onOSM(fpB))) continue;      // the fill stood blocks across other streets: figures then walked through them
+        LST.push({ footprint: fp3, height: ht, style: apt ? 'apartment' : (kA >= 1 && r0 < 0.5 ? 'shops' : 'house') }); AUD.push(fpB);
         per[h]--;
       }
     }
@@ -557,8 +550,63 @@ async function run(opts) {
     SHOPS.open = instanced('shops', null, SO); SHOPS.shut = instanced('shops', 'shut', SO);
     if (SHOPS.open) fill.add(SHOPS.open); if (SHOPS.shut) { SHOPS.shut.visible = false; fill.add(SHOPS.shut); }
     addB(fill);
+    if (ST) ST.addBuildings(AUD);
+    ROOFS = LST.filter(b => b.height >= 12).map(b => roofOf(b)).concat(OSMFP.filter(o => o.b.height >= 12).map(o => roofOf(o.b)));
+    // the nearest blocks to the centre in the kit's banded Iranian facades, the rest as plain prisms (the frame budget)
+    LST.sort((a, b) => Math.hypot(a.footprint[0][0], a.footprint[0][1]) - Math.hypot(b.footprint[0][0], b.footprint[0][1]));
     if (K && K.city && K.city.buildings) raise(LST);
-    if (BLD && BLD.b && K && K.city && K.city.buildings) buildOSM(B);
+    if (OSMFP.length && K && K.city && K.city.buildings) raise(OSMFP.map(o => o.b));
+    if (ST) ST.markCovered();      // a street under a mapped building is never stood on (uprising-street.js)
+  }
+  // THE NEIGHBOURHOOD AROUND THE CAMERA (2 November 2026): a whole city at street density would be hundreds of thousands of
+  // buildings, so the blocks within about two kilometres of where the camera looks are filled densely (two to five storey
+  // rows along every street and alley, as Iranian residential districts are), never on a street or a mapped building, and
+  // replaced when the camera moves on. The street audit checks the figures against these blocks too.
+  let LOCAL = null, localAt = null, localT = -9, ROOFS = [], LROOFS = [];
+  const roofOf = b => { let x = 0, y = 0; for (const q of b.footprint) { x += q[0]; y -= q[1]; } return [x / b.footprint.length, y / b.footprint.length, b.height]; };
+  function localFill(cx, cy, rad) {
+    if (!BJ || !ST) return;
+    if (LOCAL) { world.remove(LOCAL); LOCAL.traverse(m => { if (m.geometry) m.geometry.dispose(); }); LOCAL = null; }
+    const cap = LOD2 ? 2200 : LOWP ? 9000 : 14000, list = [], fps = [], R2 = rad * rad;
+    for (const [tk, sb, dp0, step] of [['t3', 9.5, 10, 12], ['t2', 13, 13, 15], ['t1', 19, 15, 18]]) for (const a of (BJ.roads || {})[tk] || []) {
+      if (list.length >= cap) break;
+      let px = 0, py = 0;
+      decode(a, (x, y, f) => {
+        if (!f && list.length < cap) {
+          const mx = (px + x) / 2, my = (py + y) / 2;
+          if ((mx - cx) ** 2 + (my - cy) ** 2 < R2) {
+            const L = Math.hypot(x - px, y - py);
+            if (L > 14) {
+              const ux = (x - px) / L, uy = (y - py) / L;
+              for (let d = step / 2; d < L - 4 && list.length < cap; d += step) for (const side of [-1, 1]) {
+                const r0 = hash(Math.round(px + ux * d) * 3 + side, Math.round(py + uy * d)), w = step - 1.2, dp = dp0 + r0 * 4;
+                const nx = -uy * side, ny = ux * side, bx = px + ux * d + nx * (sb + dp / 2 - 5), by = py + uy * d + ny * (sb + dp / 2 - 5);
+                const fp = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a2, b2]) => [bx + ux * a2 * w / 2 + nx * b2 * dp / 2, by + uy * a2 * w / 2 + ny * b2 * dp / 2]);
+                if (!ST.clearOfRoads(fp, 0.8)) continue;
+                let hit = false; for (const q of fp) if (ST.inBuildingAt(q[0], q[1])) { hit = true; break; } if (hit || ST.inBuildingAt(bx, by)) continue;
+                const dc = Math.hypot(bx, by) / BJ.r, fl = 2 + Math.floor(r0 * (dc < 0.35 ? 4 : 3));
+                list.push({ footprint: fp.map(q => [q[0], -q[1]]), height: fl * 3.2 + 0.6, style: tk === 't1' && r0 < 0.5 ? 'shops' : fl >= 4 ? 'apartment' : 'house' }); fps.push(fp);
+              }
+            }
+          }
+        }
+        px = x; py = y;
+      });
+    }
+    // two blocks of the same pass must not overlap either: keep the first of any pair whose centres sit closer than 7 m
+    const keep = [], fpk = [], cells = new Map();
+    for (let i = 0; i < list.length; i++) { const f = fps[i], cx2 = (f[0][0] + f[2][0]) / 2, cy2 = (f[0][1] + f[2][1]) / 2, k = Math.floor(cx2 / 7) + ',' + Math.floor(cy2 / 7); if (cells.has(k)) continue; cells.set(k, 1); keep.push(list[i]); fpk.push(f); }
+    ST.setLocalBuildings(fpk); LROOFS = keep.filter(b => b.height >= 12).map(roofOf);
+    if (!keep.length) return;
+    LOCAL = new THREE.Group(); LOCAL.name = 'local';
+    for (let o = 0; o < keep.length; o += 2500) { const mesh = prisms(keep.slice(o, o + 2500)); const posA = mesh.geometry.attributes.position, hx = new Float32Array(posA.count); for (let v = 0; v < posA.count; v++) { const h = hxAt(posA.getX(v), -posA.getZ(v)); hx[v] = h < 0 ? BJ.hex.x.length : h; } mesh.geometry.setAttribute('hx', new THREE.BufferAttribute(hx, 1)); mesh.receiveShadow = true; LOCAL.add(mesh); }
+    world.add(LOCAL); localAt = [cx, cy, rad];
+  }
+  function maybeLocal() {
+    if (!BJ || !ST || cam.dist > 4200 || clock - localT < 0.8) return;
+    const rad = clamp(cam.dist * (LOD2 ? 0.7 : 1.25), 700, LOD2 ? 1400 : 2400);
+    if (localAt && Math.hypot(localAt[0] - cam.tx, localAt[1] - cam.ty) < localAt[2] * 0.4 && rad <= localAt[2] * 1.15) return;
+    localT = clock; localFill(cam.tx, cam.ty, rad);
   }
   // raise footprints as ONE mesh per ~2,500 buildings, each vertex tagged with its district (windows go dark where the power is cut)
   // on a phone: plain prisms (walls and a flat roof, about a dozen triangles each) instead of the kit's banded facades
@@ -581,7 +629,7 @@ async function run(opts) {
   }
   function raise(list) {
     for (let o = 0; o < list.length; o += 2500) {
-      let mesh; try { mesh = LOWP ? prisms(list.slice(o, o + 2500)) : K.city.buildings(list.slice(o, o + 2500)); } catch (e) { console.warn('buildings', e); continue; }
+      let mesh; try { mesh = LOWP || o >= 7500 ? prisms(list.slice(o, o + 2500)) : K.city.buildings(list.slice(o, o + 2500)); } catch (e) { console.warn('buildings', e); continue; }
       const posA = mesh.geometry.attributes.position, hx = new Float32Array(posA.count);
       for (let v = 0; v < posA.count; v++) { const h = hxAt(posA.getX(v), -posA.getZ(v)); hx[v] = h < 0 ? BJ.hex.x.length : h; }
       mesh.geometry.setAttribute('hx', new THREE.BufferAttribute(hx, 1));
@@ -590,19 +638,20 @@ async function run(opts) {
     }
   }
   const KIND_STYLE = ['house', 'apartment', 'shops', 'govt', 'govt', 'shops', 'govt', 'govt', 'govt', 'govt', 'govt'];
-  function buildOSM(B) {
-    const cap = LOD2 ? 1100 : LOWP ? 3500 : 11000, list = [], hxs = [];
-    for (let n = 0; n < BLD.b.length && list.length < cap; n++) {
+  // the buildings OpenStreetMap maps, as footprints with a height and a style (raised by buildFill, checked by the street audit)
+  function osmFootprints(B) {
+    if (!BLD || !BLD.b) return [];
+    const cap = LOD2 ? 1100 : LOWP ? 3500 : 11000, out = [];
+    for (let n = 0; n < BLD.b.length && out.length < cap; n++) {
       const a = BLD.b[n], k = a[1] | 0, pts = [];
       let x = 0, y = 0; for (let j = 2; j + 1 < a.length; j += 2) { if (j === 2) { x = a[2]; y = a[3]; } else { x += a[j]; y += a[j + 1]; } pts.push([x, -y]); }
       if (pts.length < 3) continue;
       const cx = pts[0][0], cy = -pts[0][1], dc = Math.hypot(cx, cy) / B.r, r0 = hash(cx, cy);
       let h = a[0] | 0;
       if (!h) h = k === 1 ? 14 + r0 * 16 * (1.2 - dc) : k === 2 ? 8 + r0 * 6 : k === 4 ? 9 + r0 * 4 : k === 5 ? 7 + r0 * 3 : k >= 3 ? 10 + r0 * 8 : 6.5 + r0 * 4 + (dc < 0.3 ? r0 * 6 : 0);
-      list.push({ footprint: pts, height: clamp(h, 3, 180), style: KIND_STYLE[k] || 'house' });
-      hxs.push(hxAt(cx, cy));
+      out.push({ b: { footprint: pts, height: clamp(h, 3, 180), style: KIND_STYLE[k] || 'house' }, fpB: pts.map(q => [q[0], -q[1]]) });
     }
-    raise(list);
+    return out;
   }
 
   // ---- the places that matter, as their models
@@ -669,7 +718,7 @@ async function run(opts) {
     }
     for (const key in byType) { const [t, team] = key.split('|'); const grp = instanced(t, null, byType[key], team); if (grp) { grp.name = 'sec:' + t + ':' + byType[key].length; add(grp); } }
     // checkpoints: hidden until the regime moves past batons
-    CHK = (B.chk || []).slice(0, LOD2 ? 8 : 30); CHKO = [];
+    CHK = (B.chk || []).slice(0, LOD2 ? 5 : 30); CHKO = [];
     { const ck = instanced('checkpoint', null, CHK.map(c => mat4(c.x, c.y, hash(c.x, c.y) * 6.28, G * 1.1)), 'grey'); if (ck) { ck.name = 'checkpoints'; ck.visible = false; add(ck); CHKO.push(ck); } }      // one draw call per part for all of them
     // labels for the named compounds
     for (const q of secLab) {
@@ -685,88 +734,54 @@ async function run(opts) {
   const wLab = q => q.sec ? (q.k === 'irgc_hq' ? 1.5 : q.k === 'special_police' ? 1.2 : 0.6) : (U.BASEW[q.k] || 0.3);
 
   // ================================================================== the people and the forces as moving figures
-  // Each group is one instanced crowd from the kit (K.city.crowd: limbs swing in the shader). This file owns where every
-  // figure is going: each hour of the run says how many people and forces each district holds, figures walk between
-  // districts along the streets, forces form a line facing the crowd, a squad that crosses over walks to the people.
-  function Group_(kinds, max, opt) {
-    const g = { n: max, x: new Float32Array(max), y: new Float32Array(max), tx: new Float32Array(max), ty: new Float32Array(max), hex: new Int32Array(max).fill(-1), vis: new Uint8Array(max), sp: new Float32Array(max), crowd: null, map: null, pts: [], dirty: true };
-    for (let i = 0; i < max; i++) { g.sp[i] = 0.75 + 0.5 * hash(i, 3); g.pts.push([0, 0]); }
-    if (K && K.city && K.city.crowd) {
-      try {
-        g.crowd = K.city.crowd(max, { kinds, spread: 1, center: [0, 0], speed: 3, seed: (opt && opt.seed) || 7, lite: LOWP, shadows: false, team: opt && opt.team });
-        g.crowd.mesh.frustumCulled = false; add(g.crowd.mesh);
-        // which instanced mesh and slot each figure lives in (the kit fills its meshes in order)
-        g.map = []; let i = 0;
-        for (const m of g.crowd.mesh.children) for (let j = 0; j < m.count; j++, i++) g.map.push([m, j]);
-      } catch (e) { console.warn('crowd', e); g.crowd = null; }
-    }
-    return g;
-  }
-  let PPL = null, RIOT = null, BAS = null, IRG = null, DEF_ = null, MED = null, VEH = [], DIMMED = 0;
+  // WHERE EVERY FIGURE GOES IS uprising-street.js (2 November 2026): each hour of the run says how many people and forces
+  // each district holds; the people come out of their side streets and walk the real streets to their district's square or
+  // main junction, the forces leave their own bases and stand as a line across the avenue facing a crowd, and everyone
+  // keeps to the streets. Each figure stands for many people (RUN.xP), and the page says so in the legend.
+  let PPL = null, RIOT = null, BAS = null, IRG = null, DEF_ = null, MED = null, VEH = [];
+  const CAPS = LOD2 ? [190, 40, 28, 18, 12, 6] : LOWP ? [700, 130, 90, 60, 40, 24] : [1500, 300, 200, 160, 90, 50];
   function buildUnits(B) {
-    const cap = LOD2 ? 240 : LOWP ? 600 : 1400;
-    PPL = Group_(['protester'], cap, { seed: 11, team: 'gold' });
-    RIOT = Group_(['riot'], LOD2 ? 60 : LOWP ? 140 : 320, { seed: 12, team: 'red' });
-    BAS = Group_(['basij'], LOD2 ? 40 : LOWP ? 90 : 220, { seed: 13, team: 'red' });
-    IRG = Group_(['irgc_soldier'], LOD2 ? 30 : LOWP ? 70 : 180, { seed: 14, team: 'red' });
-    DEF_ = Group_(['defector'], LOD2 ? 16 : LOWP ? 40 : 100, { seed: 15, team: 'blue' });
-    MED = Group_(['medic'], LOD2 ? 8 : LOWP ? 24 : 60, { seed: 16, team: 'white' });
-    // vehicles: water cannons and patrol cars from the first hour, Basij motorbikes, armour and machine-gun pickups higher up
+    PPL = { n: CAPS[0] }; RIOT = { n: CAPS[1] }; BAS = { n: CAPS[2] }; IRG = { n: CAPS[3] }; DEF_ = { n: CAPS[4] }; MED = { n: CAPS[5] };
+    VEH = []; SNIP = [];
+    if (!ST) return;
+    ST.resetVehicles(); ST.makeAgents(CAPS);
+    // a district gathers at the place that matters in it (the governorate, the square, the campus, the bazaar), else its main junction
+    const sq = {}; const wq = q => (q.oi != null ? 3 : 0) + (q.k === 'square' || q.k === 'sq2' ? 2 : q.k === 'uni' || q.k === 'bazaar' ? 1.5 : 0);
+    for (const q of SITES) if (q.h >= 0 && wq(q) > 0 && (!sq[q.h] || wq(q) > sq[q.h][2])) sq[q.h] = [q.x, q.y, wq(q)];
+    ST.setGathering(sq);
+    const pick = ks => SEC.filter(q => ks.includes(q.k)).map(q => [q.x, q.y]);
+    ST.setBases({ riot: pick(['police_station', 'police_hq', 'special_police']), basij: pick(['basij']), irgc: pick(['irgc_hq']) });
     buildDishes();
-    VEH = [];
-    for (const [t, n, lv] of [['police_car', 4, 1], ['riot_truck', 4, 1], ['basij_bike', 5, 2], ['apc', 3, 3], ['pickup_mg', 3, 4]]) {
-      for (let i = 0; i < (LOD2 ? (t === 'apc' || t === 'basij_bike' ? 0 : 1) : LOWP ? Math.ceil(n / 2) : n); i++) { const o = make(t, { team: 'red' }); if (!o) continue; o.visible = false; add(o); VEH.push({ o, lv, x: 0, y: 0, tx: 0, ty: 0, h: -1, base: o.scale.x }); }
+    // the forces' vehicles: water cannons and patrol cars from the first hour, Basij motorbikes (groups of three), armour and
+    // machine-gun pickups higher up; they drive from their bases to the back of the line
+    for (const [t, n, lv] of [['police_car', 3, 1], ['riot_truck', 3, 1], ['basij_bike', 9, 2], ['apc', 2, 3], ['pickup_mg', 2, 4]]) {
+      const m = LOD2 ? (t === 'basij_bike' ? 3 : t === 'apc' || t === 'pickup_mg' ? 0 : 1) : LOWP ? Math.ceil(n / 2) : n;
+      for (let i = 0; i < m; i++) { const o = make(t, { team: 'red' }); if (!o) continue; add(o); ST.addVehicle(o, lv, t === 'basij_bike' ? 'bike' : 'car'); VEH.push(o); }
     }
   }
   // Starlink dishes on the roofs of the districts that rose: a handful, as many as the city's terminals can stand for
   let DISH = [];
   function buildDishes() { DISH = []; for (let i = 0; i < (LOD2 ? 2 : LOWP ? 5 : 12); i++) { const o = make('starlink', { team: 'grey' }); if (!o) return; o.visible = false; add(o); DISH.push({ o, base: o.scale.x }); } }
-  function streetPt(h, r) { const a = HP[h], m = (a.length / 2) | 0, j = Math.floor(r * m) % Math.max(1, m); return [a[j * 2], a[j * 2 + 1]]; }
-  // how many figures each district should hold this hour, and who walks where: surplus walks to neighbours that lack, the
-  // rest go home (hidden); lacks are filled from the hidden ones, appearing on the district's streets
-  function distribute(g, want, seedT, formation) {
-    if (!g) return;
-    const N = BJ.hex.x.length, have = [];
-    for (let i = 0; i < N; i++) have.push([]);
-    const free = [];
-    for (let i = 0; i < g.n; i++) { if (g.vis[i] && g.hex[i] >= 0) have[g.hex[i]].push(i); else free.push(i); }
-    for (let i = 0; i < N; i++) {
-      let sur = have[i].length - want[i]; if (sur <= 0) continue;
-      for (const j of BJ.hex.nb[i]) { if (sur <= 0) break; let def = want[j] - have[j].length; while (def-- > 0 && sur > 0) { const p = have[i].pop(); g.hex[p] = j; have[j].push(p); sur--; } }
-      while (sur-- > 0) { const p = have[i].pop(); g.vis[p] = 0; g.hex[p] = -1; free.push(p); }
-    }
-    for (let i = 0; i < N; i++) { let def = want[i] - have[i].length; while (def-- > 0 && free.length) { const p = free.pop(); const [x, y] = streetPt(i, hash(p, seedT)); g.x[p] = x + (hash(p, 1) - 0.5) * 30; g.y[p] = y + (hash(p, 2) - 0.5) * 30; g.vis[p] = 1; g.hex[p] = i; have[i].push(p); } }
-    // targets: crowds gather on the district's avenues; forces form a line between the crowd and their side of the district
-    for (let i = 0; i < N; i++) {
-      const L = have[i]; if (!L.length) continue;
-      const f = formation && formation[i];
-      for (let n = 0; n < L.length; n++) {
-        const p = L[n];
-        if (f) { const u = (n / Math.max(1, L.length - 1) - 0.5); g.tx[p] = f[0] + f[2] * u * f[4] + (hash(p, seedT) - 0.5) * 6; g.ty[p] = f[1] + f[3] * u * f[4] + (hash(p, seedT + 1) - 0.5) * 6; }
-        else { const [x, y] = streetPt(i, hash(p * 3 + 1, Math.floor(seedT / 3))); g.tx[p] = x + (hash(p, seedT) - 0.5) * BJ.s * 0.08; g.ty[p] = y + (hash(p, seedT + 2) - 0.5) * BJ.s * 0.08; }
-      }
-    }
-    g.dirty = true;
-  }
-  function stepGroup(g, dt, t, speed) {
-    if (!g || !g.crowd) return;
-    const v = speed * dt;
-    for (let i = 0; i < g.n; i++) {
-      if (!g.vis[i]) continue;
-      const dx = g.tx[i] - g.x[i], dy = g.ty[i] - g.y[i], d = Math.hypot(dx, dy);
-      if (d > 0.5) { const m = Math.min(1, v * g.sp[i] / d); g.x[i] += dx * m; g.y[i] += dy * m; }
-      g.crowd.px[i] = g.x[i]; g.crowd.pz[i] = -g.y[i];
-    }
-    if (g.dirty) { for (let i = 0; i < g.n; i++) { g.pts[i][0] = g.tx[i]; g.pts[i][1] = -g.ty[i]; } g.crowd.setTargets(g.pts, 0.6); g.dirty = false; }
-    g.crowd.update(dt, t);
-    // life size up close, larger from far away; hidden figures take no room
-    for (let i = 0; i < g.n; i++) {
-      const [m, j] = g.map[i], te = m.instanceMatrix.array, k = j * 16;
-      if (!g.vis[i]) { te[k] = te[k + 1] = te[k + 2] = te[k + 4] = te[k + 5] = te[k + 6] = te[k + 8] = te[k + 9] = te[k + 10] = 0; continue; }
-      te[k] *= KU; te[k + 2] *= KU; te[k + 5] *= KU; te[k + 8] *= KU; te[k + 10] *= KU; te[k + 13] *= KU;
-    }
+  function streetPt(h, r) { if (ST && ST.gather && ST.gather[h] >= 0 && r === 0.13) return ST.node(ST.gather[h]); const a = HP[h], m = (a.length / 2) | 0, j = Math.floor(r * m) % Math.max(1, m); return [a[j * 2], a[j * 2 + 1]]; }
+  // a figure of the people standing in district h (lives lost and phone lights are drawn where people actually are)
+  function personIn(h, r) {
+    const A = ST && ST.A; if (!A) return streetPt(h, r);
+    const s0 = Math.floor(r * A.n);
+    for (let t = 0; t < A.n; t++) { const i = (s0 + t) % A.n; if (A.st[i] && A.hex[i] === h && A.kind[i] === 0 && A.al[i] > 0.5) return [A.x[i], A.y[i]]; }
+    return streetPt(h, 0.13);
   }
 
+  let SNIP = [];
+  function placeSnipers(hs) {
+    if (!SNIP.length) for (let i = 0; i < (LOD2 ? 2 : 4); i++) { const o = make('irgc_soldier', { team: 'red' }); if (!o) break; o.visible = false; add(o); SNIP.push(o); }
+    let n = 0;
+    for (const h of hs) {
+      const ln = ST && ST.lineOf(h); if (!ln) continue; const [gx, gy] = ST.node(ln.g);
+      const cand = ROOFS.concat(LROOFS).filter(r => (r[0] - gx) ** 2 + (r[1] - gy) ** 2 < 160 * 160).sort((a, b) => b[2] - a[2]);
+      for (const r of cand.slice(0, 2)) { const o = SNIP[n++]; if (!o) break; o.position.set(r[0], r[2], -r[1]); o.rotation.y = Math.atan2(gx - r[0], gy - r[1]); o.scale.setScalar(clamp(cam.dist / 250, 1, 2.4)); o.visible = true; }
+    }
+    for (; n < SNIP.length; n++) SNIP[n].visible = false;
+  }
   // ---- glowing points: lives lost, arrests, phone lights at night
   let PTS = null, ptsGeo = null;
   function buildPoints() {
@@ -790,7 +805,7 @@ async function run(opts) {
   }
 
   // ================================================================== the camera
-  const cam = { tx: 0, ty: 0, dist: 20000, az: 0.35, tilt: 0.9, gtx: 0, gty: 0, gdist: 20000, gaz: 0.35, gtilt: 0.9, follow: true, user: 0 };
+  const cam = { tx: 0, ty: 0, dist: 20000, az: 0.35, tilt: 0.9, gtx: 0, gty: 0, gdist: 20000, gaz: 0.35, gtilt: 0.9, follow: true, user: -99 };
   function camHome(snap) {
     const R = BJ ? BJ.r : 9000;
     cam.gtx = 0; cam.gty = 0; cam.gdist = R * (PHONE() ? 1.9 : 1.25); cam.gaz = 0.4; cam.gtilt = 0.92;
@@ -807,11 +822,14 @@ async function run(opts) {
     // on a phone the plan sheet covers the lower part of the board: the picture's centre moves up into the part that shows
     const cw = renderer.domElement.clientWidth || 1, ch = renderer.domElement.clientHeight || 1;
     const sheetUp = PHONE() && !RUN && !panel.classList.contains('min') ? Math.round(Math.min(panel.offsetHeight, ch * 0.62) * 0.5) : 0;
-    if (sheetUp) camera.setViewOffset(cw, ch, 0, sheetUp, cw, ch); else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+    // during a run on a computer the feed covers one side: the picture's centre moves into the free part, so what the camera
+    // follows is never behind a panel (2 November 2026)
+    const feedEl = RUN && !PHONE() ? D.getElementById('up-feed') : null, sideX = feedEl && !feedEl.hidden && feedEl.offsetParent ? Math.round((feedEl.offsetWidth + 24) / 2) * (FA ? -1 : 1) : 0;
+    if (sheetUp || sideX) camera.setViewOffset(cw, ch, sideX, sheetUp, cw, ch); else if (camera.view && camera.view.enabled) camera.clearViewOffset();
     camera.updateProjectionMatrix();
     uPx.value = renderer.domElement.height * 1.2;
     scene.fog.density = 0.6 / Math.max(3000, d * 3.2);
-    KU = clamp(d / 220, 1, KUMAX);
+    KU = 1;      // nothing is drawn larger than life as the camera rises any more: far away, the figures become dots
   }
   const ptrs = new Map(); let drag = null, moved = 0;
   canvas.addEventListener('pointerdown', ev => { canvas.setPointerCapture(ev.pointerId); ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY }); moved = 0; drag = { b: ev.button, sh: ev.shiftKey }; cam.user = clock; });
@@ -943,13 +961,16 @@ async function run(opts) {
   // ---- the plan drawn on the board: start districts, gathering flags with their hour, routes as glowing arrows
   let planGrp = null, draftGrp = null;
   function routeMesh(hs, color, w) {
-    const pts = hs.map(h => new THREE.Vector3(BJ.hex.x[h], 6, -BJ.hex.y[h]));
+    // a route is drawn along the streets the crowd would walk (uprising-street.js pathXY), not straight over the roofs
+    let pts = null;
+    if (ST && ST.gather) { const xy = []; for (let n = 1; n < hs.length; n++) { const p = ST.pathXY(ST.gather[hs[n - 1]], ST.gather[hs[n]]); if (!p) { xy.length = 0; break; } for (let j = n > 1 ? 1 : 0; j < p.length; j++) xy.push(p[j]); } if (xy.length >= 2) pts = xy.map(q => new THREE.Vector3(q[0], 6, -q[1])); }
+    if (!pts) pts = hs.map(h => new THREE.Vector3(BJ.hex.x[h], 6, -BJ.hex.y[h]));
     if (pts.length < 2) return null;
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.3);
-    const geo = new THREE.TubeGeometry(curve, Math.max(8, pts.length * 8), w, 6, false);
+    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.1);
+    const geo = new THREE.TubeGeometry(curve, Math.min(1200, Math.max(8, pts.length * 3)), Math.min(w, 9), 6, false);
     const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, depthWrite: false }));
     const end = pts[pts.length - 1], prv = pts[pts.length - 2], dir = end.clone().sub(prv).normalize();
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(w * 3, w * 7, 10), m.material); cone.position.copy(end); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.add(cone);
+    w = Math.min(w, 9); const cone = new THREE.Mesh(new THREE.ConeGeometry(w * 3, w * 7, 10), m.material); cone.position.copy(end); cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.add(cone);
     return m;
   }
   function drawPlanMarks() {
@@ -962,22 +983,23 @@ async function run(opts) {
     for (let i = 0; i < N; i++) { hexData[i * 4] = 0; hexData[i * 4 + 3] = 0; }
     for (const h of ig) { hexData[h * 4] = 150; hexData[h * 4 + 3] = 170; }
     hexTex.needsUpdate = true;
+    { const set = new Set(ig); drawFront(i => set.has(i), true); }
     for (const r of P.routes) { const m = routeMesh(r, 0xffc54a, BJ.s * 0.035); if (m) planGrp.add(m); }
     for (const q of P.gather) {
       const f = make('flag_lionsun', { team: 'gold' }) || new THREE.Mesh(new THREE.ConeGeometry(6, 30, 8), new THREE.MeshBasicMaterial({ color: 0xffc54a }));
       f.scale.multiplyScalar(K ? G * 6 : G); f.position.set(BJ.hex.x[q.h], 0, -BJ.hex.y[q.h]); planGrp.add(f);
     }
     // where the people start: a small crowd stands there before Play
-    if (PPL) { const want = new Int32Array(N); for (const h of ig) want[h] = LOWP ? 10 : 16; distribute(PPL, want, 1); for (const g of [RIOT, BAS, IRG, DEF_, MED]) distribute(g, new Int32Array(N), 1); placeIdleForces(); }
+    if (ST && ST.A) { const want = new Int32Array(N); for (const h of ig) want[h] = LOWP ? 10 : 16; ST.setCrowdSize(want); ST.plan(0, want, null, true); for (let k = 1; k <= 5; k++) ST.plan(k, new Int32Array(N), null, true); placeIdleForces(); }
   }
   function placeIdleForces() {      // before Play: police at their stations, Basij at their bases
-    if (!RIOT || !BJ) return;
+    if (!ST || !ST.A || !BJ) return;
     const N = BJ.hex.x.length, wr = new Int32Array(N), wb = new Int32Array(N);
     for (const q of SEC) { if (q.h < 0 || q.h >= N) continue; if (q.k === 'police_station' || q.k === 'police_hq' || q.k === 'special_police') wr[q.h] = Math.min(wr[q.h] + 2, 8); if (q.k === 'basij') wb[q.h] = Math.min(wb[q.h] + 2, 6); }
     let tr_ = 0, tb = 0; for (let i = 0; i < N; i++) { tr_ += wr[i]; tb += wb[i]; }
     const fr = Math.min(1, RIOT.n * 0.5 / (tr_ || 1)), fb = Math.min(1, BAS.n * 0.5 / (tb || 1));
     for (let i = 0; i < N; i++) { wr[i] = Math.round(wr[i] * fr); wb[i] = Math.round(wb[i] * fb); }
-    distribute(RIOT, wr, 2); distribute(BAS, wb, 3);
+    ST.plan(1, wr, null, true); ST.plan(2, wb, null, true);
   }
   function drawRouteDraft() {
     if (draftGrp) { world.remove(draftGrp); draftGrp.traverse(m => { if (m.geometry) m.geometry.dispose(); }); draftGrp = null; }
@@ -1012,10 +1034,12 @@ async function run(opts) {
     fpsAcc += dt; fpsN++; if (fpsAcc > 1) { FPS = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
     playTick(dt);
     camApply();
-    const spd = BJ.s * (RUN && playing ? 0.12 * Math.min(speed, 8) : 0.05) + 8 * KU;
-    for (const g of [PPL, RIOT, BAS, IRG, DEF_, MED]) stepGroup(g, dt, clock, g === PPL ? spd : spd * 1.15);
-    for (const v of VEH) if (v.o.visible) { const dx = v.tx - v.x, dy = v.ty - v.y, d = Math.hypot(dx, dy); if (d > 1) { const m = Math.min(1, spd * 1.4 * dt / d); v.x += dx * m; v.y += dy * m; v.o.rotation.y = Math.atan2(dx, -dy) + Math.PI; } v.o.position.set(v.x, 0, -v.y); v.o.scale.setScalar(v.base * Math.max(1, KU * 0.55)); }
-    stepTraffic(dt);
+    // everyone moves on the streets (uprising-street.js): simulated seconds a real second while the run plays, real time otherwise
+    if (ST) {
+      const simRate = RUN && playing ? 3600 * speed * pace / HOUR_S : 0, fs = clamp(cam.dist / 250, 1, 2.4);
+      ST.step(dt, simRate, cam.dist); ST.stepVehicles(dt, simRate, cam.dist, clamp(cam.dist / 600, 1, 2.5)); ST.draw(cam.dist, fs, clock, dt, [cam.tx, cam.ty]);
+    }
+    stepFocus(); maybeLocal();
     if (K) K.tick(dt, clock);
     if (FX) FX.update(dt, clock);
     if (PTS) {
@@ -1028,7 +1052,7 @@ async function run(opts) {
       }
       ptsGeo.attributes.position.needsUpdate = true; ptsGeo.attributes.al.needsUpdate = true; ptsGeo.attributes.col.needsUpdate = true; ptsGeo.attributes.sz.needsUpdate = true;
     }
-    for (const r of RINGS) if (r.life > 0) { r.life -= dt; const u = 1 - r.life / r.max; r.m.scale.setScalar((20 + 160 * u) * Math.max(1, KU * 0.3) * (r.big || 1)); r.m.material.opacity = (r.big > 1 ? 0.85 : 0.5) * (1 - u); if (r.life <= 0) r.m.visible = false; }
+    for (const r of RINGS) if (r.life > 0) { r.life -= dt; const u = 1 - r.life / r.max; r.m.scale.setScalar((20 + 160 * u) * (r.big || 1)); r.m.material.opacity = (r.big > 1 ? 0.85 : 0.5) * (1 - u); if (r.life <= 0) r.m.visible = false; }
     if (!RUN && !REDUCED && clock - cam.user > 8 && !TOOL) cam.gaz += dt * 0.02;      // the board turns slowly while nobody touches it
     renderer.render(scene, camera);
     placeLabels();
@@ -1051,6 +1075,8 @@ async function run(opts) {
   const overB = (a, k) => a[0] < k[0] + k[2] && a[0] + a[2] > k[0] && a[1] < k[1] + k[3] && a[1] + a[3] > k[1];
   function measureLab(el) { const was = el.style.display; el.style.visibility = 'hidden'; el.style.display = ''; const r = el.getBoundingClientRect(); el._w = Math.ceil(r.width) || 80; el._h = Math.ceil(r.height) || 20; el.style.display = was; el.style.visibility = ''; }
   W.addEventListener('resize', () => { for (const el of labelEls) el._w = 0; for (const el of CHIPS) el._t = null; hudT = 0; });
+  // AT MOST THIS MANY PLACE NAMES AT ONCE (2 November 2026: "messy, chaotic, cluttered"), plus at most three counts
+  const LABCAP = () => (PHONE() ? 4 : RUN ? 7 : 9);
   function placeLabels(force) {
     if (!force && (labTick++ & 1)) return;
     const w = stage.clientWidth, h = stage.clientHeight, near = cam.dist < BJ.r * 0.7, mid = cam.dist < BJ.r * 1.6;
@@ -1061,8 +1087,11 @@ async function run(opts) {
       if (show) { pv.copy(b.top).project(camera); if (pv.z <= 1 && pv.x > -1.02 && pv.x < 1.02 && pv.y > -1.02 && pv.y < 1.02) { const X = (pv.x + 1) / 2 * w, Y = (1 - pv.y) / 2 * h; cand.push([n, X, Y]); marks.push([n, [X - 7, Y - 7, 14, 14]]); continue; } }
       if (el.style.display !== 'none') el.style.display = 'none';
     }
+    let placed = 0; const cap = LABCAP();
     for (let ci = 0; ci < cand.length; ci++) {
-      const [n, X, Y] = cand[ci], el = labelEls[n]; if (!el._w) measureLab(el);
+      const [n, X, Y] = cand[ci], el = labelEls[n];
+      if (placed >= cap) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }      // a few names, the most important first
+      if (!el._w) measureLab(el);
       const M4 = 4, tw = el._w + 2 * M4, th = el._h + 2 * M4;
       const spots = [[X - tw / 2, Y - th - 4], [X - tw / 2, Y + 6], [X + 9, Y - th / 2], [X - 9 - tw, Y - th / 2]];
       let ok = false, box = null;
@@ -1073,7 +1102,7 @@ async function run(opts) {
         for (let j = 0; ok && j < ci; j++) if (overB(box, marks[j][1])) ok = false;      // never over a more important place's marker
       }
       if (!ok) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
-      kept.push(box);
+      kept.push(box); placed++;
       el.style.display = ''; el.style.transform = `translate(${Math.round(box[0] + M4)}px,${Math.round(box[1] + M4)}px)`;
     }
     placeChips(kept, w, h);
@@ -1085,11 +1114,11 @@ async function run(opts) {
     const N = BJ.hex.x.length, C = [], F = [];
     for (let i = 0; i < N; i++) { if (fr.c[i] > 1500) C.push(i); if (fr.f[i] > 400) F.push(i); }
     C.sort((a, b) => fr.c[b] - fr.c[a]); F.sort((a, b) => fr.f[b] - fr.f[a]);
-    const want = C.slice(0, PHONE() ? 2 : 4).map(i => [i, 'p', fr.c[i]]).concat(F.slice(0, PHONE() ? 1 : 2).map(i => [i, 'f', fr.f[i]]));
+    const want = C.slice(0, PHONE() ? 1 : 2).map(i => [i, 'p', fr.c[i]]).concat(F.slice(0, 1).map(i => [i, 'f', fr.f[i]]));
     while (CHIPS.length < want.length) { const el = D.createElement('div'); el.className = 'up-cchip'; labels.appendChild(el); CHIPS.push(el); }
     CHIPS.forEach((el, n) => {
       const q = want[n]; if (!q) { el.style.display = 'none'; return; }
-      pv.set(BJ.hex.x[q[0]], 22 * G, -BJ.hex.y[q[0]]).project(camera);
+      { const [gx, gy] = streetPt(q[0], 0.13); pv.set(gx, 22 * G, -gy).project(camera); }
       if (pv.z > 1 || Math.abs(pv.x) > 1 || Math.abs(pv.y) > 1) { el.style.display = 'none'; return; }
       const X = (pv.x + 1) / 2 * w + (q[1] === 'f' ? 26 : -26), Y = (1 - pv.y) / 2 * h;
       el.className = 'up-cchip ' + q[1]; el.textContent = (q[1] === 'p' ? '◉ ' : '⛨ ') + big(q[2]);
@@ -1116,13 +1145,13 @@ async function run(opts) {
     U_.uNight.value = night;
     const gold = hr >= 16 && hr < 20 ? 1 - Math.abs(hr - 18) / 2 : hr >= 5 && hr < 8 ? 1 - Math.abs(hr - 6.5) / 1.5 : 0;
     if (LIGHTS) {
-      LIGHTS.sun.intensity = 2.5 * (1 - night) + 0.45 * night; LIGHTS.hemi.intensity = 1.3 * (1 - night * 0.45);      // night stays readable from the whole-city view
+      LIGHTS.sun.intensity = 2.4 * (1 - night) + 0.9 * night; LIGHTS.hemi.intensity = 1.25 * (1 - night * 0.3);      // night is moonlight: darker and bluer, still readable (2 November 2026)
       LIGHTS.sun.color.setHex(night > 0.3 ? 0x9bb4ff : gold > 0.2 ? 0xffb070 : hr >= 16 || hr < 8 ? 0xffc890 : 0xfff1dc);
       // the sun crosses the sky: up in the east in the morning, low in the west at dusk (the moon stands high at night)
       const a = clamp((hr - 6) / 12, 0, 1) * Math.PI, R0 = 1200;
       if (LIGHTS.sun.position) { if (night > 0.5) LIGHTS.sun.position.set(-300, 1100, 400); else LIGHTS.sun.position.set(Math.cos(a) * R0, 260 + Math.sin(a) * 900 + 120, 380); }
     }
-    const sky = new THREE.Color(night > 0.5 ? 0x04060b : 0x0b0d10).lerp(new THREE.Color(0x2a1a12), gold * 0.55 * (1 - night));
+    const sky = new THREE.Color(night > 0.5 ? 0x0b0f16 : 0x111418).lerp(new THREE.Color(0x231a14), gold * 0.45 * (1 - night));
     renderer.setClearColor(sky, 1); if (scene.fog) scene.fog.color.copy(sky);
     if (LAMPS) LAMPS.visible = night > 0.04;
     return night;
@@ -1139,10 +1168,14 @@ async function run(opts) {
   }
 
   // ================================================================== one run, watched
-  let RUN = null, playing = false, speed = 3, tPos = 0, frameShown = -1, runStale = false, lastFrameShown = -1;
+  let RUN = null, playing = false, speed = 1, tPos = 0, frameShown = -1, runStale = false, lastFrameShown = -1;
   const bar = D.getElementById('up-bar'), scrub = D.getElementById('up-scrub');
   function curFrame() { if (!RUN) return null; const fi = clamp(lastFrameShown, 0, RUN.rec.c.length - 1); return { c: RUN.rec.c[fi], f: RUN.rec.f[fi], k: RUN.rec.k[fi], al: RUN.rec.al[fi], dead: RUN.rec.dead[fi] }; }
   function markRunStale() { runStale = true; }
+  // THE PACE (2 November 2026): 1× is one simulated hour every two seconds (HOUR_S). Around the moment that matters the run
+  // slows to under a third for a few seconds while the camera frames it; through quiet hours, when the streets are empty and
+  // nothing is about to happen, it runs three times as fast. The bar says which.
+  const HOUR_S = 2; let pace = 1, slowUntil = 0, quietNow = false;
   function play(seed, why) {
     stopPlay();
     const o = U.run(BJ, S, seed, { record: true });
@@ -1151,6 +1184,7 @@ async function run(opts) {
     { let a = [0, 0, 0, 0, 0, 0]; RUN.cum = o.rec.g.map(x => (a = [a[0] + x.F, a[1] + (x.net && o.X.year >= 1995 ? 1 : 0), a[2] + (x.sig.oil || 0), a[3] + (x.sig.bazaar || 0), a[4] + (x.sig.truck || 0), a[5] + (x.sig.civil || 0)])); }
     RUN.O = objectives();
     let maxC = 1, maxF = 1; for (const g of o.rec.g) { if (g.C > maxC) maxC = g.C; if (g.F > maxF) maxF = g.F; }
+    RUN.peakC = maxC;
     RUN.xP = Math.max(1, maxC / (PPL ? PPL.n * 0.92 : 1000));
     RUN.xF = Math.max(1, maxF / ((RIOT ? RIOT.n + BAS.n + IRG.n : 600) * 0.85));
     RUN.xD = Math.max(1, (o.dead || 1) / (LOWP ? 300 : 700));
@@ -1160,16 +1194,17 @@ async function run(opts) {
     tog(box, 'running', true); D.getElementById('up-feed').hidden = false; capEl.hidden = false; dossier.hidden = true;
     if (PHONE()) sheet(false);
     if (planGrp) { world.remove(planGrp); planGrp = null; }
-    for (const v of VEH) v.o.visible = false;
+    if (ST) ST.planVehicles([], 0, true);
     cam.follow = true; D.getElementById('up-follow').setAttribute('aria-pressed', 'true');
     caption(tr('Hour one.') + ' ' + narr('start'));
+    renderLegend();
   }
   function stopPlay() { playing = false; setPP(); }
   function endRun() {
-    if (CARS) CARS.dens = 1;
+    if (ST) { ST.setTraffic(1); ST.planVehicles([], 0, true); } for (const o of SNIP) o.visible = false;
     stopPlay(); RUN = null; bar.hidden = true; tog(box, 'running', false); D.getElementById('up-feed').hidden = true; capEl.hidden = true; tog(stage, 'net-cut', false);
-    for (const v of VEH) v.o.visible = false; for (const o of CHKO) o.visible = false; for (const d of DISH) d.o.visible = false; if (FX) FX.clear(); if (SHOPS.open) { SHOPS.open.visible = true; if (SHOPS.shut) SHOPS.shut.visible = false; }
-    hexStateClear(); hudIdle(); camHome(false); if (mode === 'adv') renderAdv();
+    if (ST) ST.planVehicles([], 0, true); for (const o of CHKO) o.visible = false; for (const d of DISH) d.o.visible = false; if (FX) FX.clear(); if (SHOPS.open) { SHOPS.open.visible = true; if (SHOPS.shut) SHOPS.shut.visible = false; }
+    hexStateClear(); hudIdle(); camHome(false); if (mode === 'adv') renderAdv(); renderLegend();
   }
   function togglePause() { if (!RUN) return; if (tPos >= RUN.rec.c.length - 1) { tPos = 0; frameShown = -1; feedReset(); } playing = !playing; setPP(); }
   function setPP() { const b = D.getElementById('up-pp'); b.textContent = playing ? '❚❚' : '▶'; b.setAttribute('aria-label', playing ? tr('Pause') : tr('Play')); }
@@ -1177,7 +1212,10 @@ async function run(opts) {
     if (!RUN) return;
     const nT = RUN.rec.c.length;
     if (playing) {
-      tPos += dt * speed * (RUN.X.hours > 400 ? 2 : 1);
+      pace = clock < slowUntil ? 0.3 : quietNow ? 3 : 1;
+      tPos += dt * speed * pace / HOUR_S * (RUN.X.hours > 400 ? 2 : 1);
+      const pe = D.getElementById('up-pace'), pt_ = pace < 1 ? tr('Slowed down: this matters') : pace > 1 ? tr('Quiet hours, moving faster') : '';
+      if (pe && pe.textContent !== pt_) { pe.textContent = pt_; pe.hidden = !pt_; }
       if (tPos >= nT - 1) { tPos = nT - 1; playing = false; setPP(); setTimeout(() => { if (RUN && !playing && tPos >= nT - 1) openResults(); }, 1200); }
     }
     const fi = Math.floor(tPos);
@@ -1185,7 +1223,7 @@ async function run(opts) {
   }
   scrub.addEventListener('input', () => { if (!RUN) return; playing = false; setPP(); tPos = +scrub.value; feedReset(); });
   D.getElementById('up-pp').addEventListener('click', togglePause);
-  $$('.up-spd button', bar).forEach(b => b.addEventListener('click', () => { speed = +b.dataset.spd; $$('.up-spd button', bar).forEach(x => tog(x, 'on', x === b)); }));
+  $$('.up-spd button', bar).forEach(b => b.addEventListener('click', () => { speed = +b.dataset.spd; $$('.up-spd button', bar).forEach(x => { tog(x, 'on', x === b); x.setAttribute('aria-pressed', String(x === b)); }); }));
   D.getElementById('up-follow').addEventListener('click', ev => { cam.follow = !cam.follow; ev.currentTarget.setAttribute('aria-pressed', String(cam.follow)); if (cam.follow) cam.user = -99; });
   D.getElementById('up-back').addEventListener('click', endRun);
   D.getElementById('up-resb').addEventListener('click', () => openResults());
@@ -1197,7 +1235,10 @@ async function run(opts) {
   }
   const MARK = { massacre: 'bad', netcut: 'bad', occupy: 'bad', take: 'good', defect: 'good', split: 'good', army: 'good', liberated: 'good', crushed: 'bad', strike: 'good', counter: 'bad', armyrule: 'good' };
 
-  let lastG = null, quietAt = -99;
+  // how many effects burn at once (gas, fire, a burst of shots): capped, so a frame never turns into fireworks
+  const FXCAP = LOWP ? 6 : 12, FXL = []; let FXMAX = 0;
+  function fxOk(sec) { const now = clock; for (let i = FXL.length - 1; i >= 0; i--) if (FXL[i] < now) FXL.splice(i, 1); if (FXL.length >= FXCAP) return false; FXL.push(now + sec); if (FXL.length > FXMAX) FXMAX = FXL.length; return true; }
+  let lastG = null, quietAt = -99, lastXP = -1, lastCamFi = -99;
   function showFrame(fi, jump) {
     const fr = RUN.rec, N = BJ.hex.x.length;
     const c = fr.c[fi], f = fr.f[fi], k = fr.k[fi], al = fr.al[fi], pw = fr.pw[fi], g = fr.g[fi], dead = fr.dead[fi];
@@ -1208,85 +1249,87 @@ async function run(opts) {
     }
     hexTex.needsUpdate = true;
     const night = lightFor(g.hr);
-    // the figures
-    const wp = new Int32Array(N), wr = new Int32Array(N), wb = new Int32Array(N), wi = new Int32Array(N), wd = new Int32Array(N), wm = new Int32Array(N);
+    // the figures: how many of each kind each district holds this hour (each figure stands for RUN.xP people); where they
+    // walk and stand is uprising-street.js
+    const wp = new Int32Array(N), wr = new Int32Array(N), wb = new Int32Array(N), wi = new Int32Array(N), wd = new Int32Array(N), wm = new Int32Array(N), cont = new Uint8Array(N);
     const coreOn = g.Lv >= 3, bsecOn = g.Lv >= 2;
+    // how many figures stand for the people this hour: the square root of the hour's share of the peak, so an early hour with a
+    // twentieth of the peak still shows a quarter of the figures; each figure's worth this hour is in the key (RUN.xP)
+    { let C = 0; for (let i = 0; i < N; i++) C += c[i]; const F = Math.max(1, (PPL ? PPL.n : 600) * 0.9 * Math.sqrt(clamp(C / Math.max(1, RUN.peakC || C), 0, 1))); RUN.xP = Math.max(1, C / F); if (lastXP !== Math.round(RUN.xP / 50)) { lastXP = Math.round(RUN.xP / 50); renderLegend(); } }
     for (let i = 0; i < N; i++) {
       wp[i] = Math.round(c[i] / RUN.xP);
       const fu = f[i] / RUN.xF;
       wr[i] = Math.round(fu * (coreOn ? 0.45 : bsecOn ? 0.55 : 0.65)); wb[i] = Math.round(fu * (coreOn ? 0.3 : bsecOn ? 0.45 : 0.35)); wi[i] = coreOn ? Math.round(fu * 0.25) : 0;
       wd[i] = Math.round(al[i] / RUN.xF);
       wm[i] = S.plan.medics > 0.45 && c[i] > 200 && f[i] > 20 ? Math.min(3, Math.round(S.plan.medics * 3)) : 0;
+      cont[i] = c[i] > 50 && f[i] > 10 ? 1 : 0;      // forces facing a crowd stand as a line across its avenue
+      // no lone figure stands for a district: a crowd is at least three figures, a squad at least two, or none is drawn
+      if (wp[i] < 3) wp[i] = 0; if (wr[i] < 2) wr[i] = 0; if (wb[i] < 2) wb[i] = 0; if (wi[i] < 2) wi[i] = 0; if (wd[i] < 2) wd[i] = 0;
     }
-    // forces facing a crowd in the same district form a line across its avenue
-    const form = new Array(N);
-    for (let i = 0; i < N; i++) if (c[i] > 50 && f[i] > 10) {
-      const [x, y] = streetPt(i, 0.13), cx = BJ.hex.x[i], cy = BJ.hex.y[i], dx = cx - x, dy = cy - y, L = Math.hypot(dx, dy) || 1, off = BJ.s * 0.07;
-      form[i] = [x + dx / L * off, y + dy / L * off, -dy / L, dx / L, BJ.s * 0.16];
+    if (ST && ST.A) {
+      ST.setCrowdSize(wp, c);
+      ST.plan(0, wp, null, jump); ST.plan(1, wr, cont, jump); ST.plan(2, wb, cont, jump); ST.plan(3, wi, cont, jump); ST.plan(5, wm, null, jump);
     }
-    const sd = Math.floor(fi / 2) + 5;
-    distribute(PPL, wp, sd); distribute(RIOT, wr, sd + 1, form); distribute(BAS, wb, sd + 2, form); distribute(IRG, wi, sd + 3, form); distribute(MED, wm, sd + 5);
     // a squad crossing over: a few police leave the line and walk to the people
-    if (lastG && g.def - lastG.def > Math.max(5, RUN.F0 * 0.0015) && DEF_ && !jump) {
+    if (lastG && g.def - lastG.def > Math.max(5, RUN.F0 * 0.0015) && !jump) {
       let bh = -1, bv = 0; for (let i = 0; i < N; i++) { const dv = al[i] - (fr.al[fi - 1] ? fr.al[fi - 1][i] : 0); if (dv > bv) { bv = dv; bh = i; } }
       if (bh >= 0) { flashOn(bh, tr('A unit crosses over'), 'good'); }
     }
-    distribute(DEF_, wd, sd + 4);
-    // vehicles at the biggest concentrations of force, by the rung of force in use
+    if (ST && ST.A) ST.plan(4, wd, null, jump);
+    // the forces' vehicles drive to the biggest concentrations of force, by the rung of force in use
     const order = Array.from({ length: N }, (_, i) => i).filter(i => f[i] > 20).sort((a, b) => f[b] - f[a]);
-    let vi = 0;
-    for (const v of VEH) {
-      const ok = v.lv <= Math.max(1, g.Lv) && vi < order.length * 2;
-      if (!ok) { v.o.visible = false; continue; }
-      const h = order[vi % Math.max(1, order.length)]; vi++;
-      const fm = form[h], [x, y] = fm ? [fm[0] + fm[2] * (hash(vi, 9) - 0.5) * fm[4], fm[1] + fm[3] * (hash(vi, 9) - 0.5) * fm[4]] : streetPt(h, hash(vi, fi));
-      if (!v.o.visible || jump) { v.x = x + 40; v.y = y; }
-      v.tx = x - (fm ? fm[3] * 25 : 0); v.ty = y + (fm ? fm[2] * 25 : 0); v.o.visible = true;
-    }
+    if (ST) ST.planVehicles(order.filter(i => cont[i]).concat(order.filter(i => !cont[i])).slice(0, 6), g.Lv, jump);
+    // SHOOTERS ON THE ROOFS (documented: Zahedan 30 Sep 2022, on the police station's roof; Tehran and Semnan, 8 Jan 2026,
+    // "stationed on rooftops hours beforehand"): from live fire on, two or three stand on the tallest roofs beside the line
+    placeSnipers(g.Lv >= 3 ? order.filter(i => cont[i]).slice(0, 2) : []);
     // Starlink: dishes on the roofs where the crowds are, more of them the more terminals the city has
     { const sl = RUN.X.starlink || 0, nd = Math.min(DISH.length, Math.round(sl / 400)), hs = order.length ? order : [0]; let di = 0;
-      for (const d of DISH) { if (di >= nd || !g.net) { d.o.visible = false; di++; continue; } const h = hs[di % hs.length], [x, y] = streetPt(h, hash(di, 77)); d.o.position.set(x + 18, 9, -(y + 12)); d.o.scale.setScalar(d.base * Math.max(1, KU * 0.6)); d.o.visible = true; di++; } }
-    if (CARS) CARS.dens = clamp(1 - 0.85 * Math.max((g.sig && g.sig.truck) || 0, ((g.sig && g.sig.bazaar) || 0) * 0.6, g.Lv >= 3 ? 0.65 : g.Lv >= 2 ? 0.35 : 0) - (night > 0.5 ? 0.35 : 0), 0.05, 1);
+      for (const d of DISH) { if (di >= nd || !g.net) { d.o.visible = false; di++; continue; } const h = hs[di % hs.length], [x, y] = streetPt(h, hash(di, 77)); d.o.position.set(x + 18, 9, -(y + 12)); d.o.scale.setScalar(d.base); d.o.visible = true; di++; } }
+    // traffic thins as the strike stops the trucks and the shops, as the shooting starts, and at night
+    if (ST) ST.setTraffic(clamp(1 - 0.85 * Math.max((g.sig && g.sig.truck) || 0, ((g.sig && g.sig.bazaar) || 0) * 0.6, g.Lv >= 3 ? 0.65 : g.Lv >= 2 ? 0.35 : 0) - (night > 0.5 ? 0.35 : 0), 0.05, 1));
     // checkpoints go up once the regime moves past batons, or the internet is cut
     for (const o of CHKO) o.visible = !!g.chk;
     // the strike: shops shut their shutters
     const shut = g.sig && g.sig.bazaar > 0.3;
     if (SHOPS.open && SHOPS.shut) { SHOPS.open.visible = !shut; SHOPS.shut.visible = shut; }
     tog(stage, 'net-cut', !!g.net);
-    // the fight, district by district: gas from the first rung, birdshot, then live fire; barricades burn
+    // the fight, where a line faces a crowd: gas from the first rung, birdshot, then live fire from the line into the crowd;
+    // barricades burn at the junctions the people hold. Never more than FXCAP effects burn at once (the clutter he saw).
     if (!jump && FX && !REDUCED) {
-      let shots = 0, gas = 0, fires = 0; const ns = LOWP ? 5 : 12;
-      for (const i of order.slice(0, LOWP ? 6 : 12)) {
+      let shots = 0; const ns = LOWP ? 4 : 9;
+      for (const i of order.slice(0, LOWP ? 4 : 8)) {
         if (c[i] < 80) continue;
-        const fm = form[i], [px, py] = streetPt(i, 0.13), fx_ = fm ? fm[0] : px, fy_ = fm ? fm[1] : py;
-        if (g.Lv >= 1 && gas < (LOWP ? 2 : 4) && hash(i, fi) < 0.5) { FX.gas(new THREE.Vector3(px + (hash(i, fi + 1) - 0.5) * 60, 0.5, -(py + (hash(i, fi + 2) - 0.5) * 60)), 14 * Math.max(1, KU * 0.35), 7); gas++; }
-        if (g.Lv >= 2) {
-          const n = g.Lv >= 4 ? 4 : g.Lv >= 3 ? 3 : 1;
-          for (let s = 0; s < n && shots < ns; s++, shots++) {
-            const a = new THREE.Vector3(fx_ + (hash(s, fi) - 0.5) * 30, 2.5, -(fy_ + (hash(s, fi + 3) - 0.5) * 30)), b = new THREE.Vector3(px + (hash(s, fi + 4) - 0.5) * 80, 1.5, -(py + (hash(s, fi + 5) - 0.5) * 80));
-            FX.muzzle(a, 3 * Math.max(1, KU * 0.4));
-            if (g.Lv >= 3) FX.tracer(a, b, g.Lv >= 4 ? 0xffb347 : 0xffd27a);
+        const ln = ST && cont[i] ? ST.lineOf(i) : null, [px, py] = ln ? ST.node(ln.g) : streetPt(i, 0.13), [fx_, fy_] = ln ? ST.node(ln.back) : [px, py];
+        if (g.Lv >= 1 && hash(i, fi) < 0.5 && fxOk(7)) FX.gas(new THREE.Vector3(px + (hash(i, fi + 1) - 0.5) * 30, 0.5, -(py + (hash(i, fi + 2) - 0.5) * 30)), 16, 7);
+        if (g.Lv >= 2 && ln) {
+          const n = g.Lv >= 4 ? 3 : g.Lv >= 3 ? 2 : 1;
+          for (let s = 0; s < n && shots < ns && fxOk(1); s++, shots++) {
+            const a = new THREE.Vector3(fx_ + (hash(s, fi) - 0.5) * 10, 1.6, -(fy_ + (hash(s, fi + 3) - 0.5) * 10)), b = new THREE.Vector3(px + (hash(s, fi + 4) - 0.5) * 30, 1.2, -(py + (hash(s, fi + 5) - 0.5) * 30));
+            FX.muzzle(a, 2);
+            if (g.Lv >= 3) FX.tracer(a, b, 0xffb347);
           }
         }
-        if (k[i] > 0.35 && fires < (LOWP ? 2 : 5) && S.plan.blockade > 0.3 && hash(i, Math.floor(fi / 6)) < 0.4) { FX.fire(new THREE.Vector3(px, 1, -py), 6 * Math.max(1, KU * 0.3), 4); FX.smoke(new THREE.Vector3(px, 4, -py), 10 * Math.max(1, KU * 0.3), 5); fires++; }
+        if (k[i] > 0.35 && S.plan.blockade > 0.3 && hash(i, Math.floor(fi / 6)) < 0.4 && fxOk(5)) { FX.fire(new THREE.Vector3(px, 1, -py), 5, 4); FX.smoke(new THREE.Vector3(px, 4, -py), 9, 5); }
       }
     }
-    // the lives lost: a quiet white light rises where each one fell (one light for several on a big toll)
+    // the lives lost: a quiet white light rises where each one fell, among the people (one light for several on a big toll)
     if (!jump && fi > 0) {
       const d0 = fr.dead[fi - 1];
       for (let i = 0; i < N; i++) {
         const nd = (dead[i] - d0[i]) / RUN.xD; let n = Math.floor(nd) + (hash(i, fi) < nd % 1 ? 1 : 0);
-        while (n-- > 0) { const [x, y] = streetPt(i, hash(i, n + fi)); pt(x + (hash(n, i) - 0.5) * 40, y + (hash(i, n) - 0.5) * 40, 6, [1, 1, 0.96], BJ.s * 0.03 * Math.max(1, KU * 0.15), 7, 0, 0, 6 + KU * 0.8); }
+        while (n-- > 0) { const [x, y] = personIn(i, hash(i, n + fi)); pt(x, y, 3, [1, 1, 0.96], 9, 7, 0, 0, 4); }
       }
-      // arrests: pale violet points led away toward the nearest police station
+      // arrests: pale grey points led away toward the nearest police station
       const da = g.arr - (lastG ? lastG.arr : 0); let na = Math.min(30, Math.round(da / Math.max(1, RUN.xD * 3)));
-      for (const i of order.slice(0, 6)) { if (na <= 0) break; const st = SEC.find(q => (q.k === 'police_station' || q.k === 'police_hq') && Math.abs(q.x - BJ.hex.x[i]) < BJ.s * 2.5 && Math.abs(q.y - BJ.hex.y[i]) < BJ.s * 2.5); const [x, y] = streetPt(i, hash(i, fi + 7)); const tx = st ? st.x : BJ.hex.x[i], ty = st ? st.y : BJ.hex.y[i]; pt(x, y, 5, [0.72, 0.62, 1], BJ.s * 0.02 * Math.max(1, KU * 0.12), 4, (tx - x) / 4, (ty - y) / 4, 0); na--; }
+      for (const i of order.slice(0, 6)) { if (na <= 0) break; const st = SEC.find(q => (q.k === 'police_station' || q.k === 'police_hq') && Math.abs(q.x - BJ.hex.x[i]) < BJ.s * 2.5 && Math.abs(q.y - BJ.hex.y[i]) < BJ.s * 2.5); const [x, y] = personIn(i, hash(i, fi + 7)); const tx = st ? st.x : BJ.hex.x[i], ty = st ? st.y : BJ.hex.y[i]; pt(x, y, 3, [0.78, 0.8, 0.85], 7, 4, (tx - x) / 4, (ty - y) / 4, 0); na--; }
       // night: phone lights over the crowds, and rooftop chants where the plan acts at night
-      if (night > 0.5 && PPL) {
-        let n = 0; for (let p = 0; p < PPL.n && n < (LOWP ? 120 : 420); p += 2) if (PPL.vis[p]) { pt(PPL.x[p], PPL.y[p], 2.2 * KU, [1, 0.97, 0.85], BJ.s * 0.01 * Math.max(1, KU * 0.18), 1.4, 0, 0, 0); n++; }
+      if (night > 0.5 && ST && ST.A) {
+        const A = ST.A; let n = 0; for (let p = 0; p < A.n && n < (LOWP ? 120 : 360); p += 3) if (A.st[p] && A.kind[p] === 0 && A.al[p] > 0.5) { pt(A.x[p], A.y[p], 2.4, [1, 0.97, 0.85], 5, 1.4, 0, 0, 0); n++; }
         if (S.plan.night > 0.35 && g.hr % 2 === 0) for (let i = 0; i < N; i += 7) if (c[i] > 20 || hash(i, fi) < 0.15) { const [x, y] = streetPt(i, hash(i, 3)); chantRing(x, y); }
       }
     }
+    // where the people are, most of all where forces face them (the camera's subject and a city-wide moment's place)
+    { let bh = -1, bv = 0; for (let i = 0; i < N; i++) { const v = c[i] * (1 + 2 * Math.min(1, f[i] / Math.max(1, c[i]))) * (1 + 0.5 * Math.max(0, k[i])); if (v > bv) { bv = v; bh = i; } } clashH = bh; }
     lastFrameShown = fi;
     hud(g, fi); feedTo(fi);
     // when the streets have emptied, say so in plain words, so a small number beside a massacre does not read as a mistake
@@ -1297,15 +1340,64 @@ async function run(opts) {
     }
     // the places taken
     for (const b of beacons) if (b.q.oi != null && b.ring) { const held = g.held && g.held[b.q.oi]; b.ring.material.color.setHex(held ? 0xffd36b : 0xff3b4f); tog(labelEls[beacons.indexOf(b)], 'held', !!held); }
-    // the camera follows the action: the district with the biggest clash, or where the last event happened
-    if (cam.follow && clock - cam.user > 4 && fi % 3 === 0) {
-      let bh = -1, bv = 0; for (let i = 0; i < N; i++) { const v = Math.sqrt(c[i] * (f[i] + 1)) * (1 + 0.5 * Math.max(0, k[i])); if (v > bv) { bv = v; bh = i; } }
-      const evn = RUN.ev.filter(e => e.t <= fi && e.t > fi - 6 && e.h >= 0).pop();
-      const h = evn ? (evn.site != null ? SITES[evn.site].h : evn.h) : bh;
-      if (h >= 0) camFly(BJ.hex.x[h], BJ.hex.y[h], BJ.s * (PHONE() ? 4.2 : 3.4));
-      else camFly(0, 0, BJ.r * 1.1);
+    // the front: a crisp line round the districts the people hold
+    drawFront(i => k[i] > 0.25);
+    // quiet hours: the streets are nearly empty and nothing is about to happen, so the run moves faster through them
+    quietNow = !jump && fi > 6 && g.C < Math.max(50, RUN.peak * 0.03) && !RUN.ev.some(e => e.t > fi && e.t <= fi + 4 && (BAD[e.type] || GOOD[e.type]));
+    // the camera follows the action: the moment that matters while it is framed (close, slowed), otherwise the district
+    // with the biggest clash, from high enough to see where the crowds are going
+    if (cam.follow && clock - cam.user > 4) {
+      if (FOCUS && clock < FOCUS.until) camFly(FOCUS.x, FOCUS.y, PHONE() ? 1350 : 1050);
+      else if (jump || fi - lastCamFi >= 3 || fi < lastCamFi) {
+        lastCamFi = fi; const bh = clashH;
+        if (bh >= 0) { const [x, y] = streetPt(bh, 0.13); camFly(x, y, clamp(BJ.s * 1.2, 1300, 2200) * (PHONE() ? 1.25 : 1)); }
+        else camFly(0, 0, BJ.r * 1.1);
+      }
     }
     lastG = g;
+  }
+  // THE MOMENT THAT MATTERS (2 November 2026): one at a time. Its place gets the one accent colour (an ice-blue ring that
+  // pulses), the camera comes down to it, the run slows for a few seconds and the caption says what happened and why.
+  let FOCUS = null, focusRing = null;
+  // a city-wide moment (live fire begins, the internet goes, the occupation) is framed where it shows: the biggest clash now.
+  // The run slows at most once every six simulated hours, so a burst of events is one moment, not a crawl.
+  let clashH = -1, slowAtT = -99;
+  function focusOn(e, at) {
+    if (!BJ) return;
+    let h = e.site != null && SITES[e.site] ? SITES[e.site].h : e.h; if (h == null || h < 0) h = clashH; if (h == null || h < 0) return;
+    const [x, y] = e.site != null && SITES[e.site] ? [SITES[e.site].x, SITES[e.site].y] : streetPt(h, 0.13);
+    if (FOCUS && FOCUS.e === e) return;
+    FOCUS = { x, y, type: e.type, t: clock, until: clock + 5.5, e };
+    if (playing && !REDUCED && e.t - slowAtT >= 6) { slowUntil = clock + 3.5; slowAtT = e.t; }
+    if (!focusRing) { focusRing = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 64), new THREE.MeshBasicMaterial({ color: COLS.accent, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false })); focusRing.rotation.x = -Math.PI / 2; focusRing.renderOrder = 6; world.add(focusRing); }
+    focusRing.position.set(x, 3, -y); focusRing.visible = true;
+  }
+  function stepFocus() {
+    if (!focusRing) return;
+    if (!FOCUS || clock > FOCUS.until || !RUN) { focusRing.visible = false; return; }
+    const u = ((clock - FOCUS.t) % 1.6) / 1.6, r = Math.max(30, cam.dist * 0.035);
+    focusRing.scale.setScalar(r * (0.6 + 0.8 * u)); focusRing.material.opacity = 0.9 * (1 - u) * Math.min(1, (FOCUS.until - clock) / 1.2);
+  }
+  // the edge round a set of districts (the people's, or the start districts before Play): the hex sides between a district
+  // in the set and one outside it, as one crisp line
+  let frontGrp = null;
+  function drawFront(inSet, dim) {
+    if (!BJ) return;
+    const N = BJ.hex.x.length, s = BJ.s * 0.985, pos = [];
+    for (let i = 0; i < N; i++) {
+      if (!inSet(i)) continue;
+      const cx = BJ.hex.x[i], cy = BJ.hex.y[i];
+      for (let t = 0; t < 6; t++) {
+        const th = Math.PI / 6 + t * Math.PI / 3, nx = cx + Math.cos(th) * s * SQ3, ny = cy + Math.sin(th) * s * SQ3, j = hxAt(nx, ny);
+        if (j >= 0 && j !== i && inSet(j)) continue;
+        const a0 = th - Math.PI / 6, a1 = th + Math.PI / 6;
+        pos.push(cx + Math.cos(a0) * s, 3, -(cy + Math.sin(a0) * s), cx + Math.cos(a1) * s, 3, -(cy + Math.sin(a1) * s));
+      }
+    }
+    if (!frontGrp) { frontGrp = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xf5b842, transparent: true, opacity: 0.85, depthWrite: false })); frontGrp.renderOrder = 3; frontGrp.frustumCulled = false; }
+    if (frontGrp.parent !== world) world.add(frontGrp);
+    frontGrp.geometry.dispose(); frontGrp.geometry = new THREE.BufferGeometry(); frontGrp.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    frontGrp.material.opacity = dim ? 0.55 : 0.85;
   }
   function flashOn(h, txt, cls) {
     const el = D.createElement('div'); el.className = 'up-flash ' + (cls || ''); el.textContent = txt + ' · ' + hexName(h); ui.appendChild(el); setTimeout(() => el.remove(), 2600);
@@ -1402,9 +1494,10 @@ async function run(opts) {
   };
   const BAD = { lv: 1, massacre: 1, netcut: 1, powercut: 1, lose: 1, reinf: 1, proxies: 1, crushed: 1, raid: 1, occupy: 1, wave: 1, counter: 1, checkpoints: 1 };
   const GOOD = { take: 1, defect: 1, split: 1, blocked: 1, liberated: 1, strike: 1, armyrule: 1, gather: 1, forty: 1, abroad: 1 };
-  function caption(t, who) {
+  function caption(t, who, e) {
     const a = who ? ADV.find(x => x.id === who) : null;
-    capEl.innerHTML = (a ? `<span class="up-cap-a">${bust(a.id, 34)}<b>${esc(tr(a.n))}</b></span>` : '') + `<span class="up-cap-t">${esc(t)}</span>`;
+    const when = e && RUN ? `<time>${tf('Day {d}', { d: N_(Math.floor((RUN.X.hour + e.t) / 24) + 1) })} · ${N_(String((RUN.X.hour + e.t) % 24).padStart(2, '0'))}:00${e.h >= 0 || e.site != null ? ' · ' + esc(e.site != null && SITES[e.site] ? siteName(SITES[e.site]) : hexName(e.h)) : ''}</time>` : '';
+    capEl.innerHTML = (a ? `<span class="up-cap-a">${bust(a.id, 34)}<b>${esc(tr(a.n))}</b></span>` : '') + `<span class="up-cap-t">${when}<i class="up-cap-dot${e ? (BAD[e.type] ? ' bad' : GOOD[e.type] ? ' good' : '') : ''}" aria-hidden="true"></i>${esc(t)}</span>`;
   }
   function narr(type) {      // the advisor of the plan in use says what they think of what just happened
     const a = S.plan.adv && ADV.find(x => x.id === S.plan.adv); if (!a) return '';
@@ -1428,7 +1521,7 @@ async function run(opts) {
       if (BAD[e.type] || GOOD[e.type] || e.type === 'army') lastBig = e;
       if ((e.type === 'take' || e.type === 'lose') && fi - e.t <= 2 && e.site != null && SITES[e.site]) { const q = SITES[e.site]; if (e.type === 'take') chantRing(q.x, q.y, true); flashOn(q.h, tr(e.type === 'take' ? 'Taken' : 'Lost'), e.type === 'take' ? 'good' : 'bad'); }
     }
-    if (lastBig) { const n = narr(lastBig.type); const w = WHY[lastBig.type]; caption(evText(lastBig) + ' ' + (n || (w ? tr(w[0]) : '')), n ? S.plan.adv : null); }
+    if (lastBig) { const n = narr(lastBig.type); const w = WHY[lastBig.type]; caption(evText(lastBig) + ' ' + (n || (w ? tr(w[0]) : '')), n ? S.plan.adv : null, lastBig); if (fi - lastBig.t <= 2) focusOn(lastBig); }
     feedAt = fi;
   }
 
@@ -2174,8 +2267,25 @@ async function run(opts) {
     D.getElementById('up-adv-pane').scrollTop = 0;
   }
   $$('#up-modes [data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  // THE KEY: what every colour on the board means, one tap away on every screen (2 November 2026, "you cannot tell what is
+  // what"). Open by default on a computer before Play; a tap opens or closes it, and that choice is kept.
+  let legOpen = null;
   function renderLegend() {
-    D.getElementById('up-legend').innerHTML = `<b>${tr('Who runs it')}</b>${[['irgc', 'IRGC'], ['basij', 'Basij'], ['faraja', 'Police (FARAJA)'], ['artesh', 'Army (Artesh)']].map(([id, t]) => `<span>${embImg(id)}${tr(t)}</span>`).join('')}<span class="up-lg-t">◌ ${tr('dimmed: typical placement, not mapped')}</span>${BJ && (BJ.bldN || 0) < 150 ? `<span class="up-lg-t up-lg-thin">${tf('OpenStreetMap maps only {n} buildings here; the rest are typical blocks on its real streets.', { n: N_(BJ.bldN || 0) })}</span>` : ''}`;
+    const el = D.getElementById('up-legend'); if (!el) return;
+    const per = RUN && RUN.xP > 1 ? tf('each dot or figure is about {n} people this hour', { n: big(RUN.xP) }) : tr('each dot or figure stands for many people');
+    const open = legOpen != null ? legOpen : !PHONE() && !RUN;
+    el.setAttribute('data-open', open ? '1' : '0');
+    el.innerHTML = `<button type="button" class="up-legb" id="up-legb" aria-expanded="${open}" aria-controls="up-legbd"><span>${tr('What am I looking at')}</span></button><div class="up-legbd" id="up-legbd">
+      <span><i class="up-lk p"></i>${tr('The people, and anyone who crossed over to them')}</span>
+      <span><i class="up-lk r"></i>${tr('The regime’s forces: police, Basij, IRGC')}</span>
+      <span><i class="up-lk m"></i>${tr('Volunteer medics')}</span>
+      <span><i class="up-lk t"></i>${tr('Traffic and everything else')}</span>
+      <span class="up-lg-t">${per}</span>
+      <span><i class="up-lk l"></i>${tr('The edge of the districts the people hold')}</span>
+      <span><i class="up-lk a"></i>${tr('What is happening now')}</span>
+      <span><i class="up-lk d"></i>${tr('A life lost')}</span>
+      <b>${tr('Who runs it')}</b>${[['irgc', 'IRGC'], ['basij', 'Basij'], ['faraja', 'Police (FARAJA)'], ['artesh', 'Army (Artesh)']].map(([id, t]) => `<span>${embImg(id)}${tr(t)}</span>`).join('')}<span class="up-lg-t">◌ ${tr('dimmed: typical placement, not mapped')}</span>${BJ && (BJ.bldN || 0) < 150 ? `<span class="up-lg-t up-lg-thin">${tf('OpenStreetMap maps only {n} buildings here; the rest are typical blocks on its real streets.', { n: N_(BJ.bldN || 0) })}</span>` : ''}</div>`;
+    D.getElementById('up-legb').addEventListener('click', () => { legOpen = !(el.getAttribute('data-open') === '1'); renderLegend(); hudT = 0; });
   }
   function renderCity() { const c = cityOf(cityId); D.getElementById('up-cn').textContent = FA ? c.fa : c.n; D.getElementById('up-cf').textContent = FA ? (c.prov || '') : (c.fa || ''); }
   function renderAll() { renderCity(); if (mode === 'adv') renderAdv(); else renderPane(curTab); hudIdle(); renderOdds(); cmpCount(); }
@@ -2214,5 +2324,36 @@ async function run(opts) {
   if (qs.get('play')) { await odds(); play(typicalSeed(A && A.base), 'typical'); const at = parseInt(qs.get('at'), 10); if (at > 0 && RUN) { tPos = Math.min(at, RUN.rec.c.length - 1); playing = false; setPP(); } }
   W.UPRPAGE = { get city() { return cityId; }, get builds() { return [BUILDS, BLDS]; }, get S() { return S; }, get A() { return A; }, get RUN() { return RUN; }, get FPS() { return FPS; }, get cam() { return cam; }, get CMP() { return CMP; }, get PPL() { return PPL; }, get visible() { return visible; }, get clock() { return clock; }, get rafN() { return rafN; }, get hidden() { return D.hidden; }, get frameErr() { return frameErr; }, lost: () => renderer.getContext().isContextLost(), info: () => JSON.stringify(renderer.info.render), stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, lod: LOD2 ? 'phone' : LOWP ? 'low' : 'full' }), tagOverlaps: () => { placeLabels(true); return tagOverlaps(); }, breakdown: () => { const out = {}; world.children.forEach((o, i) => { let t = 0, c = 0; o.traverseVisible(m => { if (!m.isMesh || !m.geometry) return; const g = m.geometry, n = (g.index ? g.index.count : g.attributes.position.count) / 3; t += n * (m.isInstancedMesh ? m.count : 1); c++; }); const k = (o.name || o.type) + (o.userData.type ? ':' + o.userData.type : ''); out[k] = out[k] || [0, 0]; out[k][0] += Math.round(t); out[k][1] += c; }); return out; },
     play, odds, switchCity, openResults, openCmp, setMode, showTab, useAdv: id => useAdv(ADV.find(a => a.id === id), false), addCmp, camFly, camHome,
-    seek: h => { if (RUN) { tPos = clamp(h, 0, RUN.rec.c.length - 1); playing = false; setPP(); } }, tick: dt => { clock += dt; playTick(dt); } };
+    seek: h => { if (RUN) { tPos = clamp(h, 0, RUN.rec.c.length - 1); playing = false; setPP(); } }, tick: dt => { clock += dt; playTick(dt); },
+    // THE STREET CHECK (2 November 2026), the one home of what fails a publish: both sites' phone tests
+    // (build/phone-test.html, ../site-iu/build/phone-test.html) and the cloud runner (build/uprising_street_check.mjs) call it
+    // and fail on any line it returns. It plays the typical run a few seconds and counts: figures off the street network or
+    // inside a building, cars against their lane, the default speed and the speed buttons, place names and effects over
+    // their caps, errors on the page, and the frame rate on a low-power setting (the phone level of detail).
+    streetCheck: async (opt) => {
+      opt = opt || {}; const bad = [], wait = ms => new Promise(r => setTimeout(r, ms));
+      if (!RUN && speed !== 1) bad.push('the default speed is ' + speed + '×, it must be 1×');
+      const sb = $$('.up-spd button', bar).map(b => +b.dataset.spd).join(','); if (sb !== '0.5,1,2,4') bad.push('the speed buttons are ' + sb + ', they must be 0.5,1,2,4');
+      const on = $('.up-spd button.on', bar); if (!RUN && (!on || +on.dataset.spd !== 1)) bad.push('the speed shown as chosen is not 1×');
+      if (!ST || !ST.A) { bad.push('the street movement did not start'); return { bad }; }
+      play(104729); tPos = opt.at || 20; frameShown = -1; playing = true; setPP();
+      await wait(opt.ms || 3500);
+      const a = ST.audit(); placeLabels(true); const t = tagOverlaps();
+      if (a.offStreet) bad.push(a.offStreet + ' figures stand off the street network (must be 0): ' + JSON.stringify(a.examples.filter(x => x[0] === 'off').slice(0, 3)));
+      if (a.inBuilding) bad.push(a.inBuilding + ' figures or cars stand inside a building (must be 0): ' + JSON.stringify(a.examples.filter(x => x[0] !== 'off').slice(0, 3)));
+      if (a.wrongLane) bad.push(a.wrongLane + ' cars drive against their lane (must be 0)');
+      if (a.figures < 10) bad.push('only ' + a.figures + ' figures on the streets during a run');
+      if (a.maxWalk > 3.5 || a.maxCar > 25) bad.push('speeds out of the real range: walking up to ' + a.maxWalk + ' m/s, cars up to ' + a.maxCar + ' m/s');
+      if (t.shown > LABCAP() + 3) bad.push(t.shown + ' names on the board, over the cap of ' + (LABCAP() + 3));
+      if (FXMAX > FXCAP) bad.push(FXMAX + ' effects at once, over the cap of ' + FXCAP);
+      if (frameErr || pageErr) bad.push((frameErr + pageErr) + ' errors on the page');
+      { renderer.render(scene, camera); const ri = renderer.info.render; if (LOD2 && (ri.triangles > 200000 || ri.calls > 80)) bad.push('the phone frame is ' + ri.triangles + ' triangles and ' + ri.calls + ' draw calls (budget 200,000 and 80)'); }
+      if (LOD2 && FPS < (opt.fpsFloor || 5)) bad.push('the phone level of detail runs at ' + Math.round(FPS) + ' frames a second (floor ' + (opt.fpsFloor || 5) + ')');
+      stopPlay();
+      return { bad, audit: a, fps: Math.round(FPS), lod: LOD2 ? 'phone' : LOWP ? 'low' : 'full' };
+    },
+    // the street audit (2 November 2026): what build/phone-test.html and build/uprising_street_check.mjs fail on
+    get ST() { return ST; }, get speed() { return speed; }, speedDefault: 1, get pace() { return pace; }, resume: () => { if (RUN) { playing = true; setPP(); } }, setSpeed: v => { const b = $$('.up-spd button', bar).find(x => +x.dataset.spd === v); if (b) b.click(); },
+    audit: () => { const a = ST ? ST.audit() : { figures: 0, error: 'no street module' }; const shown = labelEls.concat(CHIPS).filter(t => t.style.display !== 'none' && t.offsetParent !== null).length;
+      return Object.assign(a, { net: NETINFO, labelsShown: shown, labelCap: LABCAP(), fxMax: FXMAX, fxCap: FXCAP, fxLive: FXL.length, fps: FPS, lod: LOD2 ? 'phone' : LOWP ? 'low' : 'full', speedButtons: $$('.up-spd button', bar).map(b => +b.dataset.spd), speedOn: +(($('.up-spd button.on', bar) || {}).dataset || {}).spd }); } };
 }

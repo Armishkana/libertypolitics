@@ -22,7 +22,14 @@
                   their seats, their camp and why, the chair's line of holders, sources, Share this person; Previous and
                   Next (and a swipe) walk the people of the same part. ?p=<id> opens it. Each card opened is ticked
                   (localStorage, "dossiers opened"); the page works the same without it.
-     DAY BY DAY   the second tab: every fall, war by war and day by day (?v=days).
+     DAY BY DAY   the third tab: every fall, war by war and day by day (?v=days).
+     KEY PLAYERS  the first tab and the first view (2 Nov 2026, Armin: "a version of this for people to be able to only track
+                  and see the most important people"): the 20 of data/regime-key.json as cards, the biggest names taken
+                  out under them, and the reader's own WATCHLIST above them (a star on a card or in any person's sheet;
+                  localStorage 'rg-watch', the page works the same without it). A key player carries data-key everywhere
+                  (a gold star on the face). ?v=board opens the board, ?b= a branch; no ?v is Key players.
+     NO PHOTO     the figure of their post (regime.py AV_SPRITE, av_kind: cleric, seyyed cleric, uniform, woman, civilian),
+                  never a grey circle.
      A PICTURE    registered with build/shareimg.js (window.LPShotQ, id 'regime'): the faces the reader is looking at.
    No dialog() calls, no animation that hides content; prefers-reduced-motion jumps instead of playing. The data carries
    a schema number (regime.py SCHEMA): a script that does not know it leaves the printed board alone. */
@@ -85,11 +92,18 @@
 
   /* ---------------------------------------------------------------- one face (the twin of regime.py face()) */
   function initials(n) { var b = String(n || '').split(/[\s-]+/).filter(function (x) { return /^[A-Za-z\u0600-\u06FF]/.test(x) && !/^(سید|سیده)$/.test(x); }); var t = b.length > 1 ? [b[0][0], b[b.length - 1][0]] : ((b[0] || '?').slice(0, 2)).split(''); return t.join(/[؀-ۿ]/.test(t.join('')) ? ' ' : '').toUpperCase(); }      // Persian initials apart by a thin space: joined they can spell a word (ر + ا = «را»)
+  var SVGNS = 'http://www.w3.org/2000/svg';
   function face(p) {
     var f = el('span', 'rg-face');
     if (p.c && X.camps[p.c]) f.style.setProperty('--cc', X.camps[p.c].c);
     if (p.img) { var i = el('img'); i.src = X.root + 'assets/regime/' + p.img; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.width = 200; i.height = 250; i.draggable = false; f.appendChild(i); }
-    else { var s = el('span', 'rg-ini', initials(FA && p.fa ? p.fa : p.en)); s.setAttribute('aria-hidden', 'true'); f.appendChild(s); }
+    else {
+      var av = p.av || 'ci', s = el('span', 'rg-ini rg-av'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('data-av', av);
+      var sv = D.createElementNS(SVGNS, 'svg'); sv.setAttribute('focusable', 'false');
+      var us = D.createElementNS(SVGNS, 'use'); us.setAttribute('href', '#rg-av-' + av); sv.appendChild(us); s.appendChild(sv);
+      s.appendChild(el('b', null, initials(FA && p.fa ? p.fa : p.en)));
+      f.appendChild(s);
+    }
     if (GONE[p.s]) { var x = el('i', 'rg-x' + (p.s === 'died' ? ' rg-x-d' : '')); x.setAttribute('aria-hidden', 'true'); f.appendChild(x); }
     else if (p.s === 'unknown' || p.s === 'wounded') { var q = el('i', 'rg-q' + (p.s === 'wounded' ? ' rg-q-w' : ''), p.s === 'wounded' ? '+' : '?'); q.setAttribute('aria-hidden', 'true'); f.appendChild(q); }
     return f;
@@ -102,7 +116,7 @@
     if (p.rp) s.appendChild(el('i', 'rg-s-pre', w.not_yet));
     return s;
   }
-  function mark(n, p) { n.classList.add('is-' + (p.s || 'alive')); n.setAttribute('data-id', p.id); n.setAttribute('data-camp', p.c || ''); n.setAttribute('data-camp2', p.c2 || ''); return n; }
+  function mark(n, p) { n.classList.add('is-' + (p.s || 'alive')); n.setAttribute('data-id', p.id); n.setAttribute('data-camp', p.c || ''); n.setAttribute('data-camp2', p.c2 || ''); if (p.k) n.setAttribute('data-key', p.k); return n; }
   function row(p, sub) {      // one compact row (a roster, a province, the search, the days): face, name, a line, the fate
     var b = mark(el('button', 'rg-rw'), p); b.type = 'button';
     b.appendChild(face(p));
@@ -126,11 +140,12 @@
   function tally(d) { var t = { k: 0, a: 0, u: 0, all: 0 }; P.forEach(function (p) { var s = stAt(p, d); if (s in t) t[s]++; if (s !== 'pre') t.all++; }); return t; }
 
   /* ---------------------------------------------------------------- the stage */
-  var stage = $('rg-zw'), board = $('rg-board'), daysEl = $('rg-days'), crumb = $('rg-crumb'), cr = $('rg-cr');
+  var stage = $('rg-zw'), board = $('rg-board'), daysEl = $('rg-days'), crumb = $('rg-crumb'), cr = $('rg-cr'), keyEl = $('rg-keyv');
+  var NKEY = P.filter(function (p) { return p.k; }).length;
   var NODES = [];      // everything on the page that stands for one person (data-id): the timeline, the filters and the lens move them
   function collect() { NODES = [].slice.call(root.querySelectorAll('[data-id]')); }
   var BOARD = X.boards;      // unit -> branch
-  var LEVEL = '', PV = '', TAB = 'board';
+  var LEVEL = '', PV = '', TAB = keyEl ? 'key' : 'board';
   function branchOf(p) { return BOARD[p.u] || ''; }
 
   /* ---------------------------------------------------------------- walking the levels */
@@ -183,7 +198,8 @@
     else if (BY[ev.state.rgp] && openId !== ev.state.rgp) open(ev.state.rgp, null, true, true);
     var b = u.searchParams.get('b') || '';
     walk(b, { pop: true, pv: u.searchParams.get('pv') || '', scroll: true });
-    if (TAB !== 'board') setTab('board', true);
+    var vv = u.searchParams.get('v'), want = vv === 'days' ? 'days' : (vv === 'board' || b || !keyEl) ? 'board' : 'key';
+    if (TAB !== want) setTab(want, true);
   });
   // the stage's top, under the site's own sticky bars, measured (each site pads its scrolling differently)
   function toStage() {
@@ -590,12 +606,20 @@
   }
   var tabs = $('rg-tabs');
   function setTab(v, quiet) {
-    TAB = v === 'days' ? 'days' : 'board';
+    TAB = v === 'days' ? 'days' : (v === 'key' && keyEl) ? 'key' : 'board';
     each('.rg-tab', function (b) { var on = b.getAttribute('data-v') === TAB; tog(b, 'is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); }, tabs);
     if (TAB === 'days') buildDays();
     board.hidden = TAB !== 'board'; crumb.hidden = TAB !== 'board'; daysEl.hidden = TAB !== 'days';
+    if (keyEl) keyEl.hidden = TAB !== 'key';
+    tog(root, 'rg-on-key', TAB === 'key');
     applyFilter();
-    if (!quiet) { var u = url(); if (u) { if (TAB === 'days') u.searchParams.set('v', 'days'); else u.searchParams.delete('v'); u.searchParams.delete('view'); setUrl(u, false); } }
+    if (!quiet) {
+      var u = url();
+      if (u) {
+        if (TAB === (keyEl ? 'key' : 'board')) u.searchParams.delete('v'); else u.searchParams.set('v', TAB);
+        u.searchParams.delete('view'); setUrl(u, false);
+      }
+    }
   }
   each('.rg-tab', function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-v')); }); }, tabs);
 
@@ -653,7 +677,9 @@
     if (FA && p.en) { var a1 = el('p', 'rg-sh-alt', p.en); a1.lang = 'en'; a1.dir = 'ltr'; t.appendChild(a1); }
     else if (!FA && p.fa) { var f = el('p', 'rg-sh-alt', p.fa); f.lang = 'fa'; f.dir = 'rtl'; t.appendChild(f); }
     t.appendChild(el('p', 'rg-pill is-' + (p.s || 'alive'), stLine(p)));
+    if (p.k) { var kp = el('p', 'rg-sh-key'); var ks = el('i', 'rg-kstar'); ks.setAttribute('aria-hidden', 'true'); kp.appendChild(ks); kp.appendChild(D.createTextNode(w.key_rank.replace('{k}', num(p.k)).replace('{n}', num(NKEY)))); t.appendChild(kp); }
     top.appendChild(t); inner.appendChild(top);
+    if (p.kw) inner.appendChild(el('p', 'rg-sh-kw', p.kw));
     if (p.sn) inner.appendChild(el('p', 'rg-sh-sn', p.sn));
     var facts = el('dl', 'rg-sh-f');
     function fact(k, v) { if (!v) return; facts.appendChild(el('dt', null, k)); facts.appendChild(el('dd', null, v)); }
@@ -706,7 +732,9 @@
     var canon = root.getAttribute('data-canon') || (W.location.origin + W.location.pathname);
     sh.setAttribute('data-share', ''); sh.setAttribute('data-url', canon + '?p=' + encodeURIComponent(p.id));
     sh.setAttribute('data-title', p.n + (p.r ? ' · ' + p.r : '')); sh.setAttribute('data-text', stLine(p) + ' · ' + w.tabs);
-    inner.appendChild(sh);
+    var acts = el('div', 'rg-sh-acts');
+    var wb = el('button', 'btn btn-line rg-sh-watch rg-wb'); wb.type = 'button'; wb.setAttribute('data-w', p.id); wbPaint(wb, p.id);
+    acts.appendChild(wb); acts.appendChild(sh); inner.appendChild(acts);
     personCalls(p);      // Make your call, Liberty Politics only: the betting markets that name this person (below)
     sheet.hidden = false;
     side();
@@ -784,9 +812,53 @@
     open(t.getAttribute('data-id'), t);
   });
 
+  /* ---------------------------------------------------------------- the reader's own watchlist (this browser only) */
+  var WATCH = [];
+  try { WATCH = (JSON.parse(sget('rg-watch') || '[]') || []).filter(function (i, j, a) { return BY[i] && a.indexOf(i) === j; }); } catch (e) { WATCH = []; }
+  var wl = $('rg-wl'), wll = $('rg-wll'), wls = $('rg-wl-s');
+  function watched(id) { return WATCH.indexOf(id) >= 0; }
+  function wbPaint(b, id) {
+    var on = watched(id), p = BY[id], lab = (on ? w.watch_rm : w.watch_add).replace('{n}', p ? p.n : '');
+    tog(b, 'is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', lab); b.title = lab;
+    if (b.classList.contains('rg-sh-watch')) b.textContent = on ? w.watch_on : w.watch_btn;
+  }
+  function paintWatch() {
+    each('.rg-wb[data-w]', function (b) { b.hidden = false; wbPaint(b, b.getAttribute('data-w')); });
+    if (!wl) return;
+    wll.textContent = '';
+    WATCH.forEach(function (id) {
+      var p = BY[id]; if (!p) return;
+      var li = el('li', 'rg-wli'); li.appendChild(row(p, p.r));
+      var x = el('button', 'rg-wb'); x.type = 'button'; x.setAttribute('data-w', id); wbPaint(x, id); li.appendChild(x);
+      wll.appendChild(li);
+    });
+    wl.hidden = false;
+    tog(wl, 'is-empty', !WATCH.length);
+    wls.textContent = WATCH.length ? w.watch_n.replace('{n}', num(WATCH.length)) : w.watch_tip;
+    collect(); applyTime(cur, true); applyFilter(); paintSeen();
+  }
+  function setWatch(id, on) {
+    var i = WATCH.indexOf(id);
+    if (on && i < 0) WATCH.push(id); else if (!on && i >= 0) WATCH.splice(i, 1); else return;
+    sset('rg-watch', JSON.stringify(WATCH));
+    paintWatch();
+  }
+  root.addEventListener('click', function (ev) {
+    var b = ev.target.closest && ev.target.closest('.rg-wb[data-w]');
+    if (!b || !root.contains(b)) return;
+    ev.preventDefault();
+    var id = b.getAttribute('data-w');
+    setWatch(id, !watched(id));
+    if (D.activeElement !== b && D.body.contains(b)) try { b.focus({ preventScroll: true }); } catch (e) { }
+  });
+  if (keyEl) {
+    var kall = keyEl.querySelector('.rg-kall');
+    if (kall) { kall.hidden = false; kall.addEventListener('click', function () { setTab('board'); walk(''); toStage(); }); }
+  }
+
   /* ---------------------------------------------------------------- a picture to post (build/shareimg.js) */
   function shown() {      // the faces the reader is looking at: this level's, or the falls of Day by day, as the filters leave them
-    var box = TAB === 'days' ? daysEl : LEVEL ? root.querySelector('.rg-br.is-on') : $('rg-l0'), ids = [];
+    var box = TAB === 'days' ? daysEl : TAB === 'key' ? keyEl : LEVEL ? root.querySelector('.rg-br.is-on') : $('rg-l0'), ids = [];
     if (box) [].forEach.call(box.querySelectorAll('[data-id]'), function (n) {
       var i = n.getAttribute('data-id'); if (ids.indexOf(i) >= 0 || n.closest('[hidden]') || n.classList.contains('is-dim') || n.classList.contains('is-fade')) return;
       if (n.closest('.rg-roster') && !n.closest('.rg-roster').open) return;
@@ -876,7 +948,8 @@
   if (v0 === 'camps' || sget('rg-lens') === '1') setLens(true);      // ?view=camps was the factions view until 1 Nov 2026: it is the lens now
   applyTime(X.today, true); event(X.today);
   walk(b0, { replace: true, scroll: false, pv: u0 && u0.searchParams.get('pv') || '' });
-  if (v0 === 'days') setTab('days', true);
+  setTab(v0 === 'days' ? 'days' : (v0 === 'board' || b0 || !keyEl) ? 'board' : 'key', true);
+  paintWatch();
   paintSeen();
   W.addEventListener('load', chrome);
   var rz = null;

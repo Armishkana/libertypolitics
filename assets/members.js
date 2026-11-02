@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=15e63d9857; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=ebbb7e0b98; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -1883,7 +1883,7 @@ function feedOf(acts) {
    the site's own account first. Each card is the way to that profile: the picture, the name, the one line, how much they
    wrote. The team page itself (team/) is the team's own room and stays theirs. */
 async function initCrew(box) {
-  const body = box.querySelector('[data-mb-body]');
+  const body = box.querySelector('[data-mb-body]'), faces = box.hasAttribute('data-mb-faces');
   await data();
   if (!DATA || !K || K.off) { body.setAttribute('aria-busy', 'false'); return; }
   const { F, db } = await within(25000, fb());
@@ -1907,12 +1907,14 @@ async function initCrew(box) {
     top.append(el('b', null, name, { dir: 'auto' }), ' ', el('span', 'mb-tag ' + (tag === 'host' ? 'mb-tag-host' : 'mb-tag-team'), tag === 'host' ? tt('Host') : tt('Team')));
     who.append(top);
     if (bio) who.append(el('p', 'mb-crew-bio', bio, { dir: 'auto' }));
-    if (n != null) who.append(el('p', 'mb-hint', n === 1 ? tt('1 post or reply') : tt('{n} posts and replies', { n: dig(n) })));
+    if (n != null && !faces) who.append(el('p', 'mb-hint', n === 1 ? tt('1 post or reply') : tt('{n} posts and replies', { n: dig(n) })));
     a.append(pic, who);
     li.append(a);
     return li;
   }
-  if (hostId) ul.append(cardFor(hostId, w(DATA.host.name), w(DATA.host.bio), hostPic(), 'host', rows ? mine(hostId).length : null));
+  /* data-mb-faces (panel/, 2 November 2026, Armin's note 7t16ckcs): the people only, no post counts and no card for the
+     site's own voice, so a reader thinking of joining sees who they would sit with. */
+  if (hostId && !faces) ul.append(cardFor(hostId, w(DATA.host.name), w(DATA.host.bio), hostPic(), 'host', rows ? mine(hostId).length : null));
   /* The person who hosts the show (members.json words.host.person, Armin's own account): marked Host and right after the
      site's card, never ranked by how much he posted (Armin on panel/, 27 October 2026: "Why didn't you include me?"). */
   const person = DATA.host && DATA.host.person;
@@ -2026,7 +2028,7 @@ async function initMember(box) {
       if (own || (rec && rec.pub)) {
         const n = rec ? (rec.right || 0) + (rec.wrong || 0) : 0, b = rec ? Math.round(+rec.beat || 0) : 0;
         const say = !n ? (own ? tt('Your calls against the betting markets, scored when each one settles.') : tt('No call has settled yet.'))
-          : (b >= 0 ? tt('Beat the markets by {n}.', { n: '+' + b }) : tt('The markets are ahead by {n}.', { n: Math.abs(b) })) + ' ' + tt('{r} right, {w} wrong.', { r: rec.right || 0, w: rec.wrong || 0 });
+          : (b >= 0 ? tt('Beat the betting markets by {n}.', { n: '+' + b }) : tt('The betting markets are ahead by {n}.', { n: Math.abs(b) })) + ' ' + tt('{r} right, {w} wrong.', { r: rec.right || 0, w: rec.wrong || 0 });
         const line = el('div', 'mb-calls'), txt = el('p', 'mb-calls-t');
         txt.append(el('b', null, tt('Calls record')), el('span', null, say));
         line.append(txt, el('a', 'btn btn-line mb-calls-go', own ? tt('Your record') : tt('See the record'), { href: page(own ? 'markets/#record' : 'markets/?u=' + encodeURIComponent(uid)) }));

@@ -311,7 +311,7 @@
     return '<article class="lpc-c" id="m-' + esc(m.mid) + '" data-lpc-c="' + esc(m.mid) + '">'
       + '<p class="lpc-meta"><span class="lpc-pf is-' + (m.src === 'k' ? 'k' : 'p') + '">' + srcName(m) + '</span>' + st + '<span>' + meta.map(esc).join(' &middot; ') + '</span></p>'
       + '<h3 class="lpc-q">' + esc(m.q) + '</h3>'
-      + '<div class="lpc-3"><div class="lpc-n lpc-n-m"><span class="lpc-k">Markets</span>' + mCell + '</div>'
+      + '<div class="lpc-3"><div class="lpc-n lpc-n-m"><span class="lpc-k">Betting odds</span>' + mCell + '</div>'
       + '<div class="lpc-n lpc-n-r"><span class="lpc-k">Readers</span>' + rCell + '</div>' + youCell(m) + '</div>'
       + edgeLine(m)
       + buildLine(m, b, picked, shut)
@@ -374,7 +374,7 @@
   function moreBar(mt) {
     var rest = mt.list.length - mt.drawn, tag = (mt.el.getAttribute('data-lpc-tool') || '');
     var all = !mt.opts.page && mt.list.length > (+mt.el.getAttribute('data-lpc-n') || 3)
-      ? '<a class="btn btn-line" href="' + esc(ROOT + 'markets/' + (tag && tag !== 'markets' ? '?tool=' + encodeURIComponent(tag) : '')) + '">All ' + mt.list.length + ' on Beat the Markets</a>' : '';
+      ? '<a class="btn btn-line" href="' + esc(ROOT + 'markets/' + (tag && tag !== 'markets' ? '?tool=' + encodeURIComponent(tag) : '')) + '">All ' + mt.list.length + ' on Beat the Betting Markets</a>' : '';
     if (rest <= 0 && !all) return '';
     return '<div class="lpc-more">' + (rest > 0 ? '<button type="button" class="btn btn-line" data-lpc-more>More calls (' + Math.min(rest, mt.step) + ' of ' + rest + ')</button>' : '') + all + '</div>';
   }
@@ -654,7 +654,7 @@
     function headline(r) {
       if (!r || !(r.right + r.wrong)) return '<p class="btm-head">No call of yours has settled yet.</p>';
       var b = Math.round(+r.beat || 0);
-      return b >= 0 ? '<p class="btm-head">You beat the markets by <b>' + sign(b) + '</b></p>' : '<p class="btm-head is-down">The markets beat you by <b>' + Math.abs(b) + '</b></p>';
+      return b >= 0 ? '<p class="btm-head">You beat the betting markets by <b>' + sign(b) + '</b></p>' : '<p class="btm-head is-down">The betting markets beat you by <b>' + Math.abs(b) + '</b></p>';
     }
     function stats(r, made, open) {
       var cells = [[made, 'Calls made'], [r ? r.right || 0 : 0, 'Right'], [r ? r.wrong || 0 : 0, 'Wrong'], [open, 'Open'], [sign(r ? r.pts || 0 : 0), 'Points won']];
@@ -687,7 +687,7 @@
       var r = REC, b = r && (r.right + r.wrong) ? Math.round(+r.beat || 0) : null;
       var text = b == null ? 'My calls against the betting markets on Liberty Politics. Can you beat them?' : (b >= 0 ? 'I beat the betting markets by ' + sign(b) + ' points on Liberty Politics. Can you?' : 'The betting markets are ahead of me on Liberty Politics. Can you beat them?');
       return '<div class="btm-pub"><button type="button" class="btm-pubsw" data-btm-pub role="switch" aria-checked="' + on + '"><span class="mk-sw-t" aria-hidden="true"><i></i></span><span>Show my record to everyone</span></button>'
-        + (on ? '<button type="button" class="btn btn-line" data-share data-url="' + esc(url) + '" data-title="My record: Beat the Markets" data-text="' + esc(text) + '">Share my record</button>' : '')
+        + (on ? '<button type="button" class="btn btn-line" data-share data-url="' + esc(url) + '" data-title="My record: Beat the Betting Markets" data-text="' + esc(text) + '">Share my record</button>' : '')
         + '</div><p class="btm-note" id="btm-pubmsg" role="status">' + (on ? 'Anyone with the link sees your name, your score and your best calls. Never your email.' : 'Private: only you see it. Switch it on to share it.') + '</p>';
     }
     function recordMine() {

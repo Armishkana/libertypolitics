@@ -214,7 +214,6 @@
 .up-legend b{font:700 12px/1 var(--disp);letter-spacing:.14em;text-transform:uppercase;color:var(--gold2)}
 .up-legend span{display:flex;align-items:center;gap:6px}
 .up-lg-t{color:var(--dim)}
-.up.running .up-legend{display:none}
 .up.running .up-panel{display:none}
 @media (min-width:1180px){.up.running .up-bar{width:min(900px,calc(100vw - 400px));left:calc(50% - 170px)}.up.running .up-cap{left:calc(50% - 170px)}.up.running .up-hud{left:calc(50% - 170px)}}
 @media (min-width:1180px){.up[dir=rtl].running .up-bar,.up[dir=rtl].running .up-cap,.up[dir=rtl].running .up-hud{left:calc(50% + 170px)}.up.running .up-camc{inset-inline-end:352px}}
@@ -356,8 +355,7 @@
   .up-bar{left:8px;right:8px;transform:none;width:auto;bottom:8px;flex-wrap:wrap;gap:6px}
   .up-scrubw{order:9;flex:1 1 100%}
   .up-bar .up-ib span{display:none}
-  .up-spd button:nth-child(1),.up-spd button:nth-child(3){display:none}
-  .up-legend{display:none}
+  .up-spd button:nth-child(4){display:none}
   .up:not(.running) .up-hud{display:none}
   .up-dossier{top:58px;inset-inline:8px;width:auto;min-width:0;max-height:calc(42% - 64px)}
   .up-dossier .up-advh .up-bust{width:56px;height:56px}
@@ -687,3 +685,67 @@ html.lp-stream #uprising :is(.up-ic span,.up-legend b,.up-chev,.up-bal span,.up-
 html.lp-stream #uprising .up-boot-in{zoom:var(--lps-z,1)}
 html.lp-stream #uprising .up-boot-in span{font-size:13.5px}
 html.lp-stream #uprising .up-labels .up-lab i{font-size:calc(13.5px * var(--lps-z,1))!important}
+
+/* ============ THE CALM REBUILD (2 November 2026; data/uprising/visual-rebuild-2026-11-02.md). His words: "messy, chaotic,
+   cluttered, ugly colours ... you cannot tell what is going on". Names are text with a halo, not boxes; few of them; one
+   accent (ice blue) for what is happening now; the key to the colours is always one tap away; nothing animates in. */
+.up{--acc:#8fdcff;--ppl:#f5b842;--reg:#eb4549}
+.up-lab{background:none;border:0;padding:2px 4px;gap:4px;font:600 12.5px/1.2 var(--txt);color:#e9edf1;
+  text-shadow:0 0 2px #000,0 0 4px #000,0 1px 3px rgba(0,0,0,.95),0 0 10px rgba(0,0,0,.7)}
+.up-lab i{font-size:11px;opacity:.85}
+.up-lab-o{color:#fff;font-weight:700}
+.up-lab-o::after{content:'';width:6px;height:6px;border-radius:50%;background:var(--reg);box-shadow:0 0 0 2px rgba(0,0,0,.6);margin-inline-start:2px}
+.up-lab-o.held{color:var(--ppl);box-shadow:none}
+.up-lab-o.held::after{background:var(--ppl)}
+.up-lab-s{color:#cfd5da;font-weight:600}
+.up-lab-s.typ{opacity:.7;border:0}
+.up-cchip{padding:2px 8px;border-radius:10px;font:700 12px/1.3 var(--txt);letter-spacing:0;box-shadow:none;background:rgba(245,184,66,.92);color:#1a1405}
+.up-cchip.f{background:rgba(235,69,73,.9);color:#fff;box-shadow:none}
+.up-cap{align-items:flex-start}
+.up-cap-t{display:block}
+.up-cap-t time{display:block;font-size:12px;color:var(--dim);margin-bottom:2px;letter-spacing:.02em}
+.up-cap-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--acc);margin-inline-end:7px;vertical-align:1px;box-shadow:0 0 0 3px rgba(143,220,255,.18)}
+.up-cap-dot.bad{background:var(--reg);box-shadow:0 0 0 3px rgba(235,69,73,.2)}.up-cap-dot.good{background:var(--ppl);box-shadow:0 0 0 3px rgba(245,184,66,.2)}
+.up-pace{flex:none;font-size:12px;color:var(--acc);border:1px solid rgba(143,220,255,.35);border-radius:10px;padding:2px 8px;white-space:nowrap}
+.up-spd button{font-size:13px}
+/* the key: one tap away on every screen, open by default only on a computer before Play */
+.up-legend{display:block;padding:0;gap:0;max-width:260px;z-index:4}
+.up-legb{display:flex;align-items:center;gap:6px;min-height:40px;width:100%;padding:6px 10px;background:none;border:0;font:700 12px/1 var(--disp);letter-spacing:.12em;text-transform:uppercase;color:var(--ink);text-align:start}
+.up[lang=fa] .up-legb{letter-spacing:0;text-transform:none;font-family:var(--txt);font-size:13px}
+.up-legb::before{content:'';width:14px;height:14px;border-radius:50%;border:1.5px solid var(--acc);flex:none;background:radial-gradient(circle,var(--acc) 2px,transparent 3px)}
+.up-legend[data-open='0'] .up-legbd{display:none}
+.up-legbd{padding:0 10px 10px;display:flex;flex-direction:column;gap:5px;font-size:12px}
+.up-legbd b{font:700 12px/1 var(--disp);letter-spacing:.14em;text-transform:uppercase;color:var(--gold2);margin-top:6px}
+.up[lang=fa] .up-legbd b{letter-spacing:0;text-transform:none;font-family:var(--txt)}
+.up-legbd span{display:flex;align-items:center;gap:7px;color:#d6dbe0}
+.up-lk{flex:none;display:inline-block;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 2px rgba(0,0,0,.55)}
+.up-lk.p{background:var(--ppl)}.up-lk.r{background:var(--reg)}.up-lk.m{background:#eef2f6}.up-lk.t{background:#8d939b;width:8px;height:8px}
+.up-lk.l{width:14px;height:0;border-radius:0;border-top:2px solid var(--ppl);box-shadow:none}
+.up-lk.a{background:none;border:2px solid var(--acc);box-shadow:none}
+.up-lk.d{background:#fff;width:6px;height:6px;box-shadow:0 0 6px #fff}
+.up.running .up-legend{bottom:auto;top:70px;inset-inline-end:352px}
+@media (max-width:1179.98px) and (min-width:760px){.up.running .up-legend{top:auto;bottom:88px;inset-inline-end:auto;inset-inline-start:16px}}
+@media (max-width:759.98px){
+  .up-legend{bottom:auto;top:60px;inset-inline-end:8px;max-width:calc(100vw - 16px)}
+  .up:not(.running) .up-legend{top:auto;bottom:auto;display:none}
+  .up.running .up-legend{top:auto;bottom:192px;inset-inline-end:auto;inset-inline-start:8px}
+  .up-legend[data-open='0']{width:auto}
+  .up-legend[data-open='0'] .up-legb span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .up-pace{order:8;font-size:12px}
+}
+html.lp-stream #uprising .up-legend{zoom:var(--lps-z,1)}
+/* the run on a computer: the numbers top left, the map's centre left free for the moment that matters */
+@media (min-width:1180px){
+  .up.running .up-hud,.up[dir=rtl].running .up-hud{left:auto;transform:none;inset-inline-start:16px;width:440px;min-width:0}
+  .up.running .up-hcost{display:none}
+  .up:not(.running) .up-legend{inset-inline-end:72px}
+}
+/* the run on a phone: the bar on one row of buttons over the timeline, the caption above it, then the camera and the key */
+@media (max-width:759.98px){
+  .up-bar{gap:4px;padding:6px 8px}
+  .up-bar .up-spd button{min-width:38px}
+  .up-bar>.up-ib{min-width:40px;padding:6px 8px}
+  .up.running .up-cap{bottom:124px;max-height:80px}
+  .up.running .up-camc{bottom:214px}
+  .up.running .up-legend{bottom:214px}
+}

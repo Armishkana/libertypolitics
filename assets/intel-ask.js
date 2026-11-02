@@ -381,7 +381,7 @@
     var allw = (' ' + (V.stopFa ? tw.replace(V.stopFa, ' ') : tw) + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9_\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim().split(' ')
       .filter(function (w, i, a) { return (w.length > 2 || /^(uk|un|eu)$/.test(w) || (w.length === 2 && /[\u0600-\u06ff]/.test(w))) && !/^\d+$/.test(w) && a.indexOf(w) === i && (!claim || w !== claim.w); });
     var allq = (claim ? [claim.said || claim.w] : []).concat(allw.filter(function (w) { return !claim || w !== claim.said; })).slice(0, 6).join(' ');
-    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, allq: allq, allw: allw, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess, crGuess: crGuess };
+    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, actors: actors, allq: allq, allw: allw, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess, crGuess: crGuess };
   }
 
   /* ------------------------------------------------------------------ saying what a set of filters is, in one line */
@@ -654,7 +654,18 @@
     }
     var bankW = V.sorts.bank ? Math.min(1, R.peek(R.blank('bank')) / 200) : 0;
     var ev = EVID.test(p.raw), so = SOCIAL.test(p.raw), W = [0.6, 0.25, 0.15], best = null, aw = p.allq.split(' ').filter(Boolean);
-    var wt = aw.map(function (w) { return R.qw ? R.qw(w, p.allq) : 1; }), wsum = wt.reduce(function (a, b) { return a + b; }, 0) || 1;
+    // A COUNTRY THAT DOES THE THING IS WHO IT IS ABOUT, NOT WHERE (2 Nov 2026, LP ask gate: "did israel bomb al ahli hospital"
+    // went to the last 24 hours, whose first item was "Russia bombed a Kherson hospital": it said "bomb" and "hospital" and
+    // never Israel, and it beat the bank's hospital evidence). The room weighs a country beside other words at half
+    // (intel.js qWeights: a place is where, the other words are what), so a question naming who did it could be carried by
+    // its verb and noun alone, about anybody. A country or place read as who does something in the sentence (ACTOR,
+    // "israel bomb", "qatar funds") is the subject, and weighs as the room weighs a word naming one of its own actors
+    // (intel.js qSubject): double its own weight, never above the most the room gives any word (3, doubled for an actor, 6),
+    // so an item that leaves the actor out answers far less of the question. (Measured on that question: the actor at its
+    // own weight only tied the two tabs, 0.581 each; at double the bank's hospital evidence wins, 0.596 to 0.533.)
+    var placeW = function (w) { return (V.places || []).some(function (pw) { return pw[0].test(' ' + w + ' '); }); };
+    var act = {}; (p.actors || []).forEach(function (a) { act[a] = 1; });
+    var wt = aw.map(function (w) { var x = R.qw ? R.qw(w, p.allq) : 1; return act[w] && R.qw && placeW(w) ? Math.max(x, Math.min(6, 2 * R.qw(w))) : x; }), wsum = wt.reduce(function (a, b) { return a + b; }, 0) || 1;
     // A CLAIM IS ONE THING, WHICHEVER OF ITS WORDS WAS ASKED (2 Nov 2026, LP ask gate: "is israel starving gaza" was read as
     // the famine claim and found its 69 items in Gaza, then said "Nothing here has all of" over them, because the yardstick
     // asked each headline for the word typed, "starving", and a headline saying "famine" counted only as a word of the same
@@ -670,7 +681,6 @@
     // everything through stands for nothing (30 Oct 2026, ask gate "israel iran war": the War topic's own pattern names
     // Israel, so every item in the place Israel is in it, and "war" counted 0.6 for items that never said it); then every
     // filtered word that is not the place's own name counts only where the item says it.
-    var placeW = function (w) { return (V.places || []).some(function (pw) { return pw[0].test(' ' + w + ' '); }); };
     var relC = function (it, c) {
       var inQ = ' ' + (c.ns.q || '') + ' ', pf = c.ns.place || (c.ns.fx || []).length, facet = pf || (c.ns.tp || []).length || c.ns.kind, s0 = 0;
       aw.forEach(function (w, i) { var r = relW(it, w); if (facet && inQ.indexOf(' ' + w + ' ') < 0) r = Math.max(r, pf && placeW(w) ? 0.6 : c.tpIdle ? 0 : pf ? 0.6 : 0.45); s0 += wt[i] * r; });

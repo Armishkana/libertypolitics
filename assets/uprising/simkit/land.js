@@ -232,7 +232,16 @@ export default function register(K) {
     // engagement radar truck: a large flat phased array raised on the bed, facing +z
     const R = K.lists(); const t2 = truck(R, { len: 11, wid: 2.9, axles: [3.6, -1.8, -3.4], r: 0.65, col, cab: 'flat', cabLen: 2.4, lo: true }); bs(R.solid, 2.9, 1.2, 7.4, col, 0, t2.y, -1.6);
     panel(R.solid, 5.4, 4.6, 0.6, 0x9a957f, col, 0, t2.y + 1.2, -0.8, 0.35); place(L, R, 0, 0, -10, 0, 1);
+    // the battery's other two trucks (Army Recognition): the command cabin and the S-band acquisition radar, both on Zafar 8x8s
+    const Cc = K.lists(); const t3 = truck(Cc, { len: 10, wid: 2.8, axles: [3.4, 2.0, -1.8, -3.3], r: 0.62, col, cab: 'flat', cabLen: 2.2, lo: true });
+    bs(Cc.solid, 2.8, 2.6, 6.2, col, 0, t3.y, -1.4); b(Cc.solid, 0.1, 0.9, 1.4, C.dark, 1.42, t3.y + 1.4, -0.4); cs(Cc.metal, 0.12, 5, C.steel, 0.9, t3.y + 2.6, -3.8, 5);
+    place(L, Cc, -14, 0, -12, 0.5, 1);
+    const Aq = K.lists(); const t4 = truck(Aq, { len: 10, wid: 2.8, axles: [3.4, 2.0, -1.8, -3.3], r: 0.62, col, cab: 'flat', cabLen: 2.2, lo: true });
+    bs(Aq.solid, 2.8, 1.1, 6.2, col, 0, t4.y, -1.4); cs(Aq.metal, 0.35, 1.2, C.steel, 0, t4.y + 1.1, -1.8, 6);
+    place(L, Aq, 14, 0, -12, -0.5, 1);
     const root = K.group(L, o.team, 'bavar373');
+    // the acquisition array turns (A.spin('radar') in the anim): a wide flat panel on the turntable
+      moving(root, o.team, 'radar', (M) => { panel(M.solid, 5.6, 2.2, 0.4, 0x9a957f, col, 0, 0, 0, 0.25); }, 14 + Math.sin(-0.5) * -1.8, t4.y + 2.3, -12 + Math.cos(-0.5) * -1.8);
     [[-11, 12, 0.25], [11, 12, -0.25]].forEach((p) => {
       const V = K.lists(); const t = truck(V, { len: 12.5, wid: 3, axles: [4.2, 2.4, -2.4, -4.2], r: 0.72, col, cab: 'flat', cabLen: 2.6, cabH: 2.2, lo: true });
       bs(V.solid, 2.9, 0.5, 8.5, col, 0, t.y, -1.8); mark(V, 0, t.cabTop + 0.04, 4.8, 1, 1);
@@ -273,22 +282,49 @@ export default function register(K) {
   });
 
   K.define('radar_ghadir', { name: 'Ghadir over-the-horizon radar', real: 'Ghadir long-range early-warning radar array (Garmsar)', cat: 'land', role: 'strategic early-warning radar', side: 'ir', len: 220 }, (K, o) => {
-    const L = K.lists(), S = 150, n = 13, mh = 34;
-    bs(L.solid, S + 50, 0.3, S + 50, X.sandG, 0, 0, 0);
-    // four faces of tall dipole masts with wire curtains and a reflector screen: a square, one face per quarter of the sky
+    /* The layout as GlobalSecurity describes it (radar-qadir.htm): a square under 70 m a side, four lateral antenna faces (one per quarter
+       of the sky, IRNA: "more than 100 antennas", 360 degrees), the inside nearly filled with buildings, ONE tall transmitter mast in the
+       centre. (The corner-tower square is the bigger Sepehr; it is not this.) */
+    const L = K.lists(), S = 66, mh = 18, TM = 62;
+    bs(L.solid, S + 34, 0.3, S + 34, X.sandG, 0, 0, 0);
+    bs(L.solid, S + 10, 0.12, S + 10, X.pad, 0, 0.3, 0);
+    // the four faces: a reflector screen on its frame, and a curtain of dipole masts in front of it, each mast with three cross dipoles
     [0, H, PI, -H].forEach((ry) => {
-      const cxp = Math.sin(ry) * S / 2, czp = Math.cos(ry) * S / 2, ux = Math.cos(ry), uz = -Math.sin(ry);
-      for (let i = 0; i < n; i++) { const u = (i / (n - 1) - 0.5) * S * 0.86; b(L.metal, 1.4, mh, 1.4, C.steel, cxp + ux * u, mh / 2, czp + uz * u); }
-      [9, 17, 25, 32].forEach((y) => b(L.metal, S * 0.88, 0.5, 0.5, 0xc9ccce, cxp, y, czp, 0, ry, 0));
-      b(L.solid, S * 0.88, mh * 0.82, 0.3, 0x6f777d, cxp - Math.sin(ry) * 5, mh * 0.42, czp - Math.cos(ry) * 5, 0, ry, 0);
-      b(L.solid, S * 0.9, 0.4, 3, X.pad, cxp + Math.sin(ry) * 6, 0.5, czp + Math.cos(ry) * 6, 0, ry, 0);
+      const sx = Math.sin(ry), sz = Math.cos(ry), ux = Math.cos(ry), uz = -Math.sin(ry), cxp = sx * S / 2, czp = sz * S / 2;
+      b(L.solid, S * 0.94, mh, 0.4, 0x5d656b, cxp - sx * 1.5, mh / 2 + 0.3, czp - sz * 1.5, 0, ry, 0);
+      [mh * 0.34, mh * 0.68, mh].forEach((y) => b(L.metal, S * 0.96, 0.45, 0.45, 0xc9ccce, cxp - sx * 1.3, y, czp - sz * 1.3, 0, ry, 0));
+      const n = 12;
+      for (let i = 0; i < n; i++) {
+        const u = (i / (n - 1) - 0.5) * S * 0.88, x = cxp + sx * 2.2 + ux * u, z = czp + sz * 2.2 + uz * u;
+        b(L.metal, 0.5, mh + 1.5, 0.5, 0xb9bdc0, x, (mh + 1.5) / 2 + 0.3, z);
+        [0.45, 0.85].forEach((f) => b(L.metal, 3.6, 0.22, 0.22, 0xe2e4e5, x, mh * f + 0.6, z, 0, ry, 0));
+      }
+      // the guard rail and the cable trench along the face
+      b(L.solid, S * 0.96, 0.5, 2.4, X.padDark, cxp + sx * 5.4, 0.55, czp + sz * 5.4, 0, ry, 0);
     });
-    // corner transmitter towers, striped, and the control buildings in the middle
-    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach((p) => { const x = p[0] * S * 0.53, z = p[1] * S * 0.53; for (let k = 0; k < 5; k++) ct(L.solid, 1.6 - k * 0.2, 1.8 - k * 0.2, 10, k % 2 ? X.redB : X.stripeW, x, k * 10, z, 6); });
-    bs(L.solid, 34, 7, 18, C.offwhite, 0, 0.3, -6); bs(L.solid, 34.6, 0.8, 18.6, X.roofGrey, 0, 7.3, -6); bs(L.solid, 14, 9, 12, C.offwhite, -6, 0.3, 14);
-    ct(L.metal, 0.4, 1.0, 26, C.steel, 14, 0.3, 14, 6); cy(L.solid, 3.2, 0.6, C.white, 14, 26, 14, H * 0.6, 0, 0, 12);
-    for (let i = 0; i < 8; i++) b(L.glow, 2.2, 1, 0.1, X.win, -14 + i * 4, 4.5, 3.05);
-    flag(L, 22, 30, 14, 2);
+    // the buildings that nearly fill the inside: transmitter halls, the operations block, the power hall, cooling units on the roofs
+    const bld = [[-14, -14, 20, 6, 18], [14, -14, 18, 7.5, 16], [-14, 14, 18, 5.5, 18], [14, 14, 20, 6.5, 16]];
+    bld.forEach((q, i) => {
+      bs(L.solid, q[2], q[3], q[4], i % 2 ? C.offwhite : X.lime, q[0], 0.4, q[1]);
+      bs(L.solid, q[2] + 0.6, 0.6, q[4] + 0.6, X.roofGrey, q[0], q[3] + 0.4, q[1]);
+      for (let k = 0; k < 3; k++) bs(L.solid, 2.2, 1.4, 2.2, 0x9aa0a4, q[0] - q[2] * 0.3 + k * q[2] * 0.3, q[3] + 1.0, q[1]);
+      for (let k = 0; k < 5; k++) b(L.glow, 2, 0.9, 0.1, X.win, q[0] - q[2] * 0.36 + k * q[2] * 0.18, q[3] * 0.55 + 0.4, q[1] + Math.sign(-q[1]) * (q[4] / 2 + 0.06));
+    });
+    // the central transmitter mast: a tapering lattice, striped red and white for aircraft, with its feed cage and top light
+    const legs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], w0 = 3.2, w1 = 0.7;
+    legs.forEach((p) => beam(L.metal, p[0] * w0, 0.4, p[1] * w0, p[0] * w1, TM, p[1] * w1, 0.45, 0xd8d8d4));
+    for (let k = 0; k < 8; k++) {
+      const y0 = 0.4 + k * (TM / 8), y1 = y0 + TM / 8, wa = w0 + (w1 - w0) * (y0 / TM), wb = w0 + (w1 - w0) * (y1 / TM), c = k % 2 ? X.redB : X.stripeW;
+      for (let j = 0; j < 4; j++) { const a2 = legs[j], b2 = legs[(j + 1) % 4]; beam(L.metal, a2[0] * wa, y0, a2[1] * wa, b2[0] * wb, y1, b2[1] * wb, 0.22, c); }
+      bs(L.solid, wb * 2.1, 0.35, wb * 2.1, c, 0, y1 - 0.2, 0);
+    }
+    cy(L.metal, 2.4, 3, 0xc9ccce, 0, TM - 6, 0, 0, 0, 0, 8); cs(L.metal, 0.25, 6, C.steel, 0, TM, 0, 6);
+    ball(L.glow, 0.7, 0xff3b2e, 0, TM + 6.2, 0, 6);
+    bs(L.solid, 8, 3.2, 8, C.offwhite, 0, 0.4, 0); bs(L.solid, 8.6, 0.5, 8.6, X.roofGrey, 0, 3.6, 0);
+    // the perimeter fence and the gate
+    [0, H, PI, -H].forEach((ry) => b(L.metal, S + 22, 2.2, 0.25, 0x8a8f92, Math.sin(ry) * (S / 2 + 12), 1.4, Math.cos(ry) * (S / 2 + 12), 0, ry, 0));
+    bs(L.solid, 6, 3.4, 4, C.offwhite, S / 2 + 6, 0.3, S / 2 + 14);
+    flag(L, -(S / 2 + 8), S / 2 + 8, 14, 2);
     return K.group(L, o.team, 'radar_ghadir');
   });
 

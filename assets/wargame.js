@@ -17,6 +17,10 @@
      room     the briefing room: the experts a reader seats, each with a briefing that plays over the board
      run      1,000 runs in the background for the odds, then the after-action report (the outcomes as gauges, each beside
               the betting market that asks the same thing, and the gap), and the most typical run played on the board
+     routes   HOW THINGS MOVE (2 November 2026, data/wargame/visual-rebuild-2026-11-02.md): ROUTES plans each event as legs that
+              move like the real thing (ships only on water, columns on land and roads, arcs and flight times from range,
+              strike packages with tankers and standoff releases, interceptors from the battery that covers the target), and
+              one step as one scene the board can follow at 1x. The tests run the same block (test_wargame.mjs).
    The state of a scenario rides in the address (?s=), so Share sends exactly what was built.
    Never classList.toggle(name, state): tog(el, name, state) (wargame.py stops the build on the first). Never a browser
    dialog. Nothing is hidden and animated back in: the intel feed types its line, and the whole line is there when it stops. */
@@ -82,15 +86,9 @@
     return P;
   }
   function marketParams() {
-    // The base estimates, moved where a betting market prices the same thing (a market tagged with a game number).
-    var P = avgOf([]);
-    (R.markets || []).forEach(function (m) {
-      if (!m.param || !PM[m.param] || !m.o || !m.o.length) return;
-      var y = m.o[0][1]; if (typeof y !== 'number') return;
-      var p = PM[m.param];
-      if (p.max <= 1 && p.min >= 0) P[m.param] = clamp(y, p.min, p.max);
-    });
-    return P;
+    // The base estimates, moved where a betting market prices the same thing as a game number; how is the model's own rule
+    // (marketKnobs, in the models block, so the backtests check it)
+    return Object.assign(avgOf([]), marketKnobs(MODELS[TID], R.markets || [], R.params || []));
   }
   var S = { room: [], lens: 'room', mine: null, lv: {}, date: null, speed: 1, tab: 'next' };
   function params() {
@@ -179,6 +177,33 @@
     return c;
   }
   function jit(r, a) { return 1 - a + 2 * a * r(); }
+  // THE MARKETS AS NUMBERS (2 November 2026; the fact audit of 1 November, Ukraine (b) 15 and the Taiwan markets row). A betting
+  // market moves a game number only where the model says how: M.mk[number] = { hz: the chance per step one unit of the number
+  // adds, by: { <market id>: 'YYYY-MM-DD' } for a market whose outcome is a plain Yes }. Each dated price p (an outcome named like
+  // "By Dec 31, 2026", or Yes by the date in by) becomes the steady chance per step that gives p by that date, -ln(1 - p) / steps
+  // counted from the day the price was read; the number is their average over hz, kept inside its range. Until then the last
+  // market tagged with a number wrote its first price straight in: a nuclear-deal price into Iran's ceasefire pressure, "Hormuz
+  // back to normal" (11.5%) into the chance it closes Hormuz (the wrong way round), and Ukraine's ceasefire markets, which price
+  // a ceasefire likelier than the base, pulled its number below the base. A market no model maps moves no number.
+  function marketKnobs(M, markets, params) {
+    var out = {}, mk = (M && M.mk) || {}, per = M && M.unit === 'week' ? 7 : 1;
+    (params || []).forEach(function (p) {
+      var rule = mk[p.id]; if (!rule) return;
+      var hs = [];
+      (markets || []).forEach(function (m) {
+        if (m.param !== p.id || !m.o) return;
+        var t0 = Date.parse(String(m.readUtc || m.at || '').slice(0, 10) + 'T00:00:00Z');      // the register says readUtc, the page's feed at if (!isFinite(t0)) return;
+        m.o.forEach(function (o) {
+          var y = o[1], lab = String(o[0]); if (typeof y !== 'number' || y <= 0 || y >= 1) return;
+          var t = /^yes$/i.test(lab) ? Date.parse(((rule.by || {})[m.id] || '') + 'T00:00:00Z') : /\d{4}/.test(lab) ? Date.parse(lab.replace(/^by\s+/i, '') + ' UTC') : NaN;
+          var steps = (t - t0) / 864e5 / per; if (!isFinite(steps) || steps < 1) return;
+          hs.push(-Math.log(1 - y) / steps);
+        });
+      });
+      if (hs.length) out[p.id] = clamp(hs.reduce(function (a, b) { return a + b; }, 0) / hs.length / rule.hz, p.min, p.max);
+    });
+    return out;
+  }
 
   // ---------------------------------------------------------------- the Islamic Republic vs the US and Israel (one step a day)
   MODELS.iran = {
@@ -349,7 +374,11 @@
     end: function (s, r) {
       var P = s.P, lv = s.lv, w = s.w;
       var gap = s.Pr - 0.85 * s.R;
-      if (r() < 0.0008 * (1 + 0.1 * Math.min(10, s.leaders)) * (s.R0 / Math.max(0.15, s.R))) return 'fall';
+      // the background chance of a collapse (a coup, a sudden rising) needs people in the street: squared share of the street a
+      // war with no call starts with (0.12). Until 2 November 2026 it grew with the bombing alone, and a campaign on the leaders
+      // or the repression organs with nobody out toppled the regime in 11% to 25% of runs; in 2026 it toppled nothing (audit (b) 2)
+      var st0 = Math.min(1, s.Pr / 0.12);
+      if (r() < 0.0008 * (1 + 0.1 * Math.min(10, s.leaders)) * (s.R0 / Math.max(0.15, s.R)) * st0 * st0) return 'fall';
       if (gap > 0 && r() < 0.15 * Math.pow(gap, 1.5) * (1 + 4 * s.split)) return 'fall';
       var L = lv.len === 'open' ? 0 : +lv.len || 7, h;
       if (L && !s.over) h = s.d < L ? 0.004 + P.cease * 0.01 : 0.35;
@@ -397,6 +426,7 @@
   var SECW = { kostiantynivka: 0.26, zaporizhzhia: 0.24, kupiansk: 0.14, lyman: 0.14, pokrovsk: 0.12, kharkiv: 0.08, kherson: 0.02 };
   MODELS.ukraine = {
     unit: 'week', max: 52,
+    mk: { cease: { hz: 0.012, by: { 'pm-ceasefire-dec': '2026-12-31' } } },      // the markets as numbers (marketKnobs): end() adds P.cease x 0.012 a week
     role: function (f) { return { patriot: 'patriot', iris_t_sys: 'sam', nasams: 'sam', f16: 'jets', mirage2000: 'jets', su24: 'su24', storm_shadow: 'storm', atacms: 'atacms', flamingo: 'missiles', neptune: 'missiles', fp1: 'drones' }[f.type] || null; },
     presets: [['all', tr('Everything Ukraine has'), ''], ['nodeep', tr('No long-range strikes'), function (f) { return /^(su24|storm_shadow|atacms|flamingo|neptune|fp1)$/.test(f.type); }], ['noad', tr('No Western air defence'), function (f) { return /^(patriot|iris_t_sys|nasams)$/.test(f.type); }]],
     targets: [
@@ -434,7 +464,7 @@
     how: [
       tr('One step a week. Russia takes ground at today’s pace, made bigger or smaller by every choice, and every choice is measured against today, so “as today” gives today’s pace (DeepState: about 93 km² a month net in 2026). Summer and November take the most ground, late winter the least.'),
       tr('Ukraine’s strength is its soldiers, its weapons and its power grid (which makes its drones). US and European money add weapons; a cut makes each Russian push go further.'),
-      tr('Russia’s strength is its recruits against its losses (about 35,000 to 40,000 recruits a month, close to its losses) and the money for sign-up bonuses. A mobilisation adds men after about ten weeks.'),
+      tr('Russia’s strength is its recruits against its losses (about 35,000 to 40,000 recruits a month, close to its losses) and the money for sign-up bonuses. Its losses grow with Ukraine’s drones and men: the stronger the defence, the more each km² costs. A mobilisation adds men after about ten weeks.'),
       tr('Each week Russia sends about 1,800 drones, 35 ballistic missiles and cruise missiles. Only Patriot stops ballistic missiles, and its PAC-3 rounds run out: about 12 a month arrive from the US (more with full aid; European-funded ones are assumed to start after three months). What gets through hits the grid or the cities, worse in winter, and repairs come back slowly.'),
       tr('Ukraine’s long-range strikes follow your target list: ports cut Russia’s oil money, refineries its fuel, air bases the glide bombs on the front, Shahed sites the drones. Without US intelligence they hit less.'),
       tr('Russia’s war money moves with oil revenue: export ports hit, refineries down and sanctions. On its own it wears down by only a few points a year.'),
@@ -471,7 +501,10 @@
       if (s.ini && s.men > 0.4) g -= s.ini / 4.33 * Math.min(1.3, uaF) * (lv.post === 'counter' ? 1.4 : 1) * jit(r, 0.5);
       s.gain += g;
       for (var k in SECW) s.sec[k] = (s.sec[k] || 0) + g * SECW[k] * jit(r, 0.3);
-      var lossW = P.ru_cas * 7 * pushF * jit(r, 0.15); s.cas += lossW;
+      // Russia's losses are its assault times what each assault costs, and the cost rises with Ukraine's drones and men (uaF, 1 as
+      // today): in 2025 about 415,000 casualties bought 4,327 km2 (about 100 a km2), in 2026 the same rate bought about 1,100 km2
+      // a year (about 350). Until 2 November 2026 losses moved with the push alone (the fact audit of 1 November, Ukraine (b) 10)
+      var lossW = P.ru_cas * 7 * pushF * Math.sqrt(uaF) * jit(r, 0.15); s.cas += lossW;
       var recW = P.ru_cas * 7 * econF * (lv.ru === 'mob' && d > 10 ? 1.25 : 1);
       s.pool = clamp(s.pool + (recW - lossW) / 700000 * 3, 0.5, 1.4);
       // the air war: drones, ballistic missiles, the grid
@@ -584,7 +617,7 @@
       var usDay = lv.us === 'now' ? 1 : lv.us === 'late' ? 14 : lv.us === 'maybe' ? Math.max(3, Math.round(P.us_days * 2 + 2)) : 999;
       if (lv.us === 'maybe' && r() >= P.us_in) usDay = 999;
       var jp = { fight: 1, bases: 0.5, out: 0 }[lv.jp];
-      if (lv.bases === 'yes' && lv.open === 'inv') jp = 1;
+      if (lv.bases === 'yes' && lv.open === 'inv' && lv.us !== 'out') jp = 1;      // the strike on US bases that brings Japan in (step) only comes when the US is in it
       var vis = lv.warn === 'visible';
       return { d: 0, P: P, lv: lv, c: c, w: w, usDay: usDay, usIn: false, jp: jp, vis: vis, twAir: 1, mis: P.pla_missiles * (1 - 0.15 * w.rf * (vis ? 1 : 0.5)), lift: 1 - 0.15 * w.ports * (vis ? 1 : 0.3),
         asm: c.asm ? (lv.jassm === 'no' ? 450 : P.us_asm) : 0, carriers: c.carrier ? (vis ? 2 : 1) : 0, cHit: 0, usAir: 0, ashore: 0, landed: 0, sunk: 0, port: 0, prog: 0, cities: 0,
@@ -636,7 +669,9 @@
         var dD = 0.015 * s.ashore * (1 + 0.01 * d) * jit(r, 0.3); s.defend = Math.max(0, s.defend - dD); s.kTW += dD * 300;
         if (s.ashore > D * will * 0.9) { s.prog += 0.045 * Math.min(2, s.ashore / Math.max(1, D * will)); var nc = Math.floor(s.prog); if (nc > s.cities) { s.cities = nc; emit({ t: 'ground', side: 'CN', to: pick(s.rv, function (p) { return p.o === 'TW' && (p.k === 'city' || p.k === 'capital'); }), w: [tr('Tainan and Kaohsiung fall.'), tr('Taichung falls.'), tr('Taipei falls.')][Math.min(2, nc - 1)], big: 1 }); } }
         s.will = clamp(s.will - (s.ashore > D * 0.8 ? 0.006 : 0.001) + (s.usIn ? 0.003 : 0), 0, 1);
-        if (s.usIn && d <= 16 && s.carriers > s.cHit && r() < 0.05 * (s.carriers - s.cHit) * (s.mis > 0 ? 1 : 0.5)) { s.cHit++; s.usLoss += 2500; emit({ t: 'missile', side: 'CN', from: pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, ofSide('US', ['naval'])), n: 30, stop: 24, res: 'hit', w: tr('A US carrier is hit.'), why: tr('DF-21D and DF-26 missiles hunt carriers inside about 2,000 km. CSIS lost two in every base run.'), big: 1 }); }
+        // a carrier in reach is hit about one day in eight (2 November 2026; was one in twenty, 0.9 hit a run against CSIS's two lost in every
+        // base run); 1,800 dead each puts the CSIS base case near CSIS's 3,200 US killed in three weeks
+        if (s.usIn && d <= 16 && s.carriers > s.cHit && r() < 0.12 * (s.carriers - s.cHit) * (s.mis > 0 ? 1 : 0.5)) { s.cHit++; s.usLoss += 1800; emit({ t: 'missile', side: 'CN', from: pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, ofSide('US', ['naval'])), n: 30, stop: 24, res: 'hit', w: tr('A US carrier is hit.'), why: tr('DF-21D and DF-26 missiles hunt carriers inside about 2,000 km. CSIS lost two in every base run.'), big: 1 }); }
         if (s.usIn) { s.usLoss += 30 * r(); if (r() < 0.2) s.usAir += Math.round(3 * r()); }
       } else if (s.plan === 'block') {
         var coal = P.energy_days * (lv.tw === 'stock' ? 1.5 : 1), lng = 11 * (lv.tw === 'stock' ? 1.5 : 1);
@@ -950,6 +985,390 @@
   function hexA(h, a) { var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(h || '#ffffff'); return m ? 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + clamp(a, 0, 1).toFixed(3) + ')' : h; }
 
 
+  // ======================================================================== ROUTES-BEGIN (build/test_wargame.mjs runs this block in node)
+  // HOW THINGS MOVE (2 November 2026). Armin: "the movements of the military assets make no sense and are not accurate to how
+  // it would be on the ground." Until then everything flew a straight line in a fixed 2 to 4 seconds whatever the distance:
+  // ships across Taiwan, columns over the sea, a drone as fast as a missile. Here each thing moves the way it does: a ballistic
+  // missile on its arc with a flight time from its range, a cruise missile or a drone low and slow on a dog-legged route, a
+  // strike package out of a real base with its tanker and its standoff release, ships only on water (searched on a grid made
+  // from the coastlines), ground forces on land and on the roads, at a pace an advance actually keeps. Every number and its
+  // source: data/wargame/visual-rebuild-2026-11-02.md, "How each thing moves". The tests (test_wargame.mjs) run this block
+  // on every route a run draws and count ships on land, units in the sea and impossible speeds: each must be 0.
+  // Self-contained: it reads only what it is handed (the theatre's outlines, its roads and rivers, the places).
+  var MOVE = {
+    kmh: { cm: 800, drone: 185, jet: 850, bomber: 900, tanker: 780, ship: 33, fast: 65, amphib: 26, ground: 30 },      // cruise speeds, km/h
+    // a ballistic missile: ground range (km) to minutes in flight, between published anchor points; apogee about a quarter of the range
+    bm: [[80, 2.5], [300, 5], [600, 7], [1000, 9.5], [1500, 11.5], [2000, 13], [3000, 17]],
+    apoK: 0.25, apoMaxKm: 600,
+    apoQ: { RU: 0.11 },      // Iskander and Kinzhal fly a flatter, quasi-ballistic path: an apogee near a tenth of the range
+    // km a day an advance covers: Ukraine 2025-26 a contested sector moves 0.07 to 0.3 km a day (CSIS), a breakthrough or an
+    // advance against a thin defence about ten; a column shows the stretch it covers in the step on the board
+    adv: { contested: 1, breakthrough: 10 },
+    standoffKm: { IL: 110, US: 150, UK: 150, UA: 180, RU: 250, CN: 150, TW: 60, IR: 60, JP: 120, SA: 60 },
+    aarKm: 950,            // one way past this, a strike package meets a tanker on the way in
+    // what a reader's eye can follow: a leg of m minutes takes k * m^p seconds at 1x (monotonic: what is slower always takes longer)
+    screen: { k: 0.6, p: 0.42, min: 1.1, max: 10 },
+    // the speed bands the tests hold every leg to (km/h, average over the leg)
+    band: { bm: [700, 16000], bomb: [150, 1500], cm: [550, 1100], drone: [120, 260], jet: [550, 1200], bomber: [600, 1100], tanker: [550, 1000], ship: [12, 75], ground: [0, 1.5], interceptor: [2000, 20000] }
+  };
+  // which way a side's 'missile' event flies: a ballistic missile (bm) or a cruise missile (cm); RU fires both
+  var MUN = { IR: 'bm', HT: 'bm', HZ: 'bm', IQM: 'bm', CN: 'bm', UA: 'bm', RU: ['cm', 'bm'], US: 'cm', IL: 'cm', UK: 'cm', TW: 'cm', JP: 'cm' };
+  // the corridors jets are reported to fly (waypoints [lat, lon]): Israel to Iran over Syria and Iraq, with the tankers there
+  var CORRIDOR = { iran: { 'IL>red': [[34.3, 40.9]] } };
+  // air defence: [reach in km against what comes in, the interceptor it fires]. Patriot meets a ballistic missile in its last
+  // 40 km or so, THAAD between 40 and 150 km up and out to about 200 km, Arrow 3 above the atmosphere (sources in the log)
+  var AD = { patriot: [60, 'pac3'], thaad_battery: [200, 'thaad'], arrow: [400, 'arrow3'], davids_sling: [250, 'stunner'], irondome: [70, 'tamir'],
+    s300: [150, 's300m'], khordad15: [100, 'sayyad4'], bavar373: [200, 'sayyad4'], iris_t_sys: [40, 'iris_t'], nasams: [40, 'aim120'], s400: [250, 's300m'],
+    hq9_sys: [200, 'hq9'], tk3_sys: [100, 'tk3'] };
+  // published battery positions the order of battle has no place for: THAAD at Nevatim (October 2024; the second battery April
+  // 2025) and at Al Dhafra; Patriot and Tien Kung III on Taiwan's north coast (Taipei); the Arrow positions are not published, so
+  // Arrow is drawn over the centre of the country it covers (Tel Aviv)
+  var DEFAT = { iran: [{ team: 'blue', type: 'thaad_battery', ll: [31.2083, 35.0122] }, { team: 'blue', type: 'thaad_battery', ll: [24.2484, 54.5477] }, { team: 'blue', type: 'arrow', ll: [32.0853, 34.7818] }, { team: 'blue', type: 'davids_sling', ll: [32.794, 34.9896] }],
+    taiwan: [{ team: 'blue', type: 'patriot', ll: [25.0330, 121.5654] }, { team: 'blue', type: 'tk3_sys', ll: [25.13, 121.74] }, { team: 'red', type: 'hq9_sys', ll: [25.5, 119.6] }, { team: 'red', type: 'hq9_sys', ll: [24.4, 118.1] }],
+    ukraine: [{ team: 'red', type: 's400', ll: [55.7558, 37.6173] }, { team: 'red', type: 's400', ll: [44.95, 34.1] }] };
+  function makeRoutes(G, opt) {
+    opt = opt || {};
+    var B = G.bbox, Wd = G.w, Kr = Wd / ((B[2] - B[0]) * Math.PI / 180);
+    function mercY(lat) { lat = Math.max(-85, Math.min(85, lat)); return Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)); }
+    var MNr = mercY(B[3]);
+    function ll(x, y) { return [(2 * Math.atan(Math.exp(MNr - y / Kr)) - Math.PI / 2) * 180 / Math.PI, B[0] + x / Kr * 180 / Math.PI]; }
+    function xyOf(q) { return [(q[1] - B[0]) * Math.PI / 180 * Kr, (MNr - mercY(q[0])) * Kr]; }
+    function km(a, b) {      // the great-circle distance between two map points
+      var p = ll(a[0], a[1]), q = ll(b[0], b[1]), r = Math.PI / 180, dl = (q[0] - p[0]) * r, dn = (q[1] - p[1]) * r;
+      var h = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(p[0] * r) * Math.cos(q[0] * r) * Math.sin(dn / 2) * Math.sin(dn / 2);
+      return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+    }
+    function kmU(y) { var la = ll(0, y)[0]; return 6378.137 * Math.cos(la * Math.PI / 180) / Kr; }      // km in one map unit at that height
+    var KMC = kmU(G.h / 2);
+    // ---- the grid: water and land from the outlines, roads cheap, rivers dear
+    var CS = Math.max(0.8, 7 / KMC), FX0 = -40, FY0 = -40, NX = Math.ceil((Wd + 80) / CS), NY = Math.ceil((G.h + 80) / CS);
+    var rings = (G.c || []).map(function (c) {
+      var out = [], cur = null; String(c.d || '').replace(/([MLZ])([^MLZ]*)/g, function (m, k, a) {
+        if (k === 'M') { cur = []; out.push(cur); }
+        if (k !== 'Z') { var n = a.split(/[ ,]+/).filter(Boolean).map(Number); for (var i = 0; i + 1 < n.length; i += 2) cur.push([n[i], n[i + 1]]); }
+        return m;
+      });
+      return out.filter(function (r) { return r.length > 2; });
+    });
+    // node raster at half a cell: 1 where the point is on land (even-odd per country, then joined)
+    var HX = NX * 2 + 1, HY = NY * 2 + 1, node = new Uint8Array(HX * HY);
+    (function () {
+      var xs = [];
+      for (var j = 0; j < HY; j++) {
+        var y = FY0 + j * CS / 2;
+        for (var c = 0; c < rings.length; c++) {
+          xs.length = 0;
+          rings[c].forEach(function (r) { for (var i = 0, n = r.length; i < n; i++) { var a = r[i], b = r[(i + 1) % n]; if ((a[1] > y) !== (b[1] > y)) xs.push(a[0] + (y - a[1]) / (b[1] - a[1]) * (b[0] - a[0])); } });
+          if (xs.length < 2) continue;
+          xs.sort(function (p, q) { return p - q; });
+          for (var k = 0; k + 1 < xs.length; k += 2) {
+            var i0 = Math.max(0, Math.ceil((xs[k] - FX0) / (CS / 2))), i1 = Math.min(HX - 1, Math.floor((xs[k + 1] - FX0) / (CS / 2)));
+            for (var i2 = i0; i2 <= i1; i2++) node[j * HX + i2] = 1;
+          }
+        }
+      }
+    })();
+    var N = NX * NY, sea = new Uint8Array(N), land = new Uint8Array(N), coast = new Uint8Array(N), road = new Uint8Array(N), river = new Uint8Array(N);
+    for (var j = 0; j < NY; j++) for (var i = 0; i < NX; i++) {
+      var w = 0, l = 0;
+      for (var dj = 0; dj < 3; dj++) for (var di = 0; di < 3; di++) { if (node[(j * 2 + dj) * HX + i * 2 + di]) l++; else w++; }
+      var ctr = node[(j * 2 + 1) * HX + i * 2 + 1];
+      sea[j * NX + i] = l === 0 ? 1 : 0;            // a ship's cell: all nine points of it are water
+      land[j * NX + i] = ctr && w <= 2 ? 1 : 0;     // a column's cell: its middle and nearly all of it is land
+    }
+    for (var c2 = 0; c2 < N; c2++) if (sea[c2]) { var ci = c2 % NX, cj = (c2 / NX) | 0; for (var a2 = -1; a2 <= 1 && !coast[c2]; a2++) for (var b2 = -1; b2 <= 1; b2++) { var ii = ci + a2, jj = cj + b2; if (ii >= 0 && jj >= 0 && ii < NX && jj < NY && !sea[jj * NX + ii]) { coast[c2] = 1; break; } } }
+    function burn(d, into) {      // draw a polyline (an SVG path of M and L) into a grid
+      if (!d) return;
+      String(d).replace(/M([^M]*)/g, function (m, a) {
+        var n = a.replace(/L/g, ' ').split(/[ ,]+/).filter(Boolean).map(Number), prev = null;
+        for (var i = 0; i + 1 < n.length; i += 2) {
+          var p = [n[i], n[i + 1]];
+          if (prev) { var L = Math.hypot(p[0] - prev[0], p[1] - prev[1]), s = Math.max(1, Math.ceil(L / (CS / 2))); for (var k = 0; k <= s; k++) { var q = cellOf(prev[0] + (p[0] - prev[0]) * k / s, prev[1] + (p[1] - prev[1]) * k / s); if (q >= 0) into[q] = 1; } }
+          prev = p;
+        }
+        return m;
+      });
+    }
+    function cellOf(x, y) { var i = Math.floor((x - FX0) / CS), j = Math.floor((y - FY0) / CS); return i < 0 || j < 0 || i >= NX || j >= NY ? -1 : j * NX + i; }
+    function ctrOf(c) { return [FX0 + (c % NX + 0.5) * CS, FY0 + (((c / NX) | 0) + 0.5) * CS]; }
+    var L0 = opt.lines || null;
+    if (L0) { burn(L0.h, road); burn(L0.t, road); burn(L0.r, river); }
+    function isLand(x, y) { var i = Math.round((x - FX0) / (CS / 2)), j = Math.round((y - FY0) / (CS / 2)); return i >= 0 && j >= 0 && i < HX && j < HY && !!node[j * HX + i]; }
+    // ---- the search: A* over the grid, then the corners cut where the straight line stays on the same ground
+    function ok(mode, c) { return c >= 0 && (mode === 'sea' ? sea[c] : land[c]) === 1; }
+    function cost(mode, c) { return mode === 'sea' ? (coast[c] ? 2.5 : 1) : road[c] ? 1 : river[c] ? 9 : 2.4; }
+    // the connected pieces of each ground (the open sea and an enclosed bay are different pieces; so are two islands)
+    var comp = { sea: null, land: null }, compN = { sea: [], land: [] };
+    function comps(mode) {
+      if (comp[mode]) return comp[mode];
+      var lab = new Int32Array(N).fill(-1), st = [], k = 0;
+      for (var c = 0; c < N; c++) {
+        if (lab[c] >= 0 || !ok(mode, c)) continue;
+        var size = 0; lab[c] = k; st.push(c);
+        while (st.length) { var q = st.pop(); size++; var qi = q % NX, qj = (q / NX) | 0; for (var d = 0; d < 4; d++) { var ni = qi + (d === 0 ? 1 : d === 1 ? -1 : 0), nj = qj + (d === 2 ? 1 : d === 3 ? -1 : 0); if (ni < 0 || nj < 0 || ni >= NX || nj >= NY) continue; var n = nj * NX + ni; if (lab[n] < 0 && ok(mode, n)) { lab[n] = k; st.push(n); } } }
+        compN[mode].push(size); k++;
+      }
+      comp[mode] = lab; return lab;
+    }
+    function snap(mode, x, y, maxKm, want) {      // the nearest cell of that ground within maxKm (of the piece `want`, or of a piece at least 40 cells big)
+      var lab = comps(mode), c0 = cellOf(clampN(x, FX0, FX0 + NX * CS - 0.01), clampN(y, FY0, FY0 + NY * CS - 0.01));
+      var good = function (c) { return ok(mode, c) && (want != null ? lab[c] === want : compN[mode][lab[c]] >= 40); };
+      if (good(c0)) return c0;
+      var r = Math.ceil((maxKm || 60) / KMC / CS), i0 = c0 % NX, j0 = (c0 / NX) | 0, best = -1, bd = 1e9;
+      for (var dj = -r; dj <= r; dj++) for (var di = -r; di <= r; di++) { var i = i0 + di, j = j0 + dj; if (i < 0 || j < 0 || i >= NX || j >= NY) continue; var c = j * NX + i; if (!good(c)) continue; var d = di * di + dj * dj; if (d < bd) { bd = d; best = c; } }
+      return best;
+    }
+    function clampN(v, a, b) { return v < a ? a : v > b ? b : v; }
+    function astar(mode, s, t) {
+      if (s < 0 || t < 0) return null; if (s === t) return [s];
+      var g = new Float32Array(N).fill(1e30), from = new Int32Array(N).fill(-1), shut = new Uint8Array(N), heap = [], hv = [];
+      var ti = t % NX, tj = (t / NX) | 0, lo = mode === 'sea' ? 1 : 1;
+      function h(c) { var dx = Math.abs(c % NX - ti), dy = Math.abs(((c / NX) | 0) - tj); return lo * (Math.max(dx, dy) + 0.4142 * Math.min(dx, dy)); }
+      function push(c, f) { heap.push(c); hv.push(f); var k = heap.length - 1; while (k > 0) { var p = (k - 1) >> 1; if (hv[p] <= hv[k]) break; var a = heap[p]; heap[p] = heap[k]; heap[k] = a; var b = hv[p]; hv[p] = hv[k]; hv[k] = b; k = p; } }
+      function pop() { var top = heap[0], lc = heap.pop(), lv = hv.pop(); if (heap.length) { heap[0] = lc; hv[0] = lv; var k = 0; for (;;) { var l = 2 * k + 1, r = l + 1, m = k; if (l < heap.length && hv[l] < hv[m]) m = l; if (r < heap.length && hv[r] < hv[m]) m = r; if (m === k) break; var a = heap[m]; heap[m] = heap[k]; heap[k] = a; var b = hv[m]; hv[m] = hv[k]; hv[k] = b; k = m; } } return top; }
+      g[s] = 0; push(s, h(s));
+      var D8 = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [1, -1, 1.4142], [-1, 1, 1.4142], [-1, -1, 1.4142]], steps = 0;
+      while (heap.length) {
+        var c = pop(); if (shut[c]) continue; shut[c] = 1; if (c === t) break; if (++steps > N) break;
+        var ci = c % NX, cj = (c / NX) | 0;
+        for (var k = 0; k < 8; k++) {
+          var ni = ci + D8[k][0], nj = cj + D8[k][1]; if (ni < 0 || nj < 0 || ni >= NX || nj >= NY) continue;
+          var n = nj * NX + ni; if (shut[n] || !ok(mode, n)) continue;
+          if (D8[k][0] && D8[k][1] && (!ok(mode, cj * NX + ni) || !ok(mode, nj * NX + ci))) continue;      // never cut a corner of the other ground
+          var gn = g[c] + D8[k][2] * (cost(mode, c) + cost(mode, n)) / 2;
+          if (gn < g[n]) { g[n] = gn; from[n] = c; push(n, gn + h(n)); }
+        }
+      }
+      if (from[t] < 0) return null;
+      var path = [t]; while (path[path.length - 1] !== s) path.push(from[path[path.length - 1]]);
+      return path.reverse();
+    }
+    function clear(mode, a, b) {      // the straight line from a to b stays on cells of that ground, sampled finely
+      var L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(2, Math.ceil(L / (CS / 4)));
+      for (var k = 0; k <= n; k++) { var c = cellOf(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n); if (!ok(mode, c)) return false; if (mode === 'land' && !road[c] && L > 6 * CS) { /* a long straight line over open country is fine for a column only near roads */ } }
+      return true;
+    }
+    function smooth(mode, cells) {
+      var P = cells.map(ctrOf), out = [P[0]], i = 0;
+      while (i < P.length - 1) {      // the farthest point still in a clear straight line (string pulling)
+        var j = P.length - 1; while (j > i + 1 && !clear(mode, P[i], P[j])) j--;
+        out.push(P[j]); i = j;
+      }
+      return out;
+    }
+    function lenKm(pts) { var s = 0; for (var i = 1; i < pts.length; i++) s += km(pts[i - 1], pts[i]); return s; }
+    var cache = {};
+    function route(mode, a, b, maxSnapKm) {      // [[x, y], ...] on water (mode 'sea') or on land ('land'), or null
+      var key = mode + a.join(',') + '>' + b.join(','); if (cache[key] !== undefined) return cache[key];
+      var t = snap(mode, b[0], b[1], maxSnapKm), s = t >= 0 ? snap(mode, a[0], a[1], maxSnapKm, comps(mode)[t]) : -1;
+      if (s < 0 && t >= 0) { s = snap(mode, a[0], a[1], maxSnapKm); t = s >= 0 ? snap(mode, b[0], b[1], maxSnapKm, comps(mode)[s]) : -1; }      // the target's piece first (a landing beach), else the start's
+      var cells = astar(mode, s, t);
+      var r = cells ? smooth(mode, cells) : null;
+      if (r && r.length === 1) r = [r[0], r[0]];
+      cache[key] = r; return r;
+    }
+    // ---- the shape of one leg in the air: where along it, and how high (map units of height)
+    function legPos(L, u, out) {
+      out = out || [0, 0, 0];
+      u = clampN(u, 0, 1);
+      var target = u * L.len, acc = 0, p = L.pts, i = 1;
+      for (; i < p.length - 1; i++) { if (acc + L.seg[i - 1] >= target) break; acc += L.seg[i - 1]; }
+      var a = p[i - 1], b = p[i], f = L.seg[i - 1] ? (target - acc) / L.seg[i - 1] : 0;
+      out[0] = a[0] + (b[0] - a[0]) * f; out[1] = a[1] + (b[1] - a[1]) * f;
+      out[2] = L.alt === 'arc' ? L.apo * 4 * u * (1 - u) : L.alt === 'drop' ? L.apo * (1 - u * u) : L.alt === 'air' ? L.apo * Math.min(1, u / 0.08, (1 - u) / 0.08) : 0;
+      return out;
+    }
+    function leg(cls, pts, o) {
+      o = o || {};
+      var seg = [], len = 0; for (var i = 1; i < pts.length; i++) { var d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); len += d; }
+      var k = lenKm(pts), min = o.min != null ? o.min : cls === 'bm' ? bmMin(k) : k / (MOVE.kmh[cls] || 800) * 60;
+      var L = { cls: cls, pts: pts, seg: seg, len: len || 1e-6, km: k, min: min, t0: o.t0 || 0, alt: o.alt || (cls === 'bm' ? 'arc' : cls === 'ship' || cls === 'ground' ? 'surface' : cls === 'cm' || cls === 'drone' ? 'low' : 'air'),
+        apo: 0, model: o.model || null, role: o.role || cls, side: o.side, ship: o.ship, dead: o.dead, gap: o.gap };
+      if (L.alt === 'arc') L.apo = Math.min(MOVE.apoMaxKm, k * (MOVE.apoQ[o.side] || MOVE.apoK)) / KMC;
+      else if (L.alt === 'drop') L.apo = 12 / KMC * 6;
+      else if (L.alt === 'air') L.apo = (cls === 'tanker' ? 9 : 11) / KMC * 6;      // cruise height, drawn six times true so it reads above the relief
+      return L;
+    }
+    function bmMin(k) { var T = MOVE.bm; if (k <= T[0][0]) return T[0][1] * k / T[0][0] + 0.5; for (var i = 1; i < T.length; i++) if (k <= T[i][0]) { var f = (k - T[i - 1][0]) / (T[i][0] - T[i - 1][0]); return T[i - 1][1] + (T[i][1] - T[i - 1][1]) * f; } var l = T[T.length - 1]; return l[1] * k / l[0]; }
+    function screen(min) { var S = MOVE.screen; return clampN(S.k * Math.pow(Math.max(0, min), S.p), S.min, S.max); }
+    // a dog-leg: cruise missiles and drones do not fly the straight line (they fly round defences and along terrain)
+    function dogleg(a, b, h, frac) {
+      var dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, s = ((h % 2) ? 1 : -1) * (0.06 + 0.06 * ((h >> 1) % 3) / 2) * (frac || 1);
+      return [a, [a[0] + dx * 0.35 - dy / L * L * s, a[1] + dy * 0.35 + dx / L * L * s], [a[0] + dx * 0.78 - dy / L * L * s * 0.5, a[1] + dy * 0.78 + dx / L * L * s * 0.5], b];
+    }
+    function toward(a, b, d) { var L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; return [b[0] - (b[0] - a[0]) / L * d, b[1] - (b[1] - a[1]) / L * d]; }
+    function cutTail(pts, keepKm) {      // the last keepKm of a path (a column shows the stretch it covers now)
+      var out = [pts[pts.length - 1]], acc = 0;
+      for (var i = pts.length - 1; i > 0; i--) {
+        var d = km(pts[i - 1], pts[i]);
+        if (acc + d >= keepKm) { var f = (keepKm - acc) / d; out.push([pts[i][0] + (pts[i - 1][0] - pts[i][0]) * f, pts[i][1] + (pts[i - 1][1] - pts[i][1]) * f]); break; }
+        acc += d; out.push(pts[i - 1]);
+      }
+      return out.reverse();
+    }
+    function hashOf(s) { var h = 7; s = String(s); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+    // ---- one event of a run or a replay as the legs that move on the board
+    // env: { pt(idOrLatLon) -> [x, y] | null, place(id) -> place | null, team(side) -> blue|red|grey, tid, stepDays, defender(team, [x, y]) -> {x, y, rangeKm} | null, origin(ev) -> [x, y] | null }
+    function plan(ev, env) {
+      var a = env.pt(ev.from), b = env.pt(ev.to), side = ev.side, team = env.team(side), h = hashOf((ev.from || '') + '>' + (ev.to || '') + (ev.d || '') + side), legs = [], fail = null;
+      var t = ev.t === 'intercept' ? 'missile' : ev.t === 'kill' ? 'strike' : ev.t;
+      if (t === 'move') t = b && !isLand(b[0], b[1]) || a && !isLand(a[0], a[1]) ? 'naval' : 'ground';      // a move that starts or ends at sea is ships
+      if (t === 'ground' && !a && b) a = env.origin ? env.origin(ev, b) : null;
+      if (!b) return { legs: legs, fail: null, focus: a ? [a] : [] };
+      if (!a) return { legs: legs, fail: null, focus: [b], at: b };
+      var n = ev.n || 0;
+      if (t === 'missile') {
+        var m = MUN[side] || 'bm'; if (Array.isArray(m)) m = m[h % m.length];
+        var salvo = clampN(Math.round(Math.sqrt(n || 4)), 1, 5);
+        for (var i = 0; i < salvo; i++) {
+          var jx = ((h >> (i + 1)) % 9 - 4) * 0.6, jy = ((h >> (i + 3)) % 9 - 4) * 0.6, b2 = [b[0] + jx, b[1] + jy];
+          if (m === 'bm') legs.push(leg('bm', [[a[0] + jx * 0.3, a[1] + jy * 0.3], b2], { side: side, t0: i * 0.5 }));
+          else legs.push(leg('cm', dogleg(a, b2, h + i, 1), { side: side, t0: i * 2 }));
+        }
+      } else if (t === 'drone') {
+        var sw = clampN(Math.round(Math.sqrt(n || 9) / 1.5), 2, 6);
+        for (var i2 = 0; i2 < sw; i2++) legs.push(leg('drone', dogleg(a, [b[0] + (i2 % 3 - 1) * 1.2, b[1] + ((i2 >> 1) % 3 - 1) * 1.2], h + i2 * 3, 1.4), { side: side, t0: i2 * 6 }));
+      } else if (t === 'strike') {
+        var bomber = ev.kind === 'b2', D = km(a, b);
+        var wp = ((CORRIDOR[env.tid] || {})[side + '>' + (team === 'blue' ? 'red' : 'blue')] || []).map(xyOf);
+        var so = bomber ? 0 : (MOVE.standoffKm[side] || 100), rel = so > 0 && D > so * 1.4 ? toward(wp.length ? wp[wp.length - 1] : a, b, so / KMC) : b;
+        var out = [a].concat(wp).concat([rel]), jets = bomber ? 2 : 3, outLeg = null;
+        for (var j = 0; j < jets; j++) {
+          var off = (j - (jets - 1) / 2) * 1.6, o2 = out.map(function (p, k) { return k === 0 || k === out.length - 1 ? p : [p[0] + off, p[1] + off * 0.6]; });
+          var L1 = leg(bomber ? 'bomber' : 'jet', o2, { side: side, t0: j * 1.5, role: 'out', model: bomber ? 'b2' : null });
+          legs.push(L1); outLeg = outLeg || L1;
+        }
+        var tk = (D > MOVE.aarKm || bomber) && !bomber ? (wp[0] || [a[0] + (rel[0] - a[0]) * 0.42, a[1] + (rel[1] - a[1]) * 0.42]) : null;
+        if (tk) {      // the tanker holds a racetrack (legs of about 90 km) for as long as the package is on its way in, flying laps at its own speed
+          var hl = 45 / KMC, track = [[tk[0] - hl, tk[1] - hl * 0.3], [tk[0] + hl, tk[1] + hl * 0.3]], laps = Math.max(1, Math.round(outLeg.min * 1.1 / 60 * MOVE.kmh.tanker / (2 * km(track[0], track[1])))), race = [track[0]];
+          for (var lp = 0; lp < laps; lp++) race.push(track[1], track[0]);
+          legs.push(leg('tanker', race, { side: side, t0: 0, role: 'tanker', model: 'tanker' }));
+        }
+        var tRel = outLeg.min;
+        if (rel !== b) { for (var w = 0; w < Math.min(3, Math.max(1, Math.round(Math.sqrt(n || 4) / 2))); w++) legs.push(leg('cm', [rel, [b[0] + (w - 1) * 0.9, b[1] + (w % 2) * 0.9]], { side: side, t0: tRel + w * 0.4, role: 'weapon' })); }
+        else legs.push(leg('bomb', [toward(a, b, 6 / KMC), b], { side: side, t0: tRel, role: 'weapon', min: 1.2, alt: 'drop', model: bomber ? 'gbu57' : 'jdam' }));      // a bomb falls from about 12 km for about a minute
+        var back = [rel].concat(wp.slice().reverse()).concat([a]);
+        legs.push(leg(bomber ? 'bomber' : 'jet', back, { side: side, t0: tRel + 0.5, role: 'back', model: bomber ? 'b2' : null }));
+      } else if (t === 'naval') {
+        var r = route('sea', a, b, 90);
+        if (!r) fail = 'no sea route ' + ev.from + ' > ' + ev.to;
+        else {
+          var ships = clampN(Math.round(Math.sqrt(n || 4)), 2, 5), cls = n >= 30 ? 'amphib' : 'ship';
+          for (var s2 = 0; s2 < ships; s2++) {
+            var lat = (s2 % 2 ? 1 : -1) * Math.ceil(s2 / 2) * 4 / KMC, back2 = Math.ceil(s2 / 2) * 3 / KMC;      // a wedge: escorts 4 km abeam, 3 km astern
+            legs.push(leg('ship', formation(r, lat, back2), { side: side, t0: s2 * 0.6, ship: cls, min: lenKm(r) / (MOVE.kmh[cls] || 33) * 60 }));
+          }
+        }
+      } else if (t === 'ground') {
+        var g = route('land', a, b, 40);
+        if (!g) fail = 'no land route ' + (ev.from || 'front') + ' > ' + ev.to;
+        else {
+          var perDay = ev.big ? MOVE.adv.breakthrough : MOVE.adv.contested, keep = perDay * (env.stepDays || 1);      // the true distance: a week on a contested front is a few km, and the board shows a few km
+          var tail = cutTail(g, keep), col = 3, gmin = Math.max(1, lenKm(tail)) / perDay * 1440;
+          for (var c = 0; c < col; c++) legs.push(leg('ground', tail, { side: side, t0: c * gmin * 0.06, min: gmin }));
+        }
+      }
+      return { legs: legs, fail: fail, focus: [a, b], at: b };
+    }
+    // escorts abeam and astern of the guide's track, only where that offset is still water
+    function formation(r, lat, back) {
+      if (!lat && !back) return r;
+      var out = [];
+      for (var i = 0; i < r.length; i++) {
+        var p = r[i], q = r[Math.min(r.length - 1, i + 1)], o = r[Math.max(0, i - 1)], dx = q[0] - o[0], dy = q[1] - o[1], L = Math.hypot(dx, dy) || 1;
+        var c = [p[0] - dy / L * lat - dx / L * back, p[1] + dx / L * lat - dy / L * back];
+        out.push(i > 0 && i < r.length - 1 && clear('sea', out[out.length - 1] || p, c) ? c : p);
+      }
+      for (var k = 1; k < out.length; k++) if (!clear('sea', out[k - 1], out[k])) return r;      // an offset that would touch land: sail in the guide's wake
+      return out;
+    }
+    // where a missile is met: the first point on its way down that is inside the interceptor's reach of the battery
+    function interceptU(L, d) {
+      if (!d) return 0.88;
+      var p = [0, 0, 0];
+      for (var u = 0.55; u <= 0.97; u += 0.01) { legPos(L, u, p); if (km([p[0], p[1]], [d.x, d.y]) <= (d.rangeKm || 100)) return u; }
+      return 0.9;
+    }
+    // ---- the theatre as the legs need it: where each place is, which battery covers a target, where a ground advance starts
+    // o: { tid, places: [{id, ll, k, team}], oob: {blue, red}, front: [[x, y], ...] | null }
+    function env(o) {
+      var P = {}, W2 = Wd, H2 = G.h;
+      (o.places || []).forEach(function (p) { var c = xyOf(p.ll); P[p.id] = { p: p, x: clampN(c[0], 14, W2 - 14), y: clampN(c[1], 14, H2 - 14) }; });
+      function pt(x) { if (!x) return null; if (typeof x === 'string') { var q = P[x]; return q ? [q.x, q.y] : null; } if (!Array.isArray(x) || !isFinite(x[0]) || !isFinite(x[1])) return null; var c = xyOf(x); return [clampN(c[0], 4, W2 - 4), clampN(c[1], 4, H2 - 4)]; }
+      // the batteries: the order of battle's air defence where it stands, the register's air-defence sites, and the published
+      // positions the order of battle has no place for (DEFAT); each with how far it reaches against what comes in
+      var bat = [];
+      ['blue', 'red'].forEach(function (tm) {
+        ((o.oob || {})[tm] || []).forEach(function (f) { var d = AD[f.type]; if (!d) return; (f.at || []).forEach(function (a) { var q = pt(a); if (q) bat.push({ team: tm, x: q[0], y: q[1], rangeKm: d[0], kit: d[1], type: f.type }); }); });
+      });
+      (o.places || []).forEach(function (p) { if (p.k === 'airdef') { var q = P[p.id]; bat.push({ team: p.team, x: q.x, y: q.y, rangeKm: 150, kit: p.team === 'blue' ? 'pac3' : 'sayyad4', type: 'site' }); } });
+      ((DEFAT[o.tid] || [])).forEach(function (d) { var q = pt(d.ll); if (q) bat.push({ team: d.team, x: q[0], y: q[1], rangeKm: AD[d.type][0], kit: AD[d.type][1], type: d.type }); });
+      function defender(team, at, cls) {
+        var best = null, bd = 1e9;
+        bat.forEach(function (b) { if (b.team !== team) return; if (cls === 'bm' && /^(irondome|iris_t_sys|nasams)$/.test(b.type)) return; if (cls !== 'bm' && /^(arrow|thaad_battery)$/.test(b.type)) return; var d = km([b.x, b.y], at); if (d <= b.rangeKm * 1.2 && d < bd) { bd = d; best = b; } });
+        if (best) return best;
+        (o.places || []).forEach(function (p) { if (p.team !== team || ['airbase', 'naval', 'capital', 'city'].indexOf(p.k) < 0) return; var q = P[p.id], d = km([q.x, q.y], at); if (d < bd) { bd = d; best = { team: team, x: q.x, y: q.y, rangeKm: 60, kit: null, type: 'base' }; } });
+        return best;
+      }
+      function origin(ev, b) {      // a ground advance with no start named: from the front line, or the nearest landing beach
+        var best = null, bd = 1e9, cand = (o.front || []).slice();
+        if (!cand.length) (o.places || []).forEach(function (p) { if (p.k === 'beach' || (p.k === 'army' && o.team && o.team(ev.side) === p.team)) cand.push([P[p.id].x, P[p.id].y]); });
+        cand.forEach(function (q) { var d = km(q, b); if (d < bd) { bd = d; best = q; } });
+        return best;
+      }
+      return { tid: o.tid, pt: pt, team: o.team, defender: defender, origin: origin, stepDays: o.stepDays || 1, batteries: bat };
+    }
+    // ---- ONE STEP AS ONE SCENE (2 November 2026; Armin: "even when playing a scenario you cannot follow it"). The step's events
+    // are ranked (a big one, then one the model names, then the largest); the board follows the first (the camera frames it,
+    // the caption tells it, a gold ring marks where it lands) and draws at most maxEv; the others arrive first, a second apart,
+    // so the followed one lands last and alone. A leg takes screen(minutes) seconds at 1x: real proportions, slower things
+    // always slower. The step lasts until the last landing plus time to read the caption.
+    function startS(t0) { var Sc = MOVE.screen; return t0 <= 0 ? 0 : Math.min(Sc.max, Sc.k * Math.pow(t0, Sc.p)); }
+    var HOLD = 1.8, FLOOR = 3.8, QUIET = 2.2;
+    function scene(evs, E, o) {
+      o = o || {}; var sp = o.speed || 1, maxEv = o.maxEv || 5;
+      var list = (evs || []).filter(function (v) { return v.from || v.to; }).map(function (ev, i) { return { ev: ev, sc: (ev.big ? 100 : 0) + (ev.w && !ev.quiet ? 30 : 0) + (/^(missile|strike|drone|kill|intercept)$/.test(ev.t) ? 12 : 0) + Math.log(1 + (ev.n || 1)) - i * 0.01 }; });      // what is fired outranks what moves
+      list.sort(function (a, b) { return b.sc - a.sc; });
+      var shown = list.slice(0, maxEv), items = [], tEnd = 0;
+      shown.forEach(function (r) {
+        r.p = plan(r.ev, E); r.len = 0; r.land = 0;
+        r.p.legs.forEach(function (L) { var e = startS(L.t0) + screen(L.min); if (L.role !== 'back' && L.role !== 'tanker') r.land = Math.max(r.land, e); r.len = Math.max(r.len, e); });
+        if (!r.p.legs.length) r.land = r.len = 0.6;      // an event with nothing to fly (a hit with no start named): it lands at once
+      });
+      shown.slice().reverse().forEach(function (r, k) { r.arrive = k === 0 ? r.land : Math.max(r.land, tEnd + 0.9); tEnd = r.arrive; });
+      shown.forEach(function (r) {
+        var ev = r.ev, start = r.arrive - r.land, team = E.team(ev.side), other = team === 'blue' ? 'red' : 'blue';
+        var weap = r.p.legs.filter(function (L) { return L.role === 'weapon' || L.cls === 'bm' || L.cls === 'cm' || L.cls === 'drone' || L.cls === 'ship'; });
+        var stopF = ev.n ? clampN((ev.stop || 0) / ev.n, 0, 1) : ev.res === 'intercepted' ? 1 : 0, nDead = Math.round(weap.length * stopF);
+        if (ev.res === 'intercepted') nDead = weap.length; else if (ev.res === 'hit' && nDead >= weap.length) nDead = weap.length - 1;
+        r.p.legs.forEach(function (L) {
+          var it = { L: L, at: (start + startS(L.t0)) * 1000 / sp, dur: screen(L.min) * 1000 / sp, focal: r === shown[0], ev: ev };
+          var wi = weap.indexOf(L);
+          if (wi >= 0 && wi < nDead && L.cls !== 'ship') {
+            var bt = E.defender(other, L.pts[L.pts.length - 1], L.cls);
+            it.cut = L.cls === 'bm' ? interceptU(L, bt) : 0.8 + 0.1 * (wi % 2);
+            if (bt) { var P0 = [0, 0, 0]; legPos(L, it.cut, P0); it.icpt = { x: bt.x, y: bt.y, kit: bt.kit, team: bt.team, rangeKm: bt.rangeKm, dur: screen(Math.max(0.3, km([bt.x, bt.y], [P0[0], P0[1]]) / 150)) * 1000 / sp }; }
+          } else if (wi >= 0 && wi < nDead && L.cls === 'ship') { it.cut = 0.45 + 0.4 * ((wi * 37) % 10) / 10; it.sunk = 1; }
+          else if (wi >= 0 && typeof ev.to === 'string' && L.role !== 'back') it.hit = { id: ev.to, res: ev.res, big: ev.big, kind: ev.t };
+          if (L.cls === 'ground' && typeof ev.to === 'string') it.hit = { id: ev.to, res: ev.res || 'hit', kind: 'ground' };
+          if (!L.pts || L.pts.length < 2) return;
+          items.push(it);
+        });
+        if (!r.p.legs.length && typeof ev.to === 'string') items.push({ L: null, at: start * 1000 / sp, hitOnly: { id: ev.to, res: ev.res, big: ev.big, kind: ev.t, at: E.pt(ev.to) } });
+      });
+      var f = shown[0] || null, ms = shown.length ? Math.max(FLOOR, tEnd + HOLD) * 1000 / sp : QUIET * 1000 / sp;
+      return { items: items, ms: ms, focal: f ? { ev: f.ev, plan: f.p } : null, shown: shown.length, of: list.length, fails: shown.map(function (r) { return r.p.fail; }).filter(Boolean) };
+    }
+    return { plan: plan, scene: scene, route: route, leg: leg, legPos: legPos, screen: screen, env: env, bmMin: bmMin, km: km, lenKm: lenKm, isLand: isLand, interceptU: interceptU, kmPer: KMC, ll: ll, xy: xyOf,
+      grid: { cs: CS, nx: NX, ny: NY, sea: sea, land: land, road: road } };
+  }
+  // ======================================================================== ROUTES-END
+  var RT = makeRoutes(G, {}), RTE = null;
+  function rtEnv() { var f = TID === 'ukraine' ? frontAt(R.today) : null; RTE = RT.env({ tid: TID, places: PLACES, oob: R.oob || {}, team: teamOf, front: f ? frontPts(f.line) : null, stepDays: MOD.unit === 'week' ? 7 : 1 }); }
+  rtEnv();
+  // the roads and rivers arrive after the page: then the columns follow the roads and cross rivers at bridges
+  if ((R.gl || {}).lines && W.fetch) fetch((R.gl || {}).lines).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) { RT = makeRoutes(G, { lines: j }); rtEnv(); } }).catch(function () { });
+
   // ======================================================================== THE BOARD (1 November 2026)
   var app = $('#wg-app'), stage = $('#wg-stage'), hud = $('#wg-hud'), glc = $('#wg-gl'), tagsEl = $('#wg-tags'), posterEl = $('#wg-poster');
   if (!app || !stage || !hud) return;
@@ -988,9 +1407,24 @@
       live: '<circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" stroke-width="2"/>',
       sim: '<path d="M4 19l5-6 4 3 7-9" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="20" cy="7" r="1.8" fill="currentColor"/>',
       replay: '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M11 9v4l3 2" fill="none" stroke="currentColor" stroke-width="2"/>',
-      forces: '<path d="M4 18h4V9H4zM10 18h4V5h-4zM16 18h4v-6h-4z" fill="currentColor"/>'
+      forces: '<path d="M4 18h4V9H4zM10 18h4V5h-4zM16 18h4v-6h-4z" fill="currentColor"/>',
+      key: '<rect x="3" y="5" width="6" height="4" fill="currentColor"/><path d="M6 12l3 3-3 3-3-3z" fill="currentColor"/><path d="M12 7h9M12 15h9" stroke="currentColor" stroke-width="2"/>'
     };
     return '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' + (P[name] || '') + '</svg>';
+  }
+  // THE KEY (2 November 2026): one tap from the board, what every symbol, line and colour means. The symbols are the ones the board
+  // draws (badge() below), as small pictures; the lines in the colours they fly in.
+  function legendHtml() {
+    var sym = function (t) { return '<svg viewBox="0 0 28 22" width="28" height="22" aria-hidden="true">' + (t === 'blue' ? '<rect x="3" y="5" width="22" height="13" fill="#5B95F5" stroke="#0a0d12" stroke-width="1.5"/>' : t === 'red' ? '<path d="M14 1l10 10-10 10L4 11z" fill="#F06A58" stroke="#0a0d12" stroke-width="1.5"/>' : t === 'dmg' ? '<rect x="3" y="5" width="22" height="13" fill="#4A4743" stroke="#0a0d12" stroke-width="1.5"/><path d="M5 17L23 6" stroke="#F06A58" stroke-width="2"/>' : '<rect x="6" y="3" width="16" height="16" fill="#A9A69B" stroke="#0a0d12" stroke-width="1.5"/>') + '</svg>'; };
+    var ln = function (c, d, h) { return '<svg viewBox="0 0 28 22" width="28" height="22" aria-hidden="true">' + (h ? '<path d="M3 19Q14 -4 25 19" fill="none" stroke="' + c + '" stroke-width="1.6"/>' : '<path d="M3 11H25" stroke="' + c + '" stroke-width="1.6"' + (d ? ' stroke-dasharray="3 3"' : '') + '/>') + '</svg>'; };
+    var row = function (pic, t) { return '<li>' + pic + '<span>' + esc(t) + '</span></li>'; };
+    return '<div class="wg-leg-h"><b>' + esc(tr('What the symbols mean')) + '</b><button type="button" class="wg-ib" id="wg-legx" aria-label="' + esc(tr('Close')) + '">×</button></div><ul>' +
+      row(sym('blue'), COAL[0]) + row(sym('red'), COAL[1]) + row(sym('grey'), tr('Others, not fighting')) + row(sym('dmg'), tr('A site that was struck')) +
+      row(ln('#F06A58', 0, 1), tr('A ballistic missile: a high arc, minutes in flight')) + row(ln('#F06A58', 0, 0), tr('A cruise missile or a drone: low and slow, hours in the air')) +
+      row(ln('#5B95F5', 0, 0), tr('Jets and ships: out from their bases, on real routes')) + row(ln('#5B95F5', 1, 0), tr('Where the followed event is going')) +
+      row('<svg viewBox="0 0 28 22" width="28" height="22" aria-hidden="true"><circle cx="14" cy="11" r="8" fill="none" stroke="#F4C430" stroke-width="2"/></svg>', tr('Where the event the board is following lands')) +
+      row('<svg viewBox="0 0 28 22" width="28" height="22" aria-hidden="true"><circle cx="14" cy="11" r="9" fill="none" stroke="#5B95F5" stroke-width="1.2"/><path d="M14 20L19 4" stroke="#DDEBFF" stroke-width="1.4"/></svg>', tr('An interceptor and the reach of the battery that fired it')) +
+      '</ul><p>' + esc(tr('Each line is coloured by the side that fired it. Zoom in to see each place and unit as its model.')) + '</p>';
   }
   function hudHtml() {
     var sib = (R.sib || []).length > 1 ? '<nav class="wg-ths" aria-label="' + esc(tr('Theatres')) + '">' + R.sib.map(function (s) { return '<a class="wg-th" href="' + esc(s.u) + '"' + (s.id === TID ? ' aria-current="page"' : '') + '>' + esc(s.n) + '</a>'; }).join('') + '</nav>' : '';
@@ -1005,7 +1439,9 @@
       '<div class="wg-nav" id="wg-nav"><button type="button" class="wg-ib" id="wg-zin" aria-label="' + esc(tr('Zoom in')) + '">' + ico('plus') + '</button>' +
       '<button type="button" class="wg-ib" id="wg-zout" aria-label="' + esc(tr('Zoom out')) + '">' + ico('minus') + '</button>' +
       '<button type="button" class="wg-ib" id="wg-rot" aria-label="' + esc(tr('Turn the map')) + '">' + ico('rot') + '</button>' +
-      '<button type="button" class="wg-ib" id="wg-fit" aria-label="' + esc(tr('Reset the view')) + '">' + ico('home') + '</button></div>' +
+      '<button type="button" class="wg-ib" id="wg-fit" aria-label="' + esc(tr('Reset the view')) + '">' + ico('home') + '</button>' +
+      '<button type="button" class="wg-ib" id="wg-key" aria-expanded="false" aria-controls="wg-legend" aria-label="' + esc(tr('What the symbols mean')) + '">' + ico('key') + '</button></div>' +
+      '<div class="wg-legend" id="wg-legend" hidden>' + legendHtml() + '</div>' +
       '<div class="wg-brk" id="wg-brk" role="status" hidden></div>' +
       '<div class="wg-mini" id="wg-mini" role="button" tabindex="0" aria-label="' + esc(tr('Minimap: tap to move the camera there')) + '"><canvas id="wg-minic"></canvas></div>' +
       '<div class="wg-panel" id="wg-panel" data-sheet="mid"><button type="button" class="wg-grab" id="wg-grab" aria-label="' + esc(tr('Make the panel bigger or smaller')) + '"><i></i></button>' +
@@ -1058,6 +1494,21 @@
     }).join('');
     typeInto($('#wg-fht'), head || '');
   }
+  // what is moving where, in one plain line under the caption (2 November 2026): from where, to where, how far, how long
+  function placeName(x) { return typeof x === 'string' && PL[x] ? PL[x].n : tr('the marked point'); }
+  function durTxt(min) { var h = min < 180 ? Math.round(min / 30) / 2 : Math.round(min / 60); return min < 90 ? tf('{n} minutes', { n: N(Math.max(1, Math.round(min))) }) : tf('{n} hours', { n: N(h).replace('.', FA ? '٫' : '.') }); }
+  function moveLine(f) {
+    var ev = f.ev, L = (f.plan.legs || []).filter(function (l) { return l.role !== 'back' && l.role !== 'tanker'; }), m = L[0]; if (!m) return '';
+    var o = { a: placeName(ev.from), b: placeName(ev.to), km: N(fmt(Math.round(m.km))), t: durTxt(m.min) }, tank = (f.plan.legs || []).some(function (l) { return l.role === 'tanker'; });
+    if (m.cls === 'bm') return tf('Ballistic missiles from {a} to {b}: {km} km, about {t} in flight, up to {apo} km high.', Object.assign(o, { apo: N(fmt(Math.round(m.apo * RT.kmPer))) }));
+    if (m.cls === 'cm') return tf('Cruise missiles from {a} to {b}, low on a dog-leg route: {km} km, about {t} in the air.', o);
+    if (m.cls === 'drone') return tf('Attack drones from {a} toward {b}, low and slow: {km} km at about 185 km/h, about {t} in the air.', o);
+    if (m.cls === 'bomber') return tf('Stealth bombers from {a} over {b}: {km} km, the bombs dropped straight onto the target.', o);
+    if (m.cls === 'jet') { o.so = N(fmt(MOVE.standoffKm[ev.side] || 100)); return tank ? tf('Jets from {a} to {b}, meeting a tanker on the way: {km} km out, weapons released about {so} km short.', o) : tf('Jets from {a} to {b}: {km} km out, weapons released about {so} km short.', o); }
+    if (m.cls === 'ship') return tf('Ships from {a} to {b} by sea: {km} km at about {kn} knots, about {t}.', Object.assign(o, { kn: N(Math.round((m.km / (m.min / 60)) / 1.852)) }));
+    if (m.cls === 'ground') return tf('Ground forces advance toward {b} along the roads: about {km} km in this step.', o);
+    return '';
+  }
   function clockSet(date, dn) { var a = $('#wg-date'), b = $('#wg-dn'); if (a) a.textContent = date || ''; if (b) b.textContent = dn || ''; }
 
   // ---------------------------------------------------------------- the player: one timeline of days, a replay or a run
@@ -1074,10 +1525,19 @@
   }
   function stepAt(i, live) {
     var st = TL.steps[i]; if (!st) return;
-    if (live && V) {
-      var lag = 0;
-      (st.ev || []).forEach(function (ev, k) { var ms = V.shot(ev, k * 280); lag = Math.max(lag, ms + k * 280); });
-      if (S.follow && !userBusy()) { var pts = []; (st.ev || []).forEach(function (ev) { var a = pt(ev.from), b = pt(ev.to); if (a) pts.push(a); if (b) pts.push(b); }); if (pts.length) V.focus(pts, {}); }
+    if (live && V && V.legs) {
+      var sc = RT.scene(st.ev, RTE, { speed: S.speed, maxEv: narrow() ? 3 : 5 });
+      st._ms = sc.ms; st._focal = sc.focal; S.lastSc = { i: i, ms: sc.ms, shown: sc.shown, of: sc.of, items: sc.items.length, fails: sc.fails, t: performance.now(), speed: S.speed, legs: sc.items.map(function (q) { return q.L; }).filter(Boolean) };
+      V.legs(sc.items);
+      var f = sc.focal;
+      if (V.act) V.act(sc.items.map(function (q) { return q.ev && typeof q.ev.to === 'string' ? q.ev.to : null; }).concat(sc.items.map(function (q) { return q.ev && typeof q.ev.from === 'string' ? q.ev.from : null; })).filter(Boolean));
+      if (V.mark) V.mark(f && f.plan.at ? f.plan.at : null);
+      if (f && S.follow && !userBusy()) {      // frame the followed event: its start, its end and the route between
+        var pts = (f.plan.focus || []).slice(); f.plan.legs.forEach(function (L) { if (L.role !== 'back' && L.cls !== 'tanker') L.pts.forEach(function (q, k) { if (k % 3 === 0) pts.push(q); }); });
+        if (pts.length) V.focus(pts, { tight: pts.length < 3 });
+      }
+    } else if (live && V) {
+      (st.ev || []).forEach(function (ev, k) { if (V.shot) V.shot(ev, k * 280); });
     } else if (V) {
       (st.ev || []).forEach(function (ev) { if (typeof ev.to === 'string') V.hit(ev.to, ev.res, true); });
     }
@@ -1085,7 +1545,7 @@
     if (st.orb) { S.orbNow = st.orb; orbDraw(); }
     costStrip(TL.kind === 'run' ? st.cost : null);
     clockSet(st.when, st.dn);
-    if (live || i === ti - 1) feedSet(st.head, st.lines, st.why);
+    if (live || i === ti - 1) { var fe = st._focal && live ? st._focal : null, mv = fe ? moveLine(fe) : ''; feedSet(fe && fe.ev.w ? fe.ev.w : st.head, (mv ? [{ w: mv, c: GOLD }] : []).concat((st.lines || []).filter(function (v) { return !fe || v.w !== fe.ev.w; })), (fe && fe.ev.why) || st.why); }
     if (V && V.gridDark) V.gridDark(st.grid != null ? st.grid : 1);
     var hd = $('#wg-head'); if (hd) hd.style.left = (TL.steps.length > 1 ? 100 * i / (TL.steps.length - 1) : 0) + '%';
     if (scrub) { scrub.setAttribute('aria-valuemax', TL.steps.length); scrub.setAttribute('aria-valuenow', i + 1); scrub.setAttribute('aria-valuetext', st.when || ''); }
@@ -1096,7 +1556,7 @@
     if (ti >= TL.steps.length) { stop(); if (TL.done) TL.done(); return; }
     stepAt(ti, true); ti++;
     var st = TL.steps[ti - 1];
-    var ms = (st.ms || TL.ms || 2000) / S.speed;
+    var ms = st._ms != null ? st._ms : (st.ms || TL.ms || 2000) / S.speed;      // a scene lasts as long as what flies in it takes at this speed
     timer = setTimeout(tick, REDUCED ? ms * 0.8 : ms);
   }
   function seek(i) {
@@ -1509,11 +1969,12 @@
     $$('.wg-tab', panel).forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === S.tab); });
     var wasAar = panel.classList.contains('aar');
     tog(panel, 'aar', S.mode === 'sim' && S.tab === 'watch' && !!LAST);
+    tog(app, 'aar', panel.classList.contains('aar'));      // the buttons and the key come before the panel in the page: a sibling rule never reached them (2 November 2026)
     drawTab();
     if (wasAar !== panel.classList.contains('aar')) setTimeout(layout, 300);      // after its width has moved (wargame.css: .25s)
   }
   function pmFmt(p, v) { return p.max <= 1 && p.min >= 0 ? pc(v) : fmt(v) + (p.unit && !/count/.test(p.unit) ? ' ' + p.unit.replace(/^0-1$/, '') : ''); }
-  function stale() { LAST = null; writeUrl(); var r = $('#wg-result'); if (r) tog(r, 'old', true); tog(panel, 'aar', false); }
+  function stale() { LAST = null; writeUrl(); var r = $('#wg-result'); if (r) tog(r, 'old', true); tog(panel, 'aar', false); tog(app, 'aar', false); }
   function seat(id) {
     var i = S.room.indexOf(id);
     if (i >= 0) S.room.splice(i, 1); else if (S.room.length < 10) S.room.push(id);
@@ -1703,6 +2164,8 @@
     if (ev.target.closest('#wg-cmp')) { compare(); return; }
     if (ev.target.closest('#wg-back')) { S.tab = 'plan'; drawPanel(); return; }
     if (ev.target.closest('#wg-again')) { run(); return; }
+    var sk = ev.target.closest('[data-seek]');
+    if (sk && LAST && LAST.tl) { if (TL !== LAST.tl) { play(LAST.tl); } seek(+sk.getAttribute('data-seek')); if (!playing) resume(); if (narrow()) sheetTo('min'); return; }
     if (ev.target.closest('#wg-watch')) { if (LAST && LAST.tl) { play(LAST.tl); if (narrow()) sheetTo('min'); } return; }
     if (ev.target.closest('#wg-share')) { share(); return; }
     if (ev.target.closest('#wg-reset')) { S.mine = avgOf(EX); drawTab(); stale(); return; }
@@ -1892,6 +2355,17 @@
     var r = 34, L = 2 * Math.PI * r, f = clamp(p, 0, 1);
     return '<svg class="wg-gauge" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="' + r + '" class="wg-g0"/><circle cx="42" cy="42" r="' + r + '" class="wg-g1" style="stroke:' + c + ';stroke-dasharray:' + (L * f).toFixed(1) + ' ' + L.toFixed(1) + '"/></svg>';
   }
+  // KEY MOMENTS (2 November 2026; Armin: "useless for coming up with a strategy"): the turning points of the run the board plays,
+  // in order, each a tap to see it happen. What changed the course is what a plan has to answer.
+  function momentsHtml(res) {
+    var st = (res.tl || {}).steps || [], pick = [];
+    st.forEach(function (x, i) { var big = (x.ev || []).some(function (v) { return v.big; }), loud = x.head && x.head !== st[Math.max(0, i - 1)].head; if (big || (i === 0 && loud)) pick.push(i); });
+    if (pick.length < 3) st.forEach(function (x, i) { if (pick.length < 6 && pick.indexOf(i) < 0 && (x.ev || []).length >= 2) pick.push(i); });
+    pick = pick.sort(function (a, b) { return a - b; }).slice(0, 8);
+    if (!pick.length) return '';
+    return '<h4>' + esc(tr('Key moments of this run')) + '</h4><ol class="wg-moments">' + pick.map(function (i) { return '<li><button type="button" data-seek="' + i + '"><b class="num">' + esc(st[i].when) + '</b><span>' + esc(st[i].head || '') + '</span></button></li>'; }).join('') + '</ol>' +
+      '<p class="wg-fine">' + esc(tr('Tap a moment to watch it on the map.')) + '</p>';
+  }
   function aarHtml(res) {
     var top = MOD.outcomes.filter(function (o) { return o.id === res.top; })[0];
     var end = addDays(S.date || R.today, Math.round(res.A.days || 30) * (MOD.unit === 'week' ? 7 : 1));
@@ -1916,6 +2390,7 @@
       '<button type="button" class="wg-chip wg-tobest" data-tab="best">' + esc(tr('Find a better plan')) + ' →</button>' +
       '<div class="wg-aar-b"><button type="button" class="wg-run" id="wg-watch">' + esc(tr('Watch the typical run again')) + '</button><button type="button" class="wg-chip" id="wg-save"' + (S.saved.length >= 4 ? ' disabled' : '') + '>' + esc(tf('Save to compare ({n} of 4)', { n: N(S.saved.length) })) + '</button></div>' +
       costTable(res.A) +
+      momentsHtml(res) +
       '<h4>' + esc(tr('What happened, on average')) + '</h4><dl class="wg-sum">' + sum + '</dl>' +
       '<h4>' + esc(tr('Who in the room called it')) + '</h4><ul class="wg-calls">' + calls + '</ul>' +
       '<div class="wg-share"><button type="button" class="wg-run" id="wg-share">' + esc(tr('Share this plan')) + '</button><button type="button" class="wg-chip" data-shot="' + KEY + TID + '" hidden>' + esc(tr('Make a picture')) + '</button></div></div>';
@@ -2063,6 +2538,8 @@
     else if (V && id === 'wg-zout') { touched(); V.zoomBy(1.45); }
     else if (V && id === 'wg-rot') { touched(); V.rotateBy(Math.PI / 4); }
     else if (V && id === 'wg-fit') { V.home(); }
+    else if (id === 'wg-key') { var lg = $('#wg-legend'), on = lg.hidden; lg.hidden = !on; b.setAttribute('aria-expanded', on); b.setAttribute('aria-pressed', on); hudT = 0; }
+    else if (id === 'wg-legx') { $('#wg-legend').hidden = true; var kb = $('#wg-key'); kb.setAttribute('aria-expanded', 'false'); kb.setAttribute('aria-pressed', 'false'); }
   });
   function full() {
     var on = box.classList.contains('wg-full');
@@ -2130,28 +2607,40 @@
     bridge: [1, 'M-8 4H8M-6 4V1A6 5 0 0 1 6 1V4'],
     city: [0, 'M-7 7V-1H-3V7ZM-2 7V-6H2V7ZM3 7V-3H7V7Z']
   };
-  function badge(k, team, cap) {
-    var key = k + '|' + team + '|' + (cap ? 1 : 0);
+  // THE SYMBOLS (2 November 2026, the visual rebuild). One system, the one every military map uses (NATO APP-6 / MIL-STD-2525):
+  // the FRAME says whose it is (the blue side a rectangle, the red side a diamond, a third party a square), so a reader who
+  // cannot tell the colours apart still can; the ICON inside says what it is (an airbase, a missile base, a port). Flat fills,
+  // a dark icon, a hairline casing, no glow. A bar over the frame marks an installation (a site, not a unit), as APP-6 does.
+  // A struck site keeps its symbol with a dark slash through it.
+  var SYMC = { blue: '#5B95F5', red: '#F06A58', grey: '#A9A69B' };
+  function badge(k, team, cap, dmg) {
+    var key = k + '|' + team + '|' + (cap ? 1 : 0) + '|' + (dmg ? 1 : 0);
     if (BADGE[key]) return BADGE[key];
     var c = D.createElement('canvas'), s = 128; c.width = c.height = s;
-    var x = c.getContext('2d'), col = TEAMHEX[team] || TEAMHEX.grey;
-    x.translate(s / 2, s / 2);
-    function hex(r) { x.beginPath(); for (var i = 0; i < 6; i++) { var a = Math.PI / 3 * i - Math.PI / 2; x[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } x.closePath(); }
-    x.shadowColor = col; x.shadowBlur = 16;
-    hex(48); x.fillStyle = 'rgba(6,10,16,0.92)'; x.fill();
-    x.shadowBlur = 0;
-    x.lineWidth = 7; x.strokeStyle = col; hex(48); x.stroke();
-    x.lineWidth = 2; x.strokeStyle = 'rgba(255,255,255,0.22)'; hex(39); x.stroke();
-    if (cap) { x.lineWidth = 4; x.strokeStyle = GOLD; hex(58); x.stroke(); }
+    var x = c.getContext('2d'), col = SYMC[team] || SYMC.grey;
+    x.translate(s / 2, s / 2 + 6);
+    function frame() {
+      x.beginPath();
+      if (team === 'blue') { x.rect(-50, -33, 100, 66); }
+      else if (team === 'red') { x.moveTo(0, -50); x.lineTo(50, 0); x.lineTo(0, 50); x.lineTo(-50, 0); x.closePath(); }
+      else { x.rect(-38, -38, 76, 76); }
+    }
+    frame(); x.fillStyle = dmg ? '#4A4743' : col; x.fill();
+    x.lineWidth = 5; x.strokeStyle = 'rgba(8,10,14,0.85)'; x.stroke();
+    if (cap) { x.save(); x.scale(1.17, 1.17); frame(); x.lineWidth = 3.2; x.strokeStyle = 'rgba(240,236,226,0.92)'; x.stroke(); x.restore(); }      // a capital: a second, light frame
+    var top = team === 'red' ? -50 : team === 'blue' ? -33 : -38;
+    if (k !== 'city' && k !== 'capital' && k !== 'choke' && k !== 'beach') { x.fillStyle = 'rgba(8,10,14,0.85)'; x.fillRect(-9, top - 11, 18, 11); }      // the installation bar
     var g = GLYPH[k] || [0, 'M0-6L6 0L0 6L-6 0Z'], p = new Path2D(g[1]);
-    x.save(); x.scale(3.6, 3.6);
-    if (g[0]) { x.lineWidth = 1.7; x.lineJoin = 'round'; x.lineCap = 'round'; x.strokeStyle = '#F6F3EA'; x.stroke(p); }
-    else { x.fillStyle = '#F6F3EA'; x.fill(p); }
+    x.save(); x.scale(team === 'red' ? 3.0 : 3.3, team === 'red' ? 3.0 : 3.3);
+    var ink = dmg ? '#BDB7AC' : '#0C1117';
+    if (g[0]) { x.lineWidth = 1.8; x.lineJoin = 'round'; x.lineCap = 'round'; x.strokeStyle = ink; x.stroke(p); }
+    else { x.fillStyle = ink; x.fill(p); }
     x.restore();
+    if (dmg) { x.lineWidth = 8; x.strokeStyle = 'rgba(12,12,14,0.9)'; x.beginPath(); x.moveTo(-40, 34); x.lineTo(40, -34); x.stroke(); x.lineWidth = 3; x.strokeStyle = '#F06A58'; x.beginPath(); x.moveTo(-40, 34); x.lineTo(40, -34); x.stroke(); }
     BADGE[key] = c; return c;
   }
   var KITON = 0;      // set once the 3D models stand under the markers: the markers shrink to plates over them
-  function markPx(p) { return ((narrow() ? 18 : 22) + (p.v || 2) * (narrow() ? 2 : 3) + (p.k === 'capital' ? 5 : 0) - (p.off ? 4 : 0)) * (KITON && !p.off ? 0.56 : 1); }
+  function markPx(p) { return (narrow() ? 13 : 15) + (p.v || 2) * (narrow() ? 1.3 : 1.6) + (p.k === 'capital' ? 3 : 0) - (p.off ? 3 : 0); }
   var LABELED = PLACES.filter(function (p) { return (p.v || 0) >= 4 || p.k === 'capital'; });
   var HOME = (function () { var hb = R.home, inb = function (p) { return !hb || (p.ll[1] >= hb[0] && p.ll[0] >= hb[1] && p.ll[1] <= hb[2] && p.ll[0] <= hb[3]); }; var q = PLACES.filter(function (p) { return !p.off && ((p.v || 0) >= 4 || p.k === 'capital') && inb(p); }).map(function (p) { return [p.ex, p.ey]; }); if (hb) q = q.concat([xy([hb[1], hb[0]]), xy([hb[3], hb[2]])]); return q.length >= 3 ? q : [[0, 0], [G.w, G.h]]; })();      // R.home: the box the first view frames (wargame.py HOME_BOX)
   // the names on the board: one span each, placed by the view, the most important first; one that would overlap a name
@@ -2177,6 +2666,7 @@
   function over(a, k) { return a[0] < k[0] + k[2] && a[0] + a[2] > k[0] && a[1] < k[1] + k[3] && a[1] + a[3] > k[1]; }
   var HOTTAG = [];      // the names of the six hottest places in Now, placed before every other name
   for (var hti = 0; hti < 6; hti++) { var hsp = D.createElement('span'); hsp.className = 'wg-tag hot'; hsp.style.display = 'none'; hsp.setAttribute('aria-hidden', 'true'); tagsEl.appendChild(hsp); HOTTAG.push(hsp); }
+  function TAGCAP() { return narrow() ? 9 : 16; }
   function placeTags(proj, zoomed, hotProj) {      // proj(p) -> [x, y, visible, px, pip]; hotProj() -> [{x, y, vis, c, r, text}]
     var w = stage.clientWidth, h = stage.clientHeight, kept = hudRects().slice(), mk = [];
     var hp = hotProj ? hotProj() : [];
@@ -2191,9 +2681,10 @@
       kept.push(b2); t.style.display = ''; t.style.transform = 'translate(' + Math.round(b2[0] + 4) + 'px,' + Math.round(b2[1] + 4) + 'px)';
     });
     tagOrder.forEach(function (p) { var q = proj(p); if (q && q[2] && !q[4]) mk.push([p, [q[0] - q[3] * 0.35, q[1] - q[3] * 0.75, q[3] * 0.7, q[3] * 0.7]]); });
+    var shown = 0, cap = TAGCAP();      // never more names on the board than a reader can take in (2 November 2026)
     tagOrder.forEach(function (p) {
       var t = TAG[p.id], q = proj(p);
-      var want = q && q[2] && !q[4] && (zoomed > 1.6 || LABELED.indexOf(p) >= 0 || S.sel === p.id || S.pulse && S.pulse.indexOf(p.id) >= 0);
+      var want = q && q[2] && !q[4] && shown < cap && (zoomed > 1.6 || LABELED.indexOf(p) >= 0 || S.sel === p.id || S.pulse && S.pulse.indexOf(p.id) >= 0);
       if (!want) { if (t.style.display !== 'none') t.style.display = 'none'; return; }
       if (!t._mw) measureTags();
       var M4 = 4, tw = (t._mw || Math.max(30, p.n.length * 7.6 + 14)) + 2 * M4, th = (t._mh || 18) + 2 * M4;
@@ -2206,7 +2697,7 @@
         for (var j = 0; ok && j < mk.length; j++) if (mk[j][0] !== p && over(box, mk[j][1])) ok = false;
       }
       if (!ok && S.sel !== p.id) { if (t.style.display !== 'none') t.style.display = 'none'; return; }
-      kept.push(box);
+      kept.push(box); shown++;
       t.style.display = ''; t.style.transform = 'translate(' + Math.round(x + M4) + 'px,' + Math.round(y + M4) + 'px)';
     });
   }
@@ -2304,7 +2795,7 @@
       var x = mask.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, mask.width, mask.height);
       x = onMap(mask); x.fillStyle = '#f00'; paths.forEach(function (c) { x.fill(c.p); });
       var b = onMap(ovlBase), s = ovlBase.width / FW;
-      paths.forEach(function (c) { var side = (R.ctry || {})[c.n]; if (!side) return; var t = teamOf(side); b.fillStyle = t === 'blue' ? 'rgba(40,120,255,0.13)' : t === 'red' ? 'rgba(255,58,40,0.12)' : 'rgba(200,196,170,0.06)'; b.fill(c.p); });
+      paths.forEach(function (c) { var side = (R.ctry || {})[c.n]; if (!side) return; var t = teamOf(side); b.fillStyle = t === 'blue' ? 'rgba(76,141,255,0.10)' : t === 'red' ? 'rgba(255,90,72,0.10)' : 'rgba(200,196,170,0.03)'; b.fill(c.p); });
     })();
     // THE MAP'S OWN DRAWING (1 November 2026): the rivers, motorways and railways (wargame.py --lines, read after the board is up),
     // the borders, and the names printed on the ground like a strategy game's map: the countries in spaced capitals, the seas in
@@ -2314,18 +2805,14 @@
       var raw = lin.getContext('2d'); raw.setTransform(1, 0, 0, 1, 0, 0); raw.clearRect(0, 0, lin.width, lin.height);
       var l = onMap(lin), ls = lin.width / FW;
       l.lineJoin = 'round'; l.lineCap = 'round';
+      // thin, quiet lines (2 November 2026): rivers a muted blue, motorways a faint warm grey (the roads columns move on), borders
+      // one neutral hairline with a darker casing; no glow, no side colour on a border (the side is the territory's tint)
       if (LINESD) {
-        if (LINESD.t) { l.setLineDash([5 / ls, 4 / ls]); l.lineWidth = 1.1 / ls; l.strokeStyle = 'rgba(205,212,224,0.2)'; l.stroke(new Path2D(LINESD.t)); l.setLineDash([]); }
-        if (LINESD.h) { l.lineWidth = 1.4 / ls; l.strokeStyle = 'rgba(255,186,104,0.24)'; l.stroke(new Path2D(LINESD.h)); }
-        if (LINESD.r) { l.lineWidth = 1.6 / ls; l.strokeStyle = 'rgba(92,168,236,0.6)'; l.stroke(new Path2D(LINESD.r)); }
+        if (LINESD.r) { l.lineWidth = 1.1 / ls; l.strokeStyle = 'rgba(110,150,185,0.42)'; l.stroke(new Path2D(LINESD.r)); }
+        if (LINESD.h) { l.lineWidth = 0.9 / ls; l.strokeStyle = 'rgba(200,190,170,0.16)'; l.stroke(new Path2D(LINESD.h)); }
       }
-      paths.forEach(function (c) { l.lineWidth = 1.2 / ls; l.strokeStyle = 'rgba(236,226,196,0.30)'; l.stroke(c.p); });
-      paths.forEach(function (c) {
-        var side = (R.ctry || {})[c.n]; if (!side) return;
-        var col = TEAMHEX[teamOf(side)] || TEAMHEX.grey;
-        l.shadowColor = col; l.shadowBlur = 10; l.lineWidth = 2.6 / ls; l.strokeStyle = col; l.stroke(c.p);
-        l.shadowBlur = 0; l.lineWidth = 1.1 / ls; l.strokeStyle = 'rgba(255,255,255,0.85)'; l.stroke(c.p);
-      });
+      paths.forEach(function (c) { l.lineWidth = 2.6 / ls; l.strokeStyle = 'rgba(6,8,10,0.35)'; l.stroke(c.p); });
+      paths.forEach(function (c) { l.lineWidth = 1.05 / ls; l.strokeStyle = 'rgba(214,208,192,0.55)'; l.stroke(c.p); });
       mapNames(raw, ls);
       if (texLin) texLin.needsUpdate = true;
     }
@@ -2339,8 +2826,8 @@
         var side = (R.ctry || {})[c.n], t = teamOf(side), sz = Math.round((c.a > 60000 ? 40 : c.a > 15000 ? 31 : c.a > 4000 ? 23 : 17) * k);
         var name = FA ? tk('c:', c.n) : String(c.n).toUpperCase(), p = at(c.l[0], c.l[1]);
         x.font = '700 ' + sz + 'px ' + fam; spaced(sz, 0.24);
-        x.lineWidth = Math.max(2, sz * 0.14); x.strokeStyle = 'rgba(3,5,8,0.6)'; x.strokeText(name, p[0], p[1]);
-        x.fillStyle = side ? (t === 'blue' ? 'rgba(176,208,255,0.66)' : t === 'red' ? 'rgba(255,180,166,0.62)' : 'rgba(236,226,196,0.52)') : 'rgba(236,226,196,0.4)';
+        x.lineWidth = Math.max(2, sz * 0.12); x.strokeStyle = 'rgba(3,5,8,0.45)'; x.strokeText(name, p[0], p[1]);
+        x.fillStyle = side ? (t === 'blue' ? 'rgba(170,198,240,0.42)' : t === 'red' ? 'rgba(240,180,170,0.40)' : 'rgba(220,214,198,0.34)') : 'rgba(220,214,198,0.28)';
         x.fillText(name, p[0], p[1]);
       });
       (R.seas || []).forEach(function (q) {
@@ -2348,7 +2835,7 @@
         var sz = Math.round([0, 17, 23, 30][q.z || 2] * k), p = at(c[0], c[1]), name = FA ? tk('sea:', q.n) : q.n;
         x.font = (FA ? '500 ' : 'italic 500 ') + sz + 'px ' + (FA ? fam : 'Georgia, "Times New Roman", serif'); spaced(sz, 0.18);
         x.lineWidth = Math.max(2, sz * 0.12); x.strokeStyle = 'rgba(2,8,16,0.5)'; x.strokeText(name, p[0], p[1]);
-        x.fillStyle = 'rgba(132,192,242,0.62)'; x.fillText(name, p[0], p[1]);
+        x.fillStyle = 'rgba(132,170,205,0.42)'; x.fillText(name, p[0], p[1]);
       });
       x.restore();
     }
@@ -2362,13 +2849,10 @@
       if (frontNow && UA) {
         m.save(); m.clip(new Path2D(UA.d));
         var occ = new Path2D(frontPath(frontNow.pts));
-        m.fillStyle = 'rgba(255,50,36,0.30)'; m.fill(occ);
-        m.save(); m.clip(occ); m.strokeStyle = 'rgba(255,90,70,0.55)'; m.lineWidth = 1.4 / s;
-        for (var k = -FH; k < FW + FH; k += 7 / s * 1.4) { m.beginPath(); m.moveTo(FR[0] + k, FR[1]); m.lineTo(FR[0] + k - FH, FR[3]); m.stroke(); }
+        m.fillStyle = 'rgba(255,90,72,0.20)'; m.fill(occ);      // held by Russia: one flat wash of its colour, no hatching
+        (frontNow.lobes || []).forEach(function (o) { var ring = Array.isArray(o) ? o : (o && o.ring) || []; if (!ring.length || !Array.isArray(ring[0]) || (o.side && teamOf(o.side) === 'blue')) return; m.fillStyle = 'rgba(255,90,72,0.20)'; m.fill(new Path2D('M' + ring.map(xy).map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join('L') + 'Z')); });
         m.restore();
-        (frontNow.lobes || []).forEach(function (o) { var ring = Array.isArray(o) ? o : (o && o.ring) || []; if (!ring.length || !Array.isArray(ring[0]) || (o.side && teamOf(o.side) === 'blue')) return; m.fillStyle = 'rgba(255,50,36,0.32)'; m.fill(new Path2D('M' + ring.map(xy).map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join('L') + 'Z')); });
-        m.restore();
-        (frontNow.lobes || []).forEach(function (o) { if (!o || !o.ring || !o.side || teamOf(o.side) !== 'blue') return; m.fillStyle = 'rgba(61,139,255,0.30)'; m.fill(new Path2D('M' + o.ring.map(xy).map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join('L') + 'Z')); });
+        (frontNow.lobes || []).forEach(function (o) { if (!o || !o.ring || !o.side || teamOf(o.side) !== 'blue') return; m.fillStyle = 'rgba(76,141,255,0.22)'; m.fill(new Path2D('M' + o.ring.map(xy).map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join('L') + 'Z')); });
       }
       (typeof blackout !== 'undefined' && blackout ? blackout : []).forEach(function (q) {      // the cities a power plant fed, dark
         var g = m.createRadialGradient(q[0], q[1], 0, q[0], q[1], q[2]);
@@ -2408,19 +2892,18 @@
         '  vec3 L = normalize(vec3(-0.62, 0.52, -0.58));',
         '  float diff = clamp(dot(n, L), 0.0, 1.0);',
         '  float lum = dot(sat, vec3(0.299, 0.587, 0.114));',
-        '  vec3 landC = mix(vec3(lum), sat, 0.40) * vec3(0.96, 0.94, 0.86) * 0.60;',
-        '  vec3 seaC = vec3(0.006, 0.022, 0.045) + lum * vec3(0.07, 0.17, 0.26);',
-        '  float sh = sin(vW.x * 0.09 + uTime * 0.55) * sin(vW.z * 0.12 - uTime * 0.42) + sin((vW.x + vW.z) * 0.035 + uTime * 0.3);',
-        '  seaC += vec3(0.012, 0.03, 0.05) * (0.5 + 0.35 * sh);',
+        // THE GROUND (2 November 2026, the visual rebuild; data/wargame/visual-rebuild-2026-11-02.md): a calm, desaturated map. The land
+        // a warm neutral grey with its relief lit softly from the north-west, the sea one flat slate blue, no grid, no shimmer, no
+        // glowing borders, the cities' lights a faint warm dust. Colour on this board is kept for meaning: the two sides and the event
+        // happening now.
+        '  vec3 landC = mix(vec3(lum), sat, 0.16) * vec3(1.0, 0.98, 0.93) * 0.52 + vec3(0.075, 0.073, 0.068);',
+        '  vec3 seaC = vec3(0.043, 0.071, 0.102) + lum * vec3(0.02, 0.03, 0.04);',
         '  vec3 col = mix(seaC, landC, land);',
-        '  col *= mix(1.0, 0.26 + 1.32 * diff, land);',
-        '  float nt = texture2D(tNight, vUv).r; col += pow(nt, 2.4) * vec3(1.0, 0.62, 0.26) * 1.25 * land * uNight;',
-        '  float nb = texture2D(tNight, vUv, 3.0).r; col += pow(nb, 1.7) * vec3(1.0, 0.48, 0.16) * 0.6 * uNight;',
-        '  float cst = clamp(texture2D(tMask, vUv, 2.5).r - land, 0.0, 1.0); col += vec3(0.08, 0.32, 0.46) * cst * 0.55;',
-        '  vec3 Vd = normalize(uCam - vW); vec3 Hh = normalize(L + Vd); col += vec3(1.0, 0.84, 0.6) * pow(max(Hh.y, 0.0), 120.0) * 0.45 * (1.0 - land);',
+        '  col *= mix(1.0, 0.62 + 0.62 * diff, land);',
+        '  float nt = texture2D(tNight, vUv).r; col += pow(nt, 2.8) * vec3(0.9, 0.82, 0.68) * 0.16 * land * uNight;',
+        '  float cst = clamp(texture2D(tMask, vUv, 1.5).r - land, 0.0, 1.0); col += vec3(0.05, 0.09, 0.12) * cst * 0.6;',
         '  vec4 ov = texture2D(tOvl, vUv); col = mix(col, ov.rgb, ov.a);',
-        '  vec4 ln = texture2D(tLin, vUv); col += ln.rgb * ln.a * (0.82 + 0.18 * sin(uTime * 1.7));',
-        '  float hx = hexEdge(vW.xz / uHex); float fw = fwidth(hx); col += vec3(0.96, 0.77, 0.19) * (1.0 - smoothstep(0.5 - fw * 1.5, 0.5, hx) * 0.0) * smoothstep(0.5 - fw * 1.6, 0.5, hx) * 0.07;',
+        '  vec4 ln = texture2D(tLin, vUv); col = mix(col, ln.rgb, ln.a);',
         '  float o = max(max(uTheatre.x - vUv.x, vUv.x - uTheatre.z), max(uTheatre.y - vUv.y, vUv.y - uTheatre.w));',
         '  col = mix(col, vec3(0.012, 0.016, 0.022), smoothstep(-0.005, 0.05, o) * 0.82);',
         '  float d = length(vW - uCam); col = mix(col, vec3(0.035, 0.062, 0.09), smoothstep(uFog.x, uFog.y, d) * 0.7);',
@@ -2458,7 +2941,7 @@
     var marks = [], sprMat = {}, stemGeo = new T.BufferGeometry(), stemPos = new Float32Array(PLACES.length * 6), stemCol = new Float32Array(PLACES.length * 6);
     stemGeo.setAttribute('position', new T.BufferAttribute(stemPos, 3)); stemGeo.setAttribute('color', new T.BufferAttribute(stemCol, 3));
     var stems = new T.LineSegments(stemGeo, new T.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, blending: T.AdditiveBlending }));
-    stems.renderOrder = 5; stems.frustumCulled = false; scene.add(stems);
+    stems.renderOrder = 5; stems.frustumCulled = false; stems.visible = false;      // no stems and no beacons any more (2 November 2026): the symbol is enough
     var ringGeo = new T.RingGeometry(0.78, 1, 48); ringGeo.rotateX(-Math.PI / 2);
     var ringMat = new T.ShaderMaterial({
       uniforms: { uTime: U.uTime }, transparent: true, depthTest: false, depthWrite: false, blending: T.AdditiveBlending,
@@ -2468,20 +2951,20 @@
     var rings = new T.InstancedMesh(ringGeo, ringMat, PLACES.length);
     var icol = new Float32Array(PLACES.length * 3), iph = new Float32Array(PLACES.length);
     rings.geometry.setAttribute('icol', new T.InstancedBufferAttribute(icol, 3)); rings.geometry.setAttribute('iph', new T.InstancedBufferAttribute(iph, 1));
-    rings.renderOrder = 3; rings.frustumCulled = false; scene.add(rings);
+    rings.renderOrder = 3; rings.frustumCulled = false;
     var M4 = new T.Matrix4(), V3 = new T.Vector3(), Q = new T.Quaternion(), S3 = new T.Vector3();
     PLACES.forEach(function (p, i) {
       var key = p.k + '|' + p.team + '|' + (p.k === 'capital');
       if (!sprMat[key]) { var tx = new T.CanvasTexture(badge(p.k, p.team, p.k === 'capital')); tx.minFilter = T.LinearMipmapLinearFilter; tx.anisotropy = 2; sprMat[key] = tx; }
       var sm = new T.SpriteMaterial({ map: sprMat[key], depthTest: false, depthWrite: false, transparent: true, sizeAttenuation: false, color: 0xffffff });
-      var s = new T.Sprite(sm); s.renderOrder = 10; s.center.set(0.5, 0.15); scene.add(s);
+      var s = new T.Sprite(sm); s.renderOrder = 10; s.center.set(0.5, 0.45); scene.add(s);
       var c = rgb(teamHex(p.o)); icol.set(c, i * 3); iph[i] = (i * 0.137) % 1;
-      p.mi = i; marks.push({ p: p, s: s, i: i, hit: 0 });
+      p.mi = i; marks.push({ p: p, s: s, i: i, hit: 0, key: key });
     });
     var marksByPri = marks.slice().sort(function (a, b) { return b.p.pri - a.p.pri; });
     function placeMarks() {
       marks.forEach(function (m) {
-        var p = m.p, y = hAt(p.ex, p.ey), lift = p.off ? 1.5 : m.model ? m.model.userData.fit * KU * ZK * 0.5 + 3 : 4 + (p.v || 2) * 0.8;
+        var p = m.p, y = hAt(p.ex, p.ey), lift = p.off ? 1.5 : m.model && m.model.visible ? m.model.userData.fit * KU * ZK * 0.55 + 3 : 1.5;      // the symbol sits on the ground; over its model when the model shows
         m.base = new T.Vector3(wx(p.ex), y, wz(p.ey)); m.top = new T.Vector3(wx(p.ex), y + lift, wz(p.ey));
         m.s.position.copy(m.top);
         stemPos.set([m.base.x, m.base.y, m.base.z, m.top.x, m.top.y, m.top.z], m.i * 6);
@@ -2535,16 +3018,17 @@
       [heatGlow, heatRing].forEach(function (m) { m.instanceMatrix.needsUpdate = true; m.geometry.attributes.hc.needsUpdate = true; m.geometry.attributes.hd.needsUpdate = true; });
       beams.forEach(function (b, i) {
         var h = HOT[i]; b.userData.h = h && h.n >= 0.35 ? h : null; if (!b.userData.h) { b.visible = false; return; }
-        var col = rgb(h.c); b.material.color.setRGB(col[0], col[1], col[2]); b.position.set(wx(h.x), hAt(h.x, h.y) + 0.5, wz(h.y)); b.scale.set(3.2 * u0, (22 + 70 * h.n) * u0, 1); b.visible = heatOn;
+        var col = rgb(h.c); b.material.color.setRGB(col[0], col[1], col[2]); b.position.set(wx(h.x), hAt(h.x, h.y) + 0.5, wz(h.y)); b.scale.set(3.2 * u0, (22 + 70 * h.n) * u0, 1); b.visible = false;      // no light beams (2 November 2026): the glow on the ground and the name are enough
       });
       dirty = 1;
     }
-    function hotShow(on) { heatOn = !!on; heatGlow.visible = heatRing.visible = heatOn; beams.forEach(function (b) { b.visible = heatOn && !!b.userData.h; }); }
+    function hotShow(on) { heatOn = !!on; heatGlow.visible = heatRing.visible = heatOn; beams.forEach(function (b) { b.visible = false; }); }
     function hotSel(ll) { heatSel = pt(ll); setHot(HOT); }
     function hotProj() {      // the names of the hottest six, for the placer (placeTags)
       return HOT.slice(0, 6).map(function (h) { var q = screenOf(V3h.set(wx(h.x), hAt(h.x, h.y), wz(h.y))); return { x: q[0], y: q[1], vis: q[2] && heatOn, c: h.c, r: 16, text: nowPlace(h.h) + (h.h.count > 1 ? '  ·  ' + N(h.h.count) : '') }; });
     }
-    var sweeps = sweepSites().map(function (id) { var m = new T.Mesh(sweepGeo, sweepMat.clone()); m.material.uniforms.uTime = U.uTime; m.material.uniforms.uC.value = new T.Color(teamHex(PL[id].o)); m.scale.set(16, 1, 16); m.userData.id = id; m.renderOrder = 2; scene.add(m); return m; });
+    // radar sweeps off (2 November 2026): an air defence's reach shows when it fires, or when it is opened
+    var sweeps = [].map(function (id) { var m = new T.Mesh(sweepGeo, sweepMat.clone()); m.material.uniforms.uTime = U.uTime; m.material.uniforms.uC.value = new T.Color(teamHex(PL[id].o)); m.scale.set(16, 1, 16); m.userData.id = id; m.renderOrder = 2; scene.add(m); return m; });
     placeMarks();
     // ---- THE KIT ON THE BOARD (1 November 2026; build/simkit/SIMKIT.md). Every place stands as its 3D model at game scale (bigger
     // than the map, as a strategy game draws it, sized from the home view so it reads on a phone); the order of battle (R.oob)
@@ -2638,6 +3122,7 @@
       KU = Math.max(0.35, homeD / 1000) * 1.8;      // game scale: a site reads at the home view on a phone, as a strategy game draws it
       kitObjs.forEach(function (o) { o.scale.setScalar(o.userData.s1 * KU * ZK); });
     }
+    var MODON = false;
     var ZK = 1;      // closer in, the models shrink toward true scale, so a zoomed view is not crowded by its own sites
     var lodT = 0;
     function kitFrame(now, dt) {
@@ -2653,7 +3138,11 @@
       units.forEach(function (u) { if (u.o.userData.kind === 'ship') u.o.position.y = 0.2 + Math.sin(now / 900 + u.x) * 0.15 * KU; });
       if (now - lodT > 250) {      // a model smaller than about two pixels is not drawn (its badge still is): a phone keeps its frame rate
         lodT = now; var p11 = camera.projectionMatrix.elements[5];
-        kitObjs.forEach(function (o) { var d = o.position.distanceTo(camera.position) || 1, px = o.userData.fit * KU * p11 * vh / (2 * d); o.visible = px > (o.userData.kind === 'site' ? 2.2 : 3); });
+        // THE MODELS SHOW WHEN ZOOMED IN (2 November 2026): at the theatre's zoom the board is symbols only, as a command map is; closer
+        // in, each place and unit stands as its model. A model never shows alone in a crowd of symbols it would cover.
+        var zin = homeD / cam.d, was = MODON; MODON = zin > 2.6;
+        kitObjs.forEach(function (o) { var d = o.position.distanceTo(camera.position) || 1, px = o.userData.fit * KU * p11 * vh / (2 * d); o.visible = MODON && px > (o.userData.kind === 'site' ? 2.2 : 3); });
+        if (was !== MODON) placeMarks();
       }
       if (KFX) KFX.update(dt, now / 1000);
     }
@@ -2662,8 +3151,10 @@
       if (!KIT || damaged[id]) return; var m = marks.filter(function (q) { return q.p.id === id; })[0]; if (!m) return;
       damaged[id] = 1; var p = m.p, fit = siteFit(p) * KU;
       if (m.model) m.model.traverse(function (n) { if (!n.isMesh) return; if (n.name === 'glow' || n.name === 'glowAdd') { n.visible = false; return; } if (darkMat[n.name]) { n.userData.mat0 = n.userData.mat0 || n.material; n.material = darkMat[n.name]; } });
-      if (KFX && !instant) { var v = pos3(p.ex, p.ey, 0.5); KFX.fire(v, fit * 0.32, 900); KFX.smoke(v, fit * 0.5, 900); }
-      else if (KFX) { var v2 = pos3(p.ex, p.ey, 0.5); KFX.smoke(v2, fit * 0.4, 900); }
+      // a struck site burns briefly and smokes thinly, then the slashed symbol carries the damage (2 November 2026: fifteen-minute
+      // smoke columns at every struck site were most of what made the board unreadable)
+      var U1 = homeD / 1000;
+      if (KFX && !instant) { var v = pos3(p.ex, p.ey, 0.5); KFX.fire(v, 2.4 * U1, 8); KFX.smoke(v, 3 * U1, 22); }
       if (p.k === 'power') darkAround(p, 1);
     }
     // a power plant hit: the cities it feeds go dark (the night lights under them are covered on the ground texture)
@@ -2680,25 +3171,28 @@
       if (KFX) KFX.clear();
       fliers.forEach(function (f) { if (f.tr) f.tr.stop(); scene.remove(f.o); }); fliers = [];
     }
-    // what flies: the real aircraft, missile, drone or ship for each side and kind of event
+    // what moves: the real aircraft, missile, drone, ship or vehicle for each side and each kind of leg (ROUTES)
     var FLY = {
-      missile: { IR: ['emad', 'ghadr', 'kheibar_shekan', 'fattah', 'sejjil'], HT: ['zolfaghar'], HZ: ['fateh110'], RU: ['iskander', 'kinzhal', 'kh101', 'kalibr'], CN: ['df15', 'df21d', 'df17'], UA: ['atacms'], US: ['tomahawk'], IL: ['jassm'] },
-      drone: { IR: ['shahed136', 'shahed136', 'shahed238'], HT: ['shahed136'], RU: ['shahed136', 'shahed238'], UA: ['tb2'], CN: ['mig29'], US: ['mq9'], IL: ['mq9'], TW: ['lancet'] },
-      strike: { IL: ['f35', 'f15e', 'f16'], US: ['fa18', 'f35', 'f15e'], UA: ['su24'], RU: ['su34', 'tu95'], CN: ['h6k', 'j16', 'j20'], TW: ['f16', 'idf'], IR: ['su24'], JP: ['f35'] },
-      naval: { CN: ['type075', 'type071', 'roro', 'type052d'], US: ['ddg_burke'], IR: ['irgcn_fac'], TW: ['kangding'], RU: ['grigorovich'], UA: ['magura'] }
+      bm: { IR: ['emad', 'ghadr', 'kheibar_shekan', 'fattah', 'sejjil'], HT: ['zolfaghar'], HZ: ['fateh110'], IQM: ['fateh110'], RU: ['iskander', 'kinzhal'], CN: ['df15', 'df21d', 'df17'], UA: ['atacms'] },
+      cm: { US: ['tomahawk'], UK: ['storm_shadow'], IL: ['jassm'], RU: ['kh101', 'kalibr'], UA: ['storm_shadow', 'neptune'], TW: ['hf2e'], JP: ['jassm'], CN: ['yj12'], IR: ['paveh'], SA: ['storm_shadow'] },
+      drone: { IR: ['shahed136', 'shahed136', 'shahed238'], HT: ['shahed136'], HZ: ['shahed136'], IQM: ['shahed136'], RU: ['shahed136', 'shahed238'], UA: ['fp1'], CN: ['j6w'], US: ['mq9'], IL: ['mq9'], TW: ['altius'] },
+      jet: { IL: ['f35', 'f15e', 'f16'], US: ['f15e', 'f35', 'f15e'], UK: ['f35'], UA: ['su24'], RU: ['su34'], CN: ['h6k', 'j16', 'j20'], TW: ['f16', 'idf'], IR: ['su24'], JP: ['f35'], SA: ['f15e'] },
+      bomber: { US: ['b2'], RU: ['tu95'], CN: ['h6k'] },
+      tanker: { US: ['kc46', 'kc135'], IL: ['kc135'], UK: ['kc135'], CN: ['y20'], RU: ['tu95'] },
+      bomb: { US: ['gbu57'], IL: ['jdam'] },
+      ship: { CN: ['type052d', 'type054a', 'type055'], US: ['ddg_burke'], IR: ['irgcn_fac'], TW: ['kangding'], RU: ['grigorovich'], UA: ['magura'], JP: ['jmsdf_ddg'], PH: ['cg_china'] },
+      amphib: { CN: ['type075', 'type071', 'roro'], US: ['lhd_wasp'] },
+      ground: { RU: ['t90', 'bmp'], UA: ['leopard2', 'bradley'], CN: ['type99', 'zbd05'], TW: ['m1a2t'], US: ['abrams'], IR: ['convoy'], IL: ['abrams'] }
     };
-    var INT = { blue: { missile: TID === 'iran' ? ['arrow3', 'arrow2', 'thaad_int', 'sm3', 'pac3'] : TID === 'taiwan' ? ['pac3', 'tk3'] : ['pac3', 'iris_t'], drone: TID === 'iran' ? ['tamir'] : TID === 'taiwan' ? ['tk3'] : ['iris_t'] },
-      red: { missile: TID === 'taiwan' ? ['hq9'] : TID === 'iran' ? ['sayyad4', 's300m'] : ['s300m'], drone: TID === 'taiwan' ? ['hq9'] : ['s300m'], strike: TID === 'taiwan' ? ['hq9'] : TID === 'iran' ? ['sayyad4'] : ['s300m'] } };
-    function flyType(ev, i) {
-      if (ev.kind === 'b2') return kitType('b2');
-      var k = ev.t === 'ground' ? null : ev.t, L = k && FLY[k] && (FLY[k][ev.side] || FLY[k][teamOf(ev.side) === 'blue' ? 'US' : 'IR']);
-      if (k === 'strike' && ev.side === 'US' && typeof ev.from === 'string' && PL[ev.from] && PL[ev.from].k === 'airbase') L = ['f15e', 'f35', 'f15e'];
-      return L ? kitType(L[i % L.length]) : null;
+    function legType(L, i) {
+      var cls = L.model === 'tanker' ? 'tanker' : L.cls === 'ship' && L.ship === 'amphib' ? 'amphib' : L.cls, side = L.side, tm = teamOf(side);
+      if (L.model && L.model !== 'tanker' && KIT.has(L.model)) return L.model;
+      var T0 = FLY[cls] || {}, list = T0[side] || T0[tm === 'blue' ? 'US' : tm === 'red' ? (TID === 'taiwan' ? 'CN' : TID === 'ukraine' ? 'RU' : 'IR') : 'US'];
+      return list ? kitType(list[i % list.length]) : null;
     }
     var fliers = [];
-    function flySize(t) { var c = (KIT.types[t] || {}).cat; return c === 'sea' ? 9 : c === 'munition' ? 5 : /^(b2|b52|b1b|tu95|h6k)$/.test(t) ? 10 : /^(shahed|mq9|tb2|lancet)/.test(t) ? 4 : 7; }
-    function flyMake(t, team) { if (!t || fliers.length > (narrow() ? 40 : 90)) return null; var o = KIT.make(t, { team: team, fit: flySize(t) * 1.4 }); o.scale.multiplyScalar(KU); scene.add(o); return o; }
-    function trailKind(t) { var c = (KIT.types[t] || {}).cat; return c === 'sea' ? 'wake' : c === 'munition' ? 'rocket' : /^(shahed|mq9|tb2|lancet)/.test(t) ? 'drone' : 'jet'; }
+    function flySize(t) { var c = (KIT.types[t] || {}).cat; return c === 'sea' ? 8 : c === 'land' ? 5 : c === 'munition' ? 4 : /^(b2|b52|b1b|tu95|h6k|kc46|kc135|y20)$/.test(t) ? 8 : /^(shahed|mq9|tb2|lancet|fp1|altius|j6w)/.test(t) ? 3.4 : 5.5; }
+    function flyMake(t, team) { if (!t) return null; var o = KIT.make(t, { team: team, fit: flySize(t) * 1.2 }); o.scale.multiplyScalar(KU); scene.add(o); fliers.push({ o: o }); return o; }
     function boomKind(id, res) {
       var p = id && PL[id]; if (!p) return 'blast';
       if (p.k === 'oil' || p.k === 'port' && p.team === 'red') return 'fuel';
@@ -2760,9 +3254,8 @@
       clearObjs(frontObj);
       if (!pts || pts.length < 2) return;
       var p2 = pts.map(function (q) { return [q[0], q[1]]; });
-      var glow = new T.Mesh(ribbon(p2, 10, 0.8), ribMat(0xff3b2a, 0.32)); glow.renderOrder = 4;
-      var core = new T.Mesh(ribbon(p2, 2.6, 0.9), ribMat(0xff6a50, 1.0, 16, 9)); core.renderOrder = 4;
-      [glow, core].forEach(function (o) { o.frustumCulled = false; scene.add(o); frontObj.push(o); });
+      var core = new T.Mesh(ribbon(p2, 1.7, 0.9), ribMat(0xff6a55, 0.95)); core.renderOrder = 4;      // the front: one clean line, no glow, no flow
+      core.frustumCulled = false; scene.add(core); frontObj.push(core);
     }
     // ---- the particles: one cloud that glows (heads, trails, flashes, sparks) and one of smoke
     function dotTex(soft) { var c = D.createElement('canvas'); c.width = c.height = 64; var x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32); if (soft) { g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(0.5, 'rgba(255,255,255,0.22)'); g.addColorStop(1, 'rgba(255,255,255,0)'); } else { g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.22, 'rgba(255,255,255,0.75)'); g.addColorStop(0.55, 'rgba(255,255,255,0.18)'); g.addColorStop(1, 'rgba(255,255,255,0)'); } x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new T.CanvasTexture(c); }
@@ -2795,86 +3288,114 @@
     var waves = [];
     for (var wi = 0; wi < 26; wi++) { var wm = new T.Mesh(waveGeo, new T.MeshBasicMaterial({ color: 0xffb070, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: T.AdditiveBlending })); wm.visible = false; wm.renderOrder = 6; scene.add(wm); waves.push({ m: wm, t: 1, life: 1, r: 1 }); }
     function wave(x, y, z, r, c) { var w = null; for (var i = 0; i < waves.length; i++) if (waves[i].t >= waves[i].life) { w = waves[i]; break; } if (!w) return; w.t = 0; w.life = 1.1; w.r = r; w.m.position.set(x, y + 0.3, z); w.m.material.color.set(c || 0xffb070); w.m.visible = true; }
-    // ---- what flies
-    var shots = [], timers = [];
+    // ---- WHAT MOVES (2 November 2026, the visual rebuild): the legs ROUTES plans, each drawn on its own route at its own pace.
+    // A leg shows as its model when it belongs to the event the board is following (and a few more, never more than MAXMOD),
+    // otherwise as a small head in its side's colour; behind it the stretch it has covered, a thin line that fades toward its
+    // start; the event being followed also shows the rest of its route, fainter, so a reader sees where it is going. A missile
+    // that is stopped meets an interceptor that rises from the battery that covers its target; that battery's reach shows for a
+    // moment as a ring. Hard caps: legs on the board (MAXLEG), models (MAXMOD), explosions in a second and a half (BOOMS).
+    var LEGS = [], timers = [], MAXLEG = narrow() ? 40 : 90, MAXMOD = narrow() ? 6 : 12, nMod = 0;
+    var TRK = narrow() ? 7000 : 14000, trkPos = new Float32Array(TRK * 6), trkCol = new Float32Array(TRK * 6), trkN = 0;
+    var trkGeo = new T.BufferGeometry(); trkGeo.setAttribute('position', new T.BufferAttribute(trkPos, 3).setUsage(T.DynamicDrawUsage)); trkGeo.setAttribute('color', new T.BufferAttribute(trkCol, 3).setUsage(T.DynamicDrawUsage));
+    var tracks = new T.LineSegments(trkGeo, new T.LineBasicMaterial({ vertexColors: true, transparent: true, depthTest: false, depthWrite: false, blending: T.AdditiveBlending }));
+    tracks.frustumCulled = false; tracks.renderOrder = 12; scene.add(tracks);
     function later(fn, ms) { var t = setTimeout(function () { timers.splice(timers.indexOf(t), 1); fn(); }, ms); timers.push(t); }
     function pos3(x, y, lift) { return new T.Vector3(wx(x), hAt(x, y) + (lift || 0), wz(y)); }
-    function shot(ev, delay) {
-      var a = pt(ev.from), b = pt(ev.to), team = teamOf(ev.side), c = rgb(teamHex(ev.side));
-      var kind = ev.t;
-      if (b && !a) { later(function () { impact(b[0], b[1], c, ev.big ? 1.6 : 1, typeof ev.to === 'string' ? ev.to : null, ev.res); }, delay + 300); return 600; }
-      if (!a || !b) return 0;
-      // a salvo reads as a salvo: at least three streaks for anything that flies (two for ships and columns), more for big numbers
-      var n = clamp(Math.round(Math.sqrt(ev.n || 9)), kind === 'naval' || kind === 'ground' ? 2 : 3, kind === 'drone' ? 9 : 8), stop = ev.n ? (ev.stop || 0) / ev.n : 0;
-      var dur = (SPEED[kind] || 2600) / Math.sqrt(S.speed) * (REDUCED ? 0.7 : 1);
-      var L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      for (var i = 0; i < n; i++) {
-        var jx = (Math.random() - 0.5) * 14, jy = (Math.random() - 0.5) * 14;
-        var dead = Math.random() < stop;
-        var s = { k: kind, team: team, a: [a[0] + jx * 0.3, a[1] + jy * 0.3], b: [b[0] + jx, b[1] + jy], t0: performance.now() + delay + i * 140, dur: dur * (0.9 + Math.random() * 0.25), c: c,
-          dead: dead, cut: 0.6 + Math.random() * 0.28, to: typeof ev.to === 'string' ? ev.to : null, res: ev.res, big: ev.big, L: L, wob: Math.random() * 6.28, smoke: 0, icpt: null };
-        s.apex = kind === 'missile' ? Math.min(140, L * 0.34) : kind === 'strike' ? Math.min(40, L * 0.1) : kind === 'drone' ? 3 : kind === 'naval' || kind === 'ground' ? 0.6 : 8;
-        s.ya = hAt(s.a[0], s.a[1]) + 2; s.yb = hAt(s.b[0], s.b[1]) + 0.5;
-        if (dead) { var dfd = defenderOf(s.to, team === 'blue' ? 'red' : 'blue'); s.icFrom = dfd ? [dfd.ex, dfd.ey] : [s.b[0] + (Math.random() - 0.5) * 30, s.b[1] + (Math.random() - 0.5) * 30]; }
-        if (KIT && kitBuilt) { s.mt = flyType(ev, i); s.team2 = team === 'blue' || team === 'red' ? team : 'grey'; }
-        shots.push(s);
-      }
-      return dur + n * 140;
-    }
-    function at(s, u, out) {
-      var x = s.a[0] + (s.b[0] - s.a[0]) * u, y = s.a[1] + (s.b[1] - s.a[1]) * u, base = s.ya + (s.yb - s.ya) * u, h;
-      if (s.k === 'naval' || s.k === 'ground') h = Math.max(hAt(x, y), 0) + 0.6;
-      else if (s.k === 'drone') { var px = -(s.b[1] - s.a[1]) / (s.L || 1), py = (s.b[0] - s.a[0]) / (s.L || 1), wv = Math.sin(u * 18 + s.wob) * 1.2; x += px * wv; y += py * wv; h = Math.max(hAt(x, y) + 2.5, base + s.apex * 4 * u * (1 - u)); }
-      else h = Math.max(hAt(x, y) + 1, base + s.apex * 4 * u * (1 - u));
+    var LV = [0, 0, 0];
+    function legAt(L, u, out) {      // a leg's point in the world at u (0 to 1)
+      RT.legPos(L, u, LV);
+      var x = LV[0], y = LV[1], g = Math.max(hAt(x, y), 0), h;
+      if (L.alt === 'arc' || L.alt === 'drop' || L.alt === 'air') { var a = L.pts[0], b = L.pts[L.pts.length - 1], base = (Math.max(hAt(a[0], a[1]), 0) + 1) * (1 - u) + (Math.max(hAt(b[0], b[1]), 0) + 0.6) * u; h = Math.max(g + 1, base + LV[2]); }
+      else if (L.alt === 'low') h = g + (L.cls === 'drone' ? 1.6 : 1.0);
+      else h = L.cls === 'ship' ? 0.3 : g + 0.5;
       out[0] = wx(x); out[1] = h; out[2] = wz(y); return out;
     }
-    var tmp = [0, 0, 0], tmp2 = [0, 0, 0];
-    function ease(s, x) { return s.k === 'missile' ? x * x * (3 - 2 * x) * 0.4 + x * 0.6 : x; }
-    function flyShots(now) {
-      var keep = [];
-      for (var i = 0; i < shots.length; i++) {
-        var s = shots[i], x = (now - s.t0) / s.dur;
-        if (x < 0) { keep.push(s); continue; }
-        if (s.mt && !s.o && !s.gone) { s.o = flyMake(s.mt, s.team2); if (s.o) { fliers.push({ o: s.o }); if (KFX) s.tr = KFX.trail(s.o, { kind: trailKind(s.mt) }); } else s.gone = 1; }
-        var end = s.dead ? s.cut : 1;
-        if (s.dead && !s.icpt && x > s.cut - 0.3) {      // the interceptor rises to meet it where it will be
-          at(s, ease(s, s.cut), tmp2);
-          s.icpt = { a: pos3(s.icFrom[0], s.icFrom[1], 1), b: new T.Vector3(tmp2[0], tmp2[1], tmp2[2]), t0: now, dur: Math.max(200, (s.cut - x) * s.dur) };
-          if (KIT && kitBuilt) { var dT = s.team === 'blue' ? 'red' : 'blue', IL = (INT[dT] || {})[s.k] || (INT[dT] || {}).missile; var it = IL ? kitType(IL[Math.floor(Math.random() * IL.length)]) : null; if (it) { s.icpt.o = flyMake(it, dT); if (s.icpt.o) { fliers.push({ o: s.icpt.o }); if (KFX) s.icpt.tr = KFX.trail(s.icpt.o, { kind: 'rocket' }); } } }
+    function legsPlay(items) {      // items: [{L, at (ms from now), dur (ms), focal, cut (0 = arrives), hit, icpt}]
+      var now = performance.now();
+      items.forEach(function (it, k) {
+        if (it.hitOnly) { var ho = it.hitOnly; if (ho.at) later(function () { impact(ho.at[0], ho.at[1], rgb(SYMC.grey), ho.big ? 1.2 : 0.9, ho.id, ho.res, ho.kind); }, it.at); return; }
+        if (LEGS.length >= MAXLEG) return;
+        var L = it.L, n = clamp(Math.ceil(L.len / 2.2), 12, 120), S0 = new Float32Array((n + 1) * 3), q = [0, 0, 0];
+        for (var i = 0; i <= n; i++) { legAt(L, i / n, q); S0[i * 3] = q[0]; S0[i * 3 + 1] = q[1]; S0[i * 3 + 2] = q[2]; }
+        var c = rgb(SYMC[teamOf(L.side)] || SYMC.grey);
+        var rec = { L: L, t0: now + it.at, dur: Math.max(300, it.dur), n: n, S: S0, c: c, focal: !!it.focal, cut: it.cut || 0, sunk: !!it.sunk, hit: it.hit || null, team: teamOf(L.side), k: k, o: null, done: 0, gone: 0 };
+        if (it.icpt) {      // the interceptor: from the battery to where it meets the missile, timed to arrive with it
+          var meet = [0, 0, 0]; legAt(L, rec.cut, meet);
+          var bt = it.icpt, from = pos3(bt.x, bt.y, 0.6), tArr = it.at + rec.cut * rec.dur, idur = Math.min(it.icpt.dur, Math.max(250, tArr - it.at - 100));
+          rec.ic = { a: from, b: new T.Vector3(meet[0], meet[1], meet[2]), t0: now + tArr - idur, dur: idur, kit: bt.kit, team: bt.team, c: rgb(SYMC[bt.team] || SYMC.grey), bat: bt, o: null };
         }
-        if (s.icpt) {
-          var ic = s.icpt, f = clamp((now - ic.t0) / ic.dur, 0, 1), ix = ic.a.x + (ic.b.x - ic.a.x) * f, iz = ic.a.z + (ic.b.z - ic.a.z) * f, iy = ic.a.y + (ic.b.y - ic.a.y) * Math.pow(f, 0.7) + Math.sin(f * Math.PI) * 6;
-          emit(GLOW, ix, iy, iz, 4.2 * homeD / 1000, [0.75, 0.95, 1], 1); emit(GLOW, ix, iy, iz, 10 * homeD / 1000, [0.4, 0.8, 1], 0.45);
-          if (ic.o) { ic.o.position.set(ix, iy, iz); ic.o.lookAt(ix + (ic.b.x - ic.a.x), iy + (ic.b.y - ic.a.y) * 0.6 + 4, iz + (ic.b.z - ic.a.z)); }
-          for (var q = 1; q < 20; q++) { var f2 = Math.max(0, f - q * 0.018), jx = ic.a.x + (ic.b.x - ic.a.x) * f2, jz = ic.a.z + (ic.b.z - ic.a.z) * f2, jy = ic.a.y + (ic.b.y - ic.a.y) * Math.pow(f2, 0.7) + Math.sin(f2 * Math.PI) * 6; emit(GLOW, jx, jy, jz, 3.2 * homeD / 1000 * (1 - q / 20), [0.5, 0.88, 1], 0.85 * (1 - q / 20)); }
+        LEGS.push(rec);
+      });
+    }
+    var ringsAD = {};
+    function adRing(bt, ms) {      // a battery's reach, shown while it fires
+      var key = Math.round(bt.x) + ',' + Math.round(bt.y) + ',' + bt.rangeKm, r = ringsAD[key];
+      if (!r) { var ll0 = RT.ll(bt.x, bt.y), m = new T.Mesh(ribbon(ringPts(ll0, bt.rangeKm), 1.1, 1.2), ribMat(SYMC[bt.team] || SYMC.grey, 0.7)); m.renderOrder = 4; m.frustumCulled = false; scene.add(m); r = ringsAD[key] = { m: m, until: 0 }; }
+      r.until = performance.now() + ms; r.m.visible = true;
+    }
+    var booms = [];
+    function boomOk(now) { booms = booms.filter(function (t) { return now - t < 1500; }); if (booms.length >= 4) return false; booms.push(now); return true; }
+    function seg(ax, ay, az, bx, by, bz, c, a) {
+      if (trkN >= TRK || a <= 0.01) return; var i = trkN++ * 6;
+      trkPos[i] = ax; trkPos[i + 1] = ay; trkPos[i + 2] = az; trkPos[i + 3] = bx; trkPos[i + 4] = by; trkPos[i + 5] = bz;
+      trkCol[i] = c[0] * a; trkCol[i + 1] = c[1] * a; trkCol[i + 2] = c[2] * a; trkCol[i + 3] = c[0] * a; trkCol[i + 4] = c[1] * a; trkCol[i + 5] = c[2] * a;
+    }
+    var HV = [0, 0, 0], HV2 = [0, 0, 0];
+    function legsFrame(now) {
+      trkN = 0;
+      var keep = [], U0 = homeD / 1000;
+      for (var i = 0; i < LEGS.length; i++) {
+        var r = LEGS[i], x = (now - r.t0) / r.dur, end = r.cut || 1, S0 = r.S, n = r.n;
+        if (r.focal && x < end) {      // the route still ahead of the followed event: faint and dashed
+          var i0 = Math.floor(clamp(x, 0, 1) * n);
+          for (var k = i0; k < Math.floor(end * n); k += 2) seg(S0[k * 3], S0[k * 3 + 1], S0[k * 3 + 2], S0[k * 3 + 3], S0[k * 3 + 4], S0[k * 3 + 5], r.c, 0.22);
         }
-        if (x >= end) {
-          if (s.dead) { at(s, ease(s, s.cut), tmp); burst(tmp[0], tmp[1], tmp[2], [0.75, 0.92, 1], 0.7, s.k === 'strike'); }
-          else { impact(s.b[0], s.b[1], s.c, s.big ? 1.4 : 1, s.to, s.res, s.k); }
-          flyDone(s);
-          continue;
+        if (x < 0) { keep.push(r); continue; }
+        var u = Math.min(x, end), iu = Math.floor(u * n), fade = x > end ? clamp(1 - (x - end) * r.dur / 2600, 0, 1) : 1;
+        if (fade <= 0) { legGone(r); continue; }
+        // the covered stretch: brighter toward the head; a racetrack keeps only its last lap
+        var from = r.L.cls === 'tanker' ? Math.max(0, iu - Math.ceil(n * 0.12)) : 0;
+        for (var k2 = from; k2 < iu; k2++) { var f = (k2 - from + 1) / Math.max(1, iu - from); seg(S0[k2 * 3], S0[k2 * 3 + 1], S0[k2 * 3 + 2], S0[k2 * 3 + 3], S0[k2 * 3 + 4], S0[k2 * 3 + 5], r.c, (0.12 + 0.7 * f * f) * fade * (r.focal ? 1 : 0.7)); }
+        legAt(r.L, u, HV);
+        if (iu < n) seg(S0[iu * 3], S0[iu * 3 + 1], S0[iu * 3 + 2], HV[0], HV[1], HV[2], r.c, 0.82 * fade);
+        if (x < end) {
+          if (!r.o && !r.noModel && KIT && kitBuilt && (r.focal || nMod < MAXMOD)) { var t = legType(r.L, r.k); r.o = t ? flyMake(t, r.team === 'blue' || r.team === 'red' ? r.team : 'grey') : null; if (r.o) nMod++; else r.noModel = 1; }
+          if (r.o) { legAt(r.L, Math.min(end, u + 0.004), HV2); r.o.position.set(HV[0], HV[1], HV[2]); if (Math.abs(HV2[0] - HV[0]) + Math.abs(HV2[2] - HV[2]) + Math.abs(HV2[1] - HV[1]) > 1e-5) r.o.lookAt(HV2[0], HV2[1], HV2[2]); }
+          else { var hs = (r.L.cls === 'bm' ? 3.2 : r.L.cls === 'ship' || r.L.cls === 'ground' ? 2.6 : 2.2) * U0; emit(GLOW, HV[0], HV[1], HV[2], hs * 2.4, r.c, 0.35); emit(GLOW, HV[0], HV[1], HV[2], hs, [1, 0.97, 0.9], 0.95); }
+        } else if (!r.done) {
+          r.done = 1; legModelOff(r);
+          if (r.sunk) { var sk = RT.legPos(r.L, r.cut); impact(sk[0], sk[1], r.c, 0.8, null, 'hit', 'naval'); }      // a ship lost on the way
+          else if (r.hit && r.L.cls === 'ground') hit(r.hit.id, r.hit.res, false);      // a column arrives: the place is taken, no explosion
+          else if (r.cut) { if (KFX && boomOk(now)) KFX.intercept(new T.Vector3(HV[0], HV[1], HV[2]), 3.2 * U0); else puff(GLOW, HV[0], HV[1], HV[2], { life: 0.4, s0: 6 * U0, s1: 12 * U0, c: [0.85, 0.95, 1], a: 1 }); }
+          else if (r.hit) { var e2 = r.L.pts[r.L.pts.length - 1]; impact(e2[0], e2[1], r.c, r.hit.big ? 1.25 : 1, r.hit.id, r.hit.res, r.hit.kind); }
         }
-        var u = ease(s, x), U0 = homeD / 1000;      // sizes grow with the theatre's home distance, so a head reads the same on every board
-        at(s, u, tmp);
-        if (s.o) { at(s, ease(s, Math.min(1, x + 0.01)), tmp2); s.o.position.set(tmp[0], tmp[1], tmp[2]); if (Math.abs(tmp2[0] - tmp[0]) + Math.abs(tmp2[2] - tmp[2]) + Math.abs(tmp2[1] - tmp[1]) > 1e-4) s.o.lookAt(tmp2[0], tmp2[1], tmp2[2]); }
-        var hs = (s.k === 'missile' ? 4.6 : s.k === 'strike' ? 3.8 : s.k === 'drone' ? 3 : 3.4) * U0;
-        emit(GLOW, tmp[0], tmp[1], tmp[2], hs * 3.4, s.c, 0.5);
-        emit(GLOW, tmp[0], tmp[1], tmp[2], hs * 1.3, [1, 0.97, 0.88], 1);
-        // the hot trail behind the head: dense enough to read as a line, thinning and fading
-        var tail = s.k === 'drone' ? 0.07 : s.k === 'naval' || s.k === 'ground' ? 0.06 : 0.2, Lt = Math.max(8, s.L * tail * (s.k === 'missile' ? 1.5 : 1));
-        var nt = clamp(Math.round(Lt / (1.1 * U0)), 10, 44);
-        for (var k = 1; k <= nt; k++) { var uu = Math.max(0, u - tail * k / nt); at(s, uu, tmp2); var f3 = k / nt; emit(GLOW, tmp2[0], tmp2[1], tmp2[2], hs * (1 - f3 * 0.75), f3 < 0.15 ? [1, 0.92, 0.75] : s.c, 0.95 * (1 - f3)); }
-        // and the path it already flew, faint: the arc stays readable as it rises off the ground
-        if (s.k !== 'drone') { var nc = clamp(Math.round(s.L * Math.max(0, u - tail) / (7 * U0)), 0, 40); for (var q2 = 0; q2 < nc; q2++) { at(s, (u - tail) * q2 / Math.max(1, nc), tmp2); emit(GLOW, tmp2[0], tmp2[1], tmp2[2], 1.5 * U0, s.c, 0.22); } }
-        if (s.k === 'missile' && now - s.smoke > 70) { s.smoke = now; puff(SMOKE, tmp[0], tmp[1], tmp[2], { life: 1.6, s0: 1.6, s1: 4.5, c: [0.62, 0.62, 0.66], a: 0.32, vy: 0.4 }); }
-        keep.push(s);
+        if (r.ic) {      // the interceptor
+          var ic = r.ic, f2 = (now - ic.t0) / ic.dur;
+          if (f2 >= 0 && f2 <= 1 && !r.done) {
+            if (!ic.shown) { ic.shown = 1; adRing(ic.bat, 3200); }
+            var ix = ic.a.x + (ic.b.x - ic.a.x) * f2, iz = ic.a.z + (ic.b.z - ic.a.z) * f2, iy = ic.a.y + (ic.b.y - ic.a.y) * Math.pow(f2, 0.6);
+            var px = ic.a.x, py = ic.a.y, pz = ic.a.z;
+            for (var q = 1; q <= 10; q++) { var g = f2 * q / 10, jx = ic.a.x + (ic.b.x - ic.a.x) * g, jz = ic.a.z + (ic.b.z - ic.a.z) * g, jy = ic.a.y + (ic.b.y - ic.a.y) * Math.pow(g, 0.6); seg(px, py, pz, jx, jy, jz, ic.c, 0.15 + 0.6 * q / 10); px = jx; py = jy; pz = jz; }
+            if (!ic.o && ic.kit && KIT && kitBuilt && r.focal) { var it2 = kitType(ic.kit); ic.o = it2 ? flyMake(it2, ic.team === 'blue' || ic.team === 'red' ? ic.team : 'grey') : null; }
+            if (ic.o) { ic.o.position.set(ix, iy, iz); ic.o.lookAt(ic.b.x, ic.b.y, ic.b.z); } else emit(GLOW, ix, iy, iz, 2.2 * U0, [0.9, 0.97, 1], 0.95);
+          } else if (f2 > 1 && ic.o) { scene.remove(ic.o); fliers = fliers.filter(function (z) { return z.o !== ic.o; }); ic.o = null; }
+        }
+        keep.push(r);
       }
-      shots = keep;
+      LEGS = keep;
+      for (var key in ringsAD) { var rr = ringsAD[key]; if (rr.m.visible && now > rr.until) rr.m.visible = false; }
+      trkGeo.setDrawRange(0, trkN * 2); trkGeo.attributes.position.needsUpdate = true; trkGeo.attributes.color.needsUpdate = true;
     }
-    function flyDone(s) {
-      if (s.tr) s.tr.stop(); if (s.o) { var so = s.o; scene.remove(so); fliers = fliers.filter(function (f) { return f.o !== so; }); s.o = null; }
-      if (s.icpt) { if (s.icpt.tr) s.icpt.tr.stop(); if (s.icpt.o) { var io = s.icpt.o; scene.remove(io); fliers = fliers.filter(function (f) { return f.o !== io; }); s.icpt.o = null; } }
+    function legModelOff(r) {
+      if (r.o) { var so = r.o; scene.remove(so); fliers = fliers.filter(function (f) { return f.o !== so; }); r.o = null; nMod = Math.max(0, nMod - 1); }
+      if (r.ic && r.ic.o) { var io = r.ic.o; scene.remove(io); fliers = fliers.filter(function (f) { return f.o !== io; }); r.ic.o = null; }
     }
+    function legGone(r) { legModelOff(r); }
+    function legsClear() { LEGS.forEach(legGone); LEGS = []; nMod = 0; timers.forEach(clearTimeout); timers = []; for (var k in ringsAD) ringsAD[k].m.visible = false; trkN = 0; trkGeo.setDrawRange(0, 0); }
+    // the one accent on the board: a gold ring round where the followed event lands
+    var focRing = new T.Mesh(new T.RingGeometry(0.82, 1, 64).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: 0xf4c430, transparent: true, opacity: 0.85, depthTest: false, depthWrite: false }));
+    focRing.renderOrder = 13; focRing.visible = false; scene.add(focRing);
+    function mark(p) { if (!p) { focRing.visible = false; return; } focRing.userData.p = p; focRing.position.set(wx(p[0]), Math.max(hAt(p[0], p[1]), 0) + 0.8, wz(p[1])); focRing.scale.setScalar(10 * homeD / 1000); focRing.visible = true; }
     function burst(x, y, z, c, k, jet) {
       if (KFX) { var bv = new T.Vector3(x, y, z); if (jet) KFX.explode(bv, 7 * homeD / 1000, 'air'); else KFX.intercept(bv, 5 * homeD / 1000); return; }
       k *= homeD / 1000;
@@ -2886,8 +3407,9 @@
       var p = pos3(x, y, 0.6), k0 = k; k *= Math.max(0.8, homeD / 1000);
       if (KFX) {      // the kit's explosion of the right kind: a refinery burns, a missile base cooks off, a buried site throws dust, a ship erupts
         var bk = kind === 'naval' && !id ? 'ship' : boomKind(id, res);
-        KFX.explode(p, (id && PL[id] ? 4 + (PL[id].v || 2) * 1.4 : 5) * k, bk);
-        wave(p.x, p.y, p.z, 10 * k, 0xffa560); addScorch(x, y, 5 * k0 + Math.random() * 2);
+        if (boomOk(performance.now())) { KFX.explode(p, (id && PL[id] ? 2.6 + (PL[id].v || 2) * 0.7 : 3) * k, bk); wave(p.x, p.y, p.z, 6 * k, 0xffa560); }
+        else puff(GLOW, p.x, p.y + 0.6, p.z, { life: 0.5, s0: 5 * k, s1: 11 * k, c: [1, 0.72, 0.4], a: 0.9 });      // past the cap: a flash, not another explosion
+        addScorch(x, y, 2.5 * k0 + Math.random());
         if (id) hit(id, res, false);
         return;
       }
@@ -2901,7 +3423,11 @@
     }
     function hit(id, res, instant) {
       var m = marks.filter(function (q) { return q.p.id === id; })[0]; if (!m) return;
-      if (res === 'hit' || res === 'partial') { m.hit = performance.now(); m.s.material.color.setRGB(1, 0.62, 0.5); if (instant) addScorch(m.p.ex, m.p.ey, 6); damage(id, instant); }
+      if (res === 'hit' || res === 'partial') {
+        m.hit = performance.now();
+        if (!m.dmg) { m.dmg = 1; var dk = m.key + '|d'; if (!sprMat[dk]) { var tx2 = new T.CanvasTexture(badge(m.p.k, m.p.team, m.p.k === 'capital', 1)); tx2.minFilter = T.LinearMipmapLinearFilter; sprMat[dk] = tx2; } m.s.material.map = sprMat[dk]; m.s.material.needsUpdate = true; }
+        if (instant) addScorch(m.p.ex, m.p.ey, 3); damage(id, instant);
+      }
     }
     // ---- the camera: a target on the ground, a distance, a heading and a tilt; it eases toward where it is asked to go
     var cam = { x: 0, z: 0, d: 900, yaw: 0, pitch: 0.92 }, goal = { x: 0, z: 0, d: 900, yaw: 0, pitch: 0.92 }, ins = { l: 0, r: 0, t: 0, b: 0 }, vw = 1, vh = 1, dMin = 60, dMax = 6000, homeD = 900;
@@ -2973,7 +3499,8 @@
         marksByPri.forEach(function (m) {
           if (!m.top) return;
           PV.copy(m.top).project(camera); var x = (PV.x + 1) / 2 * vw, y = (1 - PV.y) / 2 * vh, r = markPx(m.p) * z * 0.42;
-          var keep = S.sel === m.p.id || m.pulse || m.hit || S.hov === m.p.id;
+          var keep = S.sel === m.p.id || m.pulse || m.hit || m.act || S.hov === m.p.id;
+          if (!keep && (m.p.v || 2) <= 2 && m.p.k !== 'capital' && homeD / cam.d < 1.6) { m.pip = 1; return; }      // a minor place at the theatre's zoom: a dot until zoomed in or involved
           if (!keep) for (var i = 0; i < kept.length; i++) { var k = kept[i]; if (Math.abs(k[0] - x) < k[2] + r && Math.abs(k[1] - y) < (k[2] + r) * 0.9) { m.pip = 1; return; } }
           m.pip = 0; kept.push([x, y, r]);
         });
@@ -3082,6 +3609,7 @@
     function frame(now) {
       raf = 0;
       if (!visible || D.hidden) return;
+      var tj = performance.now();
       var dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
       U.uTime.value = (now - clock0) / 1000;
       // the idle drift: a slow sway, like a strategy game's menu, until the reader touches the board
@@ -3090,15 +3618,16 @@
       ['x', 'z', 'd', 'yaw', 'pitch'].forEach(function (q) { cam[q] += (goal[q] - cam[q]) * k; });
       camApply(cam);
       TU.uCam.value.copy(camera.position);
-      marks.forEach(function (m) { if (m.hit && now - m.hit > 9000) { m.hit = 0; m.s.material.color.setRGB(1, 1, 1); } if (m.hit && Math.random() < dt * 3) puff(SMOKE, m.base.x + (Math.random() - 0.5) * 2, m.base.y + 1.5, m.base.z + (Math.random() - 0.5) * 2, { life: 3, s0: 3, s1: 10, c: [0.12, 0.11, 0.1], a: 0.45, vy: 2.5, vx: 0.8, drag: 0.2 }); });
+      marks.forEach(function (m) { if (m.hit && now - m.hit > 9000) { m.hit = 0; m.s.material.color.setRGB(1, 1, 1); } });
       waves.forEach(function (w) { if (w.t >= w.life) { w.m.visible = false; return; } w.t += dt; var f = w.t / w.life; var r = w.r * (0.15 + 0.85 * Math.sqrt(f)); w.m.scale.set(r, 1, r); w.m.material.opacity = (1 - f) * 0.9; });
       GLOW.n = 0; SMOKE.n = 0;
-      flyShots(now);
+      legsFrame(now);
       kitFrame(now, dt);
       stepCloud(GLOW, dt); stepCloud(SMOKE, dt);
       flushCloud(GLOW); flushCloud(SMOKE);
       if (ovlDirty && now - (drawOvl.t || 0) > 220) { ovlDirty = 0; drawOvl.t = now; drawOvl(); }
       sprScale();
+      jsMs = jsMs * 0.9 + (performance.now() - tj) * 0.1;      // what this frame cost the processor before the drawing itself (the phone budget)
       renderer.render(scene, camera);
       if (heatOn) beams.forEach(function (b, i) { if (b.visible) b.material.opacity = 0.55 + 0.3 * Math.sin(now / 520 + i * 1.7); });
       if (tagsT++ % 2 === 0) placeTags(function (p) { var m = marks[p.mi]; if (!m || !m.top) return null; var q = screenOf(m.top); return [q[0], q[1], q[2], markPx(p) * (m.pip ? 0.42 : 1), m.pip && S.sel !== p.id]; }, homeD / cam.d, heatOn ? hotProj : null);
@@ -3107,7 +3636,7 @@
       if (now - fpsT > 1000) { fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now; if (fps < 32 && renderer.getPixelRatio() > 1) { if (++lowFor >= 2) { renderer.setPixelRatio(Math.max(1, renderer.getPixelRatio() - 0.25)); resize(); lowFor = 0; } } else lowFor = 0; }
       raf = W.requestAnimationFrame(frame);
     }
-    var tagsT = 0;
+    var tagsT = 0, jsMs = 0;
     function kick() { if (!raf && visible && !D.hidden) { lastT = performance.now(); raf = W.requestAnimationFrame(frame); } }
     if ('IntersectionObserver' in W) new IntersectionObserver(function (es) { visible = es[0].isIntersecting; if (visible) kick(); }).observe(stage);
     D.addEventListener('visibilitychange', function () { if (!D.hidden) kick(); });
@@ -3116,14 +3645,16 @@
     kick();
     return {
       kind: '3d', ready: readyP, hot: setHot, hotShow: hotShow, hotSel: hotSel,
-      reset: function () { shots.forEach(flyDone); shots = []; timers.forEach(clearTimeout); timers = []; GLOW.live = []; SMOKE.live = []; scorch = []; kitReset(); drawOvl(); marks.forEach(function (m) { m.hit = 0; m.s.material.color.setRGB(1, 1, 1); }); },
+      reset: function () { legsClear(); mark(null); GLOW.live = []; SMOKE.live = []; scorch = []; kitReset(); drawOvl(); marks.forEach(function (m) { m.hit = 0; m.act = 0; m.dmg = 0; m.s.material.map = sprMat[m.key]; m.s.material.color.setRGB(1, 1, 1); }); },
+      legs: legsPlay, mark: mark, act: function (ids) { marks.forEach(function (m) { m.act = ids && ids.indexOf(m.p.id) >= 0 ? 1 : 0; }); },
       thumb: thumb, units: function () { return units; }, kit: function () { return KIT; }, gridDark: gridDark,
-      shot: shot, hit: hit, front: setFront, focus: focus, home: home, select: select, pulse: pulse, resize: resize,
+      hit: hit, front: setFront, focus: focus, home: home, select: select, pulse: pulse, resize: resize,
       zoomBy: function (f) { goal.d = clamp(goal.d * f, dMin, dMax); }, rotateBy: function (a) { goal.yaw += a; },
       moveTo: function (x, y) { goal.x = wx(x); goal.z = wz(y); clampGoal(); },
       groundRect: function () { var r = glc.getBoundingClientRect(), q = [[r.left + ins.l, r.top + ins.t], [r.right - ins.r, r.top + ins.t], [r.right - ins.r, r.bottom - ins.b], [r.left + ins.l, r.bottom - ins.b]].map(function (c) { var g = ground(c[0], c[1]); return g ? [g[0] + HW, g[1] + HH] : null; }); return q.every(Boolean) ? q : null; },
       fps: function () { return fps; }, cam: cam, renderer: renderer,
-      dbg: function () { return { shots: shots.length, glow: GLOW.n, live: GLOW.live.length, smoke: SMOKE.n, d: Math.round(cam.d), goal: Math.round(goal.d), homeD: Math.round(homeD), dMax: Math.round(dMax), fliers: fliers.length, units: units.length, models: kitObjs.length, fps: Math.round(fps) }; }
+      perf: function () { return { jsMs: jsMs, legs: LEGS.length, models: nMod, tracks: trkN, glow: GLOW.n, smoke: SMOKE.n, booms: booms.length, fps: fps, maxLeg: MAXLEG, maxMod: MAXMOD }; },
+      dbg: function () { return { legs: LEGS.length, models: nMod, tracks: trkN, glow: GLOW.n, live: GLOW.live.length, smoke: SMOKE.n, d: Math.round(cam.d), goal: Math.round(goal.d), homeD: Math.round(homeD), dMax: Math.round(dMax), fliers: fliers.length, units: units.length, kitModels: kitObjs.length, fps: Math.round(fps) }; }
     };
   }
 
@@ -3132,7 +3663,7 @@
     var cv = glc, ctx = cv.getContext('2d');
     if (!ctx) return null;
     var dpr = Math.min(2, W.devicePixelRatio || 1), vw = 1, vh = 1, ins = { l: 0, r: 0, t: 0, b: 0 };
-    var view = { x: G.w / 2, y: G.h / 2, s: 1 }, goalV = { x: G.w / 2, y: G.h / 2, s: 1 }, sMin = 1, FX = [], scorch = [], front = null, raf = 0, fHot = [], fHotOn = false, fSel = null;
+    var fMark = null, view = { x: G.w / 2, y: G.h / 2, s: 1 }, goalV = { x: G.w / 2, y: G.h / 2, s: 1 }, sMin = 1, FX = [], scorch = [], front = null, raf = 0, fHot = [], fHotOn = false, fSel = null;
     function fitS() { return Math.min((vw - ins.l - ins.r) / G.w, (vh - ins.t - ins.b) / G.h) * 0.96; }
     function resize(i) { if (i) ins = i; var r = stage.getBoundingClientRect(); vw = r.width; vh = r.height; cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr); sMin = fitS(); if (!resize.done) { home(true); resize.done = 1; } kick(); }
     function scr(x, y) { return [(x - view.x) * view.s + ins.l + (vw - ins.l - ins.r) / 2, (y - view.y) * view.s + ins.t + (vh - ins.t - ins.b) / 2]; }
@@ -3155,13 +3686,15 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, vw, vh);
       var o = scr(0, 0);
       if (posterEl.complete && posterEl.naturalWidth) {
+        ctx.filter = 'saturate(0.3) brightness(0.78)';      // the same calm ground as the 3D board (2 November 2026)
         var cs = Math.max(vw / G.w, vh / G.h); ctx.globalAlpha = 0.3; ctx.drawImage(posterEl, (vw - G.w * cs) / 2, (vh - G.h * cs) / 2, G.w * cs, G.h * cs); ctx.globalAlpha = 1;      // the ground continues, dimmed, past the fitted map: no black bars
         ctx.drawImage(posterEl, o[0], o[1], G.w * view.s, G.h * view.s);
+        ctx.filter = 'none';
       }
       ctx.save(); ctx.translate(o[0], o[1]); ctx.scale(view.s, view.s);
       if (front && UA) {
-        ctx.save(); ctx.clip(new Path2D(UA.d)); ctx.fillStyle = 'rgba(255,50,36,0.32)'; ctx.fill(new Path2D(frontPath(front))); ctx.restore();
-        ctx.strokeStyle = '#ff5a48'; ctx.lineWidth = 2.4 / view.s; ctx.shadowColor = '#ff3b2a'; ctx.shadowBlur = 10; ctx.beginPath(); front.forEach(function (p, i) { ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1]); }); ctx.stroke(); ctx.shadowBlur = 0;
+        ctx.save(); ctx.clip(new Path2D(UA.d)); ctx.fillStyle = 'rgba(255,90,72,0.20)'; ctx.fill(new Path2D(frontPath(front))); ctx.restore();
+        ctx.strokeStyle = '#ff6a55'; ctx.lineWidth = 1.6 / view.s; ctx.beginPath(); front.forEach(function (p, i) { ctx[i ? 'lineTo' : 'moveTo'](p[0], p[1]); }); ctx.stroke();      // one clean line
       }
       scorch.forEach(function (q) { var g = ctx.createRadialGradient(q[0], q[1], 0, q[0], q[1], q[2]); g.addColorStop(0, 'rgba(10,6,4,0.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q[0], q[1], q[2], 0, 7); ctx.fill(); });
       ctx.restore();
@@ -3178,7 +3711,19 @@
       ctx.globalCompositeOperation = 'lighter';
       FX.forEach(function (f) {
         var x = (now - f.t0) / f.dur; if (x < 0) { keep.push(f); return; }
-        if (f.k === 'shot') {
+        if (f.k === 'leg') {      // the same legs as the 3D board (ROUTES), drawn from above: height lifts the line up the screen a little
+          var end2 = f.cut || 1, u = Math.min(x, end2), fade = x > end2 ? clamp(1 - (x - end2) * f.dur / 2200, 0, 1) : 1, P3 = [0, 0, 0], prev = null;
+          if (fade <= 0) return;
+          ctx.lineWidth = f.focal ? 1.8 : 1.2;
+          for (var i2 = 0; i2 <= 40; i2++) {
+            var uu = u * i2 / 40; RT.legPos(f.L, uu, P3); var q2 = scr(P3[0], P3[1]); q2[1] -= P3[2] * view.s * 0.5;
+            if (prev) { ctx.strokeStyle = hexA(f.c, (0.15 + 0.7 * i2 / 40) * fade); ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(q2[0], q2[1]); ctx.stroke(); }
+            prev = q2;
+          }
+          if (x < end2) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(prev[0], prev[1], 2.4, 0, 7); ctx.fill(); }
+          else if (!f.done) { f.done = 1; var e3 = f.L.pts[f.L.pts.length - 1]; RT.legPos(f.L, end2, P3); if (f.cut) FX.push({ k: 'boom', p: [P3[0], P3[1]], t0: now, dur: 500, c: '#9fd0ff', small: 1 }); else if (f.hit && f.L.cls !== 'ground') { FX.push({ k: 'boom', p: e3, t0: now, dur: 1000, c: f.c }); if (f.hit.id && (f.hit.res === 'hit' || f.hit.res === 'partial')) hits[f.hit.id] = now; } else if (f.hit) hits[f.hit.id] = now; }
+          keep.push(f);
+        } else if (f.k === 'shot') {
           var end = f.dead ? f.cut : 1;
           if (x >= end) { var p = arc(f, end); FX.push({ k: 'boom', p: p, t0: now, dur: f.dead ? 500 : 1000, c: f.dead ? CYAN : f.c, small: f.dead }); if (!f.dead) { scorch.push([f.b[0], f.b[1], 6]); if (f.id && (f.res === 'hit' || f.res === 'partial')) hits[f.id] = now; } return; }
           for (var i = 0; i < 10; i++) { var u0 = Math.max(0, x - 0.18 * (i + 1) / 10), u1 = Math.max(0, x - 0.18 * i / 10), a = scr.apply(null, arc(f, u0)), b = scr.apply(null, arc(f, u1)); ctx.strokeStyle = hexA(f.c, 0.9 * (1 - i / 10)); ctx.lineWidth = 2.4 * (1 - i / 14); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
@@ -3195,6 +3740,7 @@
       });
       ctx.globalCompositeOperation = 'source-over';
       FX = keep;
+      if (fMark) { var qm = scr(fMark[0], fMark[1]); ctx.strokeStyle = 'rgba(244,196,48,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(qm[0], qm[1], 16, 0, 7); ctx.stroke(); }      // the one accent: where the followed event lands
       var z = Math.pow(view.s / sMin, 0.3);
       PLACES.forEach(function (p) {
         var q = scr(p.ex, p.ey), px = markPx(p) * z * (S.sel === p.id ? 1.25 : 1);
@@ -3224,7 +3770,9 @@
     return {
       kind: 'flat', ready: Promise.resolve(true),
       hot: function (list) { fHot = list || []; kick(); }, hotShow: function (on) { fHotOn = !!on; kick(); }, hotSel: function (ll) { fSel = pt(ll); kick(); },
-      reset: function () { FX = []; scorch = []; hits = {}; kick(); }, shot: shot,
+      reset: function () { FX = []; scorch = []; hits = {}; fMark = null; kick(); }, shot: shot,
+      legs: function (items) { var now = performance.now(); items.forEach(function (it) { if (it.hitOnly) { if (it.hitOnly.at) FX.push({ k: 'boom', p: it.hitOnly.at, t0: now + it.at, dur: 900, c: '#ffb070', id: it.hitOnly.id, res: it.hitOnly.res }); return; } FX.push({ k: 'leg', L: it.L, t0: now + it.at, dur: Math.max(300, it.dur), cut: it.cut || 0, hit: it.hit || null, c: SYMC[teamOf(it.L.side)] || SYMC.grey, focal: it.focal }); }); kick(); },
+      mark: function (p) { fMark = p; kick(); },
       hit: function (id, res, instant) { if (res === 'hit' || res === 'partial') { hits[id] = performance.now(); var p = PL[id]; if (p && instant) scorch.push([p.ex, p.ey, 6]); kick(); } },
       front: function (pts) { front = pts; kick(); }, focus: focus, home: home, select: function (id) { S.sel = id; kick(); }, pulse: function (ids) { S.pulse = ids || []; kick(); }, resize: resize,
       zoomBy: function (f) { goalV.s = clamp(goalV.s / f, sMin, sMin * 8); kick(); }, rotateBy: function () {}, moveTo: function (x, y) { goalV.x = x; goalV.y = y; kick(); },
@@ -3294,5 +3842,6 @@
       if (v) { tog(app, 'gl', true); boot(v); } else { switchToFlat(); idle(); }
     }, function (x) { if (W.console) console.warn('Conflict Simulator: three.js did not load, drawing the flat board', x); switchToFlat(); idle(); });
   } else { switchToFlat(); idle(); }
-  W.WG = { tagOverlaps: tagOverlaps, step: function (k) { if (S.mode !== 'sim') setMode('sim'); if (S.tab === 'plan' && S.step === k) return; S.step = k; S.tab = 'plan'; drawPanel(); }, run: run, mode: setMode, now: function () { return NOW.doc; }, best: bestStart, guide: guide, replay: startReplay, models: MODELS, params: params, state: S, runMany: runMany, runOne: runOne, seek: seek, view: function () { return V; }, fps: function () { return V && V.fps ? V.fps() : 0; }, brief: function (id) { brief(EXID[id] || EX[0]); }, place: function (id) { placeSheet(PL[id]); }, layout: layout };
+  W.WG = { tagOverlaps: tagOverlaps, tagCount: function () { return PLACES.filter(function (p) { var t = TAG[p.id]; return t.style.display !== 'none' && t.offsetParent !== null; }).length; }, tagCap: TAGCAP,
+    scene: function () { return S.lastSc || null; }, perf: function () { return V && V.perf ? V.perf() : null; }, routes: function () { return RT; }, geo: function () { return G; }, at: function () { return ti; }, step: function (k) { if (S.mode !== 'sim') setMode('sim'); if (S.tab === 'plan' && S.step === k) return; S.step = k; S.tab = 'plan'; drawPanel(); }, run: run, mode: setMode, now: function () { return NOW.doc; }, best: bestStart, guide: guide, replay: startReplay, models: MODELS, params: params, state: S, runMany: runMany, runOne: runOne, seek: seek, view: function () { return V; }, fps: function () { return V && V.fps ? V.fps() : 0; }, brief: function (id) { brief(EXID[id] || EX[0]); }, place: function (id) { placeSheet(PL[id]); }, layout: layout };
 })();

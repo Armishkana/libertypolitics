@@ -409,7 +409,7 @@ export default function register(K) {
       rifleParts(R.body, -0.03, 1.12, 0.3, 0, 0);
     } else if (s.shield) {
       const e = posed('armL', 1, -0.55, -0.25);
-      add(R.armL.glass, P.box(0.58, 0.95, 0.035), 0x2b3138, [0.08, e.y + 0.05, e.z + 0.08]);
+      add(R.armL.glass, P.box(0.58, 0.95, 0.035), 0xa9bccb, [0.08, e.y + 0.05, e.z + 0.08]); add(R.armL.solid, P.box(0.6, 0.06, 0.04), 0x15171a, [0.08, e.y + 0.53, e.z + 0.08]);
       if (!cr) R.tex.push({ limb: 'armL', mesh: plate(policeWordTex(), 0.36, 0.18, 0.08, e.y + 0.2, e.z + 0.1, 0, { name: 'shieldword' }) });
       free('armR', -1);
       add(R.armR.solid, P.cyl(0.024, 0.024, 0.64, 4), 0x111111, [-0.29, SH - 0.66, 0.26], [HP, 0, 0]);
@@ -496,9 +496,10 @@ export default function register(K) {
     if (crowdMatV) return crowdMatV;
     const m = new T.MeshStandardMaterial({ vertexColors: true, flatShading: true, metalness: 0.08, roughness: 0.8 });
     m.onBeforeCompile = (sh) => {
-      sh.vertexShader = 'attribute float aLimb;\nattribute float aPivot;\nattribute float aTint;\nattribute vec3 iAnim;\nattribute vec3 iTint;\n' + sh.vertexShader
+      sh.vertexShader = 'attribute float aLimb;\nattribute float aPivot;\nattribute float aTint;\nattribute float aGlow;\nvarying float vGlow;\nattribute vec3 iAnim;\nattribute vec3 iTint;\n' + sh.vertexShader
         .replace('#include <begin_vertex>', [
           '#include <begin_vertex>',
+          'vGlow = aGlow;',
           'if (aLimb > 0.5) {',
           '  float ph = iAnim.x; float amp = iAnim.y; float up = iAnim.z; float a = 0.0;',
           '  if (aLimb < 1.5) a = sin(ph) * amp;',
@@ -509,8 +510,10 @@ export default function register(K) {
           '  transformed = vec3(q.x, q.y * c - q.z * s + aPivot, q.y * s + q.z * c);',
           '}'].join('\n'))
         .replace('#include <color_vertex>', '#include <color_vertex>\nvColor.rgb = mix(vColor.rgb, iTint, aTint);');
+      // the glow parts (phone screens) light themselves: they show in a crowd at dusk
+      sh.fragmentShader = 'varying float vGlow;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow;');
     };
-    m.customProgramCacheKey = () => 'simkit-crowd-1';
+    m.customProgramCacheKey = () => 'simkit-crowd-2';
     crowdMatV = m; return m;
   }
   const crowdGeoCache = new Map();
@@ -520,22 +523,22 @@ export default function register(K) {
     const ent = [], LIMB = { body: 0, legL: 1, legR: 2, armL: 3, armR: 4 };
     Object.keys(LIMB).forEach((nm) => {
       const tag = R.fixed[nm] ? 0 : LIMB[nm], piv = nm.charAt(0) === 'l' ? HIP : SH;
-      ['solid', 'metal', 'glass', 'glow', 'team'].forEach((k) => R[nm][k].forEach((p) => ent.push({ g: p.g, c: k === 'team' ? new T.Color(teamHex) : (k === 'glow' ? p.c.clone().multiplyScalar(1.6) : p.c), tag, piv, tint: p.t ? 1 : 0 })));
+      ['solid', 'metal', 'glass', 'glow', 'team'].forEach((k) => R[nm][k].forEach((p) => ent.push({ g: p.g, c: k === 'team' ? new T.Color(teamHex) : (k === 'glow' ? p.c.clone().multiplyScalar(1.6) : p.c), tag, piv, tint: p.t ? 1 : 0, glow: k === 'glow' ? 1 : 0 })));
       R[nm].glowAdd.forEach((p) => p.g.dispose());
     });
     let n = 0; ent.forEach((e) => (n += e.g.attributes.position.count));
-    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), lb = new Float32Array(n), pv = new Float32Array(n), tn = new Float32Array(n);
+    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), lb = new Float32Array(n), pv = new Float32Array(n), tn = new Float32Array(n), gw = new Float32Array(n);
     let o = 0;
-    ent.forEach((e) => { const a = e.g.attributes.position; pos.set(a.array.subarray(0, a.count * 3), o * 3); for (let i = 0; i < a.count; i++) { const j = o + i; col[j * 3] = e.c.r; col[j * 3 + 1] = e.c.g; col[j * 3 + 2] = e.c.b; lb[j] = e.tag; pv[j] = e.piv; tn[j] = e.tint; } o += a.count; e.g.dispose(); });
+    ent.forEach((e) => { const a = e.g.attributes.position; pos.set(a.array.subarray(0, a.count * 3), o * 3); for (let i = 0; i < a.count; i++) { const j = o + i; col[j * 3] = e.c.r; col[j * 3 + 1] = e.c.g; col[j * 3 + 2] = e.c.b; lb[j] = e.tag; pv[j] = e.piv; tn[j] = e.tint; gw[j] = e.glow; } o += a.count; e.g.dispose(); });
     const g = new T.BufferGeometry();
     g.setAttribute('position', new T.BufferAttribute(pos, 3)); g.setAttribute('color', new T.BufferAttribute(col, 3));
-    g.setAttribute('aLimb', new T.BufferAttribute(lb, 1)); g.setAttribute('aPivot', new T.BufferAttribute(pv, 1)); g.setAttribute('aTint', new T.BufferAttribute(tn, 1));
+    g.setAttribute('aLimb', new T.BufferAttribute(lb, 1)); g.setAttribute('aPivot', new T.BufferAttribute(pv, 1)); g.setAttribute('aTint', new T.BufferAttribute(tn, 1)); g.setAttribute('aGlow', new T.BufferAttribute(gw, 1));
     g.computeVertexNormals(); g.computeBoundingSphere();
     crowdGeoCache.set(key, g); return g;
   }
   const TOPS = {
-    man: [0x2f3b4c, 0x5b2a2a, 0x3d4a3a, 0x6b6b6b, 0x1f1f24, 0x7d6a55, 0x2a4f6e, 0x8a3c3c, 0xb7b0a0, 0x46355a, 0x23262b, 0x55616b],
-    woman: [0x1d1d22, 0x5a2f45, 0x2e3d55, 0x7c6a58, 0x9a3b3b, 0x3a4a3a, 0xc9b89a, 0x24252b, 0x6b4a5e, 0x2b2b30],
+    man: [0x2f3b4c, 0x5b2a2a, 0x3d4a3a, 0x6b6b6b, 0x1f1f24, 0x7d6a55, 0x2a4f6e, 0x8a3c3c, 0xb7b0a0, 0x46355a, 0xd6d3ca, 0x55616b, 0x4f6d8f, 0xb59f7c, 0x9a4a2a],
+    woman: [0x1d1d22, 0x5a2f45, 0x2e3d55, 0x7c6a58, 0x9a3b3b, 0x3a4a3a, 0xc9b89a, 0x24252b, 0x6b4a5e, 0xb08c6a, 0x8a2f3a, 0xd8d2c4],
     basij: [0x1b1c1f, 0x2a2b30, 0x3a3226, 0x23241f], medic: [0x3c4a5a, 0x2b2f36]
   };
   const KMAP = { irgc_soldier: 'irgc', artesh_soldier: 'artesh', protester: 'protester' };
@@ -548,7 +551,7 @@ export default function register(K) {
   K.city.crowd = function (count, o) {
     o = o || {}; count = Math.max(1, count | 0);
     const r = rng(o.seed || 1234), list = o.kinds && o.kinds.length ? o.kinds : ['protester'], parts = [];
-    list.forEach((k) => { k = KMAP[k] || k; if (k === 'protester') parts.push(['man', 0.45 / list.length], ['woman', 0.42 / list.length], ['flag', 0.07 / list.length], ['sign', 0.06 / list.length]); else parts.push([k, 1 / list.length]); });
+    list.forEach((k) => { k = KMAP[k] || k; if (k === 'protester') parts.push(['man', 0.41 / list.length], ['woman', 0.38 / list.length], ['flag', 0.08 / list.length], ['sign', 0.06 / list.length], ['phone', 0.07 / list.length]); else parts.push([k, 1 / list.length]); });
     let left = count; const counts = parts.map(([, w], i) => { const n = i === parts.length - 1 ? left : Math.min(left, Math.round(count * w)); left -= n; return n; });
     const teamHex = o.team != null ? K.teamHex(o.team) : null, group = new T.Group(); group.name = 'crowd';
     const px = new Float32Array(count), pz = new Float32Array(count), hd = new Float32Array(count), sp = new Float32Array(count), ph = new Float32Array(count),
@@ -561,7 +564,7 @@ export default function register(K) {
     parts.forEach(([k], pi) => {
       const n = counts[pi]; if (!n) return;
       const base = crowdGeo(k, teamHex, !!o.lite), geo = new T.BufferGeometry();
-      ['position', 'color', 'normal', 'aLimb', 'aPivot', 'aTint'].forEach((a) => { if (base.getAttribute(a)) geo.setAttribute(a, base.getAttribute(a)); });
+      ['position', 'color', 'normal', 'aLimb', 'aPivot', 'aTint', 'aGlow'].forEach((a) => { if (base.getAttribute(a)) geo.setAttribute(a, base.getAttribute(a)); });
       geo.boundingSphere = base.boundingSphere;
       const ia = new T.InstancedBufferAttribute(new Float32Array(n * 3), 3), it = new T.InstancedBufferAttribute(new Float32Array(n * 3), 3);
       ia.setUsage(T.DynamicDrawUsage); geo.setAttribute('iAnim', ia); geo.setAttribute('iTint', it);
@@ -576,6 +579,37 @@ export default function register(K) {
       const a = r() * PI * 2, d = Math.sqrt(r()) * spread; px[i] = cx + Math.cos(a) * d; pz[i] = cz + Math.sin(a) * d;
       gx[i] = cx; gz[i] = cz; const a2 = r() * PI * 2, d2 = Math.sqrt(r()) * spread; ox[i] = Math.cos(a2) * d2; oz[i] = Math.sin(a2) * d2;
       hd[i] = r() * PI * 2; sp[i] = (o.speed || 1.35) * (0.8 + 0.4 * r()); ph[i] = r() * 50; sc[i] = 0.92 + r() * 0.16; idle[i] = r() * 4;
+    }
+    // DRIVEN (2 November 2026, the Uprising Simulator's street movement, build/uprising-street.js): with o.driven the crowd
+    // never steers itself. The caller writes each figure's place (px, pz), heading, speed in metres a second (spd: 0 =
+    // standing, so it chants or strikes by its kind) and size (vs: 0 hides it); update() only swings the limbs and writes
+    // the matrices. Without o.driven nothing below changes.
+    const spd = new Float32Array(count), vs = new Float32Array(count).fill(1);
+    if (o.driven) {
+      // only the figures up to the last one shown are drawn: a hidden figure costs no triangles (the phone budget, 2 Nov 2026)
+      const top = new Int32Array(meshes.length), cap0 = meshes.map(m => m.mesh.count);
+      const upd = function (dt, t) {
+        dt = Math.min(dt || 0, 0.1); top.fill(0);
+        for (let i = 0; i < count; i++) if (vs[i] > 0) { const q = mi[i]; if (li[i] + 1 > top[q]) top[q] = li[i] + 1; }
+        for (let q = 0; q < meshes.length; q++) meshes[q].mesh.count = Math.min(cap0[q], top[q]);
+        for (let i = 0; i < count; i++) {
+          if (!(vs[i] > 0) && li[i] >= top[mi[i]]) continue;
+          const v = spd[i];
+          if (v > 0.15) { const ta = 0.55 * Math.min(1, v / 1.1); amp[i] += (ta - amp[i]) * Math.min(1, dt * 6); ph[i] += Math.min(v, 6) * dt * 4.4; up[i] += (0 - up[i]) * Math.min(1, dt * 5); }
+          else {
+            amp[i] += (0 - amp[i]) * Math.min(1, dt * 4);
+            let tu = 0; if (mode[i] === 1) tu = Math.sin(t * 0.8 + i * 1.7) > 0.15 ? 1 : 0; else if (mode[i] === 2) tu = Math.sin(t * 1.9 + i * 2.3) > 0.55 ? 1 : 0;
+            up[i] += (tu - up[i]) * Math.min(1, dt * 4); ph[i] += dt * (mode[i] === 1 ? 5.5 : 4);
+          }
+          const m = meshes[mi[i]], j = li[i], te = m.mesh.instanceMatrix.array, k16 = j * 16, s = sc[i] * vs[i], c = Math.cos(hd[i]) * s, sn = Math.sin(hd[i]) * s;
+          te[k16] = c; te[k16 + 1] = 0; te[k16 + 2] = -sn; te[k16 + 3] = 0; te[k16 + 4] = 0; te[k16 + 5] = s; te[k16 + 6] = 0; te[k16 + 7] = 0;
+          te[k16 + 8] = sn; te[k16 + 9] = 0; te[k16 + 10] = c; te[k16 + 11] = 0; te[k16 + 12] = px[i]; te[k16 + 13] = Math.abs(Math.sin(ph[i])) * 0.06 * amp[i] * vs[i]; te[k16 + 14] = pz[i]; te[k16 + 15] = 1;
+          const aa = m.ia.array; aa[j * 3] = ph[i]; aa[j * 3 + 1] = amp[i]; aa[j * 3 + 2] = up[i];
+        }
+        for (let q = 0; q < meshes.length; q++) { meshes[q].mesh.instanceMatrix.needsUpdate = true; meshes[q].ia.needsUpdate = true; }
+      };
+      upd(0, 0);
+      return { mesh: group, setTargets: () => { }, update: upd, px, pz, heading: hd, spd, vs, kind: kindOf, count, driven: true };
     }
     let tgtSpread = spread;
     function setTargets(points, spr) {
@@ -660,6 +694,52 @@ export default function register(K) {
     grp.add(plate(K.emblem(id, 256), w, w * 4 / 7, x + w / 2 + 0.05, h - w * 2 / 7 - 0.1, z, 0, { double: true, name: 'flag' }));
   }
   function greenFlag(L, x, y, z, h) { CY(L.metal, 0.04, h, 0x8a8f94, x, y, z, 5); B(L.solid, 0.02, 0.7, 1.1, 0x17803d, x, y + h - 0.75, z + 0.56); }
+
+  // ---- marks that read FROM ABOVE: the board looks down on these places from far away, so whose a place is must show on its roof or its ground.
+  // MARK[id] = [field, rim], the force's colours. roofMark lays a flat roundel in plain geometry (it survives uprising.js's phone flattener, which
+  // bakes every mesh to vertex colour) and the emblem texture over it. The texture decal is NAMED 'glowAdd' ON PURPOSE: that flattener skips meshes
+  // of that name (so a phone shows the coloured roundel, not a white square) and K.make's size fit ignores it, as it should for a decal.
+  const MARK = { irgc: [0x0f4a24, 0xd9a640], basij: [0xf4f4f0, 0x17803d], faraja: [0x0d5a35, 0xf2f2ee], artesh: [0x151515, 0xd9a640] };
+  function decal(grp, tex, w, h, x, y, z, rx, ry) {
+    const m = new T.Mesh(new T.PlaneGeometry(w, h), matTex(tex)); m.position.set(x, y, z); m.rotation.set(rx || 0, ry || 0, 0, 'YXZ');
+    m.name = 'glowAdd'; m.castShadow = false; m.receiveShadow = true; grp.add(m); return m;
+  }
+  function roofMark(L, grp, id, d, x, y, z, ry) {
+    const [f, e] = MARK[id];
+    add(L.solid, P.cyl(d * 0.57, d * 0.57, 0.1, 20), e, [x, y + 0.05, z]);
+    add(L.solid, P.cyl(d * 0.5, d * 0.5, 0.16, 20), f, [x, y + 0.08, z]);
+    decal(grp, K.emblem(id, 512), d * 0.98, d * 0.98, x, y + 0.24, z, -HP, ry || 0);
+  }
+  // a wall in x/y with an arched opening, extruded along z (the gate portals)
+  function portalGeo(w, h, d, aw, ah) {
+    const s = new T.Shape(), hw = aw / 2, sp = ah - aw * 0.55;
+    s.moveTo(-w / 2, 0); s.lineTo(-hw, 0); s.lineTo(-hw, sp); s.quadraticCurveTo(-hw, ah - aw * 0.12, 0, ah); s.quadraticCurveTo(hw, ah - aw * 0.12, hw, sp);
+    s.lineTo(hw, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.closePath();
+    return shapeGeo(s, d, 5);
+  }
+  // a big flag that reads from above: a geometry flag (the phone flattener keeps it) under the textured one (front and back faces)
+  const FLAGF = { iri: [0x239f40, 0xffffff, 0xda0000], irgcflag: [0x0f5a2a], basijflag: [0x17803d], farajaflag: [0x0f6a43], arteshflag: [0x4b5a2a] };
+  function bigFlag(grp, L, id, x, z, h, w, ry) {
+    const fh = w * 4 / 7, cols = FLAGF[id] || [0x777777];
+    into(L, (t) => {
+      CY(t.metal, 0.09, h, 0xc9cdd1, 0, 0, 0, 6); add(t.metal, P.sphere(0.16, 6, 4), IR.gold, [0, h + 0.12, 0]);
+      cols.forEach((c, i) => B(t.solid, w, fh / cols.length, 0.04, c, w / 2 + 0.1, h - 0.15 - fh + fh * (cols.length - 1 - i) / cols.length, 0));
+    }, x, 0, z, ry || 0);
+    const cx = x + Math.cos(ry || 0) * (w / 2 + 0.1), cz = z - Math.sin(ry || 0) * (w / 2 + 0.1), y = h - 0.15 - fh / 2, tex = K.emblem(id, 256);
+    for (const k of [1, -1]) decal(grp, tex, w, fh, cx + Math.sin(ry || 0) * 0.06 * k, y, cz + Math.cos(ry || 0) * 0.06 * k, 0, (ry || 0) + (k < 0 ? PI : 0));
+  }
+  // a light 125cc motorbike for the sites (the full one is 340 triangles; this is about 90)
+  function bikeLite(L, col) {
+    for (const z of [0.64, -0.62]) add(L.solid, P.cyl(0.3, 0.3, 0.09, 7), IR.rubber, [0, 0.3, z], [0, 0, HP]);
+    B(L.solid, 0.26, 0.3, 0.62, col, 0, 0.42, 0.12); B(L.solid, 0.24, 0.1, 0.62, 0x161616, 0, 0.72, -0.3);
+    B(L.metal, 0.06, 0.6, 0.06, IR.chrome, 0, 0.42, 0.58, 0, -0.35); B(L.metal, 0.7, 0.04, 0.04, 0x2a2c2f, 0, 1.0, 0.48);
+  }
+  // a tank (Zulfiqar / T-72 class): tracks, hull, turret, the long gun
+  function tankParts(L, col) {
+    B(L.solid, 3.5, 0.75, 6.9, 0x2c2c28, 0, 0.05, 0); B(L.solid, 3.3, 0.7, 6.5, col, 0, 0.75, 0);
+    add(L.solid, P.cyl(1.2, 1.45, 0.8, 8), col, [0, 1.85, -0.4]); B(L.solid, 0.5, 0.3, 0.6, 0x3a3a33, 0.6, 2.25, -0.6);
+    add(L.metal, P.cyl(0.09, 0.11, 4.8, 6), 0x4a4a3c, [0, 1.95, 2.9], [HP, 0, 0]);
+  }
 
   function bHouse(o) {
     const L = K.lists(), r = rng(11 + (o.variant === 'stone' ? 5 : 0)), W = 10, D = 13, fl = 3, fh = 3.1, H = fl * fh + 0.4, wall = o.variant === 'stone' ? IR.stone : IR.brick;
@@ -979,12 +1059,25 @@ export default function register(K) {
       const ny = (Bp[1] - A[1]) * (Cp[0] - A[0]) - (Bp[0] - A[0]) * (Cp[1] - A[1]);
       if (ny >= 0) push(A[0], h, A[1], Bp[0], h, Bp[1], Cp[0], h, Cp[1], rc); else push(A[0], h, A[1], Cp[0], h, Cp[1], Bp[0], h, Bp[1], rc);
     });
-    if (Math.abs(area) / 2 > 40) {
+    // the Tehran roof from above: the water tank, and on bigger roofs the stair-head (kharposhteh) and the evaporative cooler, each only
+    // where it stands wholly inside the footprint (10 triangles a box)
+    const rArea = Math.abs(area) / 2;
+    if (rArea > 40) {
       let cx = 0, cz = 0; pts.forEach((p) => { cx += p[0]; cz += p[1]; }); cx /= n; cz /= n;
-      const tc = _ca.setHex((Math.abs(hash) >> 3) % 3 === 0 ? IR.tankB : IR.tankW), s = 0.6, y0 = h, y1 = h + 1.3;
-      const c4 = [[cx - s, cz - s], [cx + s, cz - s], [cx + s, cz + s], [cx - s, cz + s]];
-      for (let i = 0; i < 4; i++) quad(c4[i], c4[(i + 1) % 4], y0, y1, tc);
-      push(c4[0][0], y1, c4[0][1], c4[2][0], y1, c4[2][1], c4[1][0], y1, c4[1][1], tc); push(c4[0][0], y1, c4[0][1], c4[3][0], y1, c4[3][1], c4[2][0], y1, c4[2][1], tc);
+      const inside = (x, z) => { let c = false; for (let i = 0, j = n - 1; i < n; j = i++) { const a = pts[i], b = pts[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+      const box = (x, z, sx, sz, y1, col) => {
+        const c4 = [[x - sx, z - sz], [x + sx, z - sz], [x + sx, z + sz], [x - sx, z + sz]];
+        if (!c4.every((q) => inside(q[0], q[1]))) return;
+        for (let i = 0; i < 4; i++) quad(c4[i], c4[(i + 1) % 4], h, y1, col);
+        push(c4[0][0], y1, c4[0][1], c4[2][0], y1, c4[2][1], c4[1][0], y1, c4[1][1], col); push(c4[0][0], y1, c4[0][1], c4[3][0], y1, c4[3][1], c4[2][0], y1, c4[2][1], col);
+      };
+      box(cx, cz, 0.6, 0.6, h + 1.3, _ca.setHex((Math.abs(hash) >> 3) % 3 === 0 ? IR.tankB : IR.tankW));
+      if (rArea > 80) {
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; pts.forEach((p) => { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); });
+        const alongX = x1 - x0 >= z1 - z0, off = (alongX ? x1 - x0 : z1 - z0) * 0.27;
+        box(cx - (alongX ? off : 0), cz - (alongX ? 0 : off), 1.2, 1.35, h + 2.5, _ca.setHex(wall).offsetHSL(0, -0.04, 0.06));
+        if (rArea > 140) box(cx + (alongX ? off : 0), cz + (alongX ? 0 : off), 0.55, 0.55, h + 1.0, _ca.setHex(IR.cooler));
+      }
     }
   }
   function arraysToMesh(p, c) {
@@ -1061,106 +1154,151 @@ export default function register(K) {
   }
 
   // ================================================================ 5. THE REGIME'S PLACES
+  // a Basij resistance base (paygah-e moghavemat): most of them sit in or beside a neighbourhood mosque. The mosque with its tiled dome and
+  // minaret, the base's two-storey block hung with green banners and the Basij emblem (and its white-and-green roundel on the roof, for the
+  // board's view from above), the green sign over the gate, and the members' motorbikes parked in a row in the yard
   function bBasijBase(o) {
     const L = K.lists(), grp = new T.Group(), W = 30, D = 24, h = 2.8, r = rng(101);
     compound(L, W, D, h, 0.35, 0xd6ccb6, 4.4, 0x17803d);
     for (const sx of [-1, 1]) { B(L.solid, 0.9, 3.6, 0.9, 0xc9bea7, sx * 2.65, 0, D / 2); }
     Q(L.metal, 2.1, 2.5, 0x1f6b3a, -1.08, 1.3, D / 2 + 0.03); Q(L.metal, 2.1, 2.5, 0x1f6b3a, 1.08, 1.3, D / 2 + 0.03);
     B(L.solid, 6.2, 0.25, 0.4, 0xc9bea7, 0, 3.6, D / 2);
-    B(L.solid, 14, 6.4, 8, IR.plaster, -4, 0, -4); wins(L, 'f', 14, 8, -4, -4, 0, 2, 3.2, 4, 1.4, 1.4, r, 0.15);
-    B(L.solid, 14.3, 0.4, 8.3, 0x17803d, -4, 6.4, -4);
-    B(L.solid, 8, 5, 8, IR.brick, 8, 0, -6); CY(L.solid, 2.6, 1.2, IR.tile, 8, 5, -6, 10); add(L.solid, onion(2.6, 4.2), IR.tile, [8, 6.2, -6]);
-    add(L.metal, P.cyl(0.05, 0.05, 1, 4), IR.gold, [8, 10.8, -6]);
-    minaret(L, 12.2, -9.4, 11, IR.tileLight, IR.tile, false);
+    // the base block
+    B(L.solid, 13, 6.4, 8, IR.plaster, -7.5, 0, -4); wins(L, 'f', 13, 8, -7.5, -4, 0, 2, 3.2, 4, 1.4, 1.4, r, 0.15);
+    B(L.solid, 13.3, 0.4, 8.3, 0x17803d, -7.5, 6.4, -4); roofMark(L, grp, 'basij', 6.2, -7.5, 6.8, -4);
+    for (const x of [-12.6, -2.4]) { B(L.solid, 1.3, 4.6, 0.06, 0x17803d, x, 1.2, 0.03); B(L.solid, 1.3, 0.5, 0.07, 0xf2f2ee, x, 4.9, 0.03); }
+    B(L.solid, 5.6, 1.0, 0.06, 0x111111, -7.5, 5.15, 0.03);
+    // the mosque: prayer hall, drum and tiled dome, the iwan to the yard, one minaret
+    B(L.solid, 12, 6.5, 12, IR.brick, 7.5, 0, -5); B(L.solid, 12.2, 0.6, 12.2, IR.tileDeep, 7.5, 6.0, -5);
+    CY(L.solid, 3.9, 1.6, IR.tile, 7.5, 6.5, -5, 12); add(L.solid, onion(4.0, 6.0), IR.tile, [7.5, 8.1, -5]);
+    add(L.metal, P.cyl(0.06, 0.06, 1.4, 4), IR.gold, [7.5, 14.7, -5]);
+    B(L.solid, 6.4, 8.4, 1.6, IR.brick, 7.5, 0, 1.6); B(L.solid, 4.8, 6.6, 0.08, IR.tile, 7.5, 0.4, 2.42); add(L.solid, arch(3.4, 5.6, 0.1), 0x1b2a3d, [7.5, 0, 2.47]);
+    minaret(L, 12.4, 3.4, 14, IR.tileLight, IR.tile, false);
+    // the yard: motorbikes in a row, the green flags along the wall, the loudspeakers
+    for (let i = 0; i < 5; i++) into(L, (t) => bikeLite(t, [0x2a2a2e, 0x7a1d1d, 0x1d1f24][i % 3]), -12 + i * 1.3, 0, 6.4, PI * 0.5 + (i % 2) * 0.12);
     for (const x of [-12, -6, 6, 12]) greenFlag(L, x, h, D / 2, 3.4);
-    flagPole(grp, L, 'basijflag', -10, -9, 9, 2.4);
-    CY(L.metal, 0.06, 7, 0x6a6e72, -13, 0, -10, 5); for (const ry of [0, PI / 2]) add(L.solid, P.cone(0.3, 0.6, 6), 0xd8d8d0, [-13, 6.6, -10 + (ry ? 0 : 0.3)], [HP, ry, 0]);
+    bigFlag(grp, L, 'basijflag', -2, 4.6, 11, 3.4); bigFlag(grp, L, 'iri', -2, 8.6, 9, 2.8);
+    CY(L.metal, 0.06, 7, 0x6a6e72, -14, 0, -10, 5); for (const ry of [0, PI / 2]) add(L.solid, P.cone(0.3, 0.6, 6), 0xd8d8d0, [-14, 6.6, -10 + (ry ? 0 : 0.3)], [HP, ry, 0]);
     grp.add(K.group(L, o.team, 'basij_base'));
     grp.add(plate(boardTex('basijboard', { bg: '#17803d', fg: '#ffffff', border: '#ffffff', em: 'basij', both: true, lines: [['پایگاه مقاومت بسیج', 46]] }), 6, 1.5, 0, 4.6, D / 2 + 0.25, 0, { name: 'sign' }));
-    grp.add(emPlate('basij', 3.0, -4, 4.4, 0.04, 0));
+    grp.add(emPlate('basij', 3.2, -7.5, 3.6, 0.07, 0));
     return grp;
   }
+  // IRGC (Sepah) garrison: GREEN is its colour from above (wall tops, roofs, the parade ground's painted emblem); its gate is a tall arched
+  // portal in stone and green tile carrying the Sepah emblem, flanked by the force's flag. (The Artesh barracks below is sand and khaki, with a
+  // flat canopy gate, a tank on a plinth and a tank park, so the two never share a silhouette.)
   function bIrgcBase(o) {
-    const L = K.lists(), grp = new T.Group(), W = 110, D = 80, h = 4.2, r = rng(111);
+    const L = K.lists(), grp = new T.Group(), W = 110, D = 80, h = 4.2, r = rng(111), G = 0x2f6b3a, stone = 0xe0d6bf;
     B(L.solid, W, 0.1, D, 0x6e6a5c, 0, 0, 0);
-    compound(L, W, D, h, 0.8, 0xcfc5ae, 14, 0x2f6b3a);
+    compound(L, W, D, h, 0.8, 0xcfc5ae, 16, G);
     for (const [x, z] of [[-W / 2, -D / 2], [W / 2, -D / 2], [-W / 2, D / 2], [W / 2, D / 2], [-W / 2, 0], [W / 2, 0], [0, -D / 2]]) watchtower(L, x, z, 8);
-    // the gate: two pylons and the lintel that carries the emblem
-    for (const sx of [-1, 1]) { B(L.solid, 3.2, 9, 3.2, 0xd8d0bd, sx * 8.6, 0, D / 2); B(L.solid, 3.6, 0.6, 3.6, 0x2f6b3a, sx * 8.6, 9, D / 2); }
-    B(L.solid, 20.4, 3.2, 3.0, 0xd8d0bd, 0, 9.6, D / 2); B(L.solid, 20.8, 0.5, 3.4, 0x2f6b3a, 0, 12.8, D / 2);
-    B(L.solid, 4.6, 4.6, 0.5, 0x2f6b3a, 0, 13.3, D / 2);
-    B(L.solid, 14, 0.18, 0.2, 0xd0261c, 0, 1.0, D / 2 + 3.5); for (let i = 0; i < 7; i++) B(L.solid, 1.0, 0.2, 0.22, 0xf2f2ee, -6 + i * 2, 1.0, D / 2 + 3.5);
-    B(L.solid, 0.4, 1.2, 0.4, 0xf2f2ee, -7.2, 0, D / 2 + 3.5);
-    B(L.solid, 4.4, 3.2, 4.4, 0xe2dccb, 13, 0, D / 2 - 3); B(L.solid, 4.5, 1.1, 4.5, IR.glass, 13, 1.4, D / 2 - 3); B(L.solid, 5.4, 0.3, 5.4, 0x2f6b3a, 13, 3.2, D / 2 - 3);
-    for (let i = 0; i < 9; i++) B(L.solid, 0.9, 0.55, 0.6, 0xa89a72, -4 + i * 0.9 - 6, 0, D / 2 + 6 + (i % 2) * 0.1);
-    // inside: HQ, barracks, parade ground, motor pool
+    // the gate: the arched portal, green tile in the spandrels and the crown, the emblem over the arch
+    const PW = 24, PH = 19, PD = 3.4, AW = 9, AH = 11;
+    add(L.solid, portalGeo(PW, PH, PD, AW, AH), stone, [0, 0, D / 2]);
+    B(L.solid, PW + 0.4, 1.4, PD + 0.4, G, 0, PH, D / 2); B(L.solid, PW + 0.8, 0.3, PD + 0.8, 0x24552e, 0, PH + 1.4, D / 2); B(L.solid, PW + 0.8, 0.22, 0.2, IR.gold, 0, PH + 1.45, D / 2 + PD / 2 + 0.32);
+    for (const sx of [-1, 1]) { B(L.solid, 6.6, 9.6, 0.1, G, sx * 8.0, 8.4, D / 2 + PD / 2 + 0.02); B(L.solid, 1.2, PH, PD + 0.6, 0xd2c6aa, sx * (PW / 2 - 0.4), 0, D / 2); }
+    B(L.solid, 9.2, 8.0, 0.1, G, 0, 11.0, D / 2 + PD / 2 + 0.02);
+    B(L.solid, 14, 0.18, 0.2, 0xd0261c, 0, 1.0, D / 2 + 4.5); for (let i = 0; i < 7; i++) B(L.solid, 1.0, 0.2, 0.22, 0xf2f2ee, -6 + i * 2, 1.0, D / 2 + 4.5);
+    B(L.solid, 0.4, 1.2, 0.4, 0xf2f2ee, -7.2, 0, D / 2 + 4.5);
+    B(L.solid, 4.4, 3.2, 4.4, 0xe2dccb, 15, 0, D / 2 - 3.5); B(L.solid, 4.5, 1.1, 4.5, IR.glass, 15, 1.4, D / 2 - 3.5); B(L.solid, 5.4, 0.3, 5.4, G, 15, 3.2, D / 2 - 3.5);
+    for (let i = 0; i < 9; i++) B(L.solid, 0.9, 0.55, 0.6, 0xa89a72, -4 + i * 0.9 - 6, 0, D / 2 + 7 + (i % 2) * 0.1);
+    // inside: the HQ with the emblem on its roof, green-roofed barracks, the parade ground with the emblem painted on it, the motor pool
     B(L.solid, 32, 12, 13, 0xd2c9b3, 0, 0, -20); wins(L, 'f', 32, 13, 0, -20, 0, 3, 3.8, 9, 1.6, 1.8, r, 0.12);
-    B(L.solid, 32.4, 0.5, 13.4, 0x2f6b3a, 0, 12, -20);
-    for (let i = 0; i < 3; i++) { const z = -28 + i * 15; B(L.solid, 30, 7, 9, 0xcbc2aa, -34, 0, z); wins(L, 'f', 30, 9, -34, z, 0, 2, 3.4, 8, 1.4, 1.4, r, 0.12); Q(L.solid, 1.4, 2.2, 0x3a2e24, -34, 1.1, z + 4.53, 0); add(L.solid, P.profile([[-4.7, 0], [0, 1.6], [4.7, 0]], 30.4), 0x8a5a3a, [-34, 7, z]); }
-    B(L.solid, 40, 0.14, 26, 0x45474a, 6, 0, 14);
-    for (let i = 0; i < 5; i++) B(L.solid, 0.3, 0.16, 22, 0xe8e2c8, -10 + i * 8, 0, 14);
-    B(L.solid, 26, 0.3, 14, 0x6f736f, 40, 6, 16); for (const [x, z] of [[28, 10], [52, 10], [28, 22], [52, 22]]) CY(L.metal, 0.2, 6, 0x6a6e72, x, 0, z, 5);
-    for (let i = 0; i < 3; i++) into(L, (t) => truckParts(t, IR.irgc), 32 + i * 7, 0, 16, 0);
-    for (let i = 0; i < 2; i++) into(L, (t) => pickupParts(t, null, 0xe9e9e4), 34 + i * 6, 0, 30, PI);
-    for (let i = 0; i < 6; i++) tree(L, -48 + i * 4, 32, 7, 'pine');
-    for (const x of [-30, 30]) greenFlag(L, x, h, D / 2, 4);
-    flagPole(grp, L, 'iri', -3, -12.5, 16, 3.6); flagPole(grp, L, 'irgcflag', 3, -12.5, 16, 3.6);
+    B(L.solid, 32.4, 0.5, 13.4, G, 0, 12, -20); roofMark(L, grp, 'irgc', 10.5, 0, 12.5, -20);
+    for (let i = 0; i < 3; i++) { const z = -28 + i * 15; B(L.solid, 30, 7, 9, 0xcbc2aa, -34, 0, z); wins(L, 'f', 30, 9, -34, z, 0, 2, 3.4, 8, 1.4, 1.4, r, 0.12); Q(L.solid, 1.4, 2.2, 0x3a2e24, -34, 1.1, z + 4.53, 0); add(L.solid, P.profile([[-4.7, 0], [0, 1.6], [4.7, 0]], 30.4), 0x3d6b3f, [-34, 7, z]); }
+    B(L.solid, 40, 0.14, 26, 0x45474a, 6, 0, 14); roofMark(L, grp, 'irgc', 19, 6, 0.14, 14);
+    for (const sx of [-1, 1]) B(L.solid, 0.4, 0.16, 26, 0xe8e2c8, 6 + sx * 19.6, 0, 14);
+    B(L.solid, 26, 0.3, 14, 0x55705a, 40, 6, -16); for (const [x, z] of [[28, -22], [52, -22], [28, -10], [52, -10]]) CY(L.metal, 0.2, 6, 0x6a6e72, x, 0, z, 5);
+    for (let i = 0; i < 3; i++) into(L, (t) => truckParts(t, IR.irgc), 32 + i * 7, 0, -16, 0);
+    for (let i = 0; i < 2; i++) into(L, (t) => pickupParts(t, null, 0xe9e9e4), 34 + i * 6, 0, 32, PI);
+    for (let i = 0; i < 5; i++) tree(L, -48 + i * 4, 32, 7, 'pine');
+    bigFlag(grp, L, 'irgcflag', -PW / 2 - 2, D / 2 + 2, 17, 6.2, PI); bigFlag(grp, L, 'iri', PW / 2 + 2, D / 2 + 2, 17, 6.2);
+    bigFlag(grp, L, 'iri', -3, -12.5, 18, 5); bigFlag(grp, L, 'irgcflag', 3, -12.5, 18, 5);
     grp.add(K.group(L, o.team, 'irgc_base'));
-    grp.add(emPlate('irgc', 4.2, 0, 15.6, D / 2 + 0.31, 0));
-    grp.add(emPlate('irgc', 4.2, 0, 15.6, D / 2 - 0.31, PI));
-    grp.add(emPlate('irgc', 2.9, 0, 11.2, D / 2 - 1.53, PI));
+    grp.add(emPlate('irgc', 6.4, 0, 14.6, D / 2 + PD / 2 + 0.1, 0));
+    grp.add(emPlate('irgc', 5.0, 0, 14.6, D / 2 - PD / 2 - 0.05, PI));
     grp.add(emPlate('irgc', 5.5, 0, 9.6, -20 + 6.53, 0));
-    grp.add(plate(boardTex('irgcboard', { bg: '#0f4a24', fg: '#f2c14e', border: '#d9a640', em: 'irgc', both: true, lines: [['سپاه پاسداران انقلاب اسلامی', 40]] }), 11, 2.75, 0, 11.2, D / 2 + 1.53, 0, { name: 'sign' }));
+    grp.add(plate(boardTex('irgcboard', { bg: '#0f4a24', fg: '#f2c14e', border: '#d9a640', lines: [['سپاه پاسداران انقلاب اسلامی', 40]] }), PW - 1, 1.3, 0, PH + 0.7, D / 2 + PD / 2 + 0.24, 0, { name: 'sign' }));
     return grp;
   }
+  // the police roof sign, read from above: FARAJA green, a white border, the shield, پلیس and the emergency number ۱۱۰
+  const policeRoofTex = () => canvasTex('policeroof', 512, 256, (g, w, h) => {
+    g.fillStyle = '#0d5a35'; g.fillRect(0, 0, w, h); g.strokeStyle = '#f2f2ee'; g.lineWidth = 14; g.strokeRect(10, 10, w - 20, h - 20);
+    g.drawImage(K.emblem('faraja', 256).image, w - 200, 40, 168, 168);
+    rtl(g, 'پلیس', 170, 104, 118, '#ffffff'); rtl(g, '۱۱۰', 170, 200, 64, '#ffd21f');
+  });
+  // FARAJA kalantari: a white stone station with green bands, the green signboard across its front (کلانتری and the number), the shield either
+  // side, patrol cars and a police motorbike at the kerb, the flag and the force's flag, and the green roof sign that the board sees from above
   function bFarajaStation(o) {
-    const L = K.lists(), grp = new T.Group(), W = 22, D = 12, fl = 3, fh = 3.4, H = fl * fh + 0.5, r = rng(121), lb = K.lists(), lr = K.lists();
+    const L = K.lists(), grp = new T.Group(), W = 22, D = 12, fl = 3, fh = 3.4, H = fl * fh + 0.5, r = rng(121);
     B(L.solid, W, H, D, IR.policeW, 0, 0, 0);
     for (let f = 0; f < fl; f++) B(L.solid, W + 0.1, 0.45, D + 0.1, IR.police, 0, f * fh + 0.05, 0);
-    B(L.solid, W + 0.5, 0.7, D + 0.5, IR.police, 0, H, 0);
+    B(L.solid, W + 0.5, 0.7, D + 0.5, IR.police, 0, H, 0); B(L.solid, W - 0.6, 0.2, D - 0.6, 0xb9bab4, 0, H + 0.6, 0);
     wins(L, 'f', W, D, 0, 0, 0.4, fl, fh, 6, 1.5, 1.6, r, 0.15); wins(L, 'b', W, D, 0, 0, 0.4, fl, fh, 6, 1.5, 1.6, r, 0.1);
     B(L.solid, 6, 0.3, 3, IR.police, 0, 3.1, D / 2 + 1.5); for (const sx of [-1, 1]) CY(L.metal, 0.12, 3.1, 0xd9dcdf, sx * 2.8, 0, D / 2 + 2.8, 6);
     Q(L.glass, 2.4, 2.6, 0x30475a, 0, 1.3, D / 2 + 0.06);
     for (const sx of [-1, 1]) { B(L.solid, 9, 0.8, 0.3, IR.policeW, sx * 6.8, 0, D / 2 + 9); B(L.metal, 9, 0.06, 0.06, 0x2f6b4a, sx * 6.8, 1.75, D / 2 + 9); for (let i = 0; i < 10; i++) B(L.metal, 0.05, 0.98, 0.05, 0x2f6b4a, sx * 6.8 - 4.3 + i * 0.95, 0.8, D / 2 + 9); }
     B(L.solid, 0.4, 1.1, 0.4, IR.police, -2.2, 0, D / 2 + 9); B(L.solid, 4.2, 0.12, 0.12, 0xf2f2ee, 0, 1.0, D / 2 + 9); for (let i = 0; i < 4; i++) B(L.solid, 0.5, 0.13, 0.13, 0xd0261c, -1.6 + i * 1.05, 1.0, D / 2 + 9);
-    CY(L.metal, 0.06, 6, 0x9aa0a5, W / 2 - 1.5, H, -D / 2 + 1.5, 4);
+    // the roof: the radio mast, the green roof sign (geometry under the textured sign, for the phone flattener)
+    CY(L.metal, 0.06, 7, 0x9aa0a5, W / 2 - 1.5, H, -D / 2 + 1.5, 4); B(L.metal, 1.2, 0.06, 0.06, 0x9aa0a5, W / 2 - 1.5, H + 6.2, -D / 2 + 1.5);
+    B(L.solid, 15.2, 0.1, 7.8, 0xf2f2ee, -1, H + 0.8, 0.2); B(L.solid, 14.4, 0.16, 7.0, 0x0d5a35, -1, H + 0.8, 0.2);
+    decal(grp, policeRoofTex(), 14.4, 7.2, -1, H + 1.02, 0.2, -HP);
+    // the kerb: two Peugeot Pars patrol cars and a police motorbike
     into(L, (t) => policeCarParts(t), -6.5, 0, D / 2 + 5, HP * 0.9); into(L, (t) => policeCarParts(t), 7, 0, D / 2 + 5.4, -HP * 1.1);
-    flagPole(grp, L, 'iri', -W / 2 - 2, D / 2 + 2, 10, 2.8); flagPole(grp, L, 'farajaflag', -W / 2 - 2, D / 2 + 5, 8.5, 2.4);
+    into(L, (t) => bikeLite(t, 0xf2f2ee), 3.4, 0, D / 2 + 3.6, 0.3);
+    bigFlag(grp, L, 'iri', -W / 2 - 2, D / 2 + 2, 11, 3.6); bigFlag(grp, L, 'farajaflag', -W / 2 - 2, D / 2 + 5.5, 9.5, 3.2);
     B(L.glow, 0.5, 0.25, 0.25, 0x2f6bff, -1.6, 3.4, D / 2 + 2.9); B(L.glow, 0.5, 0.25, 0.25, 0xff2a2a, 1.6, 3.4, D / 2 + 2.9);
     grp.add(K.group(L, o.team, 'faraja_station'));
-    grp.add(plate(boardTex('farajaboard', { bg: '#0f6a43', fg: '#ffffff', border: '#ffffff', em: 'faraja', both: true, lines: [['کلانتری ۱۲۰', 50], ['پلیس', 30, '#e8f2ea']] }), 8, 2, 0, 4.6, D / 2 + 0.08, 0, { name: 'sign' }));
-    grp.add(emPlate('faraja', 2.4, -7, H - 1.7, D / 2 + 0.06, 0));
-    grp.add(emPlate('faraja', 2.4, 7, H - 1.7, D / 2 + 0.06, 0));
+    grp.add(plate(boardTex('farajaboard2', { w: 1024, h: 160, bg: '#0f6a43', fg: '#ffffff', border: '#ffffff', em: 'faraja', both: true, lines: [['کلانتری ۱۲۰', 76], ['پلیس پیشگیری فراجا', 34, '#e8f2ea']] }), 14, 2.2, 0, 4.85, D / 2 + 0.08, 0, { name: 'sign' }));
+    grp.add(emPlate('faraja', 2.6, -8.6, H - 1.8, D / 2 + 0.06, 0));
+    grp.add(emPlate('faraja', 2.6, 8.6, H - 1.8, D / 2 + 0.06, 0));
     return grp;
   }
+  // Artesh (the regular army) garrison, padegan: SAND AND KHAKI from above, long flat-roofed barracks, a tank park, a parade ground with the
+  // Artesh emblem painted on it, and the classic garrison entrance: a flat concrete canopy on columns and a tank on a plinth beside the gate.
   function bArteshBarracks(o) {
-    const L = K.lists(), grp = new T.Group(), W = 90, D = 64, h = 3.6, r = rng(131);
-    B(L.solid, W, 0.1, D, 0x77735f, 0, 0, 0);
-    compound(L, W, D, h, 0.7, 0xc7bd9e, 12, 0x6d6a4b);
-    for (const sx of [-1, 1]) { B(L.solid, 2.6, 7, 2.6, 0xc9bf9f, sx * 7.4, 0, D / 2); B(L.solid, 3.0, 0.5, 3.0, IR.arteshDark, sx * 7.4, 7, D / 2); }
-    B(L.solid, 17.4, 2.4, 2.4, 0xc9bf9f, 0, 7.5, D / 2); B(L.solid, 3.6, 3.6, 0.5, IR.arteshDark, 0, 9.9, D / 2);
-    into(L, (t) => { for (let i = 0; i < 6; i++) B(t.solid, 1.62, 0.42, 1.62, [IR.flagG, 0xffffff, IR.flagR][i % 3], 0, i * 0.42, 0); B(t.solid, 1.8, 0.3, 1.8, 0x3a3a35, 0, 2.52, 0); }, 10.5, 0, D / 2 + 2.2, 0);
-    for (let i = 0; i < 4; i++) { const z = -D / 2 + 10 + i * 12; B(L.solid, 40, 6.5, 8, IR.artesh, -14, 0, z); wins(L, 'f', 40, 8, -14, z, 0, 2, 3.2, 10, 1.4, 1.3, r, 0.1); B(L.solid, 40.3, 0.4, 8.3, 0x5e5a43, -14, 6.5, z); }
-    B(L.solid, 30, 0.14, 30, 0x4a4b46, 26, 0, -6);
-    for (let i = 0; i < 2; i++) into(L, (t) => truckParts(t, IR.artesh), 20 + i * 7, 0, -12, 0);
-    into(L, (t) => { B(t.solid, 3.4, 1.0, 6.6, 0x6b6a4c, 0, 0.5, 0); B(t.solid, 3.6, 0.6, 7.0, 0x2c2c28, 0, 0.0, 0); add(t.solid, P.cyl(1.25, 1.4, 0.75, 8), 0x737253, [0, 1.85, -0.3]); add(t.metal, P.cyl(0.09, 0.09, 4.6, 6), 0x55553e, [0, 1.9, 2.5], [HP, 0, 0]); }, 34, 0, 2, -0.3);
-    flagPole(grp, L, 'iri', -2.5, -4, 14, 3.2); flagPole(grp, L, 'arteshflag', 2.5, -4, 14, 3.2);
-    for (let i = 0; i < 6; i++) tree(L, 30 + (i % 3) * 6, 18 + Math.floor(i / 3) * 6, 8, 'plane');
+    const L = K.lists(), grp = new T.Group(), W = 90, D = 64, h = 3.6, r = rng(131), sand = 0xc7bd9e, kh = 0x9a9068;
+    B(L.solid, W, 0.1, D, 0x8b8467, 0, 0, 0);
+    compound(L, W, D, h, 0.7, sand, 14, IR.arteshDark);
+    for (const [x, z] of [[-W / 2, -D / 2], [W / 2, -D / 2], [-W / 2, D / 2], [W / 2, D / 2]]) watchtower(L, x, z, 6);
+    // the gate: two columns, a long flat canopy, the emblem panel standing on it, the sentry boxes in the flag's colours
+    for (const sx of [-1, 1]) { B(L.solid, 1.4, 6.2, 1.4, 0xd9d0b2, sx * 7.6, 0, D / 2 + 1.2); B(L.solid, 1.4, 6.2, 1.4, 0xd9d0b2, sx * 7.6, 0, D / 2 - 1.6); }
+    B(L.solid, 22, 0.9, 6.4, kh, 0, 6.2, D / 2); B(L.solid, 22.2, 0.25, 6.6, IR.arteshDark, 0, 7.1, D / 2);
+    B(L.solid, 6.4, 6.4, 0.6, 0x2a2a24, 0, 7.35, D / 2 + 2.4); B(L.solid, 6.8, 0.3, 0.8, IR.gold, 0, 13.75, D / 2 + 2.4);
+    for (const sx of [-1, 1]) into(L, (t) => { for (let i = 0; i < 6; i++) B(t.solid, 1.62, 0.42, 1.62, [IR.flagG, 0xffffff, IR.flagR][i % 3], 0, i * 0.42, 0); B(t.solid, 1.8, 0.3, 1.8, 0x3a3a35, 0, 2.52, 0); }, sx * 12.5, 0, D / 2 + 2.6, 0);
+    B(L.solid, 12, 0.18, 0.2, 0xd0261c, 0, 1.0, D / 2 + 4.6); for (let i = 0; i < 6; i++) B(L.solid, 1.0, 0.2, 0.22, 0xf2f2ee, -5 + i * 2, 1.0, D / 2 + 4.6);
+    // the tank on its plinth outside the gate (a garrison's monument)
+    B(L.solid, 5.2, 1.6, 8.2, 0xd9d0b2, -19, 0, D / 2 + 6); into(L, (t) => tankParts(t, 0x6b6a4c), -19, 1.6, D / 2 + 6, 0.5);
+    // inside: four long barracks with sand-coloured flat roofs
+    for (let i = 0; i < 4; i++) { const z = -D / 2 + 9 + i * 12; B(L.solid, 40, 6.5, 8, IR.artesh, -18, 0, z); wins(L, 'f', 40, 8, -18, z, 0, 2, 3.2, 10, 1.4, 1.3, r, 0.1); B(L.solid, 40.3, 0.4, 8.3, 0xb3a77e, -18, 6.5, z); B(L.solid, 3, 1.4, 3, 0xa59a74, -30, 6.9, z); }
+    // the tank park: two rows under the open sky, the trucks beside them
+    B(L.solid, 34, 0.14, 26, 0x55554c, 24, 0, -15);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) into(L, (t) => tankParts(t, 0x6b6a4c), 12 + i * 5.2, 0, -21 + j * 11, 0);
+    for (let i = 0; i < 2; i++) into(L, (t) => truckParts(t, IR.artesh), 35 + i * 4.6, 0, -15, 0);
+    // the parade ground with the emblem, the reviewing stand, the flags
+    B(L.solid, 30, 0.14, 22, 0x57584f, 22, 0, 16); roofMark(L, grp, 'artesh', 15, 22, 0.14, 16);
+    B(L.solid, 12, 1.2, 3, sand, 22, 0, 4.5); B(L.solid, 12.4, 0.3, 3.6, IR.arteshDark, 22, 3.6, 4.5); for (const sx of [-1, 1]) B(L.solid, 0.3, 2.4, 0.3, 0x6d6a4b, 22 + sx * 5.8, 1.2, 4.0);
+    bigFlag(grp, L, 'iri', 15, 2.2, 15, 4.6); bigFlag(grp, L, 'arteshflag', 24, 2.2, 15, 4.6);
+    for (let i = 0; i < 3; i++) tree(L, 36 + i * 2.5 - 2.5, 28.5, 7, 'plane');
     grp.add(K.group(L, o.team, 'artesh_barracks'));
-    grp.add(emPlate('artesh', 3.3, 0, 11.7, D / 2 + 0.27, 0)); grp.add(emPlate('artesh', 3.3, 0, 11.7, D / 2 - 0.27, PI));
-    grp.add(plate(boardTex('arteshboard', { bg: '#4b5a2a', fg: '#f2d27a', border: '#d9a640', em: 'artesh', both: true, lines: [['پادگان ارتش جمهوری اسلامی ایران', 34]] }), 9, 2.1, 0, 8.7, D / 2 + 1.23, 0, { name: 'sign' }));
+    grp.add(emPlate('artesh', 5.6, 0, 10.55, D / 2 + 2.72, 0)); grp.add(emPlate('artesh', 5.6, 0, 10.55, D / 2 + 2.08, PI));
+    grp.add(plate(boardTex('arteshboard', { bg: '#4b5a2a', fg: '#f2d27a', border: '#d9a640', lines: [['پادگان ارتش جمهوری اسلامی', 34]] }), 21, 0.85, 0, 6.65, D / 2 + 3.22, 0, { name: 'sign' }));
     return grp;
   }
   function bCheckpoint(o) {
     const L = K.lists(), grp = new T.Group(), arm = K.lists();
     B(L.solid, 14, 0.06, 10, 0x3a3c3f, 0, 0, 0); for (let i = 0; i < 4; i++) B(L.solid, 1.6, 0.07, 0.18, 0xe8e2c8, -5.4 + i * 3.6, 0, 0);
-    B(L.solid, 2.2, 2.6, 2.2, 0xeceae4, 5.4, 0, 2.4); B(L.solid, 2.26, 0.9, 2.26, IR.glass, 5.4, 1.2, 2.4); B(L.solid, 2.6, 0.2, 2.6, 0x0f6a43, 5.4, 2.6, 2.4);
+    B(L.solid, 2.2, 2.6, 2.2, 0xeceae4, 5.4, 0, 2.4); B(L.solid, 2.26, 0.9, 2.26, IR.glass, 5.4, 1.2, 2.4); B(L.solid, 2.6, 0.2, 2.6, 0xeceae4, 5.4, 2.6, 2.4); B(L.solid, 2.64, 0.3, 2.64, 0x0f6a43, 5.4, 2.3, 2.4);
+    roofMark(L, grp, 'faraja', 2.1, 5.4, 2.8, 2.4); greenFlag(L, 6.5, 2.8, 1.3, 2.2);
+    // the Basij riders' motorbikes, parked by the booth (reports from Tehran, 2026: a checkpoint is often a few cones, a few vehicles, the bikes)
+    for (let i = 0; i < 3; i++) into(L, (t) => bikeLite(t, [0x2a2a2e, 0x1d1f24, 0x7a1d1d][i]), 2.4 + i * 1.35, 0, -3.3 - (i % 2) * 0.3, PI * 0.5 + 0.15);
     B(L.solid, 0.5, 1.15, 0.5, 0xd8d8d0, -4.6, 0, 2.6); B(L.solid, 0.5, 0.8, 0.5, 0xd8d8d0, 4.4, 0, 2.6);
     for (let i = 0; i < 8; i++) { const lit = i % 2; B(arm.solid, 1.1, 0.16, 0.14, lit ? 0xf2f2ee : 0xd0261c, 0.55 + i * 1.1, -0.08, 0); }
     for (const z of [-2.2, -4.2]) for (let i = 0; i < 3; i++) { add(L.solid, P.profile([[-0.6, 0], [-0.25, 0.8], [0.25, 0.8], [0.6, 0]], 1.9), i % 2 ? 0xd0261c : 0xeceae4, [-4.2 + i * 2.0 + (z < -3 ? 1 : 0), 0, z]); }
     for (let i = 0; i < 9; i++) { const a = -0.9 + i * 0.22; B(L.solid, 0.85, 0.42, 0.5, 0xa89a72, -6 + Math.sin(a) * 1.6, 0, 3.4 + Math.cos(a) * 1.0, a); B(L.solid, 0.85, 0.42, 0.5, 0x9f9169, -6 + Math.sin(a + 0.1) * 1.6, 0.42, 3.4 + Math.cos(a + 0.1) * 1.0, a + 0.1); }
     for (let i = 0; i < 5; i++) add(L.solid, P.cone(0.2, 0.75, 6), i % 2 ? 0xf2f2ee : 0xe8531a, [-2 + i * 1.0, 0.37, 4.2]);
     CY(L.metal, 0.05, 2.4, 0x9aa0a5, 6.8, 0, 4.2, 4);
+    bigFlag(grp, L, 'iri', 6.6, -4.4, 5.5, 1.8, PI);
     grp.add(K.group(L, o.team, 'checkpoint'));
     const ag = K.group(arm, o.team, 'arm'); ag.position.set(-4.6, 1.05, 2.6); grp.add(ag);
     grp.add(plate(boardTex('istbaz', { bg: '#d0261c', fg: '#ffffff', border: '#ffffff', lines: [['ایست بازرسی', 56], ['CHECKPOINT', 24, '#ffffff', 1]] }), 1.8, 0.9, 6.8, 2.6, 4.22, 0, { name: 'sign' }));

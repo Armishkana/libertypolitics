@@ -1,5 +1,5 @@
 /* THE CONFLICT SIMULATOR (build/wargame.py, wargame.js). Added to the end of site.css by render.py; Iran Uncensored loads it as
-   assets/scenarios.css?v=15e63d9857. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
+   assets/scenarios.css?v=ebbb7e0b98. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
    1 November 2026 (Armin: "a very high-end strategic video game look ... real video game visualizations"): THE BOARD IS THE
    PAGE. The theatre fills the first screen under the site's header, a WebGL board (wargame.js) with the command interface
    drawn over it on dark glass: the top bar, the order of battle (left), the panel (right; on a phone a bottom sheet), the
@@ -72,7 +72,7 @@
 .wg-ofr::after{left:0;background:linear-gradient(90deg,#FF6A55,#C42A1E);box-shadow:0 0 10px rgba(255,74,58,.55)}
 
 /* the camera buttons and the minimap */
-.wg-nav{position:absolute;right:420px;bottom:120px;display:flex;flex-direction:column;gap:6px;padding:6px}
+.wg-nav{position:absolute;right:420px;top:78px;display:flex;flex-direction:column;gap:6px;padding:6px}      /* 2 Nov 2026: under the top bar (the caption below grows and covered them at bottom:120px) */
 .wg-mini{position:absolute;left:10px;bottom:120px;width:200px;height:170px;padding:4px;cursor:crosshair;overflow:hidden}
 .wg-mini canvas{display:block;width:100%;height:100%;border-radius:8px}
 .wg-credit{position:absolute;right:420px;bottom:10px;margin:0;padding:0 2px;font:600 12px/1.3 var(--body);color:rgba(233,238,244,.55);pointer-events:none;text-shadow:0 1px 2px #000;display:none}
@@ -101,6 +101,7 @@
 .wg-panel{position:absolute;top:76px;right:10px;bottom:10px;width:396px;display:flex;flex-direction:column;overflow:hidden;transition:width .25s}
 .wg-panel.aar{width:min(540px,48%)}
 .wg-panel.aar~.wg-tl,.wg-panel.aar~.wg-nav{right:calc(min(540px,48%) + 24px)}
+.wg-app.aar .wg-nav{right:calc(min(540px,48%) + 24px)}.wg-app.aar .wg-legend{right:calc(min(540px,48%) + 80px)}
 .wg-grab{display:none}
 .wg-ph{display:flex;justify-content:flex-end;gap:6px;padding:8px 10px 0}
 .wg-ph:empty{display:none}
@@ -292,7 +293,7 @@
   .wg-mini,.wg-credit{display:none}
   .wg-panel{left:0;right:0;top:auto;bottom:0;width:auto;height:46%;border-radius:16px 16px 0 0;border-width:1px 0 0;transition:height .25s}
   .wg-panel.aar{width:auto}
-  .wg-panel.aar~.wg-tl{right:8px}.wg-panel.aar~.wg-nav{right:8px}
+  .wg-panel.aar~.wg-tl{right:8px}.wg-panel.aar~.wg-nav{right:8px}.wg-app.aar .wg-nav{right:8px}.wg-app.aar .wg-legend{right:60px}
   .wg-panel[data-sheet="min"]{height:178px}
   .wg-panel[data-sheet="max"]{height:calc(100% - 56px)}
   .wg-grab{display:grid;place-items:center;width:52%;height:40px;flex:none;padding:0;border:0;background:none;touch-action:none;cursor:grab}
@@ -614,3 +615,16 @@ html.lp-stream .wg .wg-top{gap:8px}
 html.lp-stream .wg .wg-modes{margin-inline-start:4px}
 html.lp-stream .wg .wg-mode{padding:0 10px}
 html.lp-stream .wg .wg-th{padding:0 9px}
+/* THE KEY (2 November 2026, the visual rebuild): what each symbol, line and colour on the board means, one tap from the board */
+.wg-legend{position:absolute;right:476px;top:78px;z-index:6;width:300px;max-width:calc(100% - 24px);max-height:calc(100% - 230px);overflow:auto;padding:10px 12px;background:var(--wg-glass2);border:1px solid var(--wg-edge2);border-radius:12px;box-shadow:0 8px 22px rgba(0,0,0,.5);color:var(--wg-ink)}
+.wg-legend[hidden]{display:none}
+.wg-leg-h{display:flex;align-items:center;justify-content:space-between;gap:8px;font:800 12px/1.2 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--wg-dim)}
+.wg-legend ul{list-style:none;margin:6px 0 0;padding:0}
+.wg-legend li{display:flex;align-items:center;gap:10px;padding:4px 0;font:600 13px/1.3 var(--body)}
+.wg-legend li svg{flex:none}
+.wg-legend p{margin:6px 0 0;font:500 12px/1.4 var(--body);color:var(--wg-dim)}
+@media (max-width:759px){.wg-legend{right:60px;top:60px;bottom:auto;width:auto;left:12px;max-height:calc(100% - 200px)}}
+.wg-moments{list-style:none;margin:6px 0 4px;padding:0;display:grid;gap:6px}
+.wg-moments button{display:flex;gap:10px;align-items:baseline;width:100%;min-height:40px;padding:8px 10px;text-align:start;background:rgba(255,255,255,.03);border:1px solid var(--wg-edge);border-radius:8px;color:var(--wg-ink);font:600 13px/1.35 var(--body);cursor:pointer}
+.wg-moments button:hover{border-color:var(--wg-edge2);background:rgba(255,255,255,.06)}
+.wg-moments b{flex:none;color:var(--wg-gold);font-weight:800}

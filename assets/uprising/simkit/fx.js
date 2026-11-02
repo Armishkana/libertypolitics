@@ -551,7 +551,10 @@ export default function makeFX(K, scene, camera, o) {
     opt = opt || {};
     const e = emitter(TRAILK, 0, 0, 0, 1, 1e9); if (!e) return { stop() {} };
     e.obj = obj; e.tk = TK[opt.kind] != null ? TK[opt.kind] : 0;
-    const w = (opt.width || (obj && obj.userData && obj.userData.size ? Math.max(0.3, Math.min(obj.userData.size[0], obj.userData.size[2]) * (obj.scale ? obj.scale.x : 1) * 0.35) : 1)) * (opt.width ? SCALE : 1);
+    // width from the body: its narrow side, but a rocket's plume is judged by its LENGTH too (a missile is a pencil; its exhaust column is not)
+    const us = obj && obj.userData && obj.userData.size, sc = obj && obj.scale ? obj.scale.x : 1;
+    const wAuto = us ? Math.max(0.3, Math.min(us[0], us[2]) * sc * 0.35, e.tk === 0 ? Math.max(us[0], us[2]) * sc * 0.075 : 0) : 1;
+    const w = (opt.width || wAuto) * (opt.width ? SCALE : 1);
     e.w = w; e.len = opt.length || w * (e.tk === 1 ? 80 : e.tk === 3 ? 30 : e.tk === 2 ? 16 : 60);
     const c = new T.Color(opt.color != null ? opt.color : e.tk === 3 ? 0xeaf2f5 : 0xffb066); e.cr = c.r; e.cg = c.g; e.cb = c.b;
     const g = e.gen;
@@ -569,7 +572,7 @@ export default function makeFX(K, scene, camera, o) {
     let s;
     if (tk === 0) {                                // the motor: a white-hot core and a plume streaming back from it
       s = P(); s.x = X; s.y = Y; s.z = Z; s.life = 1e-5; s.s0 = s.s1 = w * 1.5; col(s, 1, 0.96, 0.85); s.add = 1; s.fo = 1; spawn(s);
-      s = P(); s.x = X; s.y = Y; s.z = Z; s.life = 1e-5; s.s0 = s.s1 = w * 3.2; col(s, e.cr, e.cg, e.cb); s.a = 0.4; s.add = 1; s.fo = 1; spawn(s);
+      s = P(); s.x = X; s.y = Y; s.z = Z; s.life = 1e-5; s.s0 = s.s1 = w * 4.6; col(s, e.cr, e.cg, e.cb); s.a = 0.5; s.add = 1; s.fo = 1; spawn(s);
       s = P(); s.x = X - e.dx * w * 0.6; s.y = Y - e.dy * w * 0.6; s.z = Z - e.dz * w * 0.6; s.life = 1e-5; s.s0 = s.s1 = w * 0.9; col(s, e.cr, e.cg * 0.95, e.cb * 0.8); s.add = 1; s.fo = 1;
       s.cell = SPARK; s.sx = e.dx * w * 7; s.sy = e.dy * w * 7; s.sz = e.dz * w * 7; spawn(s);
     } else if (tk === 2) {
@@ -577,7 +580,8 @@ export default function makeFX(K, scene, camera, o) {
     }
     if (dist <= 1e-6) return;
     const gap = tk === 0 ? w * 0.7 : tk === 1 ? w * 0.55 : tk === 2 ? w * 1.1 : w * 0.4;
-    const lifeT = Math.max(tk === 3 ? 1.6 : 0.5, Math.min(tk === 1 ? 9 : 7, e.len / Math.max(e.spd, 1e-3)));
+    // a rocket's smoke hangs in the air well after the motor has passed (the launch column people film); the pool throttle still shortens it
+    const lifeT = Math.max(tk === 3 ? 1.6 : tk === 0 ? 0.6 + 1.6 * thr : 0.5, Math.min(tk === 1 ? 9 : 7, e.len / Math.max(e.spd, 1e-3)));
     let u = gap - e.a0, made = 0;
     const maxN = Math.max(2, Math.round(40 * thr));
     while (u <= dist && made < maxN) {
