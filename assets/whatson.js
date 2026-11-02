@@ -191,8 +191,13 @@
        anywhere else it floats; a control is not. No free place between here and the header: it steps aside. */
     var a = box.getBoundingClientRect(), vh = window.innerHeight;
     var head = document.querySelector('header.top'), floor = (head ? Math.max(0, head.getBoundingClientRect().bottom) : 0) + 8;
+    // 1 Nov 2026 (the Persian method and scenarios pages at 360px: the closed Menu's links, laid out off the screen inside
+    // a closed <details>, were counted as controls, so the pill found no free place and hid): a control nobody can see is
+    // not in the way. Closed details (all but the summary), and what the browser says is not visible.
+    var unseen = function (el) { var dd = el.closest('details:not([open])'); if (dd && !el.closest('summary')) return true;
+      try { return el.checkVisibility ? !el.checkVisibility({ visibilityProperty: true }) : false; } catch (e) { return false; } };
     var near = function (b, top, bot) { return b.width > 0 && b.left < a.right + 6 && b.right > a.left - 6 && b.top < bot + 6 && b.bottom > top - 6; };
-    var rects = function (sel, skip) { return [].filter.call(document.querySelectorAll(sel), function (el) { return !box.contains(el) && !(skip && head && head.contains(el)); }).map(function (el) { return el.getBoundingClientRect(); }).filter(function (b) { return b.width > 0 && b.bottom > floor && b.top < vh; }); };
+    var rects = function (sel, skip) { return [].filter.call(document.querySelectorAll(sel), function (el) { return !box.contains(el) && !(skip && head && head.contains(el)) && !unseen(el); }).map(function (el) { return el.getBoundingClientRect(); }).filter(function (b) { return b.width > 0 && b.bottom > floor && b.top < vh; }); };
     var keep = rects(KEEP), ctl = rects('a[href],button,input,textarea,select,[role=button]', true);
     for (var up = 12; a.top - up >= floor; up += 12) {
       var top = a.top - up, bot = a.bottom - up, ok = true, i;

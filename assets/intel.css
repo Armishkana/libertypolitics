@@ -218,7 +218,7 @@ html[dir="rtl"] .irf-now.old{box-shadow:inset -3px 0 0 #E5814E}
 .ir-time-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .ir-range{margin:0;font:800 var(--t4)/1 var(--display);letter-spacing:.02em;text-transform:uppercase;min-width:10rem}
 .ir-pre{display:flex;flex-wrap:wrap;gap:4px}
-.ir-pre button{min-height:36px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--dim);font:600 var(--t1) var(--body);cursor:pointer}
+.ir-pre button{min-height:40px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--dim);font:600 var(--t1) var(--body);cursor:pointer}
 .ir-pre button[aria-pressed="true"]{color:var(--ink);border-color:#56544e;background:var(--raise)}
 .ir-play{margin-left:auto;width:44px;height:44px;border-radius:50%;border:0;background:var(--field);cursor:pointer;display:grid;place-items:center}
 .ir-play svg{width:20px;height:20px;fill:var(--on-field)}

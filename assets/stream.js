@@ -14,7 +14,7 @@
    WHAT IT DOES. html.lp-stream, and the tool's box (.lps-root) fills the screen: everything else on the page (the header,
    the switch, the footer, the bubble, the discussion, the rest of the page) is hidden by marking the tool's ancestors
    .lps-path (build/stream.css hides every sibling along that path, except dialogs and .lps-keep). A small
-   libertypolitics.com mark and Exit sit in the top right corner. The tool keeps every control and every script.
+   mark of the site (from the page's canonical address) and Exit (in the page's language) sit in the top right corner. The tool keeps every control and every script.
    ONE CANVAS. A tool is laid out for a 1280 x 720 canvas and zoomed to the screen: --lps-z is the zoom (1.5 on a 1920 x 1080
    screen), --lps-w and --lps-h the canvas in the tool's own pixels (wider or taller than 1280 x 720 when the window is not
    16:9). Each tool's own CSS decides what zooms and how its parts are placed, under html.lp-stream (midterms.css,
@@ -31,7 +31,7 @@
   var CANVAS = [1280, 720];
   // a tool's box; what zooms inside it is the tool's own CSS. Wargames (#wargame) zooms nothing on its map (#wg-stage reads the
   // pointer, like the Regime Board's chart): build/wargame.css says what does.
-  var TOOLS = { midterms: '#midterms', coalition: '#coalition', regime: '#regime', markets: '#btm', wargame: '#wargame', you: '#you' };      // you: Your Liberty Score (build/you.css lays it out), 1 Nov 2026
+  var TOOLS = { midterms: '#midterms', coalition: '#coalition', regime: '#regime', markets: '#btm', wargame: '#wargame, #scenarios', you: '#you', uprising: '#uprising' };      // #scenarios: the Conflict Simulator on Iran Uncensored; uprising: the Uprising Simulator, Now and Simulate (build/uprising.css lays it out), 1 Nov 2026      // you: Your Liberty Score (build/you.css lays it out), 1 Nov 2026
   var root = null, name = '', fsMine = false, y0 = 0, bar = null, marked = [];
   function $(s, r) { return (r || D).querySelector(s); }
   function wanted() { return /[?&]stream=1(&|$)/.test(location.search); }
@@ -60,6 +60,16 @@
   function buttons(on) {
     [].forEach.call(D.querySelectorAll('.lps-go'), function (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
   }
+  // The corner's words come from the page, so one file serves both sites (no site name typed here for the other site to carry).
+  var EXIT = { en: 'Exit', fa: 'خروج' };
+  function lang() { return ((H.getAttribute('lang') || 'en').toLowerCase().split('-')[0]); }
+  function siteName() {
+    var c = D.querySelector('link[rel="canonical"]'), h = '';
+    try { h = c ? new URL(c.getAttribute('href'), W.location.href).hostname : ''; } catch (e) { h = ''; }
+    if (!h || h === 'localhost' || /^[\d.]+$/.test(h)) h = W.location.hostname;
+    if (!h || h === 'localhost' || /^[\d.]+$/.test(h)) h = 'libertypolitics.com';      // a local test with no canonical
+    return h.replace(/^www\./, '');
+  }
   function on(full) {
     if (root) return true;
     name = which();
@@ -72,7 +82,10 @@
     H.classList.add('lp-stream'); H.setAttribute('data-lps', name);
     bar = D.createElement('div');
     bar.className = 'lps-bar lps-keep';
-    bar.innerHTML = '<span class="lps-mark">libertypolitics<b>.com</b></span><button type="button" class="lps-x" aria-label="Leave the stream view">Exit</button>';
+    // the corner names the site the tool is on, from the page itself (1 November 2026): the box's own data-lps-mark /
+    // data-lps-exit if it has them, else the site in the page's canonical address, and Exit in the page's language
+    var mk = (root.getAttribute('data-lps-mark') || siteName()).split('.'), ex = root.getAttribute('data-lps-exit') || EXIT[lang()] || EXIT.en;
+    bar.innerHTML = '<span class="lps-mark">' + mk[0] + '<b>.' + (mk[1] || 'com') + '</b></span><button type="button" class="lps-x" aria-label="' + ex + '">' + ex + '</button>';
     bar.querySelector('.lps-x').addEventListener('click', off);
     D.body.appendChild(bar);
     url(true); buttons(true);

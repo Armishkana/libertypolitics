@@ -13,14 +13,20 @@
      watch     one run hour by hour, the camera following the action, captions saying what happens and why, speed and scrub
      compare   up to four plans run in the workers side by side, a goal picker, the best plan marked
    The scenario and the compared plans ride in the address (?city=&s=&c=), so a link opens exactly what was built.
+   LOADED ON ENTRY (1 November 2026): the page opens on the Now view (uprising-now.js), which imports this file and calls
+   start({ city }) only when a city is entered or the address asks for Simulate; three.js comes with it, not before.
    Never classList.toggle(name, state): tog(el, name, state) (uprising.py stops the build on the first). No browser dialogs. */
-import * as THREE from './three.module.min.js';
-
 const D = document, W = window;
 const box = D.getElementById('uprising'), src = D.getElementById('up-data');
-if (box && src) start().catch(err => { const t = D.getElementById('up-boot-t'); if (t) t.textContent = (box.getAttribute('lang') === 'fa') ? 'بارگذاری شبیه‌ساز به مشکل خورد. صفحه رو دوباره باز کنید.' : 'Something went wrong loading the simulator. Reload the page to try again.'; console.error(err); });
+let started = null, leaving = false;
+W.addEventListener('pagehide', () => { leaving = true; });      // a board still loading when the reader leaves is not an error
+export function start(opts) {
+  if (!started) started = run(opts || {}).catch(err => { if (leaving) return; const t = D.getElementById('up-boot-t'); if (t) t.textContent = (box.getAttribute('lang') === 'fa') ? 'بارگذاری شبیه‌ساز به مشکل خورد. صفحه رو دوباره باز کنید.' : 'Something went wrong loading the simulator. Reload the page to try again.'; console.error(err); });
+  return started;
+}
 
-async function start() {
+async function run(opts) {
+  const THREE = await import('./three.module.min.js');
   const DATA = JSON.parse(src.textContent);
   const FA = DATA.lang === 'fa', IU = DATA.site === 'iu';
   const TR = DATA.S || {};
@@ -35,11 +41,13 @@ async function start() {
   const tog = (el, c, on) => { if (el) { if (on) el.classList.add(c); else el.classList.remove(c); } };
   const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
   const REDUCED = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const PHONE = () => W.innerWidth < 760;
+  // ONE BREAKPOINT for the phone, the same in uprising-now.js and uprising.css (max-width 759.98px): 760
+  const BP = 760, PHONE = () => W.innerWidth < BP;
   const LOWP = PHONE() || (navigator.hardwareConcurrency || 4) <= 4;
-  // the phone level of detail (under about 800px wide): fewer figures, merged plain blocks, the main places only, no shadows;
+  // the phone level of detail (the phone breakpoint): fewer figures, merged plain blocks, the main places only, no shadows;
   // the budget is about 200,000 triangles and 80 draw calls (?debug=1 prints both; the phone test asserts them)
-  const LOD2 = W.innerWidth < 800;
+  const LOD2 = PHONE();
+  const SIMV = () => box.dataset.view !== 'now';      // the Now view is on top: the board sleeps
   const bootT = D.getElementById('up-boot-t');
   const ext = (href, txt) => `<a href="${esc(href)}" target="_blank" rel="noopener">${txt}</a>`;
 
@@ -133,7 +141,7 @@ async function start() {
   let S = clone(DEF);
   const ALLC = DATA.cities || [], cities = ALLC.filter(c => c.ready !== false);
   if (!cities.length) { if (bootT) bootT.textContent = tr('No city is ready yet.'); return; }
-  let cityId = 'tehran', mode = 'adv';
+  let cityId = opts.city && cities.some(c => c.id === opts.city) ? opts.city : 'tehran', mode = 'adv';
   const qs = new URLSearchParams(location.search);
   if (qs.get('city') && cities.some(c => c.id === qs.get('city'))) cityId = qs.get('city');
   else if (!cities.some(c => c.id === cityId)) cityId = cities[0].id;
@@ -160,20 +168,23 @@ async function start() {
   try { if (qs.get('c')) CMP = b64d(qs.get('c')).slice(0, 4).map(x => ({ name: String(x.name || '').slice(0, 40), S: mergeS(x.S || {}), adv: x.adv || null })); } catch (_) { }
   if (qs.get('mode') === 'cmd' || (qs.get('s') && !S.plan.adv)) mode = 'cmd';
   function addr() {
-    return location.pathname + '?city=' + cityId + '&s=' + b64e(S) + (CMP.length ? '&c=' + b64e(CMP.map(x => ({ name: x.name, S: x.S, adv: x.adv }))) : '') + (mode === 'cmd' ? '&mode=cmd' : '');
+    return location.pathname + '?city=' + cityId + '&s=' + b64e(S) + (CMP.length ? '&c=' + b64e(CMP.map(x => ({ name: x.name, S: x.S, adv: x.adv }))) : '') + (mode === 'cmd' ? '&mode=cmd' : '') + (D.documentElement.classList.contains('lp-stream') ? '&stream=1' : '');
   }
-  function saveAddr() { try { history.replaceState(null, '', addr()); } catch (_) { } }
+  function saveAddr() { if (!SIMV()) return; try { history.replaceState(null, '', addr()); } catch (_) { } }
   let dirty = 0;
   function changed() { dirty++; saveAddr(); oddsSoon(); drawPlanMarks(); if (RUN) markRunStale(); }
   function cityOf(id) { return cities.find(c => c.id === id) || cities[0]; }
 
   // ================================================================== the DOM
+  const svgI = d => `<svg class="up-ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const ICO = { cmp: svgI('<path d="M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0Zm14 0-3 7a3 3 0 0 0 6 0Z"/>'), share: svgI('<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v14"/>'),
+    model: svgI('<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/>'), add: svgI('<path d="M12 3v18M5 7h14M5 7l-3 7a3 3 0 0 0 6 0Zm14 0-3 7a3 3 0 0 0 6 0Z"/>') };
   const ui = D.getElementById('up-ui'), stage = D.getElementById('up-stage'), canvas = D.getElementById('up-gl'), labels = D.getElementById('up-labels');
   const top = $('.up-top', ui);
   top.insertAdjacentHTML('beforeend', `
 <button type="button" class="up-cityn" id="up-pickb" aria-haspopup="dialog"><span class="up-cn" id="up-cn"></span><span class="up-cf" id="up-cf"></span><span class="up-chev" aria-hidden="true">▾</span></button>
 <div class="up-modes" id="up-modes" role="tablist" aria-label="${tr('How you play')}"><button type="button" role="tab" id="up-mode-adv" data-mode="adv">${tr('An advisor leads')}</button><button type="button" role="tab" id="up-mode-cmd" data-mode="cmd">${tr('I command')}</button></div>
-<div class="up-acts"><button type="button" class="up-ib" id="up-cmpb" aria-haspopup="dialog">⚖ <span>${tr('Compare')}</span> <em id="up-cmpn"></em></button><button type="button" class="up-ib" id="up-share">⤴ <span>${tr('Share')}</span></button><button type="button" class="up-ib" id="up-howb" aria-haspopup="dialog">? <span>${tr('The model')}</span></button></div>`);
+<div class="up-acts"><button type="button" class="up-ib" id="up-cmpb" aria-haspopup="dialog">${ICO.cmp}<span>${tr('Compare')}</span> <em id="up-cmpn"></em></button><button type="button" class="up-ib" id="up-share">${ICO.share}<span>${tr('Share')}</span></button><button type="button" class="up-ib" id="up-howb" aria-haspopup="dialog">${ICO.model}<span>${tr('The model')}</span></button></div>`);
   ui.insertAdjacentHTML('beforeend', `
 <div class="up-hud" id="up-hud" aria-live="off">
   <div class="up-clock"><b id="up-day"></b><span id="up-hour"></span></div>
@@ -186,6 +197,8 @@ async function start() {
     <div class="up-dead"><span>${tr('Lives lost')}</span><b id="up-hk">0</b></div>
   </div>
   <div class="up-flags"><span class="up-fl" id="up-fnet"><i>📶</i><em></em></span><span class="up-fl" id="up-fpow"><i>💡</i><em></em></span><span class="up-fl" id="up-flv"><i>⚠</i><em></em></span><span class="up-fl" id="up-fstr"><i>⏸</i><em></em></span></div>
+  <ol class="up-objs" id="up-objs" aria-label="${tr('Objectives')}"></ol>
+  <p class="up-hcost" id="up-hcost"></p>
 </div>
 <aside class="up-panel" id="up-panel" aria-label="${tr('Your plan')}">
   <button type="button" class="up-grab" id="up-grab" aria-label="${tr('Show or hide the plan')}"><i></i></button>
@@ -195,7 +208,7 @@ async function start() {
     <div class="up-tp" id="up-p-start" role="tabpanel"></div><div class="up-tp" id="up-p-moves" role="tabpanel" hidden></div><div class="up-tp" id="up-p-strike" role="tabpanel" hidden></div><div class="up-tp" id="up-p-tools" role="tabpanel" hidden></div><div class="up-tp" id="up-p-cond" role="tabpanel" hidden></div>
   </div>
   <div class="up-odds" id="up-odds" aria-live="polite"></div>
-  <div class="up-go"><button type="button" class="up-play" id="up-watch"><i>▶</i><span>${tr('Watch it play out')}</span></button><button type="button" class="up-sec" id="up-addcmp">${tr('Add to compare')}</button></div>
+  <div class="up-go"><button type="button" class="up-play" id="up-watch"><i>▶</i><span>${tr('Watch it play out')}</span></button><button type="button" class="up-sec up-bestb" id="up-bestb"><i aria-hidden="true">🏆</i> <span>${tr('Best plan')}</span></button><button type="button" class="up-sec up-ic" id="up-addcmp" aria-label="${tr('Add to compare')}" title="${tr('Add to compare')}">${ICO.add}<span>+</span></button></div>
 </aside>
 <aside class="up-feed" id="up-feed" aria-label="${tr('What is happening')}" hidden><h2>${tr('What is happening')}</h2><ol id="up-feedl"></ol></aside>
 <div class="up-cap" id="up-cap" hidden aria-live="polite"></div>
@@ -208,10 +221,12 @@ async function start() {
   <button type="button" class="up-ib" id="up-back">✕ <span>${tr('Back to the plan')}</span></button>
 </div>
 <div class="up-legend" id="up-legend"></div>
+<div class="up-camc" id="up-camc" role="group" aria-label="${tr('Camera')}"><button type="button" id="up-cz-in" aria-label="${tr('Zoom in')}">+</button><button type="button" id="up-cz-out" aria-label="${tr('Zoom out')}">−</button><button type="button" id="up-cr-l" aria-label="${tr('Turn left')}">⟲</button><button type="button" id="up-cr-r" aria-label="${tr('Turn right')}">⟳</button><button type="button" id="up-chome" aria-label="${tr('Reset the view')}">⌂</button></div>
 <div class="up-toolhint" id="up-toolhint" hidden><span id="up-toolhint-t"></span><button type="button" class="up-sec" id="up-tooldone">${tr('Done')}</button></div>
 <div class="up-insp" id="up-insp" hidden></div>
 <div class="up-tip" id="up-tip" hidden></div>
 <div class="up-ov" id="up-res" hidden role="dialog" aria-modal="true" aria-labelledby="up-res-h"><div class="up-ov-in"><button type="button" class="up-x" data-close aria-label="${tr('Close')}">✕</button><div id="up-res-b"></div></div></div>
+<div class="up-ov" id="up-best" hidden role="dialog" aria-modal="true" aria-labelledby="up-best-h"><div class="up-ov-in up-cmp-in"><button type="button" class="up-x" data-close aria-label="${tr('Close')}">✕</button><div id="up-best-b"></div></div></div>
 <div class="up-ov" id="up-cmp" hidden role="dialog" aria-modal="true" aria-labelledby="up-cmp-h"><div class="up-ov-in up-cmp-in"><button type="button" class="up-x" data-close aria-label="${tr('Close')}">✕</button><div id="up-cmp-b"></div></div></div>
 <div class="up-ov" id="up-pick" hidden role="dialog" aria-modal="true" aria-labelledby="up-pick-h"><div class="up-ov-in up-pick-in"><button type="button" class="up-x" data-close aria-label="${tr('Close')}">✕</button><h2 id="up-pick-h">${tr('Pick your city')}</h2><div class="up-pick-g"><div class="up-map" id="up-map"></div><div class="up-clist" id="up-clist"></div></div></div></div>
 <div class="up-ov" id="up-how" hidden role="dialog" aria-modal="true" aria-labelledby="up-how-h"><div class="up-ov-in"><button type="button" class="up-x" data-close aria-label="${tr('Close')}">✕</button><div id="up-how-b"></div></div></div>`);
@@ -231,7 +246,7 @@ async function start() {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LOWP, powerPreference: 'high-performance', alpha: false, preserveDrawingBuffer: /[?&]shot=1/.test(location.search) });
   renderer.setPixelRatio(Math.min(W.devicePixelRatio || 1, LOWP ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.22;      // brighter and crisper on a stream (1 November 2026)
   renderer.setClearColor(0x0b0d10, 1);
   canvas.addEventListener('webglcontextlost', ev => { ev.preventDefault(); console.warn('Uprising Simulator: the WebGL context was lost'); });
   canvas.addEventListener('webglcontextrestored', () => { if (BJ) buildWorld(BJ); });
@@ -297,6 +312,19 @@ async function start() {
     if (FX && FX.clear) FX.clear();
   }
   function add(o) { world.add(o); layers.push(o); return o; }
+  // THE BUILDINGS ARE ONE LAYER OF THEIR OWN (1 November 2026). The board paints first with its procedural blocks; when the
+  // footprints OpenStreetMap maps arrive (b/<id>-bld.json) only this layer is rebuilt. Before, the whole world was built a
+  // second time, the camera jumped home and every figure was made twice.
+  let bldGrp = null;
+  function addB(o) { (bldGrp || world).add(o); return o; }
+  function rebuildBuildings() {
+    if (!bldGrp || !BJ) return;
+    BLDS++;
+    for (const o of bldGrp.children.slice()) { bldGrp.remove(o); o.traverse(m => { if ((m.isMesh || m.isPoints || m.isLine) && m.geometry && !m.userData.shared) m.geometry.dispose(); }); }
+    SHOPS = { open: null, shut: null };
+    buildFill(BJ);
+    if (RUN) frameShown = -1;      // the shutters and the lights follow the run already playing
+  }
   const SQ3 = Math.sqrt(3);
   function hexKey(x, y, s) {
     const q = (2 / 3 * x) / s, r = (-1 / 3 * x + SQ3 / 3 * y) / s;
@@ -315,7 +343,9 @@ async function start() {
   let G = 2, KU = 1, KUMAX = 30, HP = [], SITES = [], SEC = [], CHK = [];
   const TILT = 0.95;
 
+  let BUILDS = 0, BLDS = 0;      // how many times the world and the building layer were built (the phone test: once per city)
   function buildWorld(B) {
+    BUILDS++;
     clearWorld();
     const N = B.hex.x.length, s = B.s, R = B.r;
     G = clamp(s / 260, 1.4, 5); KUMAX = clamp(s / 16, 14, 90);
@@ -323,7 +353,7 @@ async function start() {
     HP = B.hex.pts.map((a, i) => (a && a.length >= 2 ? a : [B.hex.x[i], B.hex.y[i]]));
     // the ground: warm dusty earth with a faint noise, the city's circle a shade lighter
     const gc = D.createElement('canvas'); gc.width = gc.height = 512; const g = gc.getContext('2d');
-    const grd = g.createRadialGradient(256, 256, 20, 256, 256, 256); grd.addColorStop(0, '#6f675c'); grd.addColorStop(0.62, '#5a534a'); grd.addColorStop(1, '#2c2925');
+    const grd = g.createRadialGradient(256, 256, 20, 256, 256, 256); grd.addColorStop(0, '#7d7568'); grd.addColorStop(0.62, '#655d52'); grd.addColorStop(1, '#2e2a25');
     g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 9000; i++) { const x = Math.random() * 512, y = Math.random() * 512, v = Math.random(); g.fillStyle = `rgba(${v > 0.5 ? '255,240,220' : '20,15,10'},${0.025 + Math.random() * 0.03})`; g.fillRect(x, y, 2, 2); }
     const gt = new THREE.CanvasTexture(gc); gt.colorSpace = THREE.SRGBColorSpace;
@@ -366,6 +396,7 @@ async function start() {
       const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.BufferAttribute(pos.subarray(0, o * 18), 3)); ge.setAttribute('hx', new THREE.BufferAttribute(hx.subarray(0, o * 6), 1)); ge.setAttribute('tier', new THREE.BufferAttribute(ti.subarray(0, o * 6), 1));
       add(new THREE.Mesh(ge, roadMat));
     }
+    buildLamps(B); buildTraffic(B);
     // the districts of the model
     {
       const pos = new Float32Array(N * 18 * 3), hx = new Float32Array(N * 18), ed = new Float32Array(N * 18);
@@ -383,6 +414,7 @@ async function start() {
       const le = new THREE.BufferGeometry(); le.setAttribute('position', new THREE.BufferAttribute(lp, 3)); le.setAttribute('hx', new THREE.BufferAttribute(lhx, 1)); le.setAttribute('edge', new THREE.BufferAttribute(led, 1));
       add(new THREE.LineSegments(le, hexMat));
     }
+    bldGrp = new THREE.Group(); bldGrp.name = 'buildings'; add(bldGrp);
     buildFill(B);
     buildSites(B);
     buildSec(B);
@@ -390,6 +422,54 @@ async function start() {
     buildPoints();
     hexStateClear();
     camHome(true);
+  }
+  // the street lamps along the avenues: one draw call, lit at night where the district has power (the same texture as the
+  // windows), and the traffic: cars moving on the main roads, thinning as the strike stops the trucks and the fighting
+  // empties the streets (street life that reads the run)
+  let LAMPS = null, CARS = null;
+  function buildLamps(B) {
+    const step = LOD2 ? 140 : LOWP ? 90 : 60, cap = LOD2 ? 1400 : LOWP ? 3200 : 7000, pos = [], hx = [];
+    for (const tk of LOD2 ? ['t0', 't1'] : ['t0', 't1', 't2']) for (const a of (B.roads || {})[tk] || []) {
+      let px = 0, py = 0, acc = 0;
+      decode(a, (x, y, f) => { if (!f) { const L = Math.hypot(x - px, y - py); acc += L; while (acc > step && pos.length / 3 < cap) { acc -= step; const u = 1 - acc / Math.max(1, L); const lx = px + (x - px) * u, ly = py + (y - py) * u; pos.push(lx, 7, -ly); const h = hxAt(lx, ly); hx.push(h < 0 ? B.hex.x.length : h); } } px = x; py = y; });
+    }
+    if (!pos.length) { LAMPS = null; return; }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); ge.setAttribute('hx', new THREE.Float32BufferAttribute(hx, 1));
+    const m = new THREE.ShaderMaterial({ uniforms: { uNight: U_.uNight, uPx, tHex: U_.tHex, uHexW: U_.uHexW },
+      vertexShader: 'attribute float hx; uniform float uPx; uniform float uNight; uniform sampler2D tHex; uniform float uHexW; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(14.0 * uPx / -mv.z, 1.6, 9.0); vA = uNight * texture2D(tHex, vec2((hx + 0.5) / uHexW, 0.5)).b; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; float r = dot(d, d); if (r > 0.25) discard; gl_FragColor = vec4(1.0, 0.74, 0.38, vA * smoothstep(0.25, 0.0, r) * 0.9); }',
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    LAMPS = new THREE.Points(ge, m); LAMPS.frustumCulled = false; LAMPS.visible = false; add(LAMPS);
+  }
+  const CAR_C = [[0.93, 0.93, 0.9], [0.72, 0.74, 0.76], [0.93, 0.76, 0.2], [0.2, 0.55, 0.38], [0.25, 0.27, 0.3], [0.62, 0.16, 0.14]];      // white, silver, the yellow and green taxis, dark, red
+  function buildTraffic(B) {
+    const ways = [];
+    for (const tk of ['t0', 't1', 't2']) for (const a of (B.roads || {})[tk] || []) { const pts = []; decode(a, (x, y) => pts.push(x, y)); if (pts.length >= 4) ways.push(pts); }
+    if (!ways.length) { CARS = null; return; }
+    const n = LOD2 ? 140 : LOWP ? 320 : 700, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), al = new Float32Array(n);
+    const car = [];
+    for (let i = 0; i < n; i++) { const w = ways[Math.floor(hash(i, 41) * ways.length)], sg = Math.floor(hash(i, 42) * (w.length / 2 - 1)); car.push({ w, sg, u: hash(i, 43), dir: hash(i, 44) < 0.5 ? 1 : -1, v: 8 + hash(i, 45) * 9 }); const c = CAR_C[Math.floor(hash(i, 46) * CAR_C.length)]; col.set(c, i * 3); }
+    const ge = new THREE.BufferGeometry(); ge.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage)); ge.setAttribute('col', new THREE.BufferAttribute(col, 3)); ge.setAttribute('al', new THREE.BufferAttribute(al, 1).setUsage(THREE.DynamicDrawUsage));
+    const m = new THREE.ShaderMaterial({ uniforms: { uNight: U_.uNight, uPx },
+      vertexShader: 'attribute vec3 col; attribute float al; uniform float uPx; uniform float uNight; varying vec3 vC; varying float vA; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_PointSize = clamp(6.0 * uPx / -mv.z, 1.3, 8.0); vC = mix(col, vec3(1.0, 0.92, 0.7), uNight * 0.85); vA = al; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'varying vec3 vC; varying float vA; void main(){ vec2 d = gl_PointCoord - 0.5; if (dot(d, d) > 0.25) discard; gl_FragColor = vec4(vC, vA); }', transparent: true, depthWrite: false });
+    const pts = new THREE.Points(ge, m); pts.frustumCulled = false; add(pts);
+    CARS = { n, car, pos, al, ge, dens: 1 };
+  }
+  function stepTraffic(dt) {
+    if (!CARS) return;
+    const { n, car, pos, al } = CARS, want = CARS.dens, k = REDUCED ? 0 : 1;
+    for (let i = 0; i < n; i++) {
+      const c = car[i], w = c.w, segs = w.length / 2 - 1;
+      const x1 = w[c.sg * 2], y1 = w[c.sg * 2 + 1], x2 = w[c.sg * 2 + 2], y2 = w[c.sg * 2 + 3], L = Math.hypot(x2 - x1, y2 - y1) || 1;
+      c.u += c.dir * c.v * dt * k / L;
+      if (c.u > 1) { if (c.sg < segs - 1) { c.sg++; c.u = 0; } else { c.dir = -1; c.u = 1; } }
+      else if (c.u < 0) { if (c.sg > 0) { c.sg--; c.u = 1; } else { c.dir = 1; c.u = 0; } }
+      const off = 3 * c.dir, nx = -(y2 - y1) / L * off, ny = (x2 - x1) / L * off;
+      pos[i * 3] = x1 + (x2 - x1) * c.u + nx; pos[i * 3 + 1] = 1.6; pos[i * 3 + 2] = -(y1 + (y2 - y1) * c.u + ny);
+      const on = i < n * want ? 1 : 0; al[i] += (on - al[i]) * Math.min(1, dt * 1.5);
+    }
+    CARS.ge.attributes.position.needsUpdate = true; CARS.ge.attributes.al.needsUpdate = true;
   }
   function mergeGeos(geos) {
     let n = 0; for (const g of geos) n += (g.index ? g.index.count : g.attributes.position.count);
@@ -476,7 +556,7 @@ async function start() {
     const fill = new THREE.Group(); fill.name = 'fill';
     SHOPS.open = instanced('shops', null, SO); SHOPS.shut = instanced('shops', 'shut', SO);
     if (SHOPS.open) fill.add(SHOPS.open); if (SHOPS.shut) { SHOPS.shut.visible = false; fill.add(SHOPS.shut); }
-    add(fill);
+    addB(fill);
     if (K && K.city && K.city.buildings) raise(LST);
     if (BLD && BLD.b && K && K.city && K.city.buildings) buildOSM(B);
   }
@@ -506,7 +586,7 @@ async function start() {
       for (let v = 0; v < posA.count; v++) { const h = hxAt(posA.getX(v), -posA.getZ(v)); hx[v] = h < 0 ? BJ.hex.x.length : h; }
       mesh.geometry.setAttribute('hx', new THREE.BufferAttribute(hx, 1));
       mesh.material = bldMat; mesh.castShadow = false; mesh.receiveShadow = true;
-      add(mesh);
+      addB(mesh);
     }
   }
   const KIND_STYLE = ['house', 'apartment', 'shops', 'govt', 'govt', 'shops', 'govt', 'govt', 'govt', 'govt', 'govt'];
@@ -703,10 +783,10 @@ async function start() {
   }
   // rooftop chants at night: soft rings that rise from the roofs
   const RINGS = [];
-  function chantRing(x, y) {
+  function chantRing(x, y, burst) {
     let r = RINGS.find(q => q.life <= 0);
-    if (!r) { if (RINGS.length > (LOD2 ? 8 : 30)) return; const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 32), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); m.rotation.x = -Math.PI / 2; m.userData.shared = false; add(m); r = { m, life: 0 }; RINGS.push(r); }
-    r.m.position.set(x, 18 + Math.random() * 10, -y); r.life = r.max = 2.4; r.m.visible = true;
+    if (!r) { if (RINGS.length > (LOD2 ? 10 : 32)) return; const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 32), new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending })); m.rotation.x = -Math.PI / 2; m.userData.shared = false; add(m); r = { m, life: 0 }; RINGS.push(r); }
+    r.m.position.set(x, burst ? 6 : 18 + hash(x, y) * 10, -y); r.life = r.max = burst ? 3.2 : 2.4; r.big = burst ? 3.2 : 1; r.m.visible = true;
   }
 
   // ================================================================== the camera
@@ -754,11 +834,26 @@ async function start() {
     }
     cam.user = clock;
   });
-  const pup = ev => { ptrs.delete(ev.pointerId); if (!ptrs.size) { if (moved < 6 && ev.type === 'pointerup') click(ev); drag = null; } };
+  // a double tap (or double click) flies the camera down to that spot; one tap opens what is there
+  let lastTap = 0, lastXY = [0, 0];
+  function focusAt(ev) { const g = groundAt(ev); if (!g) return; followOff(); camFly(g.x, g.y, clamp(cam.gdist * 0.42, 260, (BJ ? BJ.r : 9000) * 4)); cam.user = clock; }
+  function followOff() { cam.follow = false; const b = D.getElementById('up-follow'); if (b) b.setAttribute('aria-pressed', 'false'); }
+  const pup = ev => {
+    ptrs.delete(ev.pointerId);
+    if (!ptrs.size) {
+      if (moved < 6 && ev.type === 'pointerup') { const t = performance.now(); if (t - lastTap < 330 && Math.hypot(ev.clientX - lastXY[0], ev.clientY - lastXY[1]) < 32) { focusAt(ev); lastTap = 0; } else { click(ev); lastTap = t; lastXY = [ev.clientX, ev.clientY]; } }
+      drag = null;
+    }
+  };
   canvas.addEventListener('pointerup', pup); canvas.addEventListener('pointercancel', pup);
   canvas.addEventListener('contextmenu', ev => ev.preventDefault());
   canvas.addEventListener('wheel', ev => { ev.preventDefault(); cam.gdist = clamp(cam.gdist * Math.exp(ev.deltaY * 0.0012), 120, (BJ ? BJ.r : 9000) * 4); cam.user = clock; }, { passive: false });
   canvas.tabIndex = 0;
+  { const cz = (id, f) => D.getElementById(id).addEventListener('click', () => { f(); cam.user = clock; });
+    cz('up-cz-in', () => { cam.gdist = clamp(cam.gdist * 0.7, 120, (BJ ? BJ.r : 9000) * 4); });
+    cz('up-cz-out', () => { cam.gdist = clamp(cam.gdist * 1.42, 120, (BJ ? BJ.r : 9000) * 4); });
+    cz('up-cr-l', () => { cam.gaz += Math.PI / 8; }); cz('up-cr-r', () => { cam.gaz -= Math.PI / 8; });
+    cz('up-chome', () => { followOff(); camHome(false); }); }
   canvas.addEventListener('keydown', ev => {
     const st = cam.dist * 0.08, k = ev.key;
     if (k === 'ArrowLeft') cam.gtx -= st; else if (k === 'ArrowRight') cam.gtx += st; else if (k === 'ArrowUp') cam.gty += st; else if (k === 'ArrowDown') cam.gty -= st;
@@ -912,7 +1007,7 @@ async function start() {
   function frameBody(now) {
     const dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
     if (!visible && (frame.k = (frame.k || 0) + 1) % 30 === 0) { const r = stage.getBoundingClientRect(); visible = r.bottom > 0 && r.top < W.innerHeight; }      // never stay asleep on a stale report
-    if (!visible || D.hidden || !BJ) return;
+    if (!visible || D.hidden || !BJ || !SIMV()) return;
     clock += dt; U_.uTime.value = clock;
     fpsAcc += dt; fpsN++; if (fpsAcc > 1) { FPS = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; }
     playTick(dt);
@@ -920,6 +1015,7 @@ async function start() {
     const spd = BJ.s * (RUN && playing ? 0.12 * Math.min(speed, 8) : 0.05) + 8 * KU;
     for (const g of [PPL, RIOT, BAS, IRG, DEF_, MED]) stepGroup(g, dt, clock, g === PPL ? spd : spd * 1.15);
     for (const v of VEH) if (v.o.visible) { const dx = v.tx - v.x, dy = v.ty - v.y, d = Math.hypot(dx, dy); if (d > 1) { const m = Math.min(1, spd * 1.4 * dt / d); v.x += dx * m; v.y += dy * m; v.o.rotation.y = Math.atan2(dx, -dy) + Math.PI; } v.o.position.set(v.x, 0, -v.y); v.o.scale.setScalar(v.base * Math.max(1, KU * 0.55)); }
+    stepTraffic(dt);
     if (K) K.tick(dt, clock);
     if (FX) FX.update(dt, clock);
     if (PTS) {
@@ -932,7 +1028,7 @@ async function start() {
       }
       ptsGeo.attributes.position.needsUpdate = true; ptsGeo.attributes.al.needsUpdate = true; ptsGeo.attributes.col.needsUpdate = true; ptsGeo.attributes.sz.needsUpdate = true;
     }
-    for (const r of RINGS) if (r.life > 0) { r.life -= dt; const u = 1 - r.life / r.max; r.m.scale.setScalar((20 + 160 * u) * Math.max(1, KU * 0.3)); r.m.material.opacity = 0.5 * (1 - u); if (r.life <= 0) r.m.visible = false; }
+    for (const r of RINGS) if (r.life > 0) { r.life -= dt; const u = 1 - r.life / r.max; r.m.scale.setScalar((20 + 160 * u) * Math.max(1, KU * 0.3) * (r.big || 1)); r.m.material.opacity = (r.big > 1 ? 0.85 : 0.5) * (1 - u); if (r.life <= 0) r.m.visible = false; }
     if (!RUN && !REDUCED && clock - cam.user > 8 && !TOOL) cam.gaz += dt * 0.02;      // the board turns slowly while nobody touches it
     renderer.render(scene, camera);
     placeLabels();
@@ -944,7 +1040,7 @@ async function start() {
   // (above, below, right, left) with a 4px margin, and is dropped when every spot would cover a name already shown, another
   // place's marker, any panel over the board, or run past the board's edge. Real sizes from the page; placed every other frame.
   let labTick = 0, hudBox = [], hudT = 0;
-  const HUDSEL = '.up-top, .up-hud, .up-panel, .up-feed, .up-cap, .up-bar, .up-legend, .up-dossier, .up-toolhint, .up-insp, .up-flash';
+  const HUDSEL = '.up-top, .up-hud, .up-panel, .up-feed, .up-cap, .up-bar, .up-legend, .up-camc, .up-dossier, .up-toolhint, .up-insp, .up-flash';
   function hudRects() {
     const now = performance.now(); if (now - hudT < 400) return hudBox; hudT = now;
     const r0 = stage.getBoundingClientRect();
@@ -954,7 +1050,7 @@ async function start() {
   }
   const overB = (a, k) => a[0] < k[0] + k[2] && a[0] + a[2] > k[0] && a[1] < k[1] + k[3] && a[1] + a[3] > k[1];
   function measureLab(el) { const was = el.style.display; el.style.visibility = 'hidden'; el.style.display = ''; const r = el.getBoundingClientRect(); el._w = Math.ceil(r.width) || 80; el._h = Math.ceil(r.height) || 20; el.style.display = was; el.style.visibility = ''; }
-  W.addEventListener('resize', () => { for (const el of labelEls) el._w = 0; hudT = 0; });
+  W.addEventListener('resize', () => { for (const el of labelEls) el._w = 0; for (const el of CHIPS) el._t = null; hudT = 0; });
   function placeLabels(force) {
     if (!force && (labTick++ & 1)) return;
     const w = stage.clientWidth, h = stage.clientHeight, near = cam.dist < BJ.r * 0.7, mid = cam.dist < BJ.r * 1.6;
@@ -980,11 +1076,33 @@ async function start() {
       kept.push(box);
       el.style.display = ''; el.style.transform = `translate(${Math.round(box[0] + M4)}px,${Math.round(box[1] + M4)}px)`;
     }
+    placeChips(kept, w, h);
+  }
+  const CHIPS = [];
+  function placeChips(kept, w, h) {
+    const fr = curFrame();
+    if (!fr) { for (const c of CHIPS) c.style.display = 'none'; return; }
+    const N = BJ.hex.x.length, C = [], F = [];
+    for (let i = 0; i < N; i++) { if (fr.c[i] > 1500) C.push(i); if (fr.f[i] > 400) F.push(i); }
+    C.sort((a, b) => fr.c[b] - fr.c[a]); F.sort((a, b) => fr.f[b] - fr.f[a]);
+    const want = C.slice(0, PHONE() ? 2 : 4).map(i => [i, 'p', fr.c[i]]).concat(F.slice(0, PHONE() ? 1 : 2).map(i => [i, 'f', fr.f[i]]));
+    while (CHIPS.length < want.length) { const el = D.createElement('div'); el.className = 'up-cchip'; labels.appendChild(el); CHIPS.push(el); }
+    CHIPS.forEach((el, n) => {
+      const q = want[n]; if (!q) { el.style.display = 'none'; return; }
+      pv.set(BJ.hex.x[q[0]], 22 * G, -BJ.hex.y[q[0]]).project(camera);
+      if (pv.z > 1 || Math.abs(pv.x) > 1 || Math.abs(pv.y) > 1) { el.style.display = 'none'; return; }
+      const X = (pv.x + 1) / 2 * w + (q[1] === 'f' ? 26 : -26), Y = (1 - pv.y) / 2 * h;
+      el.className = 'up-cchip ' + q[1]; el.textContent = (q[1] === 'p' ? '◉ ' : '⛨ ') + big(q[2]);
+      if (el._t !== el.textContent) { el._t = el.textContent; measureLab(el); }
+      const bx = [X - el._w / 2 - 3, Y - el._h / 2 - 3, el._w + 6, el._h + 6];
+      if (bx[0] < 2 || bx[1] < 2 || bx[0] + bx[2] > w - 2 || bx[1] + bx[3] > h - 2 || kept.some(k => overB(bx, k))) { el.style.display = 'none'; return; }
+      kept.push(bx); el.style.display = ''; el.style.transform = `translate(${Math.round(bx[0] + 3)}px,${Math.round(bx[1] + 3)}px)`;
+    });
   }
   // for the phone test: pairs of names that overlap, and names cut by the board's edge or sitting on a panel (both must be 0)
   function tagOverlaps() {
     const r0 = stage.getBoundingClientRect(), hud = hudRects().map(q => [q[0] + 3, q[1] + 3, q[2] - 6, q[3] - 6]);
-    const R2 = labelEls.filter(t => t.style.display !== 'none' && t.offsetParent !== null).map(t => { const r = t.getBoundingClientRect(); return [r.left - r0.left, r.top - r0.top, r.width, r.height]; });
+    const R2 = labelEls.concat(CHIPS).filter(t => t.style.display !== 'none' && t.offsetParent !== null).map(t => { const r = t.getBoundingClientRect(); return [r.left - r0.left, r.top - r0.top, r.width, r.height]; });
     let overlap = 0, clipped = 0;
     for (let i = 0; i < R2.length; i++) {
       const a = R2[i]; if (a[0] < 0 || a[1] < 0 || a[0] + a[2] > r0.width || a[1] + a[3] > r0.height || hud.some(k => overB(a, k))) clipped++;
@@ -996,11 +1114,17 @@ async function start() {
   function lightFor(hr) {
     const night = hr >= 20 || hr < 5 ? 1 : hr >= 18 ? (hr - 18) / 2 : hr < 7 ? (7 - hr) / 2 : 0;
     U_.uNight.value = night;
+    const gold = hr >= 16 && hr < 20 ? 1 - Math.abs(hr - 18) / 2 : hr >= 5 && hr < 8 ? 1 - Math.abs(hr - 6.5) / 1.5 : 0;
     if (LIGHTS) {
-      LIGHTS.sun.intensity = 2.2 * (1 - night) + 0.45 * night; LIGHTS.hemi.intensity = 1.15 * (1 - night * 0.42);      // night stays readable from the whole-city view
-      LIGHTS.sun.color.setHex(night > 0.3 ? 0x9bb4ff : hr >= 16 || hr < 8 ? 0xffc890 : 0xfff1dc);
+      LIGHTS.sun.intensity = 2.5 * (1 - night) + 0.45 * night; LIGHTS.hemi.intensity = 1.3 * (1 - night * 0.45);      // night stays readable from the whole-city view
+      LIGHTS.sun.color.setHex(night > 0.3 ? 0x9bb4ff : gold > 0.2 ? 0xffb070 : hr >= 16 || hr < 8 ? 0xffc890 : 0xfff1dc);
+      // the sun crosses the sky: up in the east in the morning, low in the west at dusk (the moon stands high at night)
+      const a = clamp((hr - 6) / 12, 0, 1) * Math.PI, R0 = 1200;
+      if (LIGHTS.sun.position) { if (night > 0.5) LIGHTS.sun.position.set(-300, 1100, 400); else LIGHTS.sun.position.set(Math.cos(a) * R0, 260 + Math.sin(a) * 900 + 120, 380); }
     }
-    renderer.setClearColor(night > 0.5 ? 0x05070c : 0x0b0d10, 1);
+    const sky = new THREE.Color(night > 0.5 ? 0x04060b : 0x0b0d10).lerp(new THREE.Color(0x2a1a12), gold * 0.55 * (1 - night));
+    renderer.setClearColor(sky, 1); if (scene.fog) scene.fog.color.copy(sky);
+    if (LAMPS) LAMPS.visible = night > 0.04;
     return night;
   }
 
@@ -1024,6 +1148,8 @@ async function start() {
     const o = U.run(BJ, S, seed, { record: true });
     o.seed = seed; o.why = why || null;
     RUN = o; runStale = false;
+    { let a = [0, 0, 0, 0, 0, 0]; RUN.cum = o.rec.g.map(x => (a = [a[0] + x.F, a[1] + (x.net && o.X.year >= 1995 ? 1 : 0), a[2] + (x.sig.oil || 0), a[3] + (x.sig.bazaar || 0), a[4] + (x.sig.truck || 0), a[5] + (x.sig.civil || 0)])); }
+    RUN.O = objectives();
     let maxC = 1, maxF = 1; for (const g of o.rec.g) { if (g.C > maxC) maxC = g.C; if (g.F > maxF) maxF = g.F; }
     RUN.xP = Math.max(1, maxC / (PPL ? PPL.n * 0.92 : 1000));
     RUN.xF = Math.max(1, maxF / ((RIOT ? RIOT.n + BAS.n + IRG.n : 600) * 0.85));
@@ -1040,6 +1166,7 @@ async function start() {
   }
   function stopPlay() { playing = false; setPP(); }
   function endRun() {
+    if (CARS) CARS.dens = 1;
     stopPlay(); RUN = null; bar.hidden = true; tog(box, 'running', false); D.getElementById('up-feed').hidden = true; capEl.hidden = true; tog(stage, 'net-cut', false);
     for (const v of VEH) v.o.visible = false; for (const o of CHKO) o.visible = false; for (const d of DISH) d.o.visible = false; if (FX) FX.clear(); if (SHOPS.open) { SHOPS.open.visible = true; if (SHOPS.shut) SHOPS.shut.visible = false; }
     hexStateClear(); hudIdle(); camHome(false); if (mode === 'adv') renderAdv();
@@ -1119,6 +1246,7 @@ async function start() {
     // Starlink: dishes on the roofs where the crowds are, more of them the more terminals the city has
     { const sl = RUN.X.starlink || 0, nd = Math.min(DISH.length, Math.round(sl / 400)), hs = order.length ? order : [0]; let di = 0;
       for (const d of DISH) { if (di >= nd || !g.net) { d.o.visible = false; di++; continue; } const h = hs[di % hs.length], [x, y] = streetPt(h, hash(di, 77)); d.o.position.set(x + 18, 9, -(y + 12)); d.o.scale.setScalar(d.base * Math.max(1, KU * 0.6)); d.o.visible = true; di++; } }
+    if (CARS) CARS.dens = clamp(1 - 0.85 * Math.max((g.sig && g.sig.truck) || 0, ((g.sig && g.sig.bazaar) || 0) * 0.6, g.Lv >= 3 ? 0.65 : g.Lv >= 2 ? 0.35 : 0) - (night > 0.5 ? 0.35 : 0), 0.05, 1);
     // checkpoints go up once the regime moves past batons, or the internet is cut
     for (const o of CHKO) o.visible = !!g.chk;
     // the strike: shops shut their shutters
@@ -1194,9 +1322,16 @@ async function start() {
     flag('up-flv', tr(WORD.lv[g.Lv]), g.Lv >= 3);
     const sg = g.sig || {}, top = U.SECTORS.filter(s2 => sg[s2] > 0.3);
     flag('up-fstr', top.length ? tf('Strike: {s}', { s: top.map(s2 => tr(SEC_T[s2][0])).join(', ') }) : tr('No strike'), false, top.length > 0);
+    renderObjs(RUN.O, objState(RUN.O, fi));
+    const m = costSoFar(fi), hc = D.getElementById('up-hcost');
+    hc.innerHTML = `<span>${tr('Injured')} <b>${big(g.inj || 0)}</b></span><span>${tr('Forces killed')} <b>${fmt(g.fdead || 0)}</b></span>` + (m ? `<span>${tr('Cost to the regime')} <b class="r">${rng$(m.forces[0] + m.oil[0], m.forces[1] + m.oil[1])}</b></span><span>${tr('To the economy')} <b>${rng$(m.net[0] + m.strike[0], m.net[1] + m.strike[1])}</b></span>` : '');
     const day = Math.floor((RUN.X.hour + g.t) / 24) + 1;
     D.getElementById('up-day').textContent = tf('Day {d}', { d: N_(day) });
     D.getElementById('up-hour').textContent = N_(String(g.hr).padStart(2, '0') + ':00') + (g.hr >= 20 || g.hr < 6 ? ' ☾' : ' ☀');
+  }
+  function renderObjs(O, st) {
+    const el = D.getElementById('up-objs'); if (!el) return;
+    el.innerHTML = O.map((o, i) => { const x = st ? st[i] : null; return `<li class="${x && x.done ? 'done' : x && x.fail ? 'fail' : ''}"><i aria-hidden="true">${x && x.done ? '✓' : x && x.fail ? '✕' : '◇'}</i><span>${esc(o.t)}</span>${x ? `<b style="--p:${clamp(x.p, 0, 1).toFixed(3)}"${x.low ? ' class="low"' : ''}></b><em>${esc(x.v)}</em>` : ''}</li>`; }).join('');
   }
   function flag(id, t, bad, good) { const el = D.getElementById(id); $('em', el).textContent = t; tog(el, 'bad', !!bad); tog(el, 'good', !!good); }
   function hudIdle() {
@@ -1209,6 +1344,7 @@ async function start() {
     const P = U.planOf(S), top = U.SECTORS.filter(s2 => P.sec[s2] > 0.4);
     flag('up-fstr', top.length ? tf('Strike planned: {s}', { s: top.map(s2 => tr(SEC_T[s2][0])).join(', ') }) : tr('No strike planned'), false, top.length > 0);
     D.getElementById('up-day').textContent = tr('Before it starts');
+    renderObjs(objectives(), null); D.getElementById('up-hcost').innerHTML = '';
     D.getElementById('up-hour').textContent = N_(String(S.hour).padStart(2, '0') + ':00');
   }
 
@@ -1290,6 +1426,7 @@ async function start() {
       feedl.insertBefore(li, feedl.firstChild);
       while (feedl.children.length > 60) feedl.removeChild(feedl.lastChild);
       if (BAD[e.type] || GOOD[e.type] || e.type === 'army') lastBig = e;
+      if ((e.type === 'take' || e.type === 'lose') && fi - e.t <= 2 && e.site != null && SITES[e.site]) { const q = SITES[e.site]; if (e.type === 'take') chantRing(q.x, q.y, true); flashOn(q.h, tr(e.type === 'take' ? 'Taken' : 'Lost'), e.type === 'take' ? 'good' : 'bad'); }
     }
     if (lastBig) { const n = narr(lastBig.type); const w = WHY[lastBig.type]; caption(evText(lastBig) + ' ' + (n || (w ? tr(w[0]) : '')), n ? S.plan.adv : null); }
     feedAt = fi;
@@ -1305,23 +1442,23 @@ async function start() {
   // badge of where they come from, a line argued from THIS city and the evidence (every claim matches the fact-check of
   // 1 November 2026, data/audit-uprising-2026-11-01.md, a4), their whole plan in one tap, and what they say as it plays.
   const ADV = [
-    { id: 'scholar', sn: 'Scholar', n: 'The Civil-Resistance Scholar', role: 'Researcher of 323 campaigns (Chenoweth and Stephan)', c: '#c9a24a', f: ['participation-ladder', 'three-five-caveats', 'cs-success-rates', 'iran-2026-exception'],
+    { id: 'scholar', q: 'Numbers are necessary, never enough: January 2026 probably crossed 3.5% and was still crushed.', qf: 'iran-2026-exception', sn: 'Scholar', n: 'The Civil-Resistance Scholar', role: 'Researcher of 323 campaigns (Chenoweth and Stephan)', c: '#c9a24a', f: ['participation-ladder', 'three-five-caveats', 'cs-success-rates', 'iran-2026-exception'],
       say: { start: 'Keep it peaceful. Every stone thrown is a video they show their own men.', massacre: 'Shooting peaceful people can backfire, but only if the movement is organised enough to come back.', defect: 'There it is: the forces split. That is what wins, not the numbers alone.', crushed: 'Numbers were necessary. They were not enough: nobody crossed over.', strike: 'Good. Non-cooperation is where nonviolent movements get their power.' } },
-    { id: 'organizer', sn: 'Strike organizer', n: 'The Strike Organizer', role: 'The oil workers of 1978, the professionals of Sudan 2019', c: '#4f86c6', f: ['general-strike', 'bazaar'],
+    { id: 'organizer', q: 'They can shoot a crowd. They cannot shoot a country that stays home.', qf: 'general-strike', sn: 'Strike organizer', n: 'The Strike Organizer', role: 'The oil workers of 1978, the professionals of Sudan 2019', c: '#4f86c6', f: ['general-strike', 'bazaar'],
       say: { start: 'Day one we stay home. The bazaar shuts first, then the trucks, then the oil.', strike: 'It is spreading. Now hold it: a strike bites in weeks, not days.', massacre: 'They can shoot a crowd. They cannot shoot a man who stays home.', split: 'The money is running out, and the men at the top can count.', crushed: 'The streets went quiet. The question is whether the strike still holds.' } },
-    { id: 'officer', sn: 'Former officer', n: 'The Former Officer', role: 'Served in the Artesh; how security forces decide whether to shoot', c: '#8a7f4a', f: ['defections-mechanism', 'iran-no-defection-record', 'who-shoots', 'conscript-police-half'], badge: 'artesh',
+    { id: 'officer', q: 'No unit has crossed over since 1979. They switch sides when they believe the regime is finished.', qf: 'iran-no-defection-record', sn: 'Former officer', n: 'The Former Officer', role: 'Served in the Artesh; how security forces decide whether to shoot', c: '#8a7f4a', f: ['defections-mechanism', 'iran-no-defection-record', 'who-shoots', 'conscript-police-half'], badge: 'artesh',
       say: { start: 'Talk to the conscripts. Their mothers are in this crowd.', defect: 'Conscripts first, always. The IRGC will be the last to go.', army: 'That is the barracks deciding. In 1979 it happened in one day.', massacre: 'Those are the units chosen because they will shoot. Do not stand in their line of fire.', crushed: 'They held together. No unit has crossed over since 1979.' } },
-    { id: 'street', sn: 'Street organizer', n: 'The Street Organizer', role: 'The neighbourhood youth of 2022 and 2026', c: '#d0544a', f: ['night-tactics', 'hassanpour-dispersion'],
+    { id: 'street', q: 'Never stand where they are waiting.', qf: 'night-tactics', sn: 'Street organizer', n: 'The Street Organizer', role: 'The neighbourhood youth of 2022 and 2026', c: '#d0544a', f: ['night-tactics', 'hassanpour-dispersion'],
       say: { start: 'Everywhere at once, gone before the vans arrive.', massacre: 'Never stand where they are waiting. Small groups, side streets.', netcut: 'We agreed the times and the places before. They cannot cut that.', crushed: 'They took the streets back. We come back on the fortieth day.' } },
-    { id: 'digital', sn: 'Blackout specialist', n: 'The Blackout Specialist', role: 'Internet shutdowns and how movements survive them', c: '#4fb3a6', f: ['iran-blackout-massacre-link', 'gohdes-shutdown-violence', 'tiered-internet', 'starlink-effect'],
+    { id: 'digital', q: 'They cut the internet at the peak, then they shoot.', qf: 'iran-blackout-massacre-link', sn: 'Blackout specialist', n: 'The Blackout Specialist', role: 'Internet shutdowns and how movements survive them', c: '#4fb3a6', f: ['iran-blackout-massacre-link', 'gohdes-shutdown-violence', 'tiered-internet', 'starlink-effect'],
       say: { start: 'Expect the internet to go when the crowds peak. Agree everything now.', netcut: 'There it goes. Whatever was not agreed in advance is lost.', massacre: 'This is why they cut it: so nobody films the killing.', abroad: 'Satellite TV carries the hour into homes. It does not need the internet.' } },
-    { id: 'urban', sn: 'Urban strategist', n: 'The Urban Strategist', role: 'Mark Beissinger on how cities make revolutions', c: '#9b6ad0', f: ['revolutionary-city'],
+    { id: 'urban', q: 'Whoever holds the centre holds the picture the world sees.', qf: 'revolutionary-city', sn: 'Urban strategist', n: 'The Urban Strategist', role: 'Mark Beissinger on how cities make revolutions', c: '#9b6ad0', f: ['revolutionary-city'],
       say: { start: 'Whoever holds the centre holds the picture the world sees.', take: 'Hold it. A square held for days changes what everyone believes.', blocked: 'The roads in are ours. Now nothing comes in from the other provinces.', reinf: 'They are coming down the highways. Those roads should have been blocked.' } },
-    { id: 'medic', sn: 'Medic', n: 'The Medic', role: 'The doctors’ networks that hid the wounded in 2022 and 2026', c: '#e06d6d', f: ['arrests-and-afterwards'],
+    { id: 'medic', q: 'They took the wounded from the hospitals. Every safe house is a life.', qf: 'arrests-and-afterwards', sn: 'Medic', n: 'The Medic', role: 'The doctors’ networks that hid the wounded in 2022 and 2026', c: '#e06d6d', f: ['arrests-and-afterwards'],
       say: { start: 'First aid in every district, safe houses away from the hospitals.', raid: 'They are in the hospitals now. Take the wounded to the safe houses.', massacre: 'Fewer deaths tonight means a bigger crowd tomorrow.' } },
-    { id: 'historian', sn: 'Historian', n: 'The Historian', role: '1979, 2009, 2019, 2022 and 2026', c: '#b98a5a', f: ['forty-day-cycle', 'iran-massacre-ends-street-phase', 'general-strike', 'iran-lethality-trend'],
+    { id: 'historian', q: '1979 won with four months of strikes, not one day of marches.', qf: 'general-strike', sn: 'Historian', n: 'The Historian', role: '1979, 2009, 2019, 2022 and 2026', c: '#b98a5a', f: ['forty-day-cycle', 'iran-massacre-ends-street-phase', 'general-strike', 'iran-lethality-trend'],
       say: { start: 'Every uprising since 1979 was put down. This one needs what 1979 had.', massacre: 'This is how 2019 and 2026 ended.', forty: 'The fortieth day. In 1978 it brought the crowds back again and again.', strike: 'Months of strikes are what brought down the Shah.' } },
-    { id: 'red', sn: 'Regime playbook', n: 'The Regime’s Playbook', role: 'What the IRGC will do against your plan', c: '#b8323a', f: ['iran-massacre-ends-street-phase', 'foreign-reinforcement', 'irgc-regional-hqs', 'strikes-on-repression-2026'], badge: 'irgc', red: true,
+    { id: 'red', q: 'Cut it at the peak. Nobody films what comes next.', qf: 'iran-blackout-massacre-link', sn: 'Regime playbook', n: 'The Regime’s Playbook', role: 'What the IRGC will do against your plan', c: '#b8323a', f: ['iran-massacre-ends-street-phase', 'foreign-reinforcement', 'irgc-regional-hqs', 'strikes-on-repression-2026'], badge: 'irgc', red: true,
       say: { start: 'Batons and gas first. We keep the heavy units back.', netcut: 'Cut it at the peak. Nobody films what comes next.', massacre: 'Tonight, in the dark.', occupy: 'Checkpoints in every block. Nobody gathers.', wave: 'Now we go to their homes, one by one.' } },
   ];
   const BADGE = { scholar: 'M6 7h7a3 3 0 0 1 3 3v10H9a3 3 0 0 0-3 0Zm20 0h-7a3 3 0 0 0-3 3v10h7a3 3 0 0 1 3 0Z', organizer: 'M16 9a7 7 0 1 0 0 14a7 7 0 1 0 0-14Zm0 4a3 3 0 1 1 0 6a3 3 0 1 1 0-6Z',
@@ -1441,8 +1578,8 @@ async function start() {
   function renderAdv() {
     const P = D.getElementById('up-adv-pane');
     const a = advSel ? ADV.find(x => x.id === advSel) : null, side = true;
-    P.innerHTML = `<h2 class="up-ph">${tr('Pick an advisor')}</h2><p class="up-note">${tr('Each one reads this city and argues their plan from the evidence. Use a plan with one tap and watch it play out.')}</p>
-      <div class="up-advs" role="list">${ADV.map(x => `<button type="button" role="listitem" class="up-adv${advSel === x.id ? ' on' : ''}${x.red ? ' red' : ''}" data-a="${x.id}" aria-pressed="${advSel === x.id}">${bust(x.id, 50)}<b>${esc(tr(x.sn))}</b></button>`).join('')}</div>
+    P.innerHTML = `<h2 class="up-ph">${tr('Pick an advisor')}</h2><p class="up-note">${tr('Each one reads this city and argues a plan from the evidence.')}</p>
+      <div class="up-advs" role="list">${ADV.map(x => `<button type="button" role="listitem" class="up-adv${advSel === x.id ? ' on' : ''}${x.red ? ' red' : ''}" data-a="${x.id}" aria-pressed="${advSel === x.id}" title="${esc(tr(x.q || ''))}">${bust(x.id, 50)}<b>${esc(tr(x.sn))}</b></button>`).join('')}</div>
       <div id="up-advb">${a && !side ? advCard(a) : `<p class="up-hint">${tr('Tap a portrait to hear their brief.')}</p>`}</div>
       <p class="up-src">${tr('The advisors are schools of thought built from published research, not real people speaking.')}</p>`;
     dossier.hidden = !(a && side && mode === 'adv' && !RUN);
@@ -1463,6 +1600,7 @@ async function start() {
     const chips = pl ? planChips(pl.plan, pl.days) : '';
     return `<div class="up-advx${a.red ? ' red' : ''}">
       <div class="up-advh">${bust(a.id, 96)}<div><h3>${esc(tr(a.n))}</h3><p class="up-role">${esc(tr(a.role))}</p>${a.badge === 'artesh' ? `<p class="up-role">${tr('Former Artesh officer')}</p>` : ''}</div></div>
+      ${a.q ? `<blockquote class="up-q${a.red ? ' red' : ''}">“${esc(tr(a.q))}”${(() => { const f = findingOf(a.qf); return f && f.src ? ' ' + ext(f.src, tr('source')) : ''; })()}</blockquote>` : ''}
       ${pl ? `<div class="up-advgo"><button type="button" class="up-play" id="up-use"><i>▶</i><span>${tr('Use this plan')}</span></button><button type="button" class="up-sec" id="up-advcmp">${tr('Add to compare')}</button></div>` : `<button type="button" class="up-sec" id="up-redbest">${tr('Find the plan that beats this')}</button>`}
       <div class="up-say" id="up-say">${L.map(l => `<p>${esc(l)}</p>`).join('')}</div>
       ${chips ? `<div class="up-chips">${chips}</div>` : ''}
@@ -1628,6 +1766,106 @@ async function start() {
     S = S2; changed(); renderAll(); flash(tf('{n}: the real inputs are set. Watch it, or see the odds below.', { n: tr(b.name) }));
   }
 
+  // ================================================================== the cost on all sides (1 November 2026)
+  // Armin: "include an estimation of financial cost and casualties on all sides". The engine tallies each run (casOut: the
+  // people's dead, injured and arrested; each force's dead, injured and crossed over; the hours on the street, the hours the
+  // internet was cut, the strike's depth by sector). This prices those hours with research.json costs, low and high, so every
+  // figure is a range and says estimate. Never a model input: the odds are what they were.
+  const CO = DATA.costs || null;
+  const FORCE_T = { faraja: 'Police (FARAJA)', basij: 'Basij', irgc: 'IRGC', plain: 'Plainclothes and intelligence', prox: 'Foreign fighters', army: 'Army (Artesh)' };
+  const FORCE_E = { faraja: 'faraja', basij: 'basij', irgc: 'irgc', army: 'artesh' };
+  function money(cs) {      // one run, in dollars: each line [low, high]
+    if (!CO || !cs || !BJ) return null;
+    const share = Math.min(1, BJ.pop / ((CO.popIran || {}).v || 9e7)), nat = cs.nat || 'alone';
+    const reach = (CO.oilReach || {})[nat] != null ? CO.oilReach[nat] : 0.1, netShare = nat === 'all' ? 1 : nat === 'some' ? 0.4 : share;
+    const gd = [CO.gdpUsdYear.low / 365, CO.gdpUsdYear.high / 365], ss = CO.sectorShare || {};
+    const two = f => [f(0), f(1)], lh = (o, i) => (i ? o.high : o.low);
+    return {
+      forces: two(i => cs.fh / 24 * lh(CO.manDayUsd, i)),
+      oil: two(i => cs.sh.oil / 24 * lh(CO.oilRevenueUsdDay, i) * reach),
+      net: two(i => cs.nh / 24 * lh(CO.shutdownUsdDay, i) * netShare),
+      strike: two(i => ['bazaar', 'truck', 'civil'].reduce((a, k) => a + (cs.sh[k] || 0) / 24 * gd[i] * share * ((ss[k] || {}).v || 0), 0)),
+    };
+  }
+  function costOf(r) {      // a batch: the median of each line's low and high, and of each side's losses
+    if (!r || !r.cas || !r.cas.length || !CO) return null;
+    const M = r.cas.map(money).filter(Boolean);
+    const med = f => U.quant(M.map(f), 0.5), out = {};
+    for (const k of ['forces', 'oil', 'net', 'strike']) out[k] = [med(m => m[k][0]), med(m => m[k][1])];
+    out.days = Math.max(1, U.quant(r.tEnd, 0.5) / 24);
+    const q = f => U.quant(r.cas.map(f), 0.5);
+    out.ppl = [q(c => c.p[0]), q(c => c.p[1]), q(c => c.p[2])];
+    out.f = {}; for (const k of Object.keys(FORCE_T)) out.f[k] = [q(c => c.f[k][0]), q(c => c.f[k][1]), q(c => c.f[k][2])];
+    return out;
+  }
+  const usd = v => { v = Math.max(0, v || 0); const s = v >= 1e9 ? (Math.round(v / 1e8) / 10) + (FA ? ' میلیارد' : 'bn') : v >= 1e6 ? (v >= 1e8 ? Math.round(v / 1e6) : Math.round(v / 1e5) / 10) + (FA ? ' میلیون' : 'M') : v >= 1e3 ? Math.round(v / 1e3) + (FA ? ' هزار' : 'k') : Math.round(v); return FA ? N_(s) + ' دلار' : '$' + s; };
+  const rng$ = (a, b) => (Math.abs(b - a) < Math.max(1, b) * 0.08 ? usd((a + b) / 2) : (FA ? usd(a).replace(' دلار', '') + ' تا ' + usd(b) : usd(a) + '–' + usd(b).replace('$', '')));
+  const srcA = o => (o && o.src && o.src[0] ? ' ' + ext(o.src[0], tr('source')) : '');
+  function costHtml(C, perDay) {
+    if (!C) return '';
+    const d = perDay ? Math.max(1, C.days) : 1;
+    const reg = [C.forces[0] + C.oil[0], C.forces[1] + C.oil[1]], eco = [C.net[0] + C.strike[0], C.net[1] + C.strike[1]];
+    const line = (t, v, o) => (v[1] >= 1 ? `<li><span>${tr(t)}</span><b>${rng$(v[0] / d, v[1] / d)}</b>${srcA(o)}</li>` : '');
+    const rows = Object.keys(FORCE_T).filter(k => C.f[k].some(v => v >= 1));
+    return `<div class="up-costs">
+      <div class="up-cc"><h4>${tr('The people')}</h4><div class="up-cnums"><div><b>${fmt(C.ppl[0])}</b><span>${tr('killed')}</span></div><div><b>${big(C.ppl[1])}</b><span>${tr('injured')}</span></div><div><b>${big(C.ppl[2])}</b><span>${tr('arrested')}</span></div></div>
+        <h4>${tr('The forces')}</h4><table class="up-ctab"><thead><tr><th></th><th>${tr('killed')}</th><th>${tr('injured')}</th><th>${tr('crossed over')}</th></tr></thead><tbody>${rows.length ? rows.map(k => `<tr><th>${FORCE_E[k] ? embImg(FORCE_E[k], 'up-tip-e') : ''} ${tr(FORCE_T[k])}</th><td>${fmt(C.f[k][0])}</td><td>${big(C.f[k][1])}</td><td>${big(C.f[k][2])}</td></tr>`).join('') : `<tr><td colspan="4">${tr('No losses among the forces in a typical run.')}</td></tr>`}</tbody></table></div>
+      <div class="up-cc"><h4>${tr(perDay ? 'The regime pays, a day' : 'The regime pays, over the run')}</h4><p class="up-cbig r">${rng$(reg[0] / d, reg[1] / d)}</p><ul class="up-clist">${line('Forces on the streets', C.forces, CO.manDayUsd)}${line('Oil money lost to the strike', C.oil, CO.oilRevenueUsdDay)}</ul>
+        <h4>${tr(perDay ? 'The economy loses, a day' : 'The economy loses, over the run')}</h4><p class="up-cbig">${rng$(eco[0] / d, eco[1] / d)}</p><ul class="up-clist">${line('The internet cut', C.net, CO.shutdownUsdDay)}${line('Work stopped by the strike', C.strike, (CO.sectorShare || {}).bazaar)}</ul></div>
+    </div><p class="up-src">${tr('Estimates, typical run. Casualties: the model, calibrated on the counts of 2019, 2022 and January 2026, all disputed. Money: research.json costs, low and high.')}</p>`;
+  }
+  // the cost so far in a watched run: the same prices over the hours recorded up to now (the head-up display)
+  function costSoFar(fi) {
+    if (!CO || !RUN || !RUN.cum) return null;
+    const c = RUN.cum[Math.min(fi, RUN.cum.length - 1)];
+    return money({ fh: c[0], nh: c[1], sh: { oil: c[2], bazaar: c[3], truck: c[4], civil: c[5] }, nat: RUN.X.nation });
+  }
+
+  // ================================================================== objectives and the grade of a watched run
+  // A strategy game's clear goals (his ask: "a polished HUD with clear objectives ... and an end grade"). Three per run,
+  // read from THIS city: hold its main square (or governorate) for three days; win over units of the forces (a unit is
+  // about 500 men); keep the toll low, or, in a strike plan, keep the strike going for a week.
+  function nice(v) { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, v)))); return Math.max(10, Math.round(v / p * 2) / 2 * p); }
+  function objectives() {
+    const sq = SITES.find(q => q.k === 'square' && q.oi != null) || SITES.find(q => q.k === 'gov' && q.oi != null);
+    const F0 = BJ.pop * U.K.forcesPerPop, units = Math.max(1, Math.round(F0 * 0.03 / 500)), toll = nice(BJ.pop * 0.00012);
+    const P = U.planOf(S), strike = (P.sec.bazaar + P.sec.truck + P.sec.oil + P.sec.civil) / 4 > 0.4;
+    const O = [];
+    if (sq) O.push({ id: 'hold', t: tf('Hold {p} for 3 days', { p: siteName(sq) }), oi: sq.oi, need: 72 });
+    O.push({ id: 'units', t: units === 1 ? tr('Win over 1 unit of the forces (about 500 men)') : tf('Win over {n} units of the forces (about {m} men)', { n: N_(units), m: fmt(units * 500) }), need: units * 500 });
+    if (strike) O.push({ id: 'strike', t: tr('Keep the strike going for 7 days'), need: 168 });
+    else O.push({ id: 'toll', t: tf('Keep the lives lost under {n}', { n: fmt(toll) }), need: toll });
+    O.toll = toll;
+    return O;
+  }
+  function objState(O, fi) {      // how far each objective has come by hour fi of the watched run (from its record)
+    const g = RUN.rec.g, ho = O.find(x => x.id === 'hold'); let run = 0, best = 0, sh = 0;
+    for (let i = 0; i <= fi && i < g.length; i++) {
+      if (ho) { run = g[i].held && g[i].held[ho.oi] ? run + 1 : 0; if (run > best) best = run; }
+      if (g[i].sigma >= 0.4) sh++;
+    }
+    const gi = g[Math.min(fi, g.length - 1)], end = fi >= g.length - 1;
+    return O.map(o => {
+      if (o.id === 'hold') return { p: best / o.need, done: best >= o.need, v: tf('{n} h held', { n: N_(best) }) };
+      if (o.id === 'units') return { p: gi.def / o.need, done: gi.def >= o.need, v: big(gi.def) };
+      if (o.id === 'strike') return { p: sh / o.need, done: sh >= o.need, v: tf('{n} days', { n: N_(Math.floor(sh / 24)) }) };
+      return { p: gi.dead / o.need, done: end && gi.dead < o.need, fail: gi.dead >= o.need, v: fmt(gi.dead), low: 1 };
+    });
+  }
+  const OUT_PTS = { liberated: 600, army: 480, zones: 380, stalemate: 220, war: 120, crushed: 60 };
+  function grade(outcome, st, dead, toll) {
+    let sc = OUT_PTS[outcome] || 0;
+    for (const x of st) if (x.done) sc += 110;
+    sc += Math.round(70 * Math.max(0, 1 - dead / Math.max(1, toll * 2)));
+    sc = Math.min(1000, sc);
+    return { sc, L: sc >= 900 ? 'S' : sc >= 750 ? 'A' : sc >= 600 ? 'B' : sc >= 430 ? 'C' : sc >= 260 ? 'D' : 'F' };
+  }
+  function planGrade(r) {      // a plan's grade from its odds: the regime falls, districts held, still standing at the end
+    if (!r || !r.n) return null;
+    const fall = (r.out.liberated + r.out.army) / r.n, hold = fall + r.out.zones / r.n, alive = 1 - r.out.crushed / r.n;
+    return fall >= 0.4 ? 'A' : fall >= 0.2 ? 'B' : (fall >= 0.08 || hold >= 0.3) ? 'C' : (fall >= 0.02 || hold >= 0.1 || alive >= 0.5) ? 'D' : 'F';
+  }
+
   // ================================================================== the workers: the odds, Compare, why, the best plan
   const NW = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
   let pool = null, jobId = 0, rr = 0;
@@ -1655,8 +1893,8 @@ async function start() {
     const per = Math.ceil(n / Math.max(1, (pool || [1]).length)), parts = [];
     for (let k = 0; k * per < n; k++) parts.push(job({ op: 'batch', S: Sx, n: Math.min(per, n - k * per), seed: seed + k * per * 7919, slim }));
     const rs = await Promise.all(parts);
-    const out = { n: 0, out: {}, dead: [], arrested: [], peak: [], tEnd: [], def: [], runs: [] }; for (const k of U.OUTCOMES) out.out[k] = 0;
-    for (const r of rs) { out.n += r.n; for (const k in r.out) out.out[k] += r.out[k]; out.dead.push(...r.dead); out.arrested.push(...r.arrested); out.peak.push(...r.peak); out.tEnd.push(...r.tEnd); out.def.push(...(r.def || [])); out.runs.push(...r.runs); }
+    const out = { n: 0, out: {}, dead: [], arrested: [], peak: [], tEnd: [], def: [], cas: [], runs: [] }; for (const k of U.OUTCOMES) out.out[k] = 0;
+    for (const r of rs) { out.n += r.n; for (const k in r.out) out.out[k] += r.out[k]; out.dead.push(...r.dead); out.arrested.push(...r.arrested); out.peak.push(...r.peak); out.tEnd.push(...r.tEnd); out.def.push(...(r.def || [])); out.cas.push(...(r.cas || [])); out.runs.push(...r.runs); }
     out.p = out.out.liberated / Math.max(1, out.n); out.fall = (out.out.liberated + out.out.army) / Math.max(1, out.n);
     return out;
   }
@@ -1678,9 +1916,10 @@ async function start() {
     const el = D.getElementById('up-odds'); tog(el, 'stale', false);
     if (!A || !A.base) { el.innerHTML = `<span class="up-wait"><i></i>${tr('Working out the odds...')}</span>`; return; }
     const r = A.base, n = r.n, fall = (r.out.liberated + r.out.army) / n, dv = A.prev ? fall - (A.prev.out.liberated + A.prev.out.army) / A.prev.n : 0;
-    el.innerHTML = `<div class="up-o1"><span>${tr('Your plan, run')} ${N_(n)}×</span><b>${pc(fall)}</b><em>${tr('the regime falls')}</em>${Math.abs(dv) >= 0.03 ? `<i class="${dv > 0 ? 'up' : 'dn'}">${dv > 0 ? '▲' : '▼'} ${N_(Math.round(Math.abs(dv) * 100))}</i>` : ''}</div>
+    const gL = planGrade(r), C = costOf(r);
+    el.innerHTML = `<div class="up-o1"><i class="up-gb g-${gL}" title="${esc(tr('Plan grade'))}">${gL}</i><span>${tr('Your plan, run')} ${N_(n)}×</span><b>${pc(fall)}</b><em>${tr('the regime falls')}</em>${Math.abs(dv) >= 0.03 ? `<i class="${dv > 0 ? 'up' : 'dn'}">${dv > 0 ? '▲' : '▼'} ${N_(Math.round(Math.abs(dv) * 100))}</i>` : ''}</div>
       ${outBar(r.out, n, true)}
-      <p class="up-o2">${tf('About {d} lives lost, {a} arrested, over {t} days in a typical run.', { d: fmt(U.quant(r.dead, 0.5)), a: big(U.quant(r.arrested, 0.5)), t: N_(Math.round(U.quant(r.tEnd, 0.5) / 24)) })} <button type="button" class="up-link" id="up-oddsmore">${tr('Why?')}</button></p>`;
+      <p class="up-o2">${tf('About {d} lives lost, {a} arrested, over {t} days in a typical run.', { d: fmt(U.quant(r.dead, 0.5)), a: big(U.quant(r.arrested, 0.5)), t: N_(Math.round(U.quant(r.tEnd, 0.5) / 24)) })}${C ? ' ' + tf('The regime pays about {r} a day.', { r: rng$((C.forces[0] + C.oil[0]) / C.days, (C.forces[1] + C.oil[1]) / C.days) }) : ''} <button type="button" class="up-link" id="up-oddsmore">${tr('Why?')}</button></p>`;
     D.getElementById('up-oddsmore').addEventListener('click', () => openResults());
   }
   function outBar(o, n, small) {
@@ -1740,7 +1979,7 @@ async function start() {
         return `<div class="up-cmpc${i === best ? ' best' : ''}">${i === best ? `<span class="up-crown">★ ${tr('Best for this goal')}</span>` : ''}
           <div class="up-cmph">${a ? bust(a.id, 48) : `<i class="up-cmpi">${PLAN_ICON[x.S.plan.type] || '•'}</i>`}<div><b>${esc(x.name)}</b><span>${esc(tr(PLAN_T[x.S.plan.type][0]))} · ${tf('{d} weeks', { d: N_(x.S.days / 7) })}</span></div><button type="button" class="up-x2" data-cx="${i}" aria-label="${tr('Remove')}">✕</button></div>
           ${r ? `<div class="up-cmpv"><b>${pc((r.out.liberated + r.out.army) / r.n)}</b><span>${tr('the regime falls')}</span></div>${outBar(r.out, r.n, true)}
-            <dl><dt>${tr('Lives lost, typical run')}</dt><dd>${fmt(U.quant(r.dead, 0.5))}</dd><dt>${tr('Arrested')}</dt><dd>${big(U.quant(r.arrested, 0.5))}</dd><dt>${tr('Still standing at the end')}</dt><dd>${pc(1 - r.out.crushed / r.n)}</dd><dt>${tr('Days it lasts')}</dt><dd>${N_(Math.round(U.quant(r.tEnd, 0.5) / 24))}</dd></dl>
+            <dl><dt>${tr('Plan grade')}</dt><dd><i class="up-gb g-${planGrade(r)}">${planGrade(r)}</i></dd><dt>${tr('Lives lost, typical run')}</dt><dd>${fmt(U.quant(r.dead, 0.5))}</dd>${(() => { const C = costOf(r); return C ? `<dt>${tr('Forces killed')}</dt><dd>${fmt(Object.keys(C.f).reduce((a, k) => a + C.f[k][0], 0))}</dd><dt>${tr('The regime pays, a day')}</dt><dd>${rng$((C.forces[0] + C.oil[0]) / C.days, (C.forces[1] + C.oil[1]) / C.days)}</dd>` : ''; })()}<dt>${tr('Arrested')}</dt><dd>${big(U.quant(r.arrested, 0.5))}</dd><dt>${tr('Still standing at the end')}</dt><dd>${pc(1 - r.out.crushed / r.n)}</dd><dt>${tr('Days it lasts')}</dt><dd>${N_(Math.round(U.quant(r.tEnd, 0.5) / 24))}</dd></dl>
             <div class="up-cmpb"><button type="button" class="up-sec" data-cw="${i}">▶ ${tr('Watch')}</button><button type="button" class="up-sec" data-cu="${i}">${tr('Use')}</button></div>` : `<span class="up-wait"><i></i>${tr('Running...')}</span>`}
         </div>`; }).join('')}</div>
       <p class="up-src">${tr('Every plan runs with the same seeds of luck, so the differences come from the plans, not from chance.')} <button type="button" class="up-link" id="up-cmpshare">${tr('Copy the link to this comparison')}</button></p>`;
@@ -1750,16 +1989,94 @@ async function start() {
     $$('[data-cw]', b).forEach(x => x.addEventListener('click', () => { const i = +x.dataset.cw; S = mergeS(CMP[i].S); changed(); renderAll(); closeOv(cmpEl); play(typicalSeed(cmpRes[i]), 'typical'); }));
     D.getElementById('up-cmpshare').addEventListener('click', ev => copyLink(ev.currentTarget));
   }
-  async function openCmpBest() {      // the plans that beat the regime's playbook: every approach, best of each kept
-    cmpEl.hidden = false;
-    D.getElementById('up-cmp-b').innerHTML = `<h2 id="up-cmp-h">${tr('Finding the best plans')}</h2><span class="up-wait"><i></i>${tr('Trying every approach under these conditions...')}</span>`;
-    const R = U.rng(7), C = U.candidates(S, R), res = [], my = dirty;
-    for (const p of C) { if (my !== dirty) return; const Sx = Object.assign(clone(S), { plan: Object.assign({ ign: S.plan.ign, gather: S.plan.gather, routes: S.plan.routes, adv: null }, p) }); const r = await batch(Sx, PHONE() ? 16 : 24, SEED0 + 31, true); res.push({ S: Sx, v: r.fall + (1 - r.out.crushed / r.n) * 0.2 }); }
-    res.sort((x, y) => y.v - x.v);
-    const seen = new Set(); CMP = []; cmpRes = [];
-    for (const x of res) { if (CMP.length >= 4) break; if (seen.has(x.S.plan.type)) continue; seen.add(x.S.plan.type); CMP.push({ name: tr(PLAN_T[x.S.plan.type][0]), S: x.S, adv: null }); }
-    saveAddr(); cmpCount(); openCmp();
+  // ================================================================== the best plans (1 November 2026)
+  // Armin: "better at finding the best strategy (better than all the relevant experts)". Every approach and 40 variations
+  // of its dials and its strike, plus each advisor's own plan, run under the reader's conditions with the same luck; all
+  // of them at once across the workers, with a progress bar; then the best three for each goal are run again, longer, to
+  // be sure. Each winner says why it wins (what in it differs from the field) and the history it rests on (PREC: cases in
+  // research.json, checked by uprising.py --check), and whether it beats the best advisor.
+  const PREC = { centre: ['eg-2011', 'rev-1978'], districts: ['bd-2024', 'wlf-2022'], water: ['hk-2019', 'wlf-2022'], strike: ['rev-1978', 'sd-2019'], soldiers: ['ph-1986', 'rs-2000'],
+    roads: ['kz-2022', 'wlf-2022'], voice: ['ro-1989', 'rs-2000'], night: ['green-2009', 'wlf-2022'], armed: ['sy-2011', 'ly-2011'] };
+  const WHYD = {      // what a winning plan has more of than the field, in words, and the finding behind it
+    strike: ['A deep, long strike', 'general-strike'], fraternize: ['Steady appeals to the soldiers', 'defections-mechanism'], discipline: ['Strict nonviolence', 'cs-success-rates'],
+    offline: ['Times and places agreed before the blackout', 'hassanpour-dispersion'], blockade: ['The roads in held', 'irgc-regional-hqs'], night: ['Small groups after dark', 'night-tactics'],
+    medics: ['Medics and safe houses', 'arrests-and-afterwards'], abroad: ['The hour carried by satellite TV', 'hassanpour-dispersion'], film: ['Everything filmed and sent out', 'backfire'],
+    conv: ['Everyone on the same targets', 'revolutionary-city'], voice: ['The broadcaster taken', 'revolutionary-city'], oil: ['The oil workers out', 'general-strike'] };
+  const bestEl = D.getElementById('up-best');
+  let BEST = null, bestGoal = 'fall';
+  function caseOf(id) { return (DATA.world || []).find(w => w.id === id) || (DATA.iran || []).map(u => ({ id: u.id, n: u.n, y: (u.start || '').slice(0, 4), out: u.out, src: u.src })).find(w => w.id === id); }
+  function planWhy(p, field) {
+    const out = [], P = Object.assign({}, U.PLANS[p.type] || {}, p), sec = P.sec || null;
+    const mean = k => field.reduce((a, x) => a + (+((x.S.plan.sec && k === 'oil') ? x.S.plan.sec.oil : x.S.plan[k]) || 0), 0) / Math.max(1, field.length);
+    const vals = Object.keys(WHYD).map(k => [k, (k === 'oil' ? (sec ? sec.oil : P.strike) : P[k]) || 0]).map(([k, v]) => [k, v, v - mean(k)]).filter(x => x[1] >= 0.6 && x[2] > 0.08).sort((a, b) => b[2] - a[2]);
+    for (const [k] of vals.slice(0, 3)) { const f = findingOf(WHYD[k][1]); out.push(`<li>${tr(WHYD[k][0])}${f && f.src ? ' ' + ext(f.src, tr('source')) : ''}</li>`); }
+    return out.join('');
   }
+  async function openBest() {
+    closeOv(cmpEl); bestEl.hidden = false;
+    const my = dirty, Rn = U.rng(7), C = U.candidates(S, Rn), field = [];
+    const dur = [14, 28, 56];
+    C.forEach((p, i) => { const S2 = Object.assign(clone(S), { plan: Object.assign({ ign: S.plan.ign, gather: S.plan.gather, routes: S.plan.routes, adv: null }, p) }); if (i >= 9) S2.days = dur[Math.floor(Rn() * 3)]; field.push({ S: S2 }); });
+    for (const t of Object.keys(U.PLANS)) { if (t === 'armed' && !S.armed) continue; if (S.days === 56) break; const S2 = Object.assign(clone(S), { days: 56, plan: Object.assign({ type: t, ign: S.plan.ign, gather: S.plan.gather, routes: S.plan.routes, adv: null }, U.PLANS[t]) }); field.push({ S: S2 }); }
+    for (const a of ADV) { if (a.red) continue; const S2 = advS(a); field.push({ S: mergeS(S2), adv: a.id }); }
+    const n1 = PHONE() ? 14 : 22, n2 = PHONE() ? 36 : 60;
+    BEST = { my, field, done: 0, total: field.length, stage: 1, res: null };
+    renderBest();
+    // stage 1: every plan at once across the workers (job() spreads them), the bar moving as each one comes back
+    await Promise.all(field.map((x, i) => batch(x.S, n1, SEED0 + 31, true).then(r => { x.r = r; BEST.done++; if (my === dirty && !bestEl.hidden) renderBest(); })));
+    if (my !== dirty) return;
+    // stage 2: the best three for each goal (and the best advisor), run again with more luck to be sure
+    const pick = new Set();
+    for (const g of Object.keys(GOALS)) {
+      const G1 = GOALS[g], up = G1[2] === 'up', seen = new Set();
+      const order = field.filter(x => !x.adv).slice().sort((a, b) => up ? G1[1](b.r) - G1[1](a.r) : G1[1](a.r) - G1[1](b.r));
+      let k = 0; for (const x of order) { if (k >= 3) break; if (seen.has(x.S.plan.type)) continue; seen.add(x.S.plan.type); pick.add(x); k++; }
+      const ad = field.filter(x => x.adv).sort((a, b) => up ? G1[1](b.r) - G1[1](a.r) : G1[1](a.r) - G1[1](b.r))[0]; if (ad) pick.add(ad);
+    }
+    BEST.stage = 2; BEST.done = 0; BEST.total = pick.size; renderBest();
+    await Promise.all(Array.from(pick).map(x => batch(x.S, n2, SEED0 + 77, false).then(r => { x.r2 = r; BEST.done++; if (my === dirty && !bestEl.hidden) renderBest(); })));
+    if (my !== dirty) return;
+    BEST.stage = 3; renderBest();
+  }
+  function renderBest() {
+    const b = D.getElementById('up-best-b'), c = cityOf(cityId);
+    if (!BEST) return;
+    const pct = Math.round(100 * BEST.done / Math.max(1, BEST.total)), working = BEST.stage < 3;
+    let h = `<h2 id="up-best-h">${tf('The best plans for {c}', { c: esc(FA ? c.fa : c.n) })}</h2>
+      <div class="up-prog${working ? '' : ' done'}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${working ? pct : 100}"><i style="width:${working ? pct : 100}%"></i><span>${working ? (BEST.stage === 1 ? tf('Trying {n} plans under your conditions: {d} of {t}', { n: N_(BEST.total), d: N_(BEST.done), t: N_(BEST.total) }) : tf('Checking the winners again with more runs: {d} of {t}', { d: N_(BEST.done), t: N_(BEST.total) })) : tf('{n} plans tried, the winners checked twice, the same luck for every plan', { n: N_(BEST.field.length) })}</span></div>
+      <div class="up-goal" role="radiogroup" aria-label="${tr('What matters most')}"><span>${tr('What matters most')}</span>${Object.keys(GOALS).map(k => `<button type="button" role="radio" data-bg="${k}" aria-checked="${k === bestGoal}"${k === bestGoal ? ' class="on"' : ''}>${tr(GOALS[k][0])}</button>`).join('')}</div>`;
+    const G1 = GOALS[bestGoal], up = G1[2] === 'up', val0 = x => G1[1](x.r2 || x.r);
+    const val = x => { const r = x.r2 || x.r, v = val0(x); return up ? v + 1e-3 * GOALS.hold[1](r) + 1e-5 * GOALS.alive[1](r) : v - 1e-4 * GOALS.hold[1](r); };
+    const have = BEST.field.filter(x => x.r && !x.adv);
+    if (have.length) {
+      const seen = new Set(), top = [];
+      for (const x of have.slice().sort((a, b) => ((b.r2 ? 1 : 0) - (a.r2 ? 1 : 0)) * (BEST.stage === 3 ? 1 : 0) || (up ? val(b) - val(a) : val(a) - val(b)))) { if (top.length >= 3) break; if (seen.has(x.S.plan.type)) continue; seen.add(x.S.plan.type); top.push(x); }
+      top.sort((a, b) => up ? val(b) - val(a) : val(a) - val(b));
+      const ads = BEST.field.filter(x => x.adv && (x.r2 || x.r)).sort((a, b) => up ? val(b) - val(a) : val(a) - val(b)), ad = ads[0], adA = ad && ADV.find(q => q.id === ad.adv);
+      const show = v => bestGoal === 'lives' ? fmt(v) : pc(v), unit = bestGoal === 'lives' ? tr('lives lost, typical run') : tr(G1[0]).toLowerCase();
+      if (BEST.stage === 3 && bestGoal === 'fall' && top.length && val0(top[0]) < 0.01) h += `<p class="up-bnone">${tf('Under these conditions no plan brings the regime down in {c} within the weeks tried. The best ones still hold districts or keep the uprising alive; change the conditions (the whole country rising, the forces shaky, a longer strike) and search again.', { c: esc(FA ? c.fa : c.n) })}</p>`;
+      h += `<div class="up-bests">${top.map((x, i) => {
+        const r = x.r2 || x.r, v = val0(x), pr = (PREC[x.S.plan.type] || []).map(caseOf).filter(Boolean).slice(0, 2);
+        const beat = ad && adA ? (up ? v - val0(ad) : val0(ad) - v) : null;
+        return `<div class="up-bc${i === 0 ? ' first' : ''}"><span class="up-rank">${N_(i + 1)}</span>
+          <div class="up-bch"><i class="up-cmpi">${PLAN_ICON[x.S.plan.type] || '•'}</i><div><b>${esc(tr(PLAN_T[x.S.plan.type][0]))}</b><span>${esc(tr(PLAN_T[x.S.plan.type][1]))} · ${tf('{d} weeks', { d: N_(x.S.days / 7) })}</span></div><i class="up-gb g-${planGrade(r)}">${planGrade(r)}</i></div>
+          <div class="up-cmpv"><b>${show(v)}</b><span>${esc(unit)}</span></div>${outBar(r.out, r.n, true)}
+          <h4>${tr('Why it wins')}</h4><ul class="up-bwhy">${planWhy(x.S.plan, have) || `<li>${tr('Its approach, under these conditions')}</li>`}</ul>
+          ${pr.length ? `<h4>${tr('The history it rests on')}</h4><ul class="up-bprec">${pr.map(w => `<li><b>${esc(w.n)}</b>${w.y ? ` (${N_(w.y)})` : ''}${w.out ? ': ' + esc(String(w.out)) : ''}${w.src ? ' ' + ext(w.src, tr('source')) : ''}</li>`).join('')}</ul>` : ''}
+          ${beat != null && Math.abs(beat) > 0.004 && bestGoal !== 'lives' ? `<p class="up-beat${beat > 0 ? '' : ' no'}">${beat > 0 ? tf('Beats the best advisor’s plan ({a}) by {p} points', { a: esc(tr(adA.n)), p: N_(Math.round(beat * 100)) }) : tf('The best advisor’s plan ({a}) does better here', { a: esc(tr(adA.n)) })}</p>` : ''}
+          <div class="up-cmpb"><button type="button" class="up-play" data-bw="${BEST.field.indexOf(x)}"><i>▶</i><span>${tr('Watch')}</span></button><button type="button" class="up-sec" data-bu="${BEST.field.indexOf(x)}">${tr('Use')}</button><button type="button" class="up-sec up-ic" data-bc="${BEST.field.indexOf(x)}" aria-label="${tr('Add to compare')}">${ICO.add}<span>+</span></button></div></div>`;
+      }).join('')}</div>`;
+    } else h += `<span class="up-wait"><i></i>${tr('The first plans are running...')}</span>`;
+    h += `<p class="up-src">${tr('Every plan runs with the same seeds of luck, so the differences come from the plans. A model to think with, not a forecast, and not instructions.')}</p>`;
+    b.innerHTML = h;
+    $$('[data-bg]', b).forEach(x => x.addEventListener('click', () => { bestGoal = x.dataset.bg; renderBest(); }));
+    const F = i => BEST.field[+i];
+    $$('[data-bw]', b).forEach(x => x.addEventListener('click', () => { const f = F(x.dataset.bw); S = mergeS(f.S); changed(); renderAll(); closeOv(bestEl); play(typicalSeed(f.r2 || f.r), 'typical'); }));
+    $$('[data-bu]', b).forEach(x => x.addEventListener('click', () => { S = mergeS(F(x.dataset.bu).S); changed(); renderAll(); closeOv(bestEl); flash(tr('The plan is set.')); }));
+    $$('[data-bc]', b).forEach(x => x.addEventListener('click', () => { const f = F(x.dataset.bc); addCmp(tr(PLAN_T[f.S.plan.type][0]), f.S, null); }));
+  }
+  const openCmpBest = openBest;
+
 
   // ================================================================== the results of a run, and why
   const resEl = D.getElementById('up-res');
@@ -1781,11 +2098,16 @@ async function start() {
   function renderResults() {
     const b = D.getElementById('up-res-b'), c = cityOf(cityId), name = FA ? c.fa : c.n;
     let h = `<h2 id="up-res-h">${A && A.base ? tf('{c}: your plan, run {n} times', { c: esc(name), n: N_(A.base.n) }) : tf('{c}: the odds', { c: esc(name) })}</h2>`;
-    if (RUN && !runStale) h += `<p class="up-thisrun o-${RUN.outcome}"><b>${tr('The run you watched')}:</b> ${tr(WORD.out[RUN.outcome])}. ${tr(WORD.outLine[RUN.outcome])} ${tf('{d} lives lost, {a} arrested, {f} crossed over.', { d: fmt(RUN.dead), a: big(RUN.arrested), f: big(RUN.defected) })}</p>`;
+    if (RUN && !runStale) {
+      const st = objState(RUN.O, RUN.rec.c.length - 1), G2 = grade(RUN.outcome, st, RUN.dead, RUN.O.toll);
+      h += `<div class="up-grade g-${G2.L}"><div class="up-gdl"><b>${G2.L}</b><span>${N_(G2.sc)} ${tr('points')}</span></div><div class="up-gr"><p class="up-thisrun o-${RUN.outcome}"><b>${tr('The run you watched')}:</b> ${tr(WORD.out[RUN.outcome])}. ${tr(WORD.outLine[RUN.outcome])} ${tf('{d} lives lost, {a} arrested, {f} crossed over.', { d: fmt(RUN.dead), a: big(RUN.arrested), f: big(RUN.defected) })}</p>
+        <ol class="up-objs up-objs-r">${RUN.O.map((o, i) => `<li class="${st[i].done ? 'done' : 'fail'}"><i aria-hidden="true">${st[i].done ? '✓' : '✕'}</i><span>${esc(o.t)}</span><em>${esc(st[i].v)}</em></li>`).join('')}</ol></div></div>`;
+    }
     if (!A || !A.base) { b.innerHTML = h + `<span class="up-wait"><i></i>${tr('Running the plan many times...')}</span>`; return; }
     const B = A.base, fall = (B.out.liberated + B.out.army) / B.n, ci = wilson(fall, B.n);
     h += `<div class="up-r1"><div class="up-dial-big" style="--p:${fall}"><b>${pc(fall)}</b><span>${tr('chance the regime falls in the city')}</span><em>${tf('likely between {a} and {b}', { a: pc(ci[0]), b: pc(ci[1]) })}</em></div>
-      <div class="up-r1b"><h3>${tr('How the runs ended')}</h3>${outBar(B.out, B.n)}<h3>${tr('The cost')}</h3><p class="up-cost">${tf('Lives lost in a typical run: {m} (one run in ten: more than {h}). Arrested, including the weeks after: {a}.', { m: fmt(U.quant(B.dead, 0.5)), h: fmt(U.quant(B.dead, 0.9)), a: big(U.quant(B.arrested, 0.5)) })}</p></div></div>`;
+      <div class="up-r1b"><h3>${tr('How the runs ended')}</h3>${outBar(B.out, B.n)}<p class="up-cost">${tf('Lives lost in a typical run: {m} (one run in ten: more than {h}). Arrested, including the weeks after: {a}.', { m: fmt(U.quant(B.dead, 0.5)), h: fmt(U.quant(B.dead, 0.9)), a: big(U.quant(B.arrested, 0.5)) })}</p></div></div>`;
+    { const C = costOf(B); if (C) h += `<h3>${tr('The cost on all sides')}</h3>${costHtml(C, true)}<p class="up-note">${tf('Over a typical run of {d} days the regime pays {r} and the economy loses {e}.', { d: N_(Math.round(C.days)), r: rng$(C.forces[0] + C.oil[0], C.forces[1] + C.oil[1]), e: rng$(C.net[0] + C.strike[0], C.net[1] + C.strike[1]) })}</p>`; }
     h += `<h3>${tr('Why: what moves the odds most')}</h3>`;
     if (!A.why) h += `<span class="up-wait"><i></i>${tr('Testing each factor on its own...')}</span>`;
     else { const mx = Math.max(0.05, ...A.why.map(x => Math.abs(x.d))); h += `<ul class="up-why">${A.why.slice(0, 8).map(x => `<li class="${x.d >= 0 ? 'up' : 'dn'}"><span>${tr(FACT_T[x.id] || x.id)}</span><i><b style="width:${(Math.abs(x.d) / mx * 50).toFixed(1)}%"></b></i><em>${x.d >= 0 ? '+' : '−'}${N_(Math.round(Math.abs(x.d) * 100))} ${tr('points')}${Math.abs(x.dd) >= 10 ? ` · ${x.dd > 0 ? '+' : '−'}${fmt(Math.abs(x.dd))} ${tr('lives')}` : ''}</em></li>`).join('')}</ul>`; }
@@ -1853,7 +2175,7 @@ async function start() {
   }
   $$('#up-modes [data-mode]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
   function renderLegend() {
-    D.getElementById('up-legend').innerHTML = `<b>${tr('Who runs it')}</b>${[['irgc', 'IRGC'], ['basij', 'Basij'], ['faraja', 'Police (FARAJA)'], ['artesh', 'Army (Artesh)']].map(([id, t]) => `<span>${embImg(id)}${tr(t)}</span>`).join('')}<span class="up-lg-t">◌ ${tr('dimmed: typical placement, not mapped')}</span>`;
+    D.getElementById('up-legend').innerHTML = `<b>${tr('Who runs it')}</b>${[['irgc', 'IRGC'], ['basij', 'Basij'], ['faraja', 'Police (FARAJA)'], ['artesh', 'Army (Artesh)']].map(([id, t]) => `<span>${embImg(id)}${tr(t)}</span>`).join('')}<span class="up-lg-t">◌ ${tr('dimmed: typical placement, not mapped')}</span>${BJ && (BJ.bldN || 0) < 150 ? `<span class="up-lg-t up-lg-thin">${tf('OpenStreetMap maps only {n} buildings here; the rest are typical blocks on its real streets.', { n: N_(BJ.bldN || 0) })}</span>` : ''}`;
   }
   function renderCity() { const c = cityOf(cityId); D.getElementById('up-cn').textContent = FA ? c.fa : c.n; D.getElementById('up-cf').textContent = FA ? (c.prov || '') : (c.fa || ''); }
   function renderAll() { renderCity(); if (mode === 'adv') renderAdv(); else renderPane(curTab); hudIdle(); renderOdds(); cmpCount(); }
@@ -1867,18 +2189,19 @@ async function start() {
   D.getElementById('up-share').addEventListener('click', ev => copyLink($('span', ev.currentTarget)));
   D.getElementById('up-watch').addEventListener('click', watchIt);
   D.getElementById('up-addcmp').addEventListener('click', () => addCmp());
+  D.getElementById('up-bestb').addEventListener('click', openBest);
 
   async function switchCity(id, keepS) {
     if (RUN) endRun();
     RUN = null; A = null; advOdds = {}; cmpRes = []; feedReset();
     cityId = id; if (!keepS) { S.plan.ign = null; S.plan.gather = []; S.plan.routes = []; }
     BJ = await loadBoard(id); BLD = null;
-    buildWorld(BJ); makePool();
+    buildWorld(BJ); makePool(); renderLegend();
     renderAll(); saveAddr();
     tog(D.getElementById('up-boot'), 'off', true);
     oddsSoon();
     // the buildings OpenStreetMap maps come after the board is up
-    if (BJ.bldN) fetch(DATA.asset + 'b/' + id + '-bld.json', { cache: 'force-cache' }).then(r => (r.ok ? r.json() : null)).then(j => { if (j && cityId === id && BJ) { BLD = j; const keep = { RUN, tPos }; buildWorld(BJ); if (keep.RUN) { frameShown = -1; } } }).catch(() => { });
+    if (BJ.bldN) fetch(DATA.asset + 'b/' + id + '-bld.json', { cache: 'force-cache' }).then(r => (r.ok ? r.json() : null)).then(j => { if (j && cityId === id && BJ) { BLD = j; rebuildBuildings(); } }).catch(() => { });
   }
   renderLegend();
   await switchCity(cityId, true);
@@ -1889,7 +2212,7 @@ async function start() {
   if (qs.get('cmp')) openCmp();
   if (qs.get('res')) openResults();
   if (qs.get('play')) { await odds(); play(typicalSeed(A && A.base), 'typical'); const at = parseInt(qs.get('at'), 10); if (at > 0 && RUN) { tPos = Math.min(at, RUN.rec.c.length - 1); playing = false; setPP(); } }
-  W.UPRPAGE = { get S() { return S; }, get A() { return A; }, get RUN() { return RUN; }, get FPS() { return FPS; }, get cam() { return cam; }, get CMP() { return CMP; }, get PPL() { return PPL; }, get visible() { return visible; }, get clock() { return clock; }, get rafN() { return rafN; }, get hidden() { return D.hidden; }, get frameErr() { return frameErr; }, lost: () => renderer.getContext().isContextLost(), info: () => JSON.stringify(renderer.info.render), stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, lod: LOD2 ? 'phone' : LOWP ? 'low' : 'full' }), tagOverlaps: () => { placeLabels(true); return tagOverlaps(); }, breakdown: () => { const out = {}; world.children.forEach((o, i) => { let t = 0, c = 0; o.traverseVisible(m => { if (!m.isMesh || !m.geometry) return; const g = m.geometry, n = (g.index ? g.index.count : g.attributes.position.count) / 3; t += n * (m.isInstancedMesh ? m.count : 1); c++; }); const k = (o.name || o.type) + (o.userData.type ? ':' + o.userData.type : ''); out[k] = out[k] || [0, 0]; out[k][0] += Math.round(t); out[k][1] += c; }); return out; },
+  W.UPRPAGE = { get city() { return cityId; }, get builds() { return [BUILDS, BLDS]; }, get S() { return S; }, get A() { return A; }, get RUN() { return RUN; }, get FPS() { return FPS; }, get cam() { return cam; }, get CMP() { return CMP; }, get PPL() { return PPL; }, get visible() { return visible; }, get clock() { return clock; }, get rafN() { return rafN; }, get hidden() { return D.hidden; }, get frameErr() { return frameErr; }, lost: () => renderer.getContext().isContextLost(), info: () => JSON.stringify(renderer.info.render), stats: () => ({ triangles: renderer.info.render.triangles, calls: renderer.info.render.calls, lod: LOD2 ? 'phone' : LOWP ? 'low' : 'full' }), tagOverlaps: () => { placeLabels(true); return tagOverlaps(); }, breakdown: () => { const out = {}; world.children.forEach((o, i) => { let t = 0, c = 0; o.traverseVisible(m => { if (!m.isMesh || !m.geometry) return; const g = m.geometry, n = (g.index ? g.index.count : g.attributes.position.count) / 3; t += n * (m.isInstancedMesh ? m.count : 1); c++; }); const k = (o.name || o.type) + (o.userData.type ? ':' + o.userData.type : ''); out[k] = out[k] || [0, 0]; out[k][0] += Math.round(t); out[k][1] += c; }); return out; },
     play, odds, switchCity, openResults, openCmp, setMode, showTab, useAdv: id => useAdv(ADV.find(a => a.id === id), false), addCmp, camFly, camHome,
     seek: h => { if (RUN) { tPos = clamp(h, 0, RUN.rec.c.length - 1); playing = false; setPP(); } }, tick: dt => { clock += dt; playTick(dt); } };
 }

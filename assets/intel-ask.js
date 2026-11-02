@@ -381,7 +381,7 @@
     var allw = (' ' + (V.stopFa ? tw.replace(V.stopFa, ' ') : tw) + ' ').replace(gl(SOFT), ' ').replace(STOP, ' ').replace(STOP, ' ').replace(/[^a-z0-9_\u0590-\u06ff' -]/g, ' ').replace(/\s+/g, ' ').trim().split(' ')
       .filter(function (w, i, a) { return (w.length > 2 || /^(uk|un|eu)$/.test(w) || (w.length === 2 && /[\u0600-\u06ff]/.test(w))) && !/^\d+$/.test(w) && a.indexOf(w) === i && (!claim || w !== claim.w); });
     var allq = (claim ? [claim.said || claim.w] : []).concat(allw.filter(function (w) { return !claim || w !== claim.said; })).slice(0, 6).join(' ');
-    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, allq: allq, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess, crGuess: crGuess };
+    return { ns: ns, did: did, left: left, intent: intent, raw: raw, claim: claim, toBank: toBank, actor: actorOf, allq: allq, allw: allw, timed: timed || !!bank, kindGuess: kindGuess, want: want, hotGuess: hotGuess, pfGuess: pfGuess, crGuess: crGuess };
   }
 
   /* ------------------------------------------------------------------ saying what a set of filters is, in one line */
@@ -626,8 +626,23 @@
     // facet at all, a platform or kind said outright included: «از طریق این نشانی در تلگرام» at the end of a pasted caption
     // says where it was sent, not where to look (29 Oct 2026, ask gate: that caption, an X post, found nothing on Telegram).
     // This reading never wins on its own score; only the rule below picks it, for an item that says all of it.
-    var C = cp(ns); C.tp = []; C.fx = []; C.place = ''; C.ext = {}; C.kind = ''; C.hot = ''; C.pf = []; if (p.crGuess) C.crmin = 0; C.q = p.allq; C.qm = 'best';
+    // an @handle inside a pasted post names someone the post mentions, not who posted it (2 Nov 2026, ask gate: a post that
+    // tags @PahlaviReza was read as "only from that account", and every reading of it found nothing)
+    var C = cp(ns); C.tp = []; C.fx = []; C.place = ''; C.ext = {}; C.kind = ''; C.hot = ''; C.pf = []; C.who = ''; if (p.crGuess) C.crmin = 0; C.q = p.allq; C.qm = 'best';
     if (p.allq.split(' ').length >= 4 && p.raw.split(/\s+/).length >= 8 && JSON.stringify(C) !== JSON.stringify(cands[cands.length - 1].ns)) cands.push({ ns: C, pref: 0, words: 2, last: true });
+    // A LONG QUESTION IS ALSO SEARCHED BY ITS RAREST WORDS (2 Nov 2026, ask gate: a Persian X post about Prince Reza Pahlavi,
+    // asked in its own words, was searched by its first five words, «هم متحد همصدا کنار رضا», which 25 other posts also
+    // carry, and every reading lost it). Every reading above searches the first five or six words, so a headline that opens
+    // with common words could never find itself. This reading searches the six words of the question that the fewest items
+    // carry (IRoom.qw, the room's own weights; the longer word first where two weigh the same), with no facet; like the one above it never wins on its own score, only by the
+    // rules below, for an item whose headline says (nearly) all of the question.
+    var aw0 = (p.allw || []).filter(function (w) { return !/^[\u0600-\u06ff]{1,2}$/.test(w); });
+    if (R.qw && p.raw.split(/\s+/).length >= 8 && aw0.length > 6) {
+      var rq = aw0.map(function (w, i) { return { w: w, i: i, k: R.qw(w, w) }; }).sort(function (x, y) { return (y.k - x.k) || (y.w.length - x.w.length) || (x.i - y.i); }).slice(0, 6)
+        .sort(function (x, y) { return x.i - y.i; }).map(function (x) { return x.w; }).join(' ');
+      var D = cp(C); D.q = rq;
+      if (rq !== C.q) cands.push({ ns: D, pref: 0, words: 2, last: true });
+    }
     var other = here === 'live' ? 'bank' : here === 'bank' && V.live ? 'live' : '';
     if (other && V.sorts[other] && !p.timed && !p.toBank && !p.intent && !(ns.hot && !p.hotGuess) && !ns.who && !(/^(likes|views|viral)$/.test(p.want || '') && (V.sorts[other] || []).indexOf(p.want) < 0) && !ns.lmin && !ns.vmin) {
       cands.slice().forEach(function (c) {
@@ -640,6 +655,14 @@
     var bankW = V.sorts.bank ? Math.min(1, R.peek(R.blank('bank')) / 200) : 0;
     var ev = EVID.test(p.raw), so = SOCIAL.test(p.raw), W = [0.6, 0.25, 0.15], best = null, aw = p.allq.split(' ').filter(Boolean);
     var wt = aw.map(function (w) { return R.qw ? R.qw(w, p.allq) : 1; }), wsum = wt.reduce(function (a, b) { return a + b; }, 0) || 1;
+    // A CLAIM IS ONE THING, WHICHEVER OF ITS WORDS WAS ASKED (2 Nov 2026, LP ask gate: "is israel starving gaza" was read as
+    // the famine claim and found its 69 items in Gaza, then said "Nothing here has all of" over them, because the yardstick
+    // asked each headline for the word typed, "starving", and a headline saying "famine" counted only as a word of the same
+    // meaning, 0.6, so every item on the claim fell under half). The word the reader used for the claim also counts by the
+    // claim's own word (the bank tag's, which the item's tags and headline carry), whichever is more; every other word
+    // counts as before. relW is the one measure the readings, the whole-headline rule and the answer line all use.
+    var relW = function (it, w) { var r = R.rel(it, w); return p.claim && p.claim.said === w && p.claim.w !== w ? Math.max(r, R.rel(it, p.claim.w)) : r; };
+    var relQ = function (it) { if (!p.claim || p.claim.said === p.claim.w || aw.indexOf(p.claim.said) < 0) return R.rel(it, p.allq); var s = 0; aw.forEach(function (w, i) { s += wt[i] * relW(it, w); }); return s / wsum; };
     // how much of the question an item answers: each word by its weight inside the question (a place beside other words
     // weighs less, intel.js qWeights); a word a filter of this reading stands for ("Harvard" read as the campus place)
     // counts for every item the filter lets through: a place or region read from a name, Harvard or the Islamic Republic,
@@ -650,7 +673,7 @@
     var placeW = function (w) { return (V.places || []).some(function (pw) { return pw[0].test(' ' + w + ' '); }); };
     var relC = function (it, c) {
       var inQ = ' ' + (c.ns.q || '') + ' ', pf = c.ns.place || (c.ns.fx || []).length, facet = pf || (c.ns.tp || []).length || c.ns.kind, s0 = 0;
-      aw.forEach(function (w, i) { var r = R.rel(it, w); if (facet && inQ.indexOf(' ' + w + ' ') < 0) r = Math.max(r, pf && placeW(w) ? 0.6 : c.tpIdle ? 0 : pf ? 0.6 : 0.45); s0 += wt[i] * r; });
+      aw.forEach(function (w, i) { var r = relW(it, w); if (facet && inQ.indexOf(' ' + w + ' ') < 0) r = Math.max(r, pf && placeW(w) ? 0.6 : c.tpIdle ? 0 : pf ? 0.6 : 0.45); s0 += wt[i] * r; });
       return s0 / wsum;
     };
     cands.forEach(function (c) {
@@ -670,7 +693,7 @@
     // for four words or more, nearly every one by weight (a headline cut mid-word still finds itself). When a reading with
     // fewer filters (the words, then no facet at all) shows such an item and the chosen one does not, that reading wins;
     // the filters it read stay one tap away, below.
-    var says = function (it) { var r = R.rel(it, p.allq); return r >= 0.999 || (aw.length >= 4 && r >= 0.85); };
+    var says = function (it) { var r = relQ(it); return r >= 0.999 || (aw.length >= 4 && r >= 0.85); };
     var shown = {}, lvl = best ? best.words || 0 : -1;
     if (best) R.peek(best.ns, true).forEach(function (it) { shown[it.id] = 1; });
     var whole = null;
@@ -708,7 +731,21 @@
     // does not show, in its first ten, an item whose headline is exactly what was asked (three words or more, the question's
     // own lead-in such as "show me" before it allowed), the best reading that does wins.
     var nz = function (s) { return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }, rawN = nz(p.raw);
-    var exact = function (it) { var t = nz(it && it.t); return t.split(' ').length >= 3 && (rawN === t || rawN.slice(-t.length - 1) === ' ' + t); };
+    // NEAR ENOUGH COUNTS (2 Nov 2026): a question of eight words or more (a pasted headline; at six, "what happened in syria
+    // this week" was taken for a bank headline that says most of it) is that headline when nearly every one of its words is
+    // in it (a typo, a word left out) and it covers at least half of the headline (a long post asked by its first sentences)
+    var rawW = rawN.split(' '), rawSet = {};
+    rawW.forEach(function (w) { rawSet[w] = 1; });
+    var exact = function (it) {
+      var t = nz(it && it.t), tw = t.split(' ');
+      if (tw.length >= 3 && (rawN === t || rawN.slice(-t.length - 1) === ' ' + t)) return true;
+      if (rawW.length < 8) return false;
+      var ts = {}, hit = 0, back = 0;
+      tw.forEach(function (w) { ts[w] = 1; });
+      rawW.forEach(function (w) { if (ts[w]) hit++; });
+      tw.forEach(function (w) { if (rawSet[w]) back++; });
+      return hit >= 0.85 * rawW.length && back >= 0.5 * tw.length;
+    };
     if (best && !R.peek(best.ns, true).slice(0, 10).some(exact)) {
       var ex = null;
       cands.forEach(function (c) { if (c.n && (!ex || c.score > ex.score) && R.peek(c.ns, true).slice(0, 10).some(exact)) ex = c; });
@@ -723,7 +760,7 @@
     // (29 Oct 2026: a stricter line, "the top item lacks a word carrying 40% of the question", was tried and taken out: it
     // put the note on three answers a person judged right, "tunnels under hospitals" among them)
     var top0 = R.peek(best.ns, true)[0];
-    if (top0 && R.rel(top0, p.allq) < 0.5) { o.note = T('Nothing here has all of "{q}".', { q: p.allq.replace(/_/g, ' ') }); o.from = T('The closest:'); }
+    if (top0 && relQ(top0) < 0.5) { o.note = T('Nothing here has all of "{q}".', { q: p.allq.replace(/_/g, ' ') }); o.from = T('The closest:'); }
     return best.ns;
   }
   /* What a question becomes, without putting it on the screen: askIt shows it, and build/ask-test.html runs every question

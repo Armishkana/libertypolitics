@@ -43,10 +43,7 @@
   function $$(s, r) { return Array.prototype.slice.call((r || D).querySelectorAll(s)); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function tog(el, c, on) { if (el) { if (on) el.classList.add(c); else el.classList.remove(c); } }
-  function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
-  function fmt(n) { n = Math.round(n); if (FA) return n.toLocaleString('fa-IR'); return n >= 10000 ? (Math.round(n / 100) / 10).toLocaleString('en-US') + 'k' : n.toLocaleString('en-US'); }
-  function pc(x) { return FA ? N(Math.round(x * 100)) + '٪' : Math.round(x * 100) + '%'; }
-  function rng(seed) { var a = seed >>> 0; return function () { a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  // clamp, fmt, pc and rng live inside the models block below (MODELS-BEGIN), so the backtests run the page's own copies
   function day(iso) { var d = new Date(iso + 'T12:00:00Z'); if (FA) return isNaN(d) ? N(iso) : d.toLocaleDateString('fa-IR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }); return isNaN(d) ? iso : d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
   function addDays(iso, n) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
   function initials(n) { return String(n || '').replace(/\(.*?\)/g, '').split(/\s+/).filter(function (w) { return /^[A-Z]/.test(w); }).slice(0, 3).map(function (w) { return w[0]; }).join(''); }
@@ -60,38 +57,17 @@
   function xy(ll) { return [(ll[1] - B[0]) * Math.PI / 180 * K, (MN - merc(ll[0])) * K]; }
   var SIDE = {}; (R.sides || []).forEach(function (s) { SIDE[s.id] = s; });
   var TEAMC = { blue: '#4C8DFF', red: '#FF5A48', grey: '#B9B7A6' };
-  function teamOf(o) { return (SIDE[o] || {}).team || 'grey'; }
   function colorOf(o) { return (SIDE[o] || {}).c || TEAMC[teamOf(o)]; }
-  // THE ORDER OF BATTLE AS PLACES (1 November 2026): a site of the other side in the register's oob (data/wargame/_SCHEMA.md "oob")
-  // that stands at its own point, not at a place already drawn, becomes a place too: the missile bases, refineries, power plants
-  // and the repression apparatus's headquarters can then be targeted, struck and opened like any other. KIND_OF maps its model.
-  var KIND_OF = { site_missile: 'missile', site_refinery: 'oil', site_oil_terminal: 'oil', site_power: 'power', site_substation: 'power', site_hq: 'hq', site_army: 'army', site_airbase: 'airbase', site_naval_base: 'naval', site_radar: 'radar', site_airdef: 'airdef' };
-  function oobPlaces(R) {
-    var out = [];
-    ((R.oob || {}).red || []).forEach(function (f) {
-      var k = KIND_OF[f.type]; if (!k) return;
-      (f.at || []).forEach(function (a, i) {
-        if (!Array.isArray(a)) return;
-        out.push({ id: f.id + (i ? '-' + i : ''), n: f.name, o: f.o, k: k, ll: a, v: f.org ? 3 : 2, why: f.note || '', st: f.status || '', src: f.src, org: f.org || null, model: f.type, oob: f.id });
-      });
+  // the places (PLACES, PL, teamOf, KIND_OF, oobPlaces, pick) are built inside the models block; the map decorates them below it (placesOnMap)
+  function placesOnMap() {
+    PLACES.forEach(function (q) {
+      var c = xy(q.ll);
+      q.x = c[0]; q.y = c[1]; q.off = c[0] < 0 || c[0] > G.w || c[1] < 0 || c[1] > G.h;
+      if (q.off) { q.ex = clamp(c[0], 14, G.w - 14); q.ey = clamp(c[1], 14, G.h - 14); } else { q.ex = c[0]; q.ey = c[1]; }
+      q.hp = 1;
     });
-    return out;
   }
-  var PL = {}, PLACES = (R.places || []).concat(oobPlaces(R)).map(function (p) {
-    var q = Object.assign({}, p); var c = xy(p.ll);
-    q.x = c[0]; q.y = c[1]; q.off = c[0] < 0 || c[0] > G.w || c[1] < 0 || c[1] > G.h;
-    if (q.off) { q.ex = clamp(c[0], 14, G.w - 14); q.ey = clamp(c[1], 14, G.h - 14); } else { q.ex = c[0]; q.ey = c[1]; }
-    q.team = teamOf(p.o); q.hp = 1; PL[p.id] = q; return q;
-  });
   function pt(x) { if (!x) return null; if (typeof x === 'string') { var p = PL[x]; return p ? [p.ex, p.ey] : null; } if (!Array.isArray(x) || !isFinite(x[0]) || !isFinite(x[1])) return null; var c = xy(x); return [clamp(c[0], 4, G.w - 4), clamp(c[1], 4, G.h - 4)]; }
-  function pick(r, test) {
-    var c = PLACES.filter(test); if (!c.length) return null;
-    var tot = c.reduce(function (a, p) { return a + (p.v || 2); }, 0), x = r() * tot;
-    for (var i = 0; i < c.length; i++) { x -= (c[i].v || 2); if (x <= 0) return c[i]; }
-    return c[c.length - 1];
-  }
-  function ofTeam(t, kinds) { return function (p) { return p.team === t && (!kinds || kinds.indexOf(p.k) >= 0); }; }
-  function ofSide(o, kinds) { return function (p) { return p.o === o && (!kinds || kinds.indexOf(p.k) >= 0); }; }
 
   // ---------------------------------------------------------------- the parameters and the war room
   var PM = {}; (R.params || []).forEach(function (p) { PM[p.id] = p; });
@@ -126,6 +102,53 @@
   }
 
   // ======================================================================== MODELS-BEGIN (build/test_wargame.mjs runs this block in node)
+  // THE ENGINE'S OWN TOOLS. Since 1 November 2026 they live inside this block, so the backtests run exactly the page's rules
+  // (until then the test kept its own copy of the places and of the default plan, and the two had drifted apart). What the
+  // block needs from outside: R (the register), tr, tf, N and FA. fmt never calls toLocaleString: it ran inside every model
+  // step and was most of the time a run took, which the Best plan search pays thousands of times over.
+  function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+  function grp(n, sep) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, sep); }
+  function fmt(n) {
+    n = Math.round(n);
+    if (FA) return N(grp(n, '٬'));
+    if (Math.abs(n) < 10000) return grp(n, ',');
+    var v = String(Math.round(n / 100) / 10).split('.');
+    return grp(v[0], ',') + (v[1] ? '.' + v[1] : '') + 'k';
+  }
+  function pc(x) { return FA ? N(Math.round(x * 100)) + '٪' : Math.round(x * 100) + '%'; }
+  function rng(seed) { var a = seed >>> 0; return function () { a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  var TEAM = {}; (R.sides || []).forEach(function (s) { TEAM[s.id] = s.team; });
+  function teamOf(o) { return TEAM[o] || 'grey'; }
+  // THE ORDER OF BATTLE AS PLACES (1 November 2026): a site of the other side in the register's oob (data/wargame/_SCHEMA.md "oob")
+  // that stands at its own point, not at a place already drawn, becomes a place too: the missile bases, refineries, power plants
+  // and the repression apparatus's headquarters can then be targeted, struck and opened like any other. KIND_OF maps its model.
+  var KIND_OF = { site_missile: 'missile', site_refinery: 'oil', site_oil_terminal: 'oil', site_power: 'power', site_substation: 'power', site_hq: 'hq', site_army: 'army', site_airbase: 'airbase', site_naval_base: 'naval', site_radar: 'radar', site_airdef: 'airdef' };
+  function oobPlaces(R) {
+    var out = [];
+    ((R.oob || {}).red || []).forEach(function (f) {
+      var k = KIND_OF[f.type]; if (!k) return;
+      (f.at || []).forEach(function (a, i) {
+        if (!Array.isArray(a)) return;
+        out.push({ id: f.id + (i ? '-' + i : ''), n: f.name, o: f.o, k: k, ll: a, v: f.org ? 3 : 2, why: f.note || '', st: f.status || '', src: f.src, org: f.org || null, model: f.type, oob: f.id });
+      });
+    });
+    return out;
+  }
+  var PL = {}, PLACES = (R.places || []).concat(oobPlaces(R)).map(function (p) { var q = Object.assign({}, p); q.team = teamOf(p.o); PL[q.id] = q; return q; });
+  // a place drawn by its importance; the sets ofTeam and ofSide name are kept, so a model step does not filter every place each time
+  var PICKS = {};
+  function pick(r, test) {
+    if (!r) return null;      // a run nobody draws: no place is chosen (the map's own dice, s.rv, are null; see runOneM)
+    var c = test.key ? PICKS[test.key] : null;
+    if (!c) { c = PLACES.filter(test); c.tot = c.reduce(function (a, p) { return a + (p.v || 2); }, 0); if (test.key) PICKS[test.key] = c; }
+    if (!c.length) return null;
+    var x = r() * c.tot;
+    for (var i = 0; i < c.length; i++) { x -= (c[i].v || 2); if (x <= 0) return c[i]; }
+    return c[c.length - 1];
+  }
+  function ofTeam(t, kinds) { var f = function (p) { return p.team === t && (!kinds || kinds.indexOf(p.k) >= 0); }; f.key = 't|' + t + '|' + (kinds || ''); return f; }
+  function ofSide(o, kinds) { var f = function (p) { return p.o === o && (!kinds || kinds.indexOf(p.k) >= 0); }; f.key = 's|' + o + '|' + (kinds || ''); return f; }
+  function kept(key, test) { test.key = key; return test; }      // an inline set with its own name, kept like ofTeam's
   // THE MODELS (rebuilt 1 November 2026 from the fact audits, data/wargame/audit-*-2026-11-01.md, part (b) of each).
   // A model is plain arithmetic a reader can check: HOW IT WORKS prints model.how in these same words. A plan is four things
   // the reader sets: the FORCES (rows of the register's order of battle, oob, switched on or off: lv.off), the TARGETS (target
@@ -194,12 +217,16 @@
       { id: 'fall', n: tr('The regime falls'), c: '#F4C430', w: tr('The Islamic Republic loses its grip on power.') },
       { id: 'long', n: tr('Still fighting'), c: '#FF5A48', w: tr('No end after 75 days.') }
     ],
+    // GOALS (1 November 2026): what a side wants, as a test each run passes or fails. The share of runs that pass is the grade
+    // of the after-action report and what the Best plan search maximises; v breaks ties between plans that pass equally often.
     goals: [
-      { id: 'bomb', n: tr('Stop the bomb'), s: function (A, c) { return A.nuke * 0.5 + (1 - A.heu) * 0.5; } },
-      { id: 'free', n: tr('Help Iranians bring down the regime'), s: function (A, c, n) { return c.fall / n; } },
-      { id: 'short', n: tr('A short war'), s: function (A) { return -A.days; } },
-      { id: 'lives', n: tr('Fewest deaths'), s: function (A) { return -(A.kIR + A.kBlue); } },
-      { id: 'oil', n: tr('Keep oil calm'), s: function (A) { return -A.oil; } }
+      { id: 'bomb', side: 'blue', n: tr('Stop the bomb'), w: tr('Most of the enrichment destroyed and the enriched uranium gone.'), win: function (st) { return st.nuke >= 0.7 && !st.heu; }, v: function (A) { return A.nuke - A.heu; } },
+      { id: 'free', side: 'blue', n: tr('Help Iranians bring down the regime'), w: tr('The regime falls.'), win: function (st, out) { return out === 'fall'; }, v: function (A) { return -A.rep; }, mk: 'fall' },
+      { id: 'short', side: 'blue', n: tr('A short war'), w: tr('Over within two weeks.'), win: function (st) { return st.days <= 14; }, v: function (A) { return -A.days; } },
+      { id: 'lives', side: 'blue', n: tr('Fewest deaths'), w: tr('Fewer than 1,500 killed on all sides.'), win: function (st) { return st.kIR + st.kBlue < 1500; }, v: function (A) { return -(A.kIR + A.kBlue); } },
+      { id: 'oil', side: 'blue', n: tr('Keep oil calm'), w: tr('Oil never rises more than 15%.'), win: function (st) { return st.oil < 15; }, v: function (A) { return -A.oil; } },
+      { id: 'survive', side: 'red', n: tr('The regime survives'), w: tr('The regime is still standing at the end.'), win: function (st, out) { return out !== 'fall'; }, v: function (A) { return A.rep; } },
+      { id: 'keep', side: 'red', n: tr('Keep the enriched uranium'), w: tr('The enriched uranium survives the war.'), win: function (st) { return !!st.heu; }, v: function (A) { return A.heu; } }
     ],
     how: [
       tr('A plan is the forces you send, the target sets in the order you rank them, and the rules. The first set on the list gets the largest share of each day’s strikes.'),
@@ -229,9 +256,9 @@
       return { d: 0, P: P, lv: lv, c: c, w: w, il: il, us: us, near: near, wait: wait, ad: P.ir_ad, lch: P.ir_launchers + wait * 1.1, lch0: P.ir_launchers + wait * 1.1, supp: 0,
         bm: P.ir_bm, dr: P.ir_drones, enr: 1, deep: 1, raids: c.b2 ? 3 : 0, heuGone: 0, raidDone: 0, R: P.cohesion, R0: P.cohesion,
         Pr: ({ none: 0.12, call: 0.26, strike: 0.36 }[lv.street] || 0.12) + (lv.net === 'push' ? 0.03 : 0), split: 0,
-        over: r() < 0.14 + (near ? 0.08 : 0), flow: 0.45, flowMin: 0.45, boats: 1, dmg: 0, exp: 1, grid: 1, avail: 1, intI: poolI, intG: poolG, intI0: poolI, intG0: poolG,
+        over: r() < 0.22 + (near ? 0.1 : 0), flow: 0.45, flowMin: 0.45, boats: 1, dmg: 0, exp: 1, grid: 1, avail: 1, intI: poolI, intG: poolG, intI0: poolI, intG0: poolG,
         upI: c.arrow || c.thaad || c.ddg ? 1 : 0.55, upG: c.patriot || c.gulfad || c.thaad ? 1 : 0.4,
-        oil: 0, oilPeak: 0, kIR: 0, kBlue: 0, fired: 0, stopped: 0, leaders: 0, sorties: 0, intOut: 0, jets: 0, uav: 0, used: 0, fire1: 0, fire11: 0, hits: 0 };
+        oil: 0, oilPeak: 0, kIR: 0, kBlue: 0, fired: 0, stopped: 0, leaders: 0, sorties: 0, intOut: 0, jets: 0, uav: 0, used: 0, fire1: 0, fire11: 0, hits: 0, drF: 0, oilLost: 0, usSum: 0 };
     },
     step: function (s, r, emit) {
       var P = s.P, lv = s.lv, c = s.c, w = s.w; s.d++; var d = s.d;
@@ -239,12 +266,13 @@
       var ilS = s.il ? P.il_sorties * (d === 1 ? 1.3 : d <= 3 ? 0.9 : 0.4) : 0;
       var usS = s.us ? (45 * (c.carrier || 0) + (c.usair ? 40 * (c.tanker ? 1 : 0.5) * s.avail : 0) + (c.bomber ? 20 : 0) + (c.ddg ? (d <= 3 ? 30 : 6) : 0) + (c.sub && d <= 2 ? 25 : 0)) : 0;
       var C = (ilS + usS) * ((lv.first === 'ir' && d === 1) ? 0.8 : 1) * jit(r, 0.15);
-      s.sorties += C;
+      s.sorties += C; s.usSum += usS;
       var E = {}; this.targets.forEach(function (t) { E[t.id] = C * (w[t.id] || 0); });
       var eff = clamp(1 - 1.5 * s.ad, 0.3, 1);
       // the Islamic Republic fires first in the day, with what yesterday left it
-      // its top salvo comes from launchers set up before the war; after day one each launcher must reload from its tunnel (0.6)
-      var cap = P.ir_salvo * (d === 1 ? 0.95 : 0.6) * (1 - s.supp) * (s.lch / Math.max(1, s.lch0));
+      // its top salvo comes from launchers set up before the war; after day one each launcher must reload from its tunnel (0.45:
+      // the Twelve-Day War's 550 to 574 missiles in 12 days, calibrated 1 November 2026: 0.4)
+      var cap = P.ir_salvo * (d === 1 ? 0.95 : 0.4) * (1 - s.supp) * (s.lch / Math.max(1, s.lch0));
       var salvo = Math.round(Math.min(cap * jit(r, 0.2), s.bm));
       if (d === 1) s.fire1 = salvo; if (d === 11) s.fire11 = salvo;
       if (salvo > 0) {
@@ -254,20 +282,20 @@
         s.used += Math.min(aI.need, s.intI) + Math.min(aG.need, s.intG);
         s.intI = Math.max(0, s.intI - aI.need); s.intG = Math.max(0, s.intG - aG.need);
         var stop = aI.stop + aG.stop, leak = salvo - stop; s.bm -= salvo; s.fired += salvo; s.stopped += stop; s.hits += leak;
-        s.kBlue += leak * (0.35 + 0.35 * r());
+        s.kBlue += (sI - aI.stop) * (0.2 + 0.25 * r()) + (sG - aG.stop) * (s.near ? 2 + 2 * r() : 0.2 + 0.25 * r());      // Israel: 33 dead in June 2025, 26 in 2026; the Gulf and US bases: about 98 in 2026
         s.avail = Math.max(0.5, s.avail - (sG - aG.stop) * 0.002);
         if (!s.intOut && ((s.intI0 && s.intI < s.intI0 * 0.12) || (s.intG0 && s.intG < s.intG0 * 0.12))) { s.intOut = d; emit({ t: 'note', w: tr('Interceptors are running low. More missiles get through.'), why: tr('Each area keeps its own stock, and nothing new arrives inside the war.'), big: 1, param: 'interceptors' }); }
         var parts = Math.min(4, 1 + Math.floor(salvo / 60));
         for (var j = 0; j < parts; j++) {
           var toG = s.us && j % 3 === 2;
-          emit({ t: 'missile', side: 'IR', from: pick(r, ofTeam('red', ['missile'])) || pick(r, ofTeam('red')), to: pick(r, toG ? ofTeam('blue', ['airbase', 'naval', 'oil']) : function (p) { return p.o === 'IL' && (p.k === 'city' || p.k === 'airbase' || p.k === 'hq'); }) || pick(r, ofTeam('blue')),
+          emit({ t: 'missile', side: 'IR', from: pick(s.rv, ofTeam('red', ['missile'])) || pick(s.rv, ofTeam('red')), to: pick(s.rv, toG ? ofTeam('blue', ['airbase', 'naval', 'oil']) : function (p) { return p.o === 'IL' && (p.k === 'city' || p.k === 'airbase' || p.k === 'hq'); }) || pick(s.rv, ofTeam('blue')),
             n: Math.round(salvo / parts), stop: Math.round(stop / parts), res: leak > 0 ? 'partial' : 'intercepted', w: j === 0 && d <= 2 ? tf('{n} ballistic missiles in the air.', { n: fmt(salvo) }) : null, why: j === 0 && d === 1 ? tr('Its first day is its biggest, whoever starts: launchers are ready before anyone can pin them down.') : null });
         }
       }
       var dr = Math.min(s.dr, Math.round(cap * 1.5 * jit(r, 0.4)));
       if (dr > 0) {
-        s.dr -= dr; var dLeak = dr * (s.us ? 0.08 : 0.04); s.dmg += s.us ? dLeak * 0.05 : 0; s.kBlue += dLeak * 0.05;
-        emit({ t: 'drone', side: 'IR', from: pick(r, ofTeam('red', ['missile', 'airbase'])), to: pick(r, s.us ? ofTeam('blue', ['oil', 'airbase']) : ofSide('IL', ['city', 'airbase'])), n: dr, stop: Math.round(dr - dLeak), res: 'partial' });
+        s.dr -= dr; s.drF += dr; var dLeak = dr * (s.us ? 0.08 : 0.04); s.dmg += s.us ? dLeak * 0.05 : 0; s.kBlue += dLeak * (s.us ? 0.35 : 0.04);
+        emit({ t: 'drone', side: 'IR', from: pick(s.rv, ofTeam('red', ['missile', 'airbase'])), to: pick(s.rv, s.us ? ofTeam('blue', ['oil', 'airbase']) : ofSide('IL', ['city', 'airbase'])), n: dr, stop: Math.round(dr - dLeak), res: 'partial' });
       }
       // the strikes, set by set
       s.ad = Math.max(0.04, s.ad * Math.exp(-(E.airdef / 350 + C / 3000)));
@@ -278,25 +306,25 @@
       if (E.nuke > 0) s.enr = Math.max(c.b2 ? 0 : 0.5, s.enr - s.enr * E.nuke * eff / 450 * jit(r, 0.5));
       if (s.raids > 0 && E.nuke > 0 && d >= 2 && d % 2 === 0) {
         s.raids--; s.enr = Math.max(0, s.enr - 0.25); s.deep = Math.max(0, s.deep - 0.15 * jit(r, 0.3));
-        emit({ t: 'strike', side: 'US', kind: 'b2', from: 'diego-garcia', to: pick(r, ofTeam('red', ['nuclear'])), n: 6, res: 'hit', w: tr('B-2 bombers drop GBU-57 bunker busters on a buried site.'), why: tr('Nothing else reaches halls 80 to 100 metres down, and only by sending several bombs down the same shaft.'), big: 1 });
+        emit({ t: 'strike', side: 'US', kind: 'b2', from: 'diego-garcia', to: pick(s.rv, ofTeam('red', ['nuclear'])), n: 6, res: 'hit', w: tr('B-2 bombers drop GBU-57 bunker busters on a buried site.'), why: tr('Nothing else reaches halls 80 to 100 metres down, and only by sending several bombs down the same shaft.'), big: 1 });
       }
       if (lv.raid === 'yes' && s.us && !s.raidDone && d === 6) {
         s.raidDone = 1; var found = r() < 1 - P.heu_survives + 0.2;
         if (found && r() < 0.7) s.heuGone = 1; s.kBlue += 15 + 40 * r();
-        emit({ t: 'strike', side: 'US', kind: 'raid', from: pick(r, ofSide('US', ['airbase'])), to: pick(r, ofTeam('red', ['nuclear'])), n: 4, res: s.heuGone ? 'hit' : 'miss', w: s.heuGone ? tr('A raid seizes the enriched uranium.') : tr('A raid finds no enriched uranium where it looked.'), why: tr('Its location is not known: McKenzie says it lies under rubble, and digging it out would be seen.'), big: 1 });
+        emit({ t: 'strike', side: 'US', kind: 'raid', from: pick(s.rv, ofSide('US', ['airbase'])), to: pick(s.rv, ofTeam('red', ['nuclear'])), n: 4, res: s.heuGone ? 'hit' : 'miss', w: s.heuGone ? tr('A raid seizes the enriched uranium.') : tr('A raid finds no enriched uranium where it looked.'), why: tr('Its location is not known: McKenzie says it lies under rubble, and digging it out would be seen.'), big: 1 });
       }
       var pk = Math.min(0.6, E.lead / 250);
-      if (r() < pk) { s.leaders++; s.R = Math.max(0.15, s.R - 0.01); s.Pr = Math.max(0, s.Pr - 0.004); emit({ t: 'kill', side: s.il ? 'IL' : 'US', to: pick(r, function (p) { return p.team === 'red' && (p.k === 'capital' || p.k === 'hq') && !p.org; }), w: tr('A senior commander is killed in a strike.'), why: tr('In 2026 the regime replaced its Supreme Leader in nine days; one more death changes little.') }); }
+      if (r() < pk) { s.leaders++; s.R = Math.max(0.15, s.R - 0.01); s.Pr = Math.max(0, s.Pr - 0.004); emit({ t: 'kill', side: s.il ? 'IL' : 'US', to: pick(s.rv, function (p) { return p.team === 'red' && (p.k === 'capital' || p.k === 'hq') && !p.org; }), w: tr('A senior commander is killed in a strike.'), why: tr('In 2026 the regime replaced its Supreme Leader in nine days; one more death changes little.') }); }
       var rp = E.repress * eff / 6000 * jit(r, 0.4); s.R = Math.max(0.15, s.R - rp);
       var gl = Math.min(s.grid, E.grid * eff / 900 * jit(r, 0.3)); s.grid -= gl;
-      var xl = Math.min(s.exp, E.oil * eff / 700 * jit(r, 0.3)); s.exp -= xl; s.dmg += xl * 25;
+      var xl = Math.min(s.exp, E.oil * eff / 700 * jit(r, 0.3)); s.exp -= xl; s.dmg += xl * 25; s.oilLost += 1 - s.exp;
       s.R = Math.max(0.15, s.R - xl * 0.25 - gl * 0.15);
-      s.kIR += C * (0.3 + 0.35 * r()) + gl * 400;
+      s.kIR += C * (0.48 + 0.5 * r()) + gl * 400;      // June 2025: 1,060 (Iran) to 1,190 (HRANA) dead; 2026: 3,375 to 7,650
       // what the strikes hit, for the map: one wave per set with a share of the day, the biggest set first
-      var from = s.il ? function () { return pick(r, ofSide('IL', ['airbase'])); } : function () { return pick(r, ofTeam('blue', ['naval', 'airbase'])); };
+      var from = s.il ? function () { return pick(s.rv, ofSide('IL', ['airbase'])); } : function () { return pick(s.rv, ofTeam('blue', ['naval', 'airbase'])); };
       var sets = this.targets.filter(function (t) { return E[t.id] > 4; }).sort(function (a, b) { return E[b.id] - E[a.id]; }).slice(0, 4);
       sets.forEach(function (t, i) {
-        var tg = pick(r, function (p) { return p.team === 'red' && t.k.indexOf(p.k) >= 0 && (!t.org || p.org) && (t.id !== 'lead' || !p.org); }) || pick(r, ofTeam('red', t.k));
+        var tg = pick(s.rv, function (p) { return p.team === 'red' && t.k.indexOf(p.k) >= 0 && (!t.org || p.org) && (t.id !== 'lead' || !p.org); }) || pick(s.rv, ofTeam('red', t.k));
         if (tg) emit({ t: 'strike', side: s.il && (!s.us || i % 2 === 0) ? 'IL' : 'US', set: t.id, from: from(), to: tg, n: Math.round(E[t.id]), res: 'hit', quiet: i > 0 || d > 3,
           w: i === 0 ? tf('{n} strikes, most on {set}.', { n: fmt(C), set: t.n.toLowerCase() }) : null, why: i === 0 && d <= 3 ? t.buys : null });
       });
@@ -304,13 +332,13 @@
       if (c.isr && r() < 0.35 * s.ad / 0.2) { s.uav++; }
       if (r() < C / 2000 * s.ad / 0.2 * 0.3) { s.jets++; emit({ t: 'note', side: 'IR', w: tr('A US or Israeli jet is shot down.'), why: tr('A pop-up air defence never fully goes away.') }); }
       // the Persian Gulf, Hormuz and the allies
-      if (s.us && r() < P.gulf_hits * 0.12 * (1 + 2 * w.oil)) { s.dmg += 5 + 5 * r(); s.kBlue += 3 * r(); emit({ t: 'missile', side: 'IR', from: pick(r, ofTeam('red', ['missile'])), to: pick(r, function (p) { return p.team !== 'red' && p.k === 'oil'; }), n: 8, stop: 6, res: 'partial', w: tr('Missiles and drones hit Gulf energy.'), why: w.oil > 0 ? tr('Strikes on its oil invite strikes on its neighbours’ oil.') : null, param: 'gulf_hits' }); }
+      if (s.us && r() < P.gulf_hits * 0.12 * (1 + 2 * w.oil)) { s.dmg += 5 + 5 * r(); s.kBlue += 3 * r(); emit({ t: 'missile', side: 'IR', from: pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, function (p) { return p.team !== 'red' && p.k === 'oil'; }), n: 8, stop: 6, res: 'partial', w: tr('Missiles and drones hit Gulf energy.'), why: w.oil > 0 ? tr('Strikes on its oil invite strikes on its neighbours’ oil.') : null, param: 'gulf_hits' }); }
       s.boats *= Math.exp(-(E.navy / 400 + (lv.hz !== 'none' ? 0.01 : 0)));
       var shipsHit = (1 + (d <= 30 ? 1 : 0.5)) * P.hormuz * s.boats * jit(r, 0.5);
       var heal = lv.hz === 'escort' ? 0.02 * (c.ddg ? 1 : 0.4) : 0.004;
       s.flow = clamp(s.flow - shipsHit * 0.015 + heal * (1 - s.flow), 0.02, 1); s.flowMin = Math.min(s.flowMin, s.flow);
-      if (d === 2 || (d % 9 === 0 && shipsHit > 1.2)) emit({ t: 'naval', side: 'IR', from: pick(r, ofTeam('red', ['naval'])), to: pick(r, function (p) { return p.k === 'choke' && p.o === 'IR'; }), n: Math.round(shipsHit * 3) + 1, res: 'hit', w: tf('Ships hit near Hormuz. Traffic is at {p} of normal.', { p: pc(s.flow) }), why: lv.hz === 'escort' ? tr('Escorts and mine clearance bring it back, slowly.') : tr('Only escorts and mine clearance bring traffic back.'), param: 'hormuz' });
-      if (r() < P.proxies * 0.3) { s.dmg += 1.5; s.intG = Math.max(0, s.intG - 4); emit({ t: 'missile', side: 'HT', from: pick(r, ofSide('HT')) || pick(r, ofTeam('red', ['missile'])), to: pick(r, function (p) { return p.team === 'blue' && (p.o === 'SA' || p.k === 'naval' || p.k === 'oil'); }), n: 3, stop: 2, res: 'partial', quiet: 1, param: 'proxies' }); }
+      if (d === 2 || (d % 9 === 0 && shipsHit > 1.2)) emit({ t: 'naval', side: 'IR', from: pick(s.rv, ofTeam('red', ['naval'])), to: pick(s.rv, function (p) { return p.k === 'choke' && p.o === 'IR'; }), n: Math.round(shipsHit * 3) + 1, res: 'hit', w: tf('Ships hit near Hormuz. Traffic is at {p} of normal.', { p: pc(s.flow) }), why: lv.hz === 'escort' ? tr('Escorts and mine clearance bring it back, slowly.') : tr('Only escorts and mine clearance bring traffic back.'), param: 'hormuz' });
+      if (r() < P.proxies * 0.3) { s.dmg += 1.5; s.intG = Math.max(0, s.intG - 4); emit({ t: 'missile', side: 'HT', from: pick(s.rv, ofSide('HT')) || pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, function (p) { return p.team === 'blue' && (p.o === 'SA' || p.k === 'naval' || p.k === 'oil'); }), n: 3, stop: 2, res: 'partial', quiet: 1, param: 'proxies' }); }
       s.dmg *= 0.97;
       s.oil = (1 - s.flow) * 45 + s.dmg - 0.55 * 45; s.oilPeak = Math.max(s.oilPeak, s.oil);
       // the street and the regime's power to repress it
@@ -321,14 +349,14 @@
     end: function (s, r) {
       var P = s.P, lv = s.lv, w = s.w;
       var gap = s.Pr - 0.85 * s.R;
-      if (r() < 0.0006 * (1 + 0.1 * Math.min(10, s.leaders)) * (s.R0 / Math.max(0.15, s.R))) return 'fall';
+      if (r() < 0.0008 * (1 + 0.1 * Math.min(10, s.leaders)) * (s.R0 / Math.max(0.15, s.R))) return 'fall';
       if (gap > 0 && r() < 0.15 * Math.pow(gap, 1.5) * (1 + 4 * s.split)) return 'fall';
       var L = lv.len === 'open' ? 0 : +lv.len || 7, h;
       if (L && !s.over) h = s.d < L ? 0.004 + P.cease * 0.01 : 0.35;
-      else if (L) h = s.d < L ? 0.004 + P.cease * 0.01 : 0.006 + P.cease * 0.018;
-      else h = 0.006 + P.cease * 0.018;
+      else if (L) h = s.d < L ? 0.004 + P.cease * 0.01 : 0.005 + P.cease * 0.015;
+      else h = 0.005 + P.cease * 0.015;
       h += (s.oil > 30 ? 0.015 : 0) + (s.intOut ? 0.04 : 0) + (lv.talks === 'mediate' ? 0.01 : 0) - (w.repress + w.lead > 0.4 ? 0.006 : 0);
-      if (s.d >= 2 && r() < Math.max(0.003, h)) return (s.enr < 0.35 && (s.heuGone || r() < 0.2) && r() < (lv.talks === 'mediate' ? 1 : 0.35)) ? 'deal' : 'cease';
+      if (s.d >= 2 && r() < Math.max(0.003, h)) return (s.enr < 0.35 && (s.heuGone || r() < 0.3) && r() < (lv.talks === 'mediate' ? 1 : 0.45)) ? 'deal' : 'cease';
       if (s.d >= this.max) return 'long';
       return null;
     },
@@ -336,6 +364,15 @@
       var heu = s.heuGone ? 0 : (r() < s.P.heu_survives * (s.enr * 0.3 + 0.7) ? 1 : 0);
       return { days: s.d, fired: s.fired, stopped: s.stopped, nuke: 1 - s.enr, deep: 1 - s.deep, heu: heu, flow: s.flowMin, oil: Math.max(0, s.oilPeak), kIR: s.kIR, kBlue: s.kBlue, leaders: s.leaders,
         intOut: s.intOut ? 1 : 0, used: s.used, jets: s.jets, uav: s.uav, rep: s.R / s.R0, street: s.Pr, fire1: s.fire1, fire11: s.fire11, wait: s.wait };
+    },
+    // THE COST (1 November 2026): what one run kills and spends, priced with the register's costs (data/wargame/iran.json "costs",
+    // each figure sourced and a range: v 0 prices it at the low end, 1 at the high end). [blue soldiers, blue civilians, blue
+    // spend, blue economy lost, red soldiers, red civilians, red spend, red economy lost]; null where nothing is priced.
+    cost: function (s, C, v) {
+      var u = function (k) { return CV(C, k, v); }, cB = u('civ_blue'), cR = u('civ_ir');
+      var usThere = s.us || s.c.thaad || s.c.patriot || s.c.ddg, bSpend = (usThere ? (0.25 * s.d + 0.75 * s.usSum / 150) * u('us_day') : 0) + (s.il ? s.d * u('il_day') : 0) + s.jets * u('jet');
+      return [s.kBlue * (1 - cB), s.kBlue * cB, bSpend, s.il ? s.d * u('il_econ_day') : null,
+        s.kIR * (1 - cR), s.kIR * cR, s.fired * u('ir_bm') + s.drF * u('ir_drone'), s.oilLost * u('ir_oil_day')];
     },
     orb: function (s) {
       var P = s.P, i0 = (s.intI0 + s.intG0) || 1;
@@ -387,10 +424,12 @@
       { id: 'ua', n: tr('Ukraine pushes back'), c: '#4C8DFF', w: tr('Ukraine ends with more ground than it started with.') }
     ],
     goals: [
-      { id: 'ground', n: tr('Hold the most ground'), s: function (A) { return -A.gain; } },
-      { id: 'econ', n: tr('Drain Russia’s war money'), s: function (A) { return -A.econ; } },
-      { id: 'power', n: tr('Keep the lights on'), s: function (A) { return A.grid; } },
-      { id: 'peace', n: tr('A ceasefire soonest'), s: function (A, c, n) { return c.cease / n; } }
+      { id: 'ground', side: 'blue', n: tr('Hold the most ground'), w: tr('Russia takes less than half of today’s pace (under 45 km² a month).'), win: function (st) { return st.perMonth < 45; }, v: function (A) { return -A.gain; } },
+      { id: 'econ', side: 'blue', n: tr('Drain Russia’s war money'), w: tr('Russia’s war money ends below 35% (it starts at 55%).'), win: function (st) { return st.econ < 0.35; }, v: function (A) { return -A.econ; } },
+      { id: 'power', side: 'blue', n: tr('Keep the lights on'), w: tr('Ukraine’s power never falls below 60%.'), win: function (st) { return st.grid >= 0.6; }, v: function (A) { return A.grid; } },
+      { id: 'peace', side: 'blue', n: tr('A ceasefire soonest'), w: tr('A ceasefire before the end.'), win: function (st, out) { return out === 'cease'; }, v: function (A) { return -A.days; }, mk: 'cease' },
+      { id: 'take', side: 'red', n: tr('Take far more ground'), w: tr('Russia takes over 140 km² a month, half again today’s pace.'), win: function (st) { return st.perMonth > 140; }, v: function (A) { return A.gain; } },
+      { id: 'freeze', side: 'red', n: tr('Freeze its gains in a ceasefire'), w: tr('A ceasefire with Russia ahead of where it started.'), win: function (st, out) { return out === 'cease' && st.gain > 0; }, v: function (A) { return A.gain; } }
     ],
     how: [
       tr('One step a week. Russia takes ground at today’s pace, made bigger or smaller by every choice, and every choice is measured against today, so “as today” gives today’s pace (DeepState: about 93 km² a month net in 2026). Summer and November take the most ground, late winter the least.'),
@@ -410,7 +449,7 @@
       var deep = P.ua_deep * (c.drones ? 1 : 0.35) * (c.missiles || c.storm || c.atacms ? 1.15 : 0.9);
       return { d: 0, P: P, lv: lv, c: c, w: w, arms: arms, intel: intel, eu: eu, deep: deep, armsNow: 0.35 + 0.4 * P.us_aid + 0.35 * P.eu_aid,
         men: P.ua_men, econ: P.ru_econ, pool: 1, grid: 1, gridMin: 1, pac: 40, ref: 0, port: 0, glide: 0, shahed: 0, gain: 0, sec: {}, cas: 0, civ: 0, broke: 0, brokeEver: 0,
-        max: +lv.len || 52, luck: Math.exp((r() - 0.5) * 1.2), ulk: Math.exp((r() - 0.5) * 0.8), refin: 0, mon: lv.mon == null ? new Date().getUTCMonth() : +lv.mon, counter: 0 };
+        max: +lv.len || 52, luck: Math.exp((r() - 0.5) * 1.4) / 1.0837, ulk: Math.exp((r() - 0.5) * 0.8) / 1.0268, ini: Math.max(0, r() - 0.5) * 150, refin: 0, mon: lv.mon == null ? new Date().getUTCMonth() : +lv.mon, counter: 0, revLost: 0 };
     },
     step: function (s, r, emit) {
       var P = s.P, lv = s.lv, c = s.c, w = s.w; s.d++; var d = s.d;
@@ -421,12 +460,15 @@
       var econF = clamp(0.6 + 0.4 * s.econ / Math.max(0.05, P.ru_econ), 0.4, 1.2);
       var ruF = { grind: 1, push: 1.35, mob: d > 10 ? 1.2 : 1, pause: 0.4 }[lv.ru] * P.ru_push;
       var pushF = ruF * econF * clamp(s.pool, 0.6, 1.3);
-      var post = { hold: 0.9, elastic: 1.12, counter: 1 }[lv.post] || 1;
+      var post = { hold: 0.92, elastic: 1, counter: 1.04 }[lv.post] || 1;      // elastic is how Ukraine fights today: today's pace
       var g = P.ru_gain / 4.33 * SEAS[m] * pushF / Math.pow(uaF, 1.2) * (1 - s.glide) * post * s.luck * jit(r, 0.4);
-      if (!s.broke && uaF < 0.65 && r() < (0.65 - uaF) * 0.15) { s.broke = 6; s.brokeEver = 1; emit({ t: 'ground', side: 'RU', to: pick(r, function (p) { return p.k === 'city' && p.team === 'blue' && p.v >= 3; }), w: tr('The front breaks in one sector. Russian units pour through.'), why: tr('Ukraine is short of soldiers and weapons at the same time.'), big: 1, param: 'ua_men' }); }
+      if (!s.broke && uaF < 0.65 && r() < (0.65 - uaF) * 0.15) { s.broke = 6; s.brokeEver = 1; emit({ t: 'ground', side: 'RU', to: pick(s.rv, function (p) { return p.k === 'city' && p.team === 'blue' && p.v >= 3; }), w: tr('The front breaks in one sector. Russian units pour through.'), why: tr('Ukraine is short of soldiers and weapons at the same time.'), big: 1, param: 'ua_men' }); }
       if (s.broke > 0) { g *= 2.5; s.broke--; }
       var pc0 = (lv.post === 'counter' ? 0.08 : 0.03) * s.ulk / Math.sqrt(s.luck) * P.ua_counter / 0.35 * Math.min(1.3, uaF) * (s.men > 0.35 ? 1 : 0.3);
       if (r() < pc0) { var back = (lv.post === 'counter' ? 100 + 300 * r() : 50 + 150 * r()); g -= back; s.counter++; s.men -= lv.post === 'counter' ? 0.003 : 0.001; emit({ t: 'ground', side: 'UA', w: tf('A Ukrainian counterattack takes back about {n} km².', { n: fmt(back) }), why: tr('Drones and men to spare: Ukraine hits where Russia is thin.'), param: 'ua_counter' }); }
+      // Ukraine's own initiative: in some years it has the men and the drones to take back ground along the line (ISW counted a net
+      // Russian loss in September 2026); up to about 60 km² a month, more with local counteroffensives, none when it is short of men
+      if (s.ini && s.men > 0.4) g -= s.ini / 4.33 * Math.min(1.3, uaF) * (lv.post === 'counter' ? 1.4 : 1) * jit(r, 0.5);
       s.gain += g;
       for (var k in SECW) s.sec[k] = (s.sec[k] || 0) + g * SECW[k] * jit(r, 0.3);
       var lossW = P.ru_cas * 7 * pushF * jit(r, 0.15); s.cas += lossW;
@@ -440,9 +482,9 @@
       var leakB = bal * (1 - bStopR);
       var gHit = (leakD * 0.00012 + leakB * 0.0025) * ({ cities: 1, grid: 0.6, front: 1.2 }[lv.ad] || 1) * (winter ? 1.5 : 1);
       s.grid = clamp(s.grid - gHit + 0.012, 0.2, 1); s.gridMin = Math.min(s.gridMin, s.grid);
-      s.civ += (leakD * 0.02 + leakB * 0.5) * ({ cities: 0.7, grid: 1.2, front: 1.1 }[lv.ad] || 1);
-      emit({ t: 'drone', side: 'RU', from: pick(r, function (p) { return p.team === 'red' && (p.k === 'airbase' || p.k === 'missile'); }), to: pick(r, function (p) { return p.team === 'blue' && (p.k === 'city' || p.k === 'capital' || p.k === 'power'); }), n: Math.round(drones), stop: Math.round(drones * dStop), res: 'partial', quiet: 1 });
-      if (r() < 0.55) emit({ t: 'missile', side: 'RU', from: pick(r, ofTeam('red', ['airbase', 'missile'])), to: pick(r, function (p) { return p.team === 'blue' && (p.k === 'capital' || p.k === 'power' || p.k === 'city'); }), n: Math.round(bal), stop: Math.round(bal * bStopR), res: 'partial',
+      s.civ += (leakD * 0.07 + leakB * 1.75) * ({ cities: 0.7, grid: 1.2, front: 1.1 }[lv.ad] || 1) + 14;      // UN HRMMU 2026: 188, 211 and 274 killed a month; 14 a week are the front-line towns' shelling
+      emit({ t: 'drone', side: 'RU', from: pick(s.rv, function (p) { return p.team === 'red' && (p.k === 'airbase' || p.k === 'missile'); }), to: pick(s.rv, function (p) { return p.team === 'blue' && (p.k === 'city' || p.k === 'capital' || p.k === 'power'); }), n: Math.round(drones), stop: Math.round(drones * dStop), res: 'partial', quiet: 1 });
+      if (r() < 0.55) emit({ t: 'missile', side: 'RU', from: pick(s.rv, ofTeam('red', ['airbase', 'missile'])), to: pick(s.rv, function (p) { return p.team === 'blue' && (p.k === 'capital' || p.k === 'power' || p.k === 'city'); }), n: Math.round(bal), stop: Math.round(bal * bStopR), res: 'partial',
         w: winter && gHit > 0.03 ? tf('A combined strike on the grid. Power is at {p}.', { p: pc(s.grid) }) : null, why: !c.patriot ? tr('Without Patriot almost no ballistic missile is stopped.') : s.pac < need ? tr('PAC-3 rounds are short: about 12 a month arrive.') : null });
       // Ukraine's long-range strikes
       var cap = s.deep * (0.85 + 0.15 * s.grid) * (s.intel ? 1 : 0.6) * jit(r, 0.3);
@@ -451,8 +493,9 @@
       s.shahed = clamp(s.shahed * 0.9 + cap * w.shahed * 0.04, 0, 0.2);
       if (w.occ) g *= 1 - 0.05 * cap * w.occ;
       if (cap > 0.1) { s.refin++; var set = this.targets.filter(function (t) { return w[t.id] > 0; }).sort(function (a, b) { return w[b.id] - w[a.id]; })[0];
-        if (set) emit({ t: c.drones ? 'drone' : 'strike', side: 'UA', set: set.id, from: pick(r, function (p) { return p.team === 'blue' && p.k !== 'capital'; }), to: pick(r, function (p) { return p.team === 'red' && set.k.indexOf(p.k) >= 0; }) || pick(r, ofTeam('red', ['oil'])), n: Math.round(150 + 450 * cap), stop: Math.round(60 * cap), res: 'hit', quiet: d % 4 !== 1, w: d % 4 === 1 ? tf('Ukrainian long-range strike on {set}.', { set: set.n.toLowerCase() }) : null, why: d % 4 === 1 ? set.buys : null, param: 'ua_deep' }); }
+        if (set) emit({ t: c.drones ? 'drone' : 'strike', side: 'UA', set: set.id, from: pick(s.rv, function (p) { return p.team === 'blue' && p.k !== 'capital'; }), to: pick(s.rv, function (p) { return p.team === 'red' && set.k.indexOf(p.k) >= 0; }) || pick(s.rv, ofTeam('red', ['oil'])), n: Math.round(150 + 450 * cap), stop: Math.round(60 * cap), res: 'hit', quiet: d % 4 !== 1, w: d % 4 === 1 ? tf('Ukrainian long-range strike on {set}.', { set: set.n.toLowerCase() }) : null, why: d % 4 === 1 ? set.buys : null, param: 'ua_deep' }); }
       var rev = (1 - s.port * 0.6 - s.ref * 0.25) * ({ waive: 1, enforce: 0.9, tariff: 0.82 }[lv.sanc] || 1);
+      s.revLost += Math.max(0, 1 - rev);
       s.econ = clamp(s.econ + (rev - 1) * 0.01 - 0.0008 - (lv.ru === 'mob' && d > 10 ? 0.001 : 0), 0, 1);
       s.men = clamp(s.men - 0.0015 - (armsF < 0.8 ? 0.002 : 0) + (lv.mob === 'young' && d > 8 ? 0.0025 : 0) - (lv.mob === 'rotate' ? 0.0008 : 0) - (s.broke ? 0.003 : 0) - (s.grid < 0.4 && winter ? 0.001 : 0), 0, 1);
       if (g > 0) emit({ t: 'ground', side: 'RU', w: tf('{n} km² taken this week.', { n: fmt(g) }), quiet: 1 });
@@ -468,6 +511,10 @@
       return null;
     },
     stats: function (s) { return { days: s.d, gain: s.gain, cas: s.cas, econ: s.econ, men: s.men, refin: s.refin, grid: s.gridMin, civ: s.civ, counter: s.counter, sec: s.sec, perMonth: s.gain / Math.max(1, s.d) * 4.33, casDay: s.cas / Math.max(1, s.d) / 7 }; },
+    cost: function (s, C, v) {
+      var u = function (k) { return CV(C, k, v); }, yr = s.d * 7 / 365, ruK = s.cas * u('ru_kill_share');
+      return [ruK * u('ua_per_ru'), s.civ, yr * u('ua_def_year'), null, ruK, null, yr * u('ru_war_year'), s.revLost * 7 / 30.44 * u('ru_oil_month')];
+    },
     orb: function (s) { return { land: { b: s.P.ua_men ? s.men / s.P.ua_men : 1, r: clamp(s.pool, 0, 1) } }; },
     say: function (s) { return tf('{g} km² taken so far. Ukraine’s power is at {p}.', { g: fmt(Math.max(0, s.gain)), p: pc(s.grid) }); },
     board: function (s) {
@@ -516,10 +563,12 @@
       { id: 'falls', n: tr('Taiwan falls or gives in'), c: '#FF5A48', w: tr('Beijing gets what it wanted.') }
     ],
     goals: [
-      { id: 'hold', n: tr('Taiwan stays free'), s: function (A, c, n) { return c.hold / n - c.falls / n; } },
-      { id: 'cost', n: tr('Fewest US losses'), s: function (A) { return -(A.usLoss + A.carriers * 3000); } },
-      { id: 'short', n: tr('A short war'), s: function (A) { return -A.days; } },
-      { id: 'power', n: tr('Keep Taiwan’s lights on'), s: function (A) { return A.power; } }
+      { id: 'hold', side: 'blue', n: tr('Taiwan stays free'), w: tr('Taiwan holds: the invasion fails or the blockade breaks.'), win: function (st, out) { return out === 'hold'; }, v: function (A) { return A.power - A.days / 1000; } },
+      { id: 'cost', side: 'blue', n: tr('Fewest US losses'), w: tr('Under 1,000 Americans killed and no carrier hit.'), win: function (st) { return st.usLoss < 1000 && !st.carriers; }, v: function (A) { return -(A.usLoss + A.carriers * 3000); } },
+      { id: 'short', side: 'blue', n: tr('A short war'), w: tr('Over within a month.'), win: function (st) { return st.days <= 30; }, v: function (A) { return -A.days; } },
+      { id: 'power', side: 'blue', n: tr('Keep Taiwan’s lights on'), w: tr('Taiwan’s power never falls below 60%.'), win: function (st) { return st.power >= 0.6; }, v: function (A) { return A.power; } },
+      { id: 'take', side: 'red', n: tr('Take Taiwan'), w: tr('Taiwan falls or gives in.'), win: function (st, out) { return out === 'falls'; }, v: function (A) { return A.ashore - A.days / 100; } },
+      { id: 'noUS', side: 'red', n: tr('Keep the US out'), w: tr('The US never joins the fight.'), win: function (st) { return !st.usIn; }, v: function (A) { return -A.usIn; } }
     ],
     how: [
       tr('An invasion opens with missiles on Taiwan’s air bases, radars and ports, and on US bases in Japan and Guam if China chooses to (which brings Japan in). Taiwan’s air defence stops a share; about half its air force is lost, mostly on the ground.'),
@@ -539,10 +588,11 @@
       var vis = lv.warn === 'visible';
       return { d: 0, P: P, lv: lv, c: c, w: w, usDay: usDay, usIn: false, jp: jp, vis: vis, twAir: 1, mis: P.pla_missiles * (1 - 0.15 * w.rf * (vis ? 1 : 0.5)), lift: 1 - 0.15 * w.ports * (vis ? 1 : 0.3),
         asm: c.asm ? (lv.jassm === 'no' ? 450 : P.us_asm) : 0, carriers: c.carrier ? (vis ? 2 : 1) : 0, cHit: 0, usAir: 0, ashore: 0, landed: 0, sunk: 0, port: 0, prog: 0, cities: 0,
-        kl: 0.55 + 0.75 * r(), defend: 100 * (vis || lv.tw === 'res' ? 1.25 : 1) * (c.twland ? 1 : 0.85) * (0.85 + 0.3 * r()), res: 0, will: clamp(P.tw_will * jit(r, 0.2), 0.2, 1), power: 1, powerMin: 1, usLoss: 0, kTW: 0, kPLA: 0, plaShips: 0, merch: 0, broke: 0, esc: 0, plan: lv.open };
+        kl: 0.55 + 0.75 * r(), defend: 100 * (vis || lv.tw === 'res' ? 1.25 : 1) * (c.twland ? 1 : 0.85) * (0.85 + 0.3 * r()), res: 0, will: clamp(P.tw_will * jit(r, 0.2), 0.2, 1), power: 1, powerMin: 1, usLoss: 0, kTW: 0, kPLA: 0, plaShips: 0, merch: 0, broke: 0, esc: 0, plan: lv.open, usD: 0 };
     },
     step: function (s, r, emit) {
       var P = s.P, lv = s.lv, c = s.c, w = s.w; s.d++; var d = s.d;
+      if (s.usIn) s.usD++;
       if (!s.usIn && d >= s.usDay) { s.usIn = true; emit({ t: 'note', side: 'US', w: tr('US forces join the fight.'), why: lv.us === 'maybe' ? tr('The decision was drawn once for this run, with the chance in the numbers.') : null, big: 1, param: 'us_in' }); }
       var land = s.jp >= 0.5 ? 1 : 0.25;
       if (s.plan === 'inv' || s.plan === 'strike') {
@@ -551,11 +601,11 @@
           var stopR = P.tw_ad * (c.twad ? 1 : 0.6) * (lv.tw === 'porc' ? 1.1 : 1);
           s.twAir = Math.max(0.15, s.twAir - m * (1 - stopR) / P.pla_missiles * 1.2 * (s.vis ? 0.75 : 1) * (1 - 0.5 * w.air));
           s.kTW += m * (1 - stopR) * 0.6;
-          for (var i = 0; i < 3; i++) emit({ t: 'missile', side: 'CN', from: pick(r, ofTeam('red', ['missile', 'airbase'])), to: pick(r, function (p) { return p.o === 'TW' && (p.k === 'airbase' || p.k === 'radar' || p.k === 'port'); }), n: Math.round(m / 3), stop: Math.round(m / 3 * stopR), res: 'partial',
+          for (var i = 0; i < 3; i++) emit({ t: 'missile', side: 'CN', from: pick(s.rv, ofTeam('red', ['missile', 'airbase'])), to: pick(s.rv, function (p) { return p.o === 'TW' && (p.k === 'airbase' || p.k === 'radar' || p.k === 'port'); }), n: Math.round(m / 3), stop: Math.round(m / 3 * stopR), res: 'partial',
             w: i === 0 && d === 1 ? tf('{n} missiles on Taiwan’s air bases, radars and ports.', { n: fmt(m) }) : null, why: i === 0 && d === 1 ? tr('China opens by trying to ground Taiwan’s air force before the landing.') : null });
           if (lv.bases === 'yes' && d <= 3 && lv.us !== 'out') {
             var lostA = Math.round((50 + 40 * r()) * (s.vis ? 0.8 : 1)); s.usAir += lostA; s.usLoss += 60 * r();
-            emit({ t: 'missile', side: 'CN', from: pick(r, ofTeam('red', ['missile'])), to: pick(r, function (p) { return p.o === 'US' && p.k === 'airbase'; }), n: Math.round(m * 0.15), stop: Math.round(m * 0.04), res: 'partial', w: d === 1 ? tf('Missiles hit US bases in Japan and Guam: about {n} aircraft lost on the ground.', { n: fmt(lostA) }) : null, why: d === 1 ? tr('In the CSIS runs about 90% of US aircraft losses came on the ground.') : null, big: d === 1 });
+            emit({ t: 'missile', side: 'CN', from: pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, function (p) { return p.o === 'US' && p.k === 'airbase'; }), n: Math.round(m * 0.15), stop: Math.round(m * 0.04), res: 'partial', w: d === 1 ? tf('Missiles hit US bases in Japan and Guam: about {n} aircraft lost on the ground.', { n: fmt(lostA) }) : null, why: d === 1 ? tr('In the CSIS runs about 90% of US aircraft losses came on the ground.') : null, big: d === 1 });
           }
         }
       }
@@ -574,19 +624,19 @@
           var lost = wave * kill; s.lift = Math.max(0, s.lift * (1 - kill * 0.92));
           s.sunk += lost; s.kPLA += lost * 1000 * 0.3; s.plaShips = Math.round((1 - s.lift) * 86);
           var arr = wave - lost; s.ashore += arr; s.landed += arr;
-          emit({ t: 'naval', side: 'CN', from: pick(r, ofTeam('red', ['port', 'naval'])), to: pick(r, function (p) { return p.k === 'beach'; }) || pick(r, ofSide('TW', ['city'])), n: Math.round(wave * 10), stop: Math.round(lost * 10), res: 'partial',
+          emit({ t: 'naval', side: 'CN', from: pick(s.rv, ofTeam('red', ['port', 'naval'])), to: pick(s.rv, function (p) { return p.k === 'beach'; }) || pick(s.rv, ofSide('TW', ['city'])), n: Math.round(wave * 10), stop: Math.round(lost * 10), res: 'partial',
             w: tf('An echelon of {n},000 troops crosses. {p} are lost at sea.', { n: fmt(wave), p: pc(kill) }), why: s.usIn ? tr('US missiles and submarines join Taiwan’s coastal missiles against the fleet.') : tr('Only Taiwan’s own missiles and aircraft reach the fleet.') });
-          if (s.usIn) emit({ t: 'strike', side: 'US', set: 'fleet', from: pick(r, ofSide('US', ['naval', 'airbase'])), to: pick(r, ofTeam('red', ['naval', 'port'])), n: 24, res: 'hit', quiet: 1, param: 'ship_kill' });
+          if (s.usIn) emit({ t: 'strike', side: 'US', set: 'fleet', from: pick(s.rv, ofSide('US', ['naval', 'airbase'])), to: pick(s.rv, ofTeam('red', ['naval', 'port'])), n: 24, res: 'hit', quiet: 1, param: 'ship_kill' });
         }
-        if (!s.port && s.ashore > 20 && r() < 0.05 * Math.min(1.5, s.ashore / Math.max(10, s.defend * 0.4))) { s.port = 1; emit({ t: 'ground', side: 'CN', to: pick(r, function (p) { return p.k === 'port' && p.o === 'TW'; }), w: tr('PLA troops take a port. Ferries can unload now.'), why: tr('Civilian ro-ro ferries need a port; this doubles what each echelon can land.'), big: 1 }); }
+        if (!s.port && s.ashore > 20 && r() < 0.05 * Math.min(1.5, s.ashore / Math.max(10, s.defend * 0.4))) { s.port = 1; emit({ t: 'ground', side: 'CN', to: pick(s.rv, function (p) { return p.k === 'port' && p.o === 'TW'; }), w: tr('PLA troops take a port. Ferries can unload now.'), why: tr('Civilian ro-ro ferries need a port; this doubles what each echelon can land.'), big: 1 }); }
         if (!s.port && s.lift < 0.25) s.ashore *= 0.975;
         s.res = Math.min(150, s.res + (lv.tw === 'res' || s.vis ? 5 : 3) * (d >= 3 ? 1 : 0));
         var D = s.defend + s.res, will = clamp(s.will, 0.2, 1);
         var dA = Math.min(s.ashore, 0.02 * D * will * (0.6 + 0.4 * s.twAir) * jit(r, 0.3) + (s.usIn ? 0.02 * s.ashore * land : 0)); s.ashore -= dA; s.kPLA += dA * 400;
         var dD = 0.015 * s.ashore * (1 + 0.01 * d) * jit(r, 0.3); s.defend = Math.max(0, s.defend - dD); s.kTW += dD * 300;
-        if (s.ashore > D * will * 0.9) { s.prog += 0.045 * Math.min(2, s.ashore / Math.max(1, D * will)); var nc = Math.floor(s.prog); if (nc > s.cities) { s.cities = nc; emit({ t: 'ground', side: 'CN', to: pick(r, function (p) { return p.o === 'TW' && (p.k === 'city' || p.k === 'capital'); }), w: [tr('Tainan and Kaohsiung fall.'), tr('Taichung falls.'), tr('Taipei falls.')][Math.min(2, nc - 1)], big: 1 }); } }
+        if (s.ashore > D * will * 0.9) { s.prog += 0.045 * Math.min(2, s.ashore / Math.max(1, D * will)); var nc = Math.floor(s.prog); if (nc > s.cities) { s.cities = nc; emit({ t: 'ground', side: 'CN', to: pick(s.rv, function (p) { return p.o === 'TW' && (p.k === 'city' || p.k === 'capital'); }), w: [tr('Tainan and Kaohsiung fall.'), tr('Taichung falls.'), tr('Taipei falls.')][Math.min(2, nc - 1)], big: 1 }); } }
         s.will = clamp(s.will - (s.ashore > D * 0.8 ? 0.006 : 0.001) + (s.usIn ? 0.003 : 0), 0, 1);
-        if (s.usIn && d <= 16 && s.carriers > s.cHit && r() < 0.05 * (s.carriers - s.cHit) * (s.mis > 0 ? 1 : 0.5)) { s.cHit++; s.usLoss += 2500; emit({ t: 'missile', side: 'CN', from: pick(r, ofTeam('red', ['missile'])), to: pick(r, ofSide('US', ['naval'])), n: 30, stop: 24, res: 'hit', w: tr('A US carrier is hit.'), why: tr('DF-21D and DF-26 missiles hunt carriers inside about 2,000 km. CSIS lost two in every base run.'), big: 1 }); }
+        if (s.usIn && d <= 16 && s.carriers > s.cHit && r() < 0.05 * (s.carriers - s.cHit) * (s.mis > 0 ? 1 : 0.5)) { s.cHit++; s.usLoss += 2500; emit({ t: 'missile', side: 'CN', from: pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, ofSide('US', ['naval'])), n: 30, stop: 24, res: 'hit', w: tr('A US carrier is hit.'), why: tr('DF-21D and DF-26 missiles hunt carriers inside about 2,000 km. CSIS lost two in every base run.'), big: 1 }); }
         if (s.usIn) { s.usLoss += 30 * r(); if (r() < 0.2) s.usAir += Math.round(3 * r()); }
       } else if (s.plan === 'block') {
         var coal = P.energy_days * (lv.tw === 'stock' ? 1.5 : 1), lng = 11 * (lv.tw === 'stock' ? 1.5 : 1);
@@ -595,19 +645,19 @@
         s.powerMin = Math.min(s.powerMin, s.power);
         s.will = clamp(s.will - (1 - s.power) * 0.008 + (s.usIn ? 0.002 : 0), 0, 1);
         if (d % 7 === 0) {
-          emit({ t: 'naval', side: 'CN', from: pick(r, ofTeam('red', ['port', 'naval'])), to: pick(r, function (p) { return p.k === 'port' && p.o === 'TW'; }), n: 12, res: 'hit', w: tf('Tankers turned back. Taiwan’s power is at {p}.', { p: pc(s.power) }), why: d < lng ? tr('Gas lasts about 11 days; then power halves.') : tr('Coal runs out near week nine without stockpiles.') });
+          emit({ t: 'naval', side: 'CN', from: pick(s.rv, ofTeam('red', ['port', 'naval'])), to: pick(s.rv, function (p) { return p.k === 'port' && p.o === 'TW'; }), n: 12, res: 'hit', w: tf('Tankers turned back. Taiwan’s power is at {p}.', { p: pc(s.power) }), why: d < lng ? tr('Gas lasts about 11 days; then power halves.') : tr('Coal runs out near week nine without stockpiles.') });
           if (s.usIn && lv.conv === 'escort') {
             s.merch += 5 + Math.round(10 * r()); s.usLoss += 80 * r(); s.kPLA += 100 * r();
-            if (r() < 0.12 * (1 + 0.4 * s.jp) * (1 + 0.2 * (lv.ph === 'yes' ? 1 : 0))) { s.broke = 1; emit({ t: 'naval', side: 'US', from: pick(r, ofSide('US', ['naval'])), to: pick(r, function (p) { return p.k === 'port' && p.o === 'TW'; }), n: 6, res: 'hit', w: tr('Escorted convoys get through. The blockade breaks.'), why: tr('CSIS: convoys can restore power, at the cost of over a hundred merchant ships on each side.'), big: 1 }); }
-            else if (r() < 0.25) { s.esc++; emit({ t: 'strike', side: 'CN', from: pick(r, ofTeam('red', ['airbase'])), to: pick(r, ofSide('US', ['naval'])), n: 12, res: 'partial', w: tr('Shots are fired between warships.'), big: 1 }); }
+            if (r() < 0.12 * (1 + 0.4 * s.jp) * (1 + 0.2 * (lv.ph === 'yes' ? 1 : 0))) { s.broke = 1; emit({ t: 'naval', side: 'US', from: pick(s.rv, ofSide('US', ['naval'])), to: pick(s.rv, function (p) { return p.k === 'port' && p.o === 'TW'; }), n: 6, res: 'hit', w: tr('Escorted convoys get through. The blockade breaks.'), why: tr('CSIS: convoys can restore power, at the cost of over a hundred merchant ships on each side.'), big: 1 }); }
+            else if (r() < 0.25) { s.esc++; emit({ t: 'strike', side: 'CN', from: pick(s.rv, ofTeam('red', ['airbase'])), to: pick(s.rv, ofSide('US', ['naval'])), n: 12, res: 'partial', w: tr('Shots are fired between warships.'), big: 1 }); }
           }
         }
       } else if (s.plan === 'quar') {
-        if (d % 3 === 0) emit({ t: 'naval', side: 'CN', from: pick(r, ofTeam('red', ['port'])), to: pick(r, function (p) { return p.k === 'port' && p.o === 'TW'; }), n: 4, res: 'hit', w: tr('Coast guard ships board and inspect ships bound for Taiwan.'), why: tr('Insurers and shippers count the risk; some ships go elsewhere.'), quiet: d % 6 !== 0 });
+        if (d % 3 === 0) emit({ t: 'naval', side: 'CN', from: pick(s.rv, ofTeam('red', ['port'])), to: pick(s.rv, function (p) { return p.k === 'port' && p.o === 'TW'; }), n: 4, res: 'hit', w: tr('Coast guard ships board and inspect ships bound for Taiwan.'), why: tr('Insurers and shippers count the risk; some ships go elsewhere.'), quiet: d % 6 !== 0 });
         s.power = Math.max(0.85, s.power - 0.002); s.powerMin = Math.min(s.powerMin, s.power); s.will = clamp(s.will - 0.002, 0, 1);
       } else if (s.plan === 'strike' && d > 4 && d <= 20) {
         var m2 = Math.round(s.mis * 0.06); s.mis -= m2; s.will = clamp(s.will - 0.004, 0, 1); s.kTW += m2 * 0.3;
-        if (d % 2 === 0) emit({ t: 'missile', side: 'CN', from: pick(r, ofTeam('red', ['missile'])), to: pick(r, function (p) { return p.o === 'TW'; }), n: m2, stop: Math.round(m2 * P.tw_ad), res: 'partial', quiet: d % 4 !== 0 });
+        if (d % 2 === 0) emit({ t: 'missile', side: 'CN', from: pick(s.rv, ofTeam('red', ['missile'])), to: pick(s.rv, function (p) { return p.o === 'TW'; }), n: m2, stop: Math.round(m2 * P.tw_ad), res: 'partial', quiet: d % 4 !== 0 });
       }
     },
     end: function (s, r) {
@@ -635,7 +685,15 @@
       }
       return null;
     },
-    stats: function (s) { return { days: s.d, landed: s.landed, sunk: s.sunk, ships: s.plaShips, carriers: s.cHit, usAir: s.usAir, usLoss: s.usLoss, kTW: s.kTW, kPLA: s.kPLA, power: s.powerMin, ashore: s.ashore, merch: s.merch }; },
+    stats: function (s) { return { days: s.d, landed: s.landed, sunk: s.sunk, ships: s.plaShips, carriers: s.cHit, usAir: s.usAir, usLoss: s.usLoss, kTW: s.kTW, kPLA: s.kPLA, power: s.powerMin, ashore: s.ashore, merch: s.merch, usIn: s.usIn ? 1 : 0 }; },
+    // the economies are Bloomberg Economics' first-year hit of a war (an invasion, or missile strikes) or of a blockade; a quarantine
+    // is not priced. What the PLA loses is not priced either: no published unit costs for its amphibious ships.
+    cost: function (s, C, v) {
+      var u = function (k) { return CV(C, k, v); }, war = s.plan === 'inv' || s.plan === 'strike', blk = s.plan === 'block', ec = war ? 'war' : blk ? 'blk' : '';
+      var bSpend = s.cHit * u('carrier') + s.usAir * u('aircraft') + s.usD * (s.carriers || 1) * u('csg_day');
+      return [s.usLoss + s.kTW, null, bSpend, ec ? u('gdp_tw') * u('hit_' + ec + '_tw') + u('gdp_us') * u('hit_' + ec + '_us') : null,
+        s.kPLA, null, null, ec ? u('gdp_cn') * u('hit_' + ec + '_cn') : null];
+    },
     orb: function (s) {
       var P = s.P;
       return { mis: { r: P.pla_missiles ? s.mis / P.pla_missiles : 1, b: P.us_asm ? (s.asm / P.us_asm) : 1 }, sea: { r: s.lift }, land: { b: (s.defend + s.res) / 100 } };
@@ -653,8 +711,20 @@
   };
 
   // ---------------------------------------------------------------- running a plan
+  // THE PRICES (1 November 2026): the register's "costs" (data/wargame/<theatre>.json), each id a [low, high] range with its sources.
+  // CV(C, id, 0) is the low end, 1 the high end, anything else the middle. A model's cost() reads them; CK names its eight numbers.
+  var COST = {}; ((R.costs || {}).items || []).forEach(function (c) { if (c && c.id && typeof c.lo === 'number') COST[c.id] = [c.lo, typeof c.hi === 'number' ? c.hi : c.lo]; });
+  function CV(C, id, v) { var c = C[id]; if (!c) return 0; return v === 0 ? c[0] : v === 1 ? c[1] : (c[0] + c[1]) / 2; }
+  var CK = ['bm', 'bc', 'bs', 'bl', 'rm', 'rc', 'rs', 'rl'];
+  function costNow(M, s) {      // [low[8], high[8]] for the state of a run as it stands
+    if (!M.cost) return null;
+    return [M.cost(s, COST, 0), M.cost(s, COST, 1)];
+  }
   function runOneM(M, P, lv, seed, emit) {
+    // two sets of dice: r for everything the model counts, s.rv for which place on the map a strike is drawn from and to. A
+    // run nobody watches never draws places (the Best plan search runs thousands), and a watched run counts exactly the same
     var r = rng(seed), s = M.init(P, Object.assign({}, lv), r), out = null, log = emit ? [] : null;
+    s.rv = emit ? rng(seed ^ 0x5bd1e995) : null;
     var push = emit ? function (ev) {
       ev.d = s.d;
       if (ev.from && ev.from.id) ev.from = ev.from.id;      // models pick place records; the player and the map take ids
@@ -664,27 +734,38 @@
     var snaps = emit ? [] : null;
     while (!out) {
       M.step(s, r, push);
-      if (snaps) snaps.push({ d: s.d, say: M.say ? M.say(s) : '', b: M.board(s), o: M.orb ? M.orb(s) : null, sec: s.sec ? Object.assign({}, s.sec) : null, gain: s.gain, grid: s.grid, blk: s.plan === 'block' ? 1 - s.power : 0 });
+      if (snaps) snaps.push({ d: s.d, say: M.say ? M.say(s) : '', b: M.board(s), o: M.orb ? M.orb(s) : null, sec: s.sec ? Object.assign({}, s.sec) : null, gain: s.gain, grid: s.grid, blk: s.plan === 'block' ? 1 - s.power : 0, $: costNow(M, s) });
       out = M.end(s, r);
       if (s.d > 400) out = M.outcomes[M.outcomes.length - 1].id;
     }
-    return { out: out, st: M.stats(s, r), log: log, snaps: snaps, s: s };
+    var st = M.stats(s, r), cs = costNow(M, s);
+    if (cs) CK.forEach(function (k, i) { if (cs[0][i] != null) { st['$' + k + '0'] = cs[0][i]; st['$' + k + '1'] = cs[1][i]; } });
+    return { out: out, st: st, log: log, snaps: snaps, s: s };
   }
+  // n runs of one plan: how often each outcome comes, how often each goal is met (cnt['g:<goal>']), the averages (A), and for the
+  // costs the middle 80% of the runs (A['$bm0_p10'] the low end priced low, A['$bm1_p90'] the high end priced high)
   function runManyM(M, P, lv, n, seed0) {
-    var cnt = {}, sum = {}, days = [], seeds = [];
+    var cnt = {}, sum = {}, days = [], seeds = [], Q = {}, G0 = M.goals || [];
     M.outcomes.forEach(function (o) { cnt[o.id] = 0; });
+    G0.forEach(function (g) { cnt['g:' + g.id] = 0; });
     for (var i = 0; i < n; i++) {
       var sd = (seed0 + i * 7919) >>> 0, x = runOneM(M, P, lv, sd, null);
       cnt[x.out]++; days.push(x.st.days); seeds.push({ sd: sd, out: x.out, days: x.st.days });
-      for (var k in x.st) if (typeof x.st[k] === 'number') sum[k] = (sum[k] || 0) + x.st[k];
+      for (var g = 0; g < G0.length; g++) if (G0[g].win(x.st, x.out)) cnt['g:' + G0[g].id]++;
+      for (var k in x.st) if (typeof x.st[k] === 'number') { sum[k] = (sum[k] || 0) + x.st[k]; if (k.charAt(0) === '$') (Q[k] = Q[k] || []).push(x.st[k]); }
     }
     var A = {}; for (var k2 in sum) A[k2] = sum[k2] / n;
+    for (var q in Q) { var a = Q[q].sort(function (x1, x2) { return x1 - x2; }); A[q + '_p10'] = a[Math.floor(0.1 * (a.length - 1))]; A[q + '_p90'] = a[Math.ceil(0.9 * (a.length - 1))]; }
     days.sort(function (a, b) { return a - b; });
     A.days = days[Math.floor(n / 2)];
     var top = M.outcomes.slice().sort(function (a, b) { return cnt[b.id] - cnt[a.id]; })[0].id;
     var typical = seeds.filter(function (x) { return x.out === top; }).sort(function (a, b) { return Math.abs(a.days - A.days) - Math.abs(b.days - A.days); })[0];
     return { n: n, cnt: cnt, A: A, top: top, seed: typical ? typical.sd : seed0 };
   }
+  // a goal's grade: the share of runs that meet it, as a letter (A from 70%, B from 55%, C from 40%, D from 25%)
+  function gradeOf(p) { return p >= 0.7 ? 'A' : p >= 0.55 ? 'B' : p >= 0.4 ? 'C' : p >= 0.25 ? 'D' : 'F'; }
+  function goalOf(M, id) { return (M.goals || []).filter(function (g) { return g.id === id; })[0] || (M.goals || [])[0]; }
+  function scoreOf(M, res, g) { var p = res.cnt['g:' + g.id] / res.n; return p + 1e-6 * (g.v ? g.v(res.A) : 0); }
   // each advisor's plan by their lean (planOf() applies it; an expert's own `plan` in the register wins): my reading, not their words
   var LEANPLAN = {
     iran: { hawk: { tg: 'launch,airdef,repress,nuke,oil', len: 'open', hz: 'escort', street: 'call', net: 'push', talks: 'none', raid: 'yes' },
@@ -701,19 +782,138 @@
       pessimist: { open: 'inv', bases: 'yes', warn: 'surprise', season: 'oct', us: 'late', jassm: 'no', subs: 'few', jp: 'bases', ph: 'no', tw: 'today', will: 'hold', tg: 'fleet' },
       dove: { open: 'quar', bases: 'no', warn: 'visible', us: 'arms', jp: 'out', ph: 'no', tw: 'today', will: 'talk', tg: 'fleet' } }
   };
+  // the plan a theatre opens with: each rule's first option, the target sets marked on, and every force in the region now (a force
+  // three days or more away, or one not yet delivered, starts switched off: the reader adds it and sees the wait)
+  function offByDefault(f) { return (f.days || 0) >= 3 || /\b(on order|not operational|sea trials|handover)\b/i.test((f.status || '') + ' ' + (f.note || '')); }
+  function planDefaultM(M) {
+    var lv = {}; M.rules.forEach(function (l) { lv[l.id] = l.o[0][0]; });
+    lv.tg = tgList(M, {}).join(',');
+    lv.off = (OOB.blue || []).filter(function (f) { return M.role(f) && offByDefault(f); }).map(function (f) { return f.id; }).join('.');
+    return lv;
+  }
+  // an advisor's plan: the plan their lean argues for, unless the register gives their own (expert.plan); my reading, not their words
+  function planOfX(M, tid, x) {
+    var T0 = LEANPLAN[tid] || {}, l = x.lean;
+    var t = T0[l] || T0[{ optimist: 'hawk', skeptic: 'dove' }[l]] || T0.realist || {};
+    if (tid === 'taiwan' && l === 'skeptic') t = T0.realist;
+    return Object.assign(planDefaultM(M), t, x.plan || {});
+  }
+  // a quick pick of forces (MODELS.<id>.presets): which rows it leaves out, on top of those days away by default
+  function presetOff(M, ps) {
+    var keep = offOf(planDefaultM(M));
+    return (OOB.blue || []).filter(function (f) { return M.role(f) && ((ps[2] && ps[2](f)) || keep[f.id]); }).map(function (f) { return f.id; }).join('.');
+  }
+
+  // ---------------------------------------------------------------- THE BEST PLAN (1 November 2026)
+  // Armin asked for a simulator "better at finding the best strategy, better than all the relevant experts". The search: start
+  // from the reader's plan and from every advisor's plan, then climb: try every other option of each lever the side controls
+  // (its rules; for the side that sends the forces, each target set on, off or first, and each quick pick of forces), keep the
+  // best, and climb again from there. Every plan is run on the same luck (the same seeds), so a difference is the plan and not
+  // the dice. The three best are run again on fresh luck; what makes each one win is measured by undoing its changes one at a
+  // time (its drivers), and it is set beside each advisor's plan run the same way. A side controls only its own levers:
+  // RULESIDE marks the rules that belong to the other side or to the world (a horizon, who fires first); they stay as set.
+  var RULESIDE = { iran: { first: 'world' }, ukraine: { ru: 'red', talks: 'world', len: 'world' }, taiwan: { open: 'red', bases: 'red', warn: 'red', season: 'red' } };
+  function ruleSide(tid, id) { return (RULESIDE[tid] || {})[id] || 'blue'; }
+  function lvKey(lv) { return Object.keys(lv).filter(function (k) { return k !== 'mon'; }).sort().map(function (k) { return k + '=' + lv[k]; }).join('&'); }
+  function movesOf(M, tid, side, lv) {
+    var out = [];
+    M.rules.forEach(function (l) {
+      if (ruleSide(tid, l.id) !== side || (l.when && !l.when(lv))) return;
+      l.o.forEach(function (o) { if (o[0] !== lv[l.id]) out.push({ k: 'rule', id: l.id, v: o[0] }); });
+    });
+    if (side !== 'blue') return out;
+    var on = tgList(M, lv);
+    M.targets.forEach(function (t) {
+      var j = on.indexOf(t.id), rest = on.filter(function (x) { return x !== t.id; });
+      if (j < 0) out.push({ k: 'tg', id: t.id, v: on.concat([t.id]).join(','), o: 'on' });
+      else { if (rest.length) out.push({ k: 'tg', id: t.id, v: rest.join(','), o: 'off' }); if (j > 0) out.push({ k: 'tg', id: t.id, v: [t.id].concat(rest).join(','), o: 'top' }); }
+    });
+    (M.presets || []).forEach(function (p) { var off = presetOff(M, p); if (off !== (lv.off || '')) out.push({ k: 'off', id: p[0], v: off }); });
+    return out;
+  }
+  function moved(lv, mv) { var x = Object.assign({}, lv); if (mv.k === 'rule') x[mv.id] = mv.v; else if (mv.k === 'tg') x.tg = mv.v; else x.off = mv.v; return x; }
+  // a plan of someone else's made one of this side's: the side's levers from it, everything else as the reader set it
+  function asSide(M, tid, side, lv0, lv) {
+    var x = Object.assign({}, lv0);
+    M.rules.forEach(function (l) { if (ruleSide(tid, l.id) === side && lv[l.id] != null) x[l.id] = lv[l.id]; });
+    if (side === 'blue') { if (lv.tg != null) x.tg = lv.tg; if (lv.off != null) x.off = lv.off; }
+    return x;
+  }
+  // how plan b differs from plan a, lever by lever (the drivers undo these one at a time)
+  function diffs(M, tid, side, a, b) {
+    var out = [];
+    M.rules.forEach(function (l) { if (ruleSide(tid, l.id) === side && a[l.id] !== b[l.id] && (!l.when || l.when(b))) out.push({ k: 'rule', id: l.id, v: b[l.id], now: a[l.id] }); });
+    if (side === 'blue') { if ((a.tg || '') !== (b.tg || '')) out.push({ k: 'tg', v: b.tg, now: a.tg }); if ((a.off || '') !== (b.off || '')) out.push({ k: 'off', v: b.off, now: a.off }); }
+    return out;
+  }
+  // the search as a list of jobs, one plan run each, so the page can run it in slices between frames with a progress bar:
+  // var S = makeSearch(...); while (!S.next(30)) {} ; S.result()
+  function makeSearch(M, tid, P, lv0, gid, side, seedPlans, opt) {
+    opt = opt || {};
+    var g = goalOf(M, gid), nS = opt.nS || 70, nF = opt.nF || 360, nD = opt.nD || 150, sd0 = opt.seed || 9001, passes = opt.passes || 3;
+    var pool = {}, cur = null, jobs = [], runs = 0, done = false, out = null, pass = 0, cands = [], finals = [], k = 0;
+    var est = 1 + (seedPlans || []).length + passes * Math.max(4, movesOf(M, tid, side, lv0).length) + 3 + 12 + (seedPlans || []).length + 1;
+    function ev(lv, n, sd) { runs += n; return runManyM(M, P, lv, n, sd); }
+    function share(res) { return res.cnt['g:' + g.id] / res.n; }
+    function screen(lv) {
+      var key = lvKey(lv); if (pool[key]) return pool[key];
+      var r0 = ev(lv, nS, sd0), e = { lv: lv, k: key, sc: scoreOf(M, r0, g) }; pool[key] = e; return e;
+    }
+    var seeds = [lv0].concat((seedPlans || []).map(function (p) { return asSide(M, tid, side, lv0, p); }));
+    seeds.forEach(function (lv) { jobs.push(function () { var e = screen(lv); if (!cur || e.sc > cur.sc) cur = e; }); });
+    function climb() {
+      pass++;
+      cands = movesOf(M, tid, side, cur.lv).map(function (mv) { return moved(cur.lv, mv); });
+      cands.forEach(function (lv) { jobs.push(function () { screen(lv); }); });
+      jobs.push(function () {
+        var from = cur, ranked = cands.map(function (lv) { return pool[lvKey(lv)]; }).filter(Boolean).sort(function (a, b) { return b.sc - a.sc; });
+        if (ranked[0] && ranked[0].sc > cur.sc + 0.5 / nS) {
+          cur = ranked[0];
+          if (ranked[1] && ranked[1].sc > from.sc) {      // the two best moves together, when both helped on their own
+            var both = Object.assign({}, ranked[0].lv);
+            diffs(M, tid, side, from.lv, ranked[1].lv).forEach(function (d) { both = moved(both, d); });
+            var e2 = screen(both); if (e2.sc > cur.sc) cur = e2;
+          }
+          if (pass < passes) climb(); else finish();
+        } else finish();
+      });
+    }
+    function finish() {
+      var best = Object.keys(pool).map(function (key) { return pool[key]; }).sort(function (a, b) { return b.sc - a.sc; }).slice(0, 3);
+      best.forEach(function (e) { jobs.push(function () { var r1 = ev(e.lv, nF, sd0 + 1); finals.push({ lv: e.lv, res: r1, p: share(r1), sc: scoreOf(M, r1, g) }); }); });
+      jobs.push(function () {
+        finals.sort(function (a, b) { return b.sc - a.sc; });
+        finals.forEach(function (f) {
+          jobs.push(function () { f.pD = share(ev(f.lv, nD, sd0 + 2)); f.drivers = []; });
+          diffs(M, tid, side, lv0, f.lv).forEach(function (d) {
+            jobs.push(function () { var rb = ev(moved(f.lv, { k: d.k, id: d.id, v: d.now }), nD, sd0 + 2); f.drivers.push({ d: d, gain: f.pD - share(rb) }); });
+          });
+          jobs.push(function () { f.drivers = f.drivers.filter(function (x) { return x.gain > 0.005; }).sort(function (a, b) { return b.gain - a.gain; }).slice(0, 3); });
+        });
+        var mine = null, xs = [];
+        jobs.push(function () { mine = share(ev(lv0, nD, sd0 + 2)); });
+        (seedPlans || []).forEach(function (p, i) { jobs.push(function () { var rx = ev(asSide(M, tid, side, lv0, p), nD, sd0 + 2); xs.push({ i: i, p: share(rx), top: rx.top }); }); });
+        jobs.push(function () { out = { g: g, side: side, top: finals, mine: mine, experts: xs, runs: runs, lv0: lv0 }; done = true; });
+      });
+    }
+    jobs.push(function () { climb(); });
+    return {
+      next: function (ms) {
+        var t0 = Date.now();
+        while (jobs.length && !done) { var j = jobs.shift(); k++; j(); if (Date.now() - t0 > ms) break; }
+        if (!jobs.length && !done) done = true;
+        return done;
+      },
+      progress: function () { return done ? 1 : Math.min(0.97, k / Math.max(est, k + jobs.length)); },
+      result: function () { return out; }, runs: function () { return runs; }
+    };
+  }
   // ======================================================================== MODELS-END
 
   var MOD = MODELS[TID];
   if (!MOD) return;
-  // the plan the page opens with: each rule's first option, the target sets marked on, and every force in the region now (a force
-  // three days or more away, or one not yet delivered, starts switched off: the reader adds it and sees the wait)
-  function offByDefault(f) { return (f.days || 0) >= 3 || /(on order|not operational|sea trials|handover)/i.test((f.status || '') + ' ' + (f.note || '')); }
-  function planDefault() {
-    var lv = {}; MOD.rules.forEach(function (l) { lv[l.id] = l.o[0][0]; });
-    lv.tg = tgList(MOD, {}).join(',');
-    lv.off = (OOB.blue || []).filter(function (f) { return MOD.role(f) && offByDefault(f); }).map(function (f) { return f.id; }).join('.');
-    return lv;
-  }
+  placesOnMap();
+  function planDefault() { return planDefaultM(MOD); }
   S.lv = planDefault();
   function runOne(P, lv, seed, emit) { return runOneM(MOD, P, lv, seed, emit); }
   function runMany(P, lv, n, seed0) { return runManyM(MOD, P, lv, n, seed0); }
@@ -770,8 +970,13 @@
 
   // ---------------------------------------------------------------- the command interface (drawn over the board)
   S.follow = !REDUCED; S.sheet = 'mid'; S.orbOpen = null; S.view = '';
-  var TABS = [['plan', tr('Plan')], ['watch', tr('Watch')], ['compare', tr('Compare')], ['replay', tr('Replay')]];
-  S.tab = 'plan';
+  // THREE MODES (1 November 2026; Armin: "They all need to start with the current situation. Even if I don't want to play the game,
+  // the default needs to be that I could see where everything stands right now ... with live updates"). Now is the default: the
+  // live feed glowing on the map, the ticker, how tense it is (NOW below). Simulate holds the plan, the Best plan search, the
+  // results and Compare; Replay the past wars. A shared plan (?s=) opens Simulate.
+  var MODES = [['now', tr('Now')], ['sim', tr('Simulate')], ['replay', tr('Replay')]];
+  var TABS = [['plan', tr('Plan')], ['best', tr('Best plan')], ['watch', tr('Results')], ['compare', tr('Compare')]];
+  S.mode = 'now'; S.tab = 'plan';
   function ico(name) {
     var P = {
       play: '<path d="M8 5v14l11-7z" fill="currentColor"/>', pause: '<path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/>',
@@ -780,15 +985,19 @@
       plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4"/>', minus: '<path d="M5 12h14" stroke="currentColor" stroke-width="2.4"/>',
       rot: '<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.2"/>',
       home: '<path d="M4 12l8-7 8 7M7 10v9h10v-9" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+      live: '<circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" fill="none" stroke="currentColor" stroke-width="2"/>',
+      sim: '<path d="M4 19l5-6 4 3 7-9" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="20" cy="7" r="1.8" fill="currentColor"/>',
+      replay: '<path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M11 9v4l3 2" fill="none" stroke="currentColor" stroke-width="2"/>',
       forces: '<path d="M4 18h4V9H4zM10 18h4V5h-4zM16 18h4v-6h-4z" fill="currentColor"/>'
     };
     return '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">' + (P[name] || '') + '</svg>';
   }
   function hudHtml() {
     var sib = (R.sib || []).length > 1 ? '<nav class="wg-ths" aria-label="' + esc(tr('Theatres')) + '">' + R.sib.map(function (s) { return '<a class="wg-th" href="' + esc(s.u) + '"' + (s.id === TID ? ' aria-current="page"' : '') + '>' + esc(s.n) + '</a>'; }).join('') + '</nav>' : '';
-    return '<div class="wg-top" id="wg-top"><div class="wg-brand"><span class="wg-logo" aria-hidden="true"></span><span class="wg-bn">' + esc(IU ? tr('Scenarios') : (R.name || 'Conflict Simulator')) + '</span><b class="wg-thn">' + esc(THN) + '</b></div>' + sib +
+    var modes = '<div class="wg-modes" role="tablist" aria-label="' + esc(tr('What to show')) + '">' + MODES.map(function (m) { return '<button type="button" role="tab" class="wg-mode" data-mode="' + m[0] + '" aria-selected="' + (S.mode === m[0]) + '">' + ico(m[0] === 'now' ? 'live' : m[0]) + '<span>' + esc(m[1]) + '</span></button>'; }).join('') + '</div>';
+    return '<div class="wg-top" id="wg-top"><div class="wg-brand"><span class="wg-logo" aria-hidden="true"></span><span class="wg-bn">' + esc(IU ? tr('Scenarios') : (R.name || 'Conflict Simulator')) + '</span><b class="wg-thn">' + esc(THN) + '</b></div>' + sib + modes +
       '<div class="wg-clock"><b class="wg-cdate num" id="wg-date"></b><span class="wg-dn num" id="wg-dn"></span></div>' +
-      '<div class="wg-tx"><button type="button" class="wg-ib wg-play" id="wg-play" aria-label="' + esc(tr('Play')) + '">' + ico('play') + '</button>' +
+      '<div class="wg-tx"><button type="button" class="wg-ib wg-play" id="wg-play" aria-label="' + esc(tr('Run the timeline')) + '">' + ico('play') + '</button>' +
       '<button type="button" class="wg-ib wg-spd num" id="wg-speed" aria-label="' + esc(tr('Speed')) + '">1×</button>' +
       '<button type="button" class="wg-ib" id="wg-cam" aria-pressed="' + S.follow + '" aria-label="' + esc(tr('Camera follows the action')) + '">' + ico('cam') + '</button>' +
       '<button type="button" class="wg-ib" id="wg-full" aria-label="' + esc(tr('Full screen')) + '">' + ico('full') + '</button></div></div>' +
@@ -796,15 +1005,17 @@
       '<div class="wg-nav" id="wg-nav"><button type="button" class="wg-ib" id="wg-zin" aria-label="' + esc(tr('Zoom in')) + '">' + ico('plus') + '</button>' +
       '<button type="button" class="wg-ib" id="wg-zout" aria-label="' + esc(tr('Zoom out')) + '">' + ico('minus') + '</button>' +
       '<button type="button" class="wg-ib" id="wg-rot" aria-label="' + esc(tr('Turn the map')) + '">' + ico('rot') + '</button>' +
-      '<button type="button" class="wg-ib" id="wg-fit" aria-label="' + esc(tr('Show the whole theatre')) + '">' + ico('home') + '</button></div>' +
+      '<button type="button" class="wg-ib" id="wg-fit" aria-label="' + esc(tr('Reset the view')) + '">' + ico('home') + '</button></div>' +
+      '<div class="wg-brk" id="wg-brk" role="status" hidden></div>' +
       '<div class="wg-mini" id="wg-mini" role="button" tabindex="0" aria-label="' + esc(tr('Minimap: tap to move the camera there')) + '"><canvas id="wg-minic"></canvas></div>' +
       '<div class="wg-panel" id="wg-panel" data-sheet="mid"><button type="button" class="wg-grab" id="wg-grab" aria-label="' + esc(tr('Make the panel bigger or smaller')) + '"><i></i></button>' +
-      '<div class="wg-ph" id="wg-ph"></div><div class="wg-tabs" role="tablist">' + TABS.map(function (t) { return '<button type="button" role="tab" class="wg-tab" data-tab="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '">' + esc(t[1]) + '</button>'; }).join('') + '</div>' +
+      modes.replace('class="wg-modes"', 'class="wg-modes wg-modes-s"') + '<div class="wg-ph" id="wg-ph"></div><div class="wg-tabs" id="wg-tabs" role="tablist">' + TABS.map(function (t) { return '<button type="button" role="tab" class="wg-tab" data-tab="' + t[0] + '" aria-selected="' + (S.tab === t[0]) + '">' + esc(t[1]) + '</button>'; }).join('') + '</div>' +
       '<div class="wg-body" id="wg-body"></div></div>' +
-      '<div class="wg-tl" id="wg-tl"><div class="wg-feed" id="wg-feed" aria-live="polite"></div>' +
+      '<div class="wg-tl" id="wg-tl"><div class="wg-feed" id="wg-feed" aria-live="polite"></div><div class="wg-cost" id="wg-cost" hidden></div>' +
       '<div class="wg-scrub" id="wg-scrub" role="slider" tabindex="0" aria-label="' + esc(tr('Timeline: drag to a day')) + '" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1"><div class="wg-ticks" id="wg-ticks"></div><i class="wg-head" id="wg-head"></i></div></div>' +
       '<p class="wg-credit">' + esc(tr('Imagery: NASA. Elevation: AWS Terrain Tiles.')) + '</p>' +
-      '<p class="wg-load" id="wg-load">' + esc(tr('Loading the 3D theatre…')) + '</p>';
+      '<p class="wg-load" id="wg-load">' + esc(tr('Loading the 3D theatre…')) + '</p>' +
+      '<div class="wg-guide" id="wg-guide" role="dialog" aria-modal="false" aria-labelledby="wg-gd-h" hidden></div>';
   }
   hud.innerHTML = hudHtml();
   var doors = $('#wg-doorslot .lpt-doors');
@@ -851,12 +1062,13 @@
 
   // ---------------------------------------------------------------- the player: one timeline of days, a replay or a run
   var TL = null, ti = 0, playing = false, timer = 0;
-  function playIcon() { var b = $('#wg-play'); if (b) { b.innerHTML = ico(playing ? 'pause' : 'play'); b.setAttribute('aria-label', playing ? tr('Pause') : tr('Play')); } }
+  function playIcon() { var b = $('#wg-play'); if (b) { b.innerHTML = ico(playing ? 'pause' : 'play'); b.setAttribute('aria-label', playing ? tr('Pause') : tr('Run the timeline')); } }
   function play(tl) { stop(); TL = tl; ti = 0; playing = true; V && V.reset(); orbReset(); orbDraw(); ticks(); playIcon(); tick(); }
   function stop() { playing = false; clearTimeout(timer); playIcon(); }
   function pause() { stop(); }
   function resume() {
-    if (!TL) { var h = (R.history || [])[(R.history || []).length - 1]; if (h) startReplay(h.id); return; }
+    if (S.mode === 'now') return;
+    if (!TL) { if (S.mode === 'sim') { run(); return; } var h = (R.history || [])[(R.history || []).length - 1]; if (h) startReplay(h.id); return; }      // in Simulate the button runs the plan; in Replay it plays the latest round
     if (ti >= TL.steps.length) { seek(0); }
     playing = true; playIcon(); tick();
   }
@@ -871,6 +1083,7 @@
     }
     if (st.front && V) V.front(st.front, st.lobes);
     if (st.orb) { S.orbNow = st.orb; orbDraw(); }
+    costStrip(TL.kind === 'run' ? st.cost : null);
     clockSet(st.when, st.dn);
     if (live || i === ti - 1) feedSet(st.head, st.lines, st.why);
     if (V && V.gridDark) V.gridDark(st.grid != null ? st.grid : 1);
@@ -954,27 +1167,348 @@
     t.innerHTML = (h.tally || []).map(function (x) {
       var v = String(x.v), m = /\d[\d,]*(?:\.\d+)?/.exec(v), shown = v;
       if (m && f < 1) { var num = parseFloat(m[0].replace(/,/g, '')); shown = v.slice(0, m.index) + fmt(num * f) + v.slice(m.index + m[0].length); }
-      return '<div><dt>' + esc(x.k) + '</dt><dd class="num">' + esc(N(shown)) + '</dd></div>';
+      return '<div><dt>' + esc(x.k) + '</dt><dd class="num">' + esc(N(shown)) + '</dd>' + ((x.src || []).length ? '<a class="wg-tsrc" href="' + esc(x.src[0]) + '" target="_blank" rel="noopener">' + esc(tr('source')) + ' ↗</a>' : '') + '</div>';
     }).join('');
   }
   function startReplay(id) {
     var h = (R.history || []).filter(function (x) { return x.id === id; })[0]; if (!h) return;
+    if (S.mode !== 'replay') setMode('replay');
     S.tab = 'replay'; S.playing = id; drawPanel(); if (V && V.gridDark) V.gridDark(1);
     play(replayTL(h));
     if (narrow() && S.sheet === 'max') sheetTo('mid');
   }
+
+  // ======================================================================== NOW (1 November 2026)
+  // Armin: "the default needs to be that I could see where everything stands right now ... with live updates ... kind of like a
+  // breaking news live update visualization for anybody who wants to just monitor what's happening in real time ... It needs to
+  // show which parts of the maps are hot right now, like where active military combat or kinetic military operations are
+  // happening now, in the most beautiful, elegant design." The feed is data/now/<theatre>.json (build/now_feed.py; its contract
+  // is in that file's header). The page reads two copies, the one published with the site (R.nowf.a) and the branch "live" of
+  // the site's repository (R.nowf.u, pushed every 15 minutes), keeps the newer, and reads again every minute while the tab is
+  // open and showing. Older than three hours, it says so plainly and stops calling itself live. What it draws: the heat on the
+  // map (V.hot), a sharp ring round anything that started in the last hour, the ticker newest first (a tap flies the camera
+  // there), how tense it is (level, against the reading before), the situation from the register, and a banner when the feed
+  // marks something as breaking. Nothing here is the model: it is the reporting, each line with its outlet.
+  var NOW = { doc: null, at: 0, err: 0, firstSeen: null, ids: {}, sel: -1, cyc: 0, cycT: 0, pollT: 0, agoT: 0, fresh: {} };
+  var KINDC = { strike: '#FF6A3D', clash: '#FF3B30', air: '#FFB547', naval: '#4FD1FF', fire: '#FF8A1F', protest: '#F4C430', crackdown: '#C084FC', news: '#9AA7B6' };
+  var KINDN = { strike: tr('Strikes'), clash: tr('Fighting'), air: tr('In the air'), naval: tr('At sea'), fire: tr('Fire'), protest: tr('Protest'), crackdown: tr('Crackdown'), news: tr('News') };
+  var LEVELC = { Calm: '#46CC82', Watch: '#7FE3FF', Elevated: '#F4C430', High: '#FF8A3D', Critical: '#FF3B30' };
+  var LEVELW = { Calm: tr('Calm'), Watch: tr('Watch'), Elevated: tr('Elevated'), High: tr('High'), Critical: tr('Critical') };
+  var STALE = 3 * 3600e3;
+  function tsOf(iso) { var t = Date.parse(iso || ''); return isFinite(t) ? t : 0; }
+  function ago(iso) {
+    var m = Math.max(0, Math.round((Date.now() - tsOf(iso)) / 60000));
+    if (!tsOf(iso)) return '';
+    if (m < 2) return tr('just now');
+    if (m < 60) return tf('{n} min ago', { n: N(m) });
+    if (m < 48 * 60) return tf('{n} h ago', { n: N(Math.round(m / 60)) });
+    return tf('{n} days ago', { n: N(Math.round(m / 1440)) });
+  }
+  function clockOf(iso) {      // the time of day in UTC, and the date, for a feed that is not live
+    var d = new Date(tsOf(iso)); if (!tsOf(iso)) return '';
+    var t = (d.getUTCHours() < 10 ? '0' : '') + d.getUTCHours() + ':' + (d.getUTCMinutes() < 10 ? '0' : '') + d.getUTCMinutes();
+    return N(t) + ' UTC, ' + day(d.toISOString().slice(0, 10));
+  }
+  function nowStale() { return !NOW.doc || Date.now() - tsOf(NOW.doc.at) > STALE; }
+  function nowPlace(x) { return (FA && (x.placeFa || (NOW.pfa || {})[x.place])) || x.place || ''; }      // a place the feed names in Persian on one item is Persian on all of them
+  function nowText(x) { return (FA && x.fa) || x.t || ''; }
+  function nowFresh(x) { return Date.now() - tsOf(x.first || x.d) < 3600e3; }
+  function fetchJson(u, live) { return fetch(u, live ? { cache: 'no-store' } : {}).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+  function nowLoad() {
+    var F = R.nowf || {}; if (!F.a && !F.u) return Promise.resolve(null);
+    return Promise.all([F.u ? fetchJson(F.u, true) : null, F.a ? fetchJson(F.a, false) : null]).then(function (a) {
+      var best = null;
+      a.forEach(function (d) { if (d && d.v === 1 && d.at && (!best || tsOf(d.at) > tsOf(best.at))) best = d; });
+      if (best && (!NOW.doc || tsOf(best.at) > tsOf(NOW.doc.at))) nowApply(best); else if (!best) { NOW.err++; nowPaint(); }
+      return best;
+    });
+  }
+  function nowPoll() {
+    clearTimeout(NOW.pollT);
+    NOW.pollT = setTimeout(function () { if (D.visibilityState === 'visible') nowLoad().then(nowPoll); else nowPoll(); }, 60000);
+  }
+  D.addEventListener('visibilitychange', function () { if (D.visibilityState === 'visible' && NOW.doc && Date.now() - NOW.at > 60000) nowLoad(); });
+  function nowApply(doc) {
+    var first = !NOW.doc, newest = 0, news = [];
+    (doc.hot || []).forEach(function (h) { if (!NOW.ids[h.id] && !first && tsOf(h.first) > NOW.firstSeen) news.push(h); newest = Math.max(newest, tsOf(h.first)); });
+    NOW.ids = {}; (doc.hot || []).forEach(function (h) { NOW.ids[h.id] = 1; });
+    NOW.firstSeen = Math.max(NOW.firstSeen || 0, newest);
+    NOW.doc = doc; NOW.at = Date.now();
+    NOW.pfa = {}; [doc.breaking].concat(doc.hot || [], doc.ticker || []).forEach(function (x) { if (x && x.place && x.placeFa) NOW.pfa[x.place] = x.placeFa; });
+    if (V && V.hot) V.hot(nowHot());
+    nowPaint();
+    var b = doc.breaking, newB = b && b.t && (!NOW.brk || String(NOW.brk.since || NOW.brk.t) !== String(b.since || b.t));
+    if (b && b.t && nowBrkOk(b)) nowBreaking(b, first || !newB);      // the camera goes to a breaking item once, the minute it first appears
+    else if (!b || !b.t) { NOW.brk = null; brkShow(false); }
+    if (!newB && news.length && !first && S.mode === 'now') nowFlash(news[0]);
+  }
+  function nowHot() {      // the items the map draws: on the map's own grid, strongest first
+    var d = NOW.doc; if (!d) return [];
+    return (d.hot || []).slice(0, 60).map(function (h, i) { var c = pt(h.ll); return c ? { i: i, x: c[0], y: c[1], n: clamp(+h.n || 0, 0, 1), k: h.k, c: KINDC[h.k] || KINDC.news, fresh: nowFresh(h), h: h } : null; }).filter(Boolean);
+  }
+  function nowBrkOk(b) { try { return W.sessionStorage.getItem('wg-brk-' + TID) !== String(b.since || b.t); } catch (x) { return true; } }
+  function nowBreaking(b, quiet) {
+    var el = $('#wg-brk'); if (!el) return;
+    el.innerHTML = '<span class="wg-brk-k"><i></i>' + esc(tr('Breaking')) + '</span><button type="button" class="wg-brk-t" id="wg-brk-go"><b dir="auto">' + esc((FA && b.fa) || b.t) + '</b><span>' + esc([nowPlace(b), ago(b.since)].filter(Boolean).join('  ·  ')) + '</span></button>' +
+      (b.u ? '<a class="wg-brk-s" href="' + esc(b.u) + '" target="_blank" rel="noopener">' + esc(b.src || tr('source')) + ' ↗</a>' : '') + '<button type="button" class="wg-ib wg-brk-x" id="wg-brk-x" aria-label="' + esc(tr('Dismiss')) + '">×</button>';
+    brkShow(S.mode === 'now');
+    NOW.brk = b;
+    if (!quiet && b.ll) nowFly({ ll: b.ll });
+  }
+  function brkShow(on) { var el = $('#wg-brk'); if (el) el.hidden = !on; tog(app, 'brk-on', !!on); }
+  function nowFlash(h) {      // a new item since the last reading: the camera goes there (unless the reader is moving it), the ring is already on it
+    if (!userBusy()) nowFly(h);
+    var f = $('#wg-feed'); if (f) feedSet(nowText(h), [{ w: [nowPlace(h), ago(h.first)].filter(Boolean).join('  ·  '), c: KINDC[h.k] || GOLD, src: h.u }]);
+  }
+  function nowFly(h) { var c = pt(h.ll); if (c && V) { touched(); lastTouch = Date.now() - 2500; V.focus([c], { tight: true }); } }
+  function gaugeArc(n, c) {      // a half dial, 0 to 100
+    var r = 40, L = Math.PI * r, f = clamp(n / 100, 0, 1);
+    return '<svg class="wg-dial" viewBox="0 0 100 58" aria-hidden="true"><path d="M10 52a40 40 0 0 1 80 0" class="wg-dial0"/><path d="M10 52a40 40 0 0 1 80 0" class="wg-dial1" style="stroke:' + c + ';stroke-dasharray:' + (L * f).toFixed(1) + ' ' + L.toFixed(1) + '"/></svg>';
+  }
+  function nowHead() {
+    var d = NOW.doc, st = nowStale();
+    var live = d && !st ? '<span class="wg-lv-on"><i></i>' + esc(tr('Live')) + '</span><span class="wg-lv-t" id="wg-upd">' + esc(tf('Updated {t}', { t: ago(d.at) })) + '</span>'
+      : d ? '<span class="wg-lv-off"><i></i>' + esc(tr('Not live')) + '</span><span class="wg-lv-t" id="wg-upd">' + esc(tf('Last update {t}', { t: clockOf(d.at) })) + '</span>'
+        : '<span class="wg-lv-off"><i></i>' + esc(tr('Not live')) + '</span><span class="wg-lv-t" id="wg-upd">' + esc(NOW.err ? tr('The live feed could not be reached.') : tr('Reading the live feed…')) + '</span>';
+    return '<div class="wg-lv">' + live + '</div>';
+  }
+  function nowHtml() {
+    var d = NOW.doc, h = nowHead();
+    if (d && d.level) {
+      var L = d.level, w = L.word || '', c = LEVELC[w] || GOLD, dn = (+L.n || 0) - (+L.prev || 0);
+      h += '<div class="wg-thr"><div class="wg-thr-d">' + gaugeArc(+L.n || 0, c) + '<b class="num" style="color:' + c + '">' + N(Math.round(+L.n || 0)) + '</b></div><div class="wg-thr-t"><p class="wg-k">' + esc(tr('How tense it is now')) + '</p><b style="color:' + c + '">' + esc((FA && L.fa) || LEVELW[w] || w) + '</b>' +
+        (L.prev != null ? '<span class="wg-thr-x ' + (dn > 0 ? 'up' : dn < 0 ? 'dn' : '') + '">' + esc(dn > 0 ? tf('▲ {n} since the reading before', { n: N(Math.round(dn)) }) : dn < 0 ? tf('▼ {n} since the reading before', { n: N(Math.round(-dn)) }) : tr('No change since the reading before')) + '</span>' : '') + '</div></div>';
+    }
+    var T = d ? (d.ticker || []) : [];
+    h += '<h4 class="wg-now-h">' + esc(tr('Happening now')) + '</h4>';
+    if (T.length) {
+      h += '<ol class="wg-tick">' + T.slice(0, 40).map(function (x, i) {
+        var k = x.k || 'news', c = KINDC[k] || KINDC.news, fr = nowFresh(x);
+        return '<li class="wg-tk' + (fr ? ' fresh' : '') + (NOW.sel === i ? ' on' : '') + '" style="--kc:' + c + '"><button type="button" class="wg-tk-b" data-tk="' + i + '"' + (x.ll ? '' : ' data-nofly="1"') + '>' +
+          '<span class="wg-tk-m"><i></i><b>' + esc(KINDN[k] || k) + '</b>' + (nowPlace(x) ? '<span>' + esc(nowPlace(x)) + '</span>' : '') + '<time class="num" datetime="' + esc(x.d) + '">' + esc(ago(x.d)) + '</time></span>' +
+          '<span class="wg-tk-t" dir="auto">' + esc(nowText(x)) + '</span></button>' +
+          (x.u ? '<a class="wg-tk-s" href="' + esc(x.u) + '" target="_blank" rel="noopener">' + esc(x.src || tr('source')) + ' ↗</a>' : '') + '</li>';
+      }).join('') + '</ol>';
+    } else h += '<p class="wg-hint">' + esc(d ? tr('Nothing reported in this theatre in the last hours.') : tr('The live feed has not reached this page yet. The situation below is from the latest fact check.')) + '</p>';
+    if (R.now && R.now.state) h += '<div class="wg-sit"><p class="wg-k">' + esc(tf('The situation, {d}', { d: day(R.now.asOf || R.today) })) + '</p><p>' + esc(R.now.state) + '</p>' + srcLinks(R.now.src) + '</div>';
+    if (d && d.note) h += '<p class="wg-fine">' + esc(d.note) + ' ' + (d.sources || []).map(function (q) { return '<a href="' + esc(q.u) + '" target="_blank" rel="noopener">' + esc(q.n) + ' ↗</a>'; }).join('  ·  ') + '</p>';
+    h += '<div class="wg-foot2"><button type="button" class="wg-run" data-mode="sim">' + esc(tr('Simulate what comes next')) + '</button></div>';
+    return h;
+  }
+  function nowPaint() {
+    if (S.mode === 'now' && body && !body.querySelector('.wg-tick:hover')) { var y = body.scrollTop; drawTab(); body.scrollTop = y; }
+    if (S.mode === 'now') nowClock();
+    nowCycle(true);
+    miniDraw();
+  }
+  function nowClock() {
+    var d = NOW.doc;
+    clockSet(day(R.today), d && !nowStale() ? tf('Live · {t}', { t: ago(d.at) }) : d ? tr('Not live') : tr('Today'));
+  }
+  // the bar under the board in Now: the newest lines of the ticker, one at a time, each with its place, its time and its outlet
+  function nowCycle(reset) {
+    clearTimeout(NOW.cycT);
+    if (S.mode !== 'now') return;
+    var T = NOW.doc ? (NOW.doc.ticker || []).slice(0, 6) : [];
+    if (!T.length) { feedSet(R.title || R.meta.h1, R.now ? [{ w: R.now.state, c: GOLD }] : []); return; }
+    if (reset) NOW.cyc = 0;
+    var x = T[NOW.cyc % T.length];
+    feedSet(nowText(x), [{ w: [KINDN[x.k] || '', nowPlace(x), ago(x.d)].filter(Boolean).join('  ·  '), c: KINDC[x.k] || GOLD, src: x.u }]);
+    NOW.cyc++;
+    NOW.cycT = setTimeout(nowCycle, REDUCED ? 12000 : 8000);
+  }
+  setInterval(function () {      // "N min ago" keeps counting
+    if (S.mode !== 'now' || !NOW.doc) return;
+    var u = $('#wg-upd'); if (u) u.textContent = nowStale() ? tf('Last update {t}', { t: clockOf(NOW.doc.at) }) : tf('Updated {t}', { t: ago(NOW.doc.at) });
+    $$('.wg-tk time', body).forEach(function (t) { t.textContent = ago(t.getAttribute('datetime')); });
+    nowClock();
+  }, 30000);
+  function nowShow() {
+    if (V && V.hot) { V.hot(nowHot()); V.hotShow(true); }
+    brkShow(!!NOW.brk && nowBrkOk(NOW.brk));
+    nowClock(); nowCycle(true);
+  }
+  function nowHide() { if (V && V.hotShow) V.hotShow(false); brkShow(false); clearTimeout(NOW.cycT); }
+  hud.addEventListener('click', function (ev) {
+    if (ev.target.closest('#wg-brk-x')) { var b = NOW.brk; if (b) { try { W.sessionStorage.setItem('wg-brk-' + TID, String(b.since || b.t)); } catch (x) { } } brkShow(false); return; }
+    if (ev.target.closest('#wg-brk-go') && NOW.brk && NOW.brk.ll) nowFly({ ll: NOW.brk.ll });
+  });
+  function nowTap(i) {
+    var x = ((NOW.doc || {}).ticker || [])[i]; if (!x) return;
+    NOW.sel = i; $$('.wg-tk', body).forEach(function (li, j) { tog(li, 'on', j === i); });
+    if (x.ll) { nowFly(x); if (V && V.hotSel) V.hotSel(x.ll); if (narrow() && S.sheet === 'max') sheetTo('mid'); }
+  }
+  // MODES: one switch at the top, Now | Simulate | Replay
+  function setMode(m) {
+    if (!/^(now|sim|replay)$/.test(m)) m = 'now';
+    var was = S.mode; S.mode = m;
+    tog(app, 'm-now', m === 'now'); tog(app, 'm-sim', m === 'sim'); tog(app, 'm-replay', m === 'replay');
+    $$('.wg-mode', hud).forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-mode') === m); });
+    if (m !== was) {
+      stop(); closeBrief(true);
+      if (m === 'now') { TL = null; ticks(); if (V) { V.reset(); if (V.gridDark) V.gridDark(1); } frontToday(); orbReset(); orbDraw(); costStrip(null); }
+      if (m === 'replay') S.tab = 'replay'; else if (S.tab === 'replay') S.tab = LAST ? 'watch' : 'plan';
+      if (m === 'sim' && was === 'now') { clockSet(day(S.date || R.today), tr('Plan')); feedSet(tr('Set a goal and a plan, or let the model find the best one. Then run it 1,000 times.'), []); }
+    }
+    if (m === 'now') nowShow(); else nowHide();
+    drawPanel();
+    if (narrow() && S.sheet === 'min' && m !== 'now') sheetTo('mid');
+    setTimeout(layout, 30);
+  }
+  hud.addEventListener('click', function (ev) { var b = ev.target.closest('.wg-mode, .wg-run[data-mode]'); if (b) { setMode(b.getAttribute('data-mode')); if (S.mode === 'replay' && !TL) { var h = (R.history || [])[(R.history || []).length - 1]; if (h) startReplay(h.id); } } });
+  function frontToday() { var f = TID === 'ukraine' ? frontAt(R.today) : null; if (f && V) V.front(frontPts(f.line), f.lobes); }
 
   // ---------------------------------------------------------------- THE PANEL (rebuilt 1 November 2026, TOOLS.md "The second rebuild")
   // Plan is four steps, the same on every theatre: Forces (the order of battle as cards, each with its 3D model), Targets (the
   // target sets ranked), Rules, Advisors (one tap applies an advisor's whole plan). Then Watch (the typical run on the board and
   // the after-action report), Compare (up to four saved plans run 1,000 times side by side against a goal), Replay (past wars).
   var STEPS = [['forces', tr('Forces')], ['targets', tr('Targets')], ['rules', tr('Rules')], ['advisors', tr('Advisors')]];
-  S.tab = 'plan'; S.step = 'forces'; S.saved = []; S.goal = (MOD.goals[0] || {}).id; S.cmp = null; S.who = '';
+  S.tab = 'plan'; S.step = 'forces'; S.saved = []; S.goal = (goalsOf('blue')[0] || {}).id; S.cmp = null; S.who = '';
   var LAST = null;
+  // ---------------------------------------------------------------- GOALS, THE GRADE, THE COST (1 November 2026)
+  // A plan is run for something: the reader picks the goal first (MODELS.<id>.goals; each is a test a run passes or fails), the
+  // report grades the plan by the share of runs that pass it ("Taiwan stays free: grade A, 74% of runs"), and the Best plan search
+  // looks for the plan that passes it most often. The cost is both sides', dead and money, from the register's priced ranges.
+  function goalsOf(side) { return (MOD.goals || []).filter(function (g) { return (g.side || 'blue') === side; }); }
+  function sideHas(side) { return side === 'blue' || MOD.rules.some(function (l) { return ruleSide(TID, l.id) === side; }); }
+  function goalHtml() {
+    var G0 = goalsOf('blue'), g = goalOf(MOD, S.goal);
+    return '<div class="wg-goal"><p class="wg-k">' + esc(tr('Your goal')) + '</p><div class="wg-gls" role="radiogroup" aria-label="' + esc(tr('Your goal')) + '">' + G0.map(function (x) { return '<button type="button" role="radio" class="wg-gb" data-goal="' + x.id + '" aria-checked="' + (S.goal === x.id) + '">' + esc(x.n) + '</button>'; }).join('') + '</div>' +
+      (g && g.w ? '<p class="wg-gw">' + esc(g.w) + '</p>' : '') + '</div>';
+  }
+  var GRADEC = { A: '#46CC82', B: '#9BE36A', C: '#F4C430', D: '#FF9A3D', F: '#FF5A48' };
+  function gradeHtml(res, gid) {
+    var g = goalOf(MOD, gid || S.goal); if (!g) return '';
+    var p = res.cnt['g:' + g.id] / res.n, L = gradeOf(p), c = GRADEC[L];
+    return '<div class="wg-grade" style="--gc:' + c + '"><div class="wg-grade-l"><b>' + esc(L) + '</b><small>' + esc(tr('grade')) + '</small></div><div class="wg-grade-t"><p class="wg-k">' + esc(tr('Your goal')) + '</p><h4>' + esc(g.n) + '</h4>' +
+      '<p>' + tf('Met in {p} of the 1,000 runs.', { p: '<b class="num">' + pc(p) + '</b>' }) + ' <span class="wg-dim">' + esc(g.w || '') + '</span></p></div></div>';
+  }
+  // money in words: "$4.1 to 9.8 billion"; people: "1,100 to 1,900"
+  function usdUnit(x) { return x >= 1e12 ? [1e12, tr('trillion')] : x >= 1e9 ? [1e9, tr('billion')] : x >= 1e6 ? [1e6, tr('million')] : [1e3, tr('thousand')]; }
+  function dec(x) { var v = x >= 100 ? Math.round(x) : x >= 10 ? Math.round(x) : Math.round(x * 10) / 10; var t = String(v); return FA ? N(t.replace('.', '٫')) : t; }
+  function rangeTxt(lo, hi, money) {
+    if (lo == null || hi == null || !isFinite(lo) || !isFinite(hi)) return '–';
+    if (lo > hi) { var t0 = lo; lo = hi; hi = t0; }
+    if (!money) { var a = fmt(lo), b = fmt(hi); return a === b ? a : tf('{a} to {b}', { a: a, b: b }); }
+    var u = usdUnit(hi), A = dec(lo / u[0]), B = dec(hi / u[0]);
+    return FA ? (A === B ? A : tf('{a} to {b}', { a: A, b: B })) + ' ' + u[1] + ' ' + tr('dollars') : '$' + (A === B ? A : A + ' to ' + B) + ' ' + u[1];
+  }
+  var COSTROWS = [['m', tr('Soldiers killed'), 0], ['c', tr('Civilians killed'), 0], ['s', tr('Spent on the war'), 1], ['l', tr('Lost to the economy'), 1]];
+  function costTable(A) {      // A: the averages of runManyM, with the $<key>0_p10 and $<key>1_p90 ranges
+    var has = function (k) { return A['$' + k + '0_p10'] != null; };
+    var rows = COSTROWS.filter(function (r) { return has('b' + r[0]) || has('r' + r[0]); });
+    if (!rows.length) return '';
+    return '<div class="wg-costs"><h4>' + esc(tr('The cost, on both sides')) + ' <span class="wg-est">' + esc(tr('estimate')) + '</span></h4><table class="wg-ct"><thead><tr><th></th><th class="b">' + esc(COAL[0]) + '</th><th class="r">' + esc(COAL[1]) + '</th></tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr><th>' + esc(r[1]) + '</th>' + ['b', 'r'].map(function (sd) { var k = sd + r[0]; return '<td class="num">' + esc(has(k) ? rangeTxt(A['$' + k + '0_p10'], A['$' + k + '1_p90'], r[2]) : tr('not priced')) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
+      '<p class="wg-fine">' + esc(tr('The middle 80% of the runs, each priced at the low and the high end of the published costs.')) + ' <button type="button" class="wg-lnk" data-costsrc="1">' + esc(tr('What it is priced with')) + '</button></p></div>';
+  }
+  // the cost of the run on the board, as it plays: both sides' dead, and what both sides have spent so far
+  function costStrip(c) {
+    var el = $('#wg-cost'); if (!el) return;
+    if (!c) { el.hidden = true; return; }
+    var lo = c[0], hi = c[1], sum = function (a, ix) { var t = 0, any = false; ix.forEach(function (i) { if (a[i] != null) { t += a[i]; any = true; } }); return any ? t : null; };
+    var k = [sum(lo, [0, 1, 4, 5]), sum(hi, [0, 1, 4, 5])], m = [sum(lo, [2, 6]), sum(hi, [2, 6])];
+    el.hidden = false;
+    el.innerHTML = '<b>' + esc(tr('So far')) + '</b><span>' + esc(tr('Killed')) + ' <em class="num">' + esc(rangeTxt(k[0], k[1], 0)) + '</em></span>' + (m[0] != null ? '<span>' + esc(tr('Spent')) + ' <em class="num">' + esc(rangeTxt(m[0], m[1], 1)) + '</em></span>' : '') + '<i>' + esc(tr('estimate')) + '</i>';
+  }
+  function costSheet() {
+    var C = R.costs || {}, unit = function (c) { return /^usd/.test(c.unit || '') ? rangeTxt(c.lo, c.hi, 1) + (/day$/.test(c.unit) ? ' ' + tr('a day') : /month$/.test(c.unit) ? ' ' + tr('a month') : /year$/.test(c.unit) ? ' ' + tr('a year') : '') : c.unit === 'share' ? pc(c.lo) + (c.hi !== c.lo ? ' ' + tr('to') + ' ' + pc(c.hi) : '') : dec(c.lo) + (c.hi !== c.lo ? ' ' + tr('to') + ' ' + dec(c.hi) : ''); };
+    openSheet('<div class="wg-place"><p class="wg-k">' + esc(tr('The cost: what each run is priced with')) + '</p><h3 id="wg-sh-t">' + esc(tr('Prices and sources')) + '</h3>' +
+      '<ul class="wg-fs">' + (C.items || []).map(function (c) { return '<li><b>' + esc(c.n) + '</b> <span class="num">' + esc(unit(c)) + '</span><p class="wg-dim">' + esc(c.note || '') + '</p>' + srcLinks(c.src) + '</li>'; }).join('') + '</ul>' +
+      ((C.real || []).length ? '<h4>' + esc(tr('The real totals, to set beside them')) + '</h4><ul class="wg-fs">' + C.real.map(function (x) { return '<li><b>' + esc(x.k) + '</b><p>' + esc(x.v) + '</p>' + srcLinks(x.src) + '</li>'; }).join('') + '</ul>' : '') +
+      '<p class="wg-fine">' + esc(tr('Every figure is an estimate with its range; the model counts the dead and the days, and these prices turn them into money.')) + '</p></div>');
+  }
+  // ---------------------------------------------------------------- THE BEST PLAN, on the page (the search itself: makeSearch in the models block)
+  S.best = null; S.bside = 'blue'; S.bgoal = null;
+  function describeMove(d, lv) {
+    if (d.k === 'rule') { var l = MOD.rules.filter(function (q) { return q.id === d.id; })[0], o = l && l.o.filter(function (q) { return q[0] === d.v; })[0]; return l && o ? l.n + ': ' + o[1] : ''; }
+    if (d.k === 'tg') { var on = tgList(MOD, { tg: d.v }), t0 = MOD.targets.filter(function (t) { return t.id === on[0]; })[0]; return t0 ? tf('Strike {t} first', { t: t0.n.toLowerCase() }) : tr('A different target list'); }
+    if (d.k === 'off') { var ps = (MOD.presets || []).filter(function (p) { return presetOff(MOD, p) === d.v; })[0]; return ps ? tf('Forces: {p}', { p: ps[1] }) : tr('A different set of forces'); }
+    return '';
+  }
+  function bestGoal() { var G0 = goalsOf(S.bside); return (G0.filter(function (g) { return g.id === (S.bside === 'blue' ? S.goal : S.bgoal); })[0] || G0[0] || {}).id; }
+  function bestHtml() {
+    var B = S.best, G0 = goalsOf(S.bside), gid = bestGoal(), g = goalOf(MOD, gid);
+    var sides = sideHas('red') ? '<div class="wg-seg wg-bsides" role="radiogroup" aria-label="' + esc(tr('Plan for')) + '">' + [['blue', COAL[0]], ['red', COAL[1]]].map(function (x) { return '<button type="button" role="radio" data-bside="' + x[0] + '" aria-checked="' + (S.bside === x[0]) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' : '';
+    var h = '<p class="wg-hint">' + esc(tr('The model searches for you: it starts from your plan and from every advisor’s plan, tries every option of every lever, keeps what works, and runs the winners again on fresh luck.')) + '</p>' + sides +
+      '<div class="wg-goal"><p class="wg-k">' + esc(tr('Best for')) + '</p><div class="wg-gls" role="radiogroup">' + G0.map(function (x) { return '<button type="button" role="radio" class="wg-gb" data-bgoal="' + x.id + '" aria-checked="' + (gid === x.id) + '">' + esc(x.n) + '</button>'; }).join('') + '</div>' + (g && g.w ? '<p class="wg-gw">' + esc(g.w) + '</p>' : '') + '</div>';
+    if (!B || B.gid !== gid || B.side !== S.bside) return h + '<div class="wg-foot2"><button type="button" class="wg-run" id="wg-best-go">' + esc(tr('Find the best plan')) + '</button></div>';
+    if (!B.res) return h + '<div class="wg-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(B.run.progress() * 100) + '"><i id="wg-prog-i" style="width:' + Math.round(B.run.progress() * 100) + '%"></i></div><p class="wg-hint num" id="wg-prog-t">' + esc(tf('Searching: {n} runs so far', { n: fmt(B.run.runs()) })) + '</p>';
+    var res = B.res, best = res.top[0] || {};
+    h += '<p class="wg-big">' + tf('The best plan meets it in {p} of runs; your plan in {q}.', { p: '<b class="num" style="color:' + GRADEC[gradeOf(best.p || 0)] + '">' + pc(best.p || 0) + '</b>', q: '<span class="num">' + pc(res.mine || 0) + '</span>' }) + '</p>';
+    h += '<ol class="wg-bests">' + res.top.map(function (f, i) {
+      var L = gradeOf(f.p), dr = (f.drivers || []).map(function (x) { return '<li><b class="num">+' + N(Math.round(x.gain * 100)) + '</b> ' + esc(tr('pts')) + ' <span>' + esc(describeMove(x.d, f.lv)) + '</span></li>'; }).join('');
+      return '<li class="wg-bp" style="--gc:' + GRADEC[L] + '"><div class="wg-bp-h"><span class="wg-bp-n num">' + N(i + 1) + '</span><b class="wg-bp-g">' + esc(L) + '</b><span class="wg-bp-p num">' + pc(f.p) + '</span></div>' +
+        '<p class="wg-bp-s">' + esc(planSummary(f.lv)) + '</p>' + (dr ? '<p class="wg-k">' + esc(tr('Why it wins')) + '</p><ul class="wg-drv">' + dr + '</ul>' : '<p class="wg-dim">' + esc(tr('The same as your plan, or within the luck of the runs.')) + '</p>') +
+        '<div class="wg-bp-b"><button type="button" class="wg-run" data-buse="' + i + '">' + esc(tr('Run this plan')) + '</button><button type="button" class="wg-chip" data-bsave="' + i + '"' + (S.saved.length >= 4 ? ' disabled' : '') + '>' + esc(tr('Save to compare')) + '</button></div></li>';
+    }).join('') + '</ol>';
+    if (res.experts.length) {
+      var xs = res.experts.slice().sort(function (a, b) { return b.p - a.p; }), beat = xs.filter(function (x) { return (best.pD != null ? best.pD : best.p) >= x.p; }).length;
+      h += '<h4>' + esc(tf('Against the advisors: it beats or ties {n} of {m}', { n: N(beat), m: N(xs.length) })) + '</h4><ul class="wg-xbars">' + xs.map(function (x) {
+        var e = EX[x.i]; if (!e) return '';
+        return '<li>' + face(e, 'tiny') + '<span class="wg-xb-n">' + esc(e.n) + '</span><span class="wg-xb-b"><i style="width:' + Math.round(x.p * 100) + '%"></i></span><b class="num">' + pc(x.p) + '</b></li>';
+      }).join('') + '</ul><p class="wg-fine">' + esc(tr('Each advisor’s plan as I read their published work, run on the same numbers and the same luck as the best plan.')) + '</p>';
+    }
+    var mid = g && g.mk && (R.om || {})[g.mk], m = mid && mkById(mid), o = m && mkOpt(m, addDays(R.today, 180));
+    if (m && o) h += '<p class="wg-bet"><span>' + esc(tf('The market prices it at {a}; the best plan reaches {b}.', { a: pc(o[1]), b: pc(best.p || 0) })) + '</span><small>' + esc(m.q) + ' <a href="' + esc(m.u) + '" target="_blank" rel="' + esc(m.rel || 'noopener') + '">' + esc(m.w || tr('market')) + ' ↗</a></small></p>';
+    h += '<p class="wg-fine">' + esc(tf('{n} runs. The best plan inside this model and these numbers, not a forecast.', { n: fmt(res.runs) })) + ' <button type="button" class="wg-lnk" id="wg-best-go">' + esc(tr('Search again')) + '</button></p>';
+    return h;
+  }
+  function bestStart() {
+    var gid = bestGoal(), side = S.bside, lv0 = runLv();
+    var seeds = side === 'blue' ? EX.map(function (x) { var lv = planOf(x); lv.mon = lv0.mon; return lv; }) : [];
+    var light = narrow() || (navigator.hardwareConcurrency || 8) <= 4;
+    var run1 = makeSearch(MOD, TID, params(), lv0, gid, side, seeds, light ? { nS: 40, nF: 240, nD: 100, passes: 2 } : { nS: 60, nF: 320, nD: 140, passes: 3 });
+    S.best = { gid: gid, side: side, run: run1, res: null }; S.tab = 'best'; drawPanel();
+    (function slice() {
+      if (S.best && S.best.run === run1) {
+        var done = run1.next(28);
+        var bar = $('#wg-prog-i'), t = $('#wg-prog-t'), pr = $('.wg-prog');
+        if (bar) bar.style.width = Math.round(run1.progress() * 100) + '%';
+        if (pr) pr.setAttribute('aria-valuenow', Math.round(run1.progress() * 100));
+        if (t) t.textContent = tf('Searching: {n} runs so far', { n: fmt(run1.runs()) });
+        if (done) { S.best.res = run1.result(); if (S.tab === 'best') drawTab(); }
+        else setTimeout(slice, 16);
+      }
+    })();
+  }
+  function bestUse(i, watch) {
+    var f = S.best && S.best.res && S.best.res.top[+i]; if (!f) return;
+    var lv = Object.assign({}, f.lv); delete lv.mon;
+    S.lv = lv; S.who = ''; if (S.best.side === 'blue') S.goal = S.best.gid; stale();
+    if (watch) run(); else { S.tab = 'plan'; drawPanel(); }
+  }
+  // ---------------------------------------------------------------- the first visit: three steps, then never again
+  var GUIDE = [
+    ['live', tr('Live now'), tr('The glow marks where strikes and fighting are reported right now. Tap a headline to fly there.')],
+    ['sim', tr('Simulate'), tr('Pick a goal, build a plan or let the model find the best one, and run it 1,000 times.')],
+    ['replay', tr('Replay'), tr('Watch the past rounds strike by strike, with the real tallies and their sources.')]
+  ];
+  function guide(i) {
+    var el = $('#wg-guide'); if (!el) return;
+    if (i >= GUIDE.length) { el.hidden = true; try { W.localStorage.setItem('wg-guide-1', '1'); } catch (x) { } return; }
+    var g = GUIDE[i];
+    el.innerHTML = '<div class="wg-gd-dots">' + GUIDE.map(function (q, j) { return '<i class="' + (j === i ? 'on' : '') + '"></i>'; }).join('') + '</div><p class="wg-gd-e" aria-hidden="true">' + ico(g[0]) + '</p><h3 id="wg-gd-h">' + esc(g[1]) + '</h3><p>' + esc(g[2]) + '</p>' +
+      '<div class="wg-gd-b"><button type="button" class="wg-chip" data-gd="skip">' + esc(tr('Skip')) + '</button><button type="button" class="wg-run" data-gd="' + (i + 1) + '">' + esc(i < GUIDE.length - 1 ? tr('Next') : tr('Got it')) + '</button></div>';
+    el.hidden = false;
+    $$('.wg-mode', hud).forEach(function (b) { tog(b, 'hint', i > 0 && b.getAttribute('data-mode') === (i === 1 ? 'sim' : 'replay')); });
+    if (i === GUIDE.length) $$('.wg-mode', hud).forEach(function (b) { tog(b, 'hint', false); });
+  }
+  hud.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-gd]'); if (!b) return;
+    var k = b.getAttribute('data-gd');
+    if (k === 'skip') guide(GUIDE.length); else guide(+k);
+    if (k === 'skip' || +k >= GUIDE.length) $$('.wg-mode', hud).forEach(function (q) { tog(q, 'hint', false); });
+  });
+  function guideWanted() {
+    if (/[?&](shot|s|stream)=/.test(location.search) || D.documentElement.classList.contains('lp-stream')) return false;
+    try { return !W.localStorage.getItem('wg-guide-1'); } catch (x) { return false; }
+  }
+
   function drawPanel() {
     $$('.wg-tab', panel).forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tab') === S.tab); });
     var wasAar = panel.classList.contains('aar');
-    tog(panel, 'aar', S.tab === 'watch' && !!LAST);
+    tog(panel, 'aar', S.mode === 'sim' && S.tab === 'watch' && !!LAST);
     drawTab();
     if (wasAar !== panel.classList.contains('aar')) setTimeout(layout, 300);      // after its width has moved (wargame.css: .25s)
   }
@@ -1001,13 +1535,7 @@
   }
   function leanTag(l) { return l ? '<span class="wg-lean l-' + esc(l) + '">' + esc(tk('lean:', l)) + '</span>' : ''; }
   // ---- an advisor's plan: the plan their lean argues for, unless the register gives their own (expert.plan); my reading, not their words
-  function planOf(x) {
-    var T0 = LEANPLAN[TID] || {}, l = x.lean;
-    var t = T0[l] || T0[{ optimist: 'hawk', skeptic: 'dove' }[l]] || T0.realist || {};
-    if (TID === 'taiwan' && l === 'skeptic') t = T0.realist;
-    var lv = Object.assign(planDefault(), t, x.plan || {});
-    return lv;
-  }
+  function planOf(x) { return planOfX(MOD, TID, x); }
   function usePlan(x) {
     S.lv = planOf(x); S.who = x.id;
     if (S.room.indexOf(x.id) < 0) { S.room = [x.id]; }
@@ -1114,7 +1642,9 @@
   }
   function drawTab() {
     if (!body) return;
-    if (S.tab === 'replay') {
+    if (S.mode === 'now') { body.innerHTML = nowHtml(); return; }
+    if (S.mode === 'sim' && S.tab === 'best') { body.innerHTML = bestHtml(); return; }
+    if (S.mode === 'replay' || S.tab === 'replay') {
       var cur = (R.history || []).filter(function (x) { return x.id === S.playing; })[0];
       body.innerHTML = (cur ? '<div class="wg-now"><p class="wg-k">' + esc(tr('Now replaying')) + '</p><h3>' + esc(cur.name) + '</h3><p class="wg-ops">' + esc((cur.ops || []).join('  ·  ')) + '</p><dl class="wg-sum" id="wg-tally"></dl><p class="wg-res" id="wg-res"></p></div>' : '') +
         '<p class="wg-hint">' + esc(tr('Every strike of a past war, on the day it happened, from the reporting. Pick one and watch.')) + '</p><ul class="wg-hist">' + (R.history || []).slice().reverse().map(function (h) {
@@ -1131,10 +1661,11 @@
     var stepI = STEPS.map(function (x) { return x[0]; }).indexOf(S.step);
     var html = { forces: forcesHtml, targets: targetsHtml, rules: rulesHtml, advisors: advisorsHtml }[S.step]();
     var who = S.who && EXID[S.who];
-    body.innerHTML = '<ol class="wg-steps" role="tablist">' + STEPS.map(function (x, i) { return '<li><button type="button" role="tab" data-step="' + x[0] + '" aria-selected="' + (S.step === x[0]) + '"><i class="num">' + N(i + 1) + '</i>' + esc(x[1]) + '</button></li>'; }).join('') + '</ol>' +
+    body.innerHTML = goalHtml() + '<ol class="wg-steps" role="tablist">' + STEPS.map(function (x, i) { return '<li><button type="button" role="tab" data-step="' + x[0] + '" aria-selected="' + (S.step === x[0]) + '"><i class="num">' + N(i + 1) + '</i>' + esc(x[1]) + '</button></li>'; }).join('') + '</ol>' +
       (who ? '<p class="wg-who">' + face(who, 'tiny') + '<span>' + esc(tf('Plan: {n}', { n: who.n })) + '</span></p>' : '') +
       '<div class="wg-stepb">' + html + '</div>' +
       (stepI < STEPS.length - 1 ? '<button type="button" class="wg-chip wg-next" data-step="' + STEPS[stepI + 1][0] + '">' + esc(tf('Next: {s}', { s: STEPS[stepI + 1][1] })) + ' →</button>' : '') +
+      '<button type="button" class="wg-chip wg-tobest" data-tab="best">' + esc(tr('Let the model find the best plan')) + ' →</button>' +
       '<div class="wg-foot2">' +
       '<button type="button" class="wg-run" id="wg-run">' + esc(tr('Run 1,000 times and watch')) + '</button>' +
       '<button type="button" class="wg-chip" id="wg-save"' + (S.saved.length >= 4 ? ' disabled' : '') + '>' + esc(tf('Save to compare ({n} of 4)', { n: N(S.saved.length) })) + '</button></div>' +
@@ -1143,11 +1674,18 @@
   }
   function step(k) { S.step = k; S.tab = 'plan'; drawPanel(); if (narrow() && S.sheet === 'min') sheetTo('mid'); body.scrollTop = 0; }
   panel.addEventListener('click', function (ev) {
+    var tk = ev.target.closest('[data-tk]'); if (tk) { nowTap(+tk.getAttribute('data-tk')); return; }
+    if (ev.target.closest('[data-costsrc]')) { costSheet(); return; }
+    var bs = ev.target.closest('[data-bside]'); if (bs) { S.bside = bs.getAttribute('data-bside'); if (S.bside === 'red' && !S.bgoal) S.bgoal = (goalsOf('red')[0] || {}).id; drawTab(); return; }
+    var bg = ev.target.closest('[data-bgoal]'); if (bg) { if (S.bside === 'blue') S.goal = bg.getAttribute('data-bgoal'); else S.bgoal = bg.getAttribute('data-bgoal'); drawTab(); return; }
+    if (ev.target.closest('#wg-best-go')) { bestStart(); return; }
+    var bu = ev.target.closest('[data-buse]'); if (bu) { bestUse(bu.getAttribute('data-buse'), true); return; }
+    var bv = ev.target.closest('[data-bsave]'); if (bv) { var f = S.best && S.best.res && S.best.res.top[+bv.getAttribute('data-bsave')]; if (f && S.saved.length < 4) { var lv = Object.assign({}, f.lv); delete lv.mon; S.saved.push({ n: tf('Best plan {l}', { l: LETTERS[S.saved.length] }), lv: lv, who: '' }); S.cmp = null; writeUrl(); bv.textContent = tf('Saved. {n} of 4 in Compare', { n: N(S.saved.length) }); bv.disabled = true; } return; }
     var t = ev.target.closest('[data-tab]'); if (t) { S.tab = t.getAttribute('data-tab'); drawPanel(); if (narrow()) sheetTo(S.sheet === 'min' ? 'mid' : S.sheet); return; }
     var st = ev.target.closest('[data-step]'); if (st) { step(st.getAttribute('data-step')); return; }
     var fo = ev.target.closest('[data-force]'); if (fo) { var id = fo.getAttribute('data-force'); setOff(id, !offs()[id]); drawTab(); return; }
     var un = ev.target.closest('[data-unit]'); if (un) { var f = (OOB.blue || []).concat(OOB.red || []).filter(function (x) { return x.id === un.getAttribute('data-unit'); })[0]; if (f) unitSheet(f); return; }
-    var pr = ev.target.closest('[data-preset]'); if (pr) { var ps = MOD.presets.filter(function (q) { return q[0] === pr.getAttribute('data-preset'); })[0]; var keep = offOf(planDefault()); S.lv.off = (OOB.blue || []).filter(function (f) { return MOD.role(f) && ((ps[2] && ps[2](f)) || keep[f.id]); }).map(function (f) { return f.id; }).join('.'); S.who = ''; stale(); drawTab(); return; }
+    var pr = ev.target.closest('[data-preset]'); if (pr) { var ps = MOD.presets.filter(function (q) { return q[0] === pr.getAttribute('data-preset'); })[0]; S.lv.off = presetOff(MOD, ps); S.who = ''; stale(); drawTab(); return; }
     var tm = ev.target.closest('[data-tgmove]'); if (tm) { tgMove(tm.getAttribute('data-tgmove'), +tm.getAttribute('data-d')); drawTab(); return; }
     var to = ev.target.closest('[data-tgon]'); if (to) { tgOn(to.getAttribute('data-tgon')); drawTab(); return; }
     var lv = ev.target.closest('[data-lv]'); if (lv) { S.lv[lv.getAttribute('data-lv')] = lv.getAttribute('data-o'); S.who = ''; stale(); drawTab(); return; }
@@ -1157,7 +1695,7 @@
     var br = ev.target.closest('[data-brief]'); if (br) { brief(EXID[br.getAttribute('data-brief')]); return; }
     var dt = ev.target.closest('[data-date]'); if (dt) { S.date = dt.getAttribute('data-date'); stale(); drawTab(); return; }
     var rp = ev.target.closest('[data-replay]'); if (rp) { startReplay(rp.getAttribute('data-replay')); return; }
-    var cg = ev.target.closest('[data-goal]'); if (cg) { S.goal = cg.getAttribute('data-goal'); drawTab(); return; }
+    var cg = ev.target.closest('[data-goal]'); if (cg) { S.goal = cg.getAttribute('data-goal'); if (LAST) LAST.g = S.goal; writeUrl(); drawTab(); return; }
     var cl = ev.target.closest('[data-load]'); if (cl) { var sv = S.saved[+cl.getAttribute('data-load')]; if (sv) { S.lv = Object.assign({}, sv.lv); S.who = sv.who || ''; stale(); S.tab = 'plan'; drawPanel(); } return; }
     var cx = ev.target.closest('[data-drop]'); if (cx) { S.saved.splice(+cx.getAttribute('data-drop'), 1); S.cmp = null; writeUrl(); drawTab(); return; }
     if (ev.target.closest('#wg-run')) { run(); return; }
@@ -1205,7 +1743,7 @@
     closeBrief(true);
     bfX = x;
     var on = S.room.indexOf(x.id) >= 0, lv = planOf(x);
-    var own = runMany(Object.assign(avgOf(EX), x.p || {}), lv, 300, 4242);
+    var own = runMany(Object.assign(avgOf(EX), x.p || {}), lv, 300, 4242), gOwn = goalOf(MOD, S.goal);
     var top = MOD.outcomes.filter(function (o) { return o.id === own.top; })[0];
     var nums = Object.keys(x.p || {}).map(function (k) { var p = PM[k]; if (!p) return ''; return '<li><b class="num">' + pmFmt(p, x.p[k]) + '</b><span>' + esc(p.n) + (x.pWhy && x.pWhy[k] ? '<small>' + esc(x.pWhy[k]) + '</small>' : '') + '</span></li>'; }).join('');
     var i = EX.indexOf(x);
@@ -1213,8 +1751,10 @@
     bfEl.className = 'wg-bf'; bfEl.id = 'wg-bf'; bfEl.setAttribute('role', 'dialog'); bfEl.setAttribute('aria-modal', 'false'); bfEl.setAttribute('aria-labelledby', 'wg-bf-n');
     bfEl.innerHTML = '<div class="wg-bf-in"><div class="wg-bf-top"><p class="wg-k">' + esc(tr('Briefing')) + '  ·  ' + N(i + 1) + '/' + N(EX.length) + '</p><button type="button" class="wg-ib" id="wg-bf-x" aria-label="' + esc(tr('Close')) + '">×</button></div>' +
       '<div class="wg-bf-who"><div class="wg-bf-pic">' + face(x, 'big') + '<i></i></div><div><h3 id="wg-bf-n">' + esc(x.n) + '</h3><p class="wg-bf-r">' + esc(x.who || '') + '</p>' + leanTag(x.lean) + '</div></div>' +
+      ((x.said || []).length ? '<p class="wg-bf-cite"><span>' + esc(tr('From')) + '</span>' + x.said.slice(0, 3).map(function (q) { return '<a href="' + esc(q.url) + '" target="_blank" rel="noopener">' + esc(hostOf(q.url)) + (q.date ? ' · ' + esc(day(q.date)) : '') + ' ↗</a>'; }).join('') + '</p>' : '') +
       '<blockquote class="wg-bf-q" id="wg-bf-q"></blockquote>' +
-      '<div class="wg-bf-plan"><p class="wg-k">' + esc(tr('Their plan')) + '</p><p>' + esc(planSummary(lv)) + '</p><p class="wg-bf-own">' + esc(tr('Run on their numbers alone, it most often ends:')) + ' <b style="color:' + (top ? top.c : '') + '">' + esc(top ? top.n : '') + '</b> <span class="num">(' + pc(own.cnt[own.top] / own.n) + ')</span></p>' +
+      '<div class="wg-bf-plan"><p class="wg-k">' + esc(tr('Their plan')) + '</p><p>' + esc(planSummary(lv)) + '</p><p class="wg-bf-own">' + esc(tr('Run on their numbers alone, it most often ends:')) + ' <b style="color:' + (top ? top.c : '') + '">' + esc(top ? top.n : '') + '</b> <span class="num">(' + pc(own.cnt[own.top] / own.n) + ')</span>' +
+        (gOwn ? '<br>' + tf('On your goal, {g}: grade {l}, met in {p} of runs.', { g: esc(gOwn.n.toLowerCase()), l: '<b style="color:' + GRADEC[gradeOf(own.cnt['g:' + gOwn.id] / own.n)] + '">' + gradeOf(own.cnt['g:' + gOwn.id] / own.n) + '</b>', p: '<b class="num">' + pc(own.cnt['g:' + gOwn.id] / own.n) + '</b>' }) : '') + '</p>' +
       '<button type="button" class="wg-run" id="wg-bf-use">' + esc(tr('Use this plan')) + '</button></div>' +
       '<ol class="wg-bf-l">' + (x.brief || []).map(function (l, k) { return '<li data-k="' + k + '">' + esc(l) + '</li>'; }).join('') + '</ol>' +
       (nums ? '<h4>' + esc(tr('Their numbers in this simulation')) + '</h4><ul class="wg-bf-nums">' + nums + '</ul>' : '') +
@@ -1235,6 +1775,7 @@
     bfT = setTimeout(beat, 1500);
     var xb = $('#wg-bf-x'); if (xb) xb.focus({ preventScroll: true });
   }
+  function hostOf(u) { var m = /^https?:\/\/(?:www\.)?([^\/?#]+)/i.exec(u || ''); return m ? m[1] : tr('source'); }      // the outlet a briefing line is read from
   function closeBrief(quiet) {
     clearTimeout(bfT);
     if (bfEl) { bfEl.remove(); bfEl = null; if (V) V.pulse([]); }
@@ -1308,6 +1849,7 @@
   function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
   function runLv() { var lv = Object.assign({}, S.lv); lv.mon = new Date((S.date || R.today) + 'T12:00:00Z').getUTCMonth(); return lv; }
   function run() {
+    if (S.mode !== 'sim') setMode('sim');
     var btn = $('#wg-run'); if (btn) { btn.disabled = true; btn.textContent = tr('Running 1,000 simulations…'); }
     setTimeout(function () {
       var P = params(), lv = runLv();
@@ -1328,7 +1870,7 @@
         var orb = {}; ORB.forEach(function (o) { orb[o.id] = Object.assign({ b: 1, r: 1 }, (sn.o || {})[o.id] || {}); });
         return { when: MOD.unit === 'week' ? tf('Week {n}', { n: N(sn.d) }) : tf('Day {n}', { n: N(sn.d) }), dn: day(addDays(start, (sn.d - 1) * unit)), head: loud.length ? loud[0].w : sn.say, why: why,
           ev: evs.filter(function (v) { return v.from || v.to; }), lines: lines.slice(loud.length ? 1 : 0), orb: orb, board: sn.b, grid: sn.grid != null ? sn.grid : sn.blk ? 1 - sn.blk : null,
-          front: f0 ? shifted(f0, sn.sec) : null, ms: loud.some(function (v) { return v.big; }) ? 2600 : 1600 };
+          front: f0 ? shifted(f0, sn.sec) : null, ms: loud.some(function (v) { return v.big; }) ? 2600 : 1600, cost: sn.$ };
       });
       res.tl = { kind: 'run', steps: steps, done: function () { var o = MOD.outcomes.filter(function (x) { return x.id === feat.out; })[0]; feedSet(o.n + '. ' + o.w, [{ w: tr('This was the most typical of the 1,000 runs.'), c: o.c }]); } };
       LAST = res; S.tab = 'watch';
@@ -1367,11 +1909,14 @@
     var sum = MOD.summary(res.A, res.lv, res.cnt, res.n).map(function (x) { return '<div><dt>' + esc(x[0]) + '</dt><dd class="num">' + esc(x[1]) + '</dd></div>'; }).join('');
     var calls = res.calls.slice().sort(function (a, b) { return b.hit - a.hit; }).slice(0, 5).map(function (c) { var o = MOD.outcomes.filter(function (x) { return x.id === c.top; })[0]; return '<li>' + face(c.x, 'tiny') + '<span><b>' + esc(c.x.n) + '</b> ' + esc(tr('expects')) + ' <em style="color:' + o.c + '">' + esc(o.n.toLowerCase()) + '</em> <span class="num">(' + pc(c.p) + ')</span></span></li>'; }).join('');
     return '<div class="wg-aar" id="wg-result"><div class="wg-aar-h"><p class="wg-k">' + esc(tr('After-action report')) + '  ·  ' + esc(tr('1,000 simulations')) + '</p><button type="button" class="wg-chip" id="wg-back">' + esc(tr('Change the plan')) + '</button></div>' +
+      gradeHtml(res) +
       '<p class="wg-big">' + tf('{o} in {p} of them.', { o: '<b style="color:' + top.c + '">' + esc(top.n) + '</b>', p: '<span class="num">' + pc(res.cnt[res.top] / res.n) + '</span>' }) + '</p>' +
       '<ul class="wg-ocs">' + outs + '</ul>' + sm +
       '<p class="wg-fine">' + esc(tr('A model to think with, not a forecast. The markets ask their own questions; each one is named beside its number.')) + '</p>' +
+      '<button type="button" class="wg-chip wg-tobest" data-tab="best">' + esc(tr('Find a better plan')) + ' →</button>' +
       '<div class="wg-aar-b"><button type="button" class="wg-run" id="wg-watch">' + esc(tr('Watch the typical run again')) + '</button><button type="button" class="wg-chip" id="wg-save"' + (S.saved.length >= 4 ? ' disabled' : '') + '>' + esc(tf('Save to compare ({n} of 4)', { n: N(S.saved.length) })) + '</button></div>' +
-      '<h4>' + esc(tr('The cost, averaged over the runs')) + '</h4><dl class="wg-sum">' + sum + '</dl>' +
+      costTable(res.A) +
+      '<h4>' + esc(tr('What happened, on average')) + '</h4><dl class="wg-sum">' + sum + '</dl>' +
       '<h4>' + esc(tr('Who in the room called it')) + '</h4><ul class="wg-calls">' + calls + '</ul>' +
       '<div class="wg-share"><button type="button" class="wg-run" id="wg-share">' + esc(tr('Share this plan')) + '</button><button type="button" class="wg-chip" data-shot="' + KEY + TID + '" hidden>' + esc(tr('Make a picture')) + '</button></div></div>';
   }
@@ -1397,15 +1942,16 @@
     var b = $('#wg-save'); if (b) { b.textContent = tf('Saved. {n} of 4 in Compare', { n: N(S.saved.length) }); b.disabled = S.saved.length >= 4; }
   }
   function compareHtml() {
-    var G0 = MOD.goals || [];
+    var G0 = goalsOf('blue');
     var h = '<p class="wg-hint">' + esc(tr('Save up to four plans from the Plan tab, pick what you want most, and run them side by side: 1,000 runs each, on the same numbers.')) + '</p>';
     if (!S.saved.length) return h + '<button type="button" class="wg-chip" data-tab="plan">' + esc(tr('Go to the plan')) + '</button>';
     h += '<div class="wg-lv"><span>' + esc(tr('What matters most')) + '</span><div class="wg-seg" role="radiogroup">' + G0.map(function (g) { return '<button type="button" role="radio" data-goal="' + g.id + '" aria-checked="' + (S.goal === g.id) + '">' + esc(g.n) + '</button>'; }).join('') + '</div></div>';
     var C = S.cmp, best = -1;
-    if (C) { var g = G0.filter(function (q) { return q.id === S.goal; })[0] || G0[0], bs = -Infinity; C.forEach(function (r, i) { var v = g.s(r.A, r.cnt, r.n); r.score = v; if (v > bs) { bs = v; best = i; } }); }
+    if (C) { var g = G0.filter(function (q) { return q.id === S.goal; })[0] || G0[0], bs = -Infinity; C.forEach(function (r, i) { var v = scoreOf(MOD, r, g); r.score = v; if (v > bs) { bs = v; best = i; } }); }
     h += '<div class="wg-cmp"><table><thead><tr><th></th>' + S.saved.map(function (sv, i) { return '<th class="' + (i === best ? 'best' : '') + '">' + (i === best ? '<span class="wg-bestk">' + esc(tr('Best for this')) + '</span>' : '') + '<b>' + esc(sv.n) + '</b><small>' + esc(planSummary(sv.lv)) + '</small><span class="wg-cmp-b"><button type="button" class="wg-chip" data-load="' + i + '">' + esc(tr('Open')) + '</button><button type="button" class="wg-ib" data-drop="' + i + '" aria-label="' + esc(tf('Remove {n}', { n: sv.n })) + '">×</button></span></th>'; }).join('') + '</tr></thead>';
     if (C) {
-      var rows = MOD.outcomes.map(function (o) { return '<tr><th style="color:' + o.c + '">' + esc(o.n) + '</th>' + C.map(function (r, i) { var p = r.cnt[o.id] / r.n; return '<td class="num' + (i === best ? ' best' : '') + '"><i class="wg-bar" style="--f:' + p.toFixed(3) + ';--c:' + o.c + '"></i>' + pc(p) + '</td>'; }).join('') + '</tr>'; }).join('');
+      var gg = goalOf(MOD, S.goal), rows = '<tr class="wg-gr"><th>' + esc(gg.n) + '</th>' + C.map(function (r, i) { var p = r.cnt['g:' + gg.id] / r.n; return '<td class="num' + (i === best ? ' best' : '') + '"><b style="color:' + GRADEC[gradeOf(p)] + '">' + gradeOf(p) + '</b> ' + pc(p) + '</td>'; }).join('') + '</tr>';
+      rows += MOD.outcomes.map(function (o) { return '<tr><th style="color:' + o.c + '">' + esc(o.n) + '</th>' + C.map(function (r, i) { var p = r.cnt[o.id] / r.n; return '<td class="num' + (i === best ? ' best' : '') + '"><i class="wg-bar" style="--f:' + p.toFixed(3) + ';--c:' + o.c + '"></i>' + pc(p) + '</td>'; }).join('') + '</tr>'; }).join('');
       var sums = C.map(function (r, i) { return MOD.summary(r.A, S.saved[i].lv, r.cnt, r.n); });
       (sums[0] || []).forEach(function (row, k) { rows += '<tr><th>' + esc(row[0]) + '</th>' + sums.map(function (sm, i) { return '<td class="num' + (i === best ? ' best' : '') + '">' + esc((sm[k] || [])[1] || '–') + '</td>'; }).join('') + '</tr>'; });
       h += '<tbody>' + rows + '</tbody>';
@@ -1440,7 +1986,8 @@
     return lv;
   }
   function writeUrl() {
-    var q = { r: S.room.join('.'), l: S.lens, d: S.date || '', w: S.who || '' }, s = Object.keys(q).filter(function (k) { return q[k]; }).map(function (k) { return k + ':' + q[k]; });
+    var mine = S.lens === 'mine' && S.mine ? Object.keys(S.mine).filter(function (k) { return PM[k]; }).map(function (k) { return k + '=' + (Math.round(S.mine[k] * 1000) / 1000); }).join(';') : '';
+    var q = { r: S.room.join('.'), l: S.lens, d: S.date || '', w: S.who || '', g: S.goal || '', n: mine }, s = Object.keys(q).filter(function (k) { return q[k]; }).map(function (k) { return k + ':' + q[k]; });
     s.push(lvStr(S.lv, ',', ':'));
     S.saved.forEach(function (sv, i) { s.push('p' + (i + 1) + ':' + encodeURIComponent(sv.n).replace(/~/g, '') + '~' + lvStr(sv.lv, '~', '=')); });
     try { history.replaceState(history.state, '', location.pathname + '?s=' + encodeURIComponent(s.join(',')) + (/[?&]stream=1/.test(location.search) ? '&stream=1' : '') + location.hash); } catch (x) {}
@@ -1451,13 +1998,16 @@
     raw.split(',').forEach(function (kv) {
       var i = kv.indexOf(':'), k = kv.slice(0, i), v = kv.slice(i + 1);
       if (k === 'r') S.room = v.split('.').filter(function (x) { return EXID[x]; });
-      else if (k === 'l' && /^(room|all|markets|mine)$/.test(v)) S.lens = v === 'mine' ? 'all' : v;
+      else if (k === 'l' && /^(room|all|markets|mine)$/.test(v)) S.lens = v;
+      else if (k === 'n') { S.mine = avgOf(EX); v.split(';').forEach(function (q) { var j = q.indexOf('='), id = q.slice(0, j), x = +q.slice(j + 1); if (PM[id] && isFinite(x)) S.mine[id] = clamp(x, PM[id].min, PM[id].max); }); }
+      else if (k === 'g' && (MOD.goals || []).some(function (g) { return g.id === v && (g.side || 'blue') === 'blue'; })) S.goal = v;
       else if (k === 'd' && /^\d{4}-\d\d-\d\d$/.test(v)) S.date = v;
       else if (k === 'w' && EXID[v]) S.who = v;
       else if (/^p[1-4]$/.test(k) && S.saved.length < 4) { var j = v.indexOf('~'); try { S.saved.push({ n: decodeURIComponent(v.slice(0, j)).slice(0, 60), lv: lvRead(v.slice(j + 1), '~', '='), who: '' }); } catch (x) {} }
       else if (k) lvParts.push(kv);
     });
     if (lvParts.length) S.lv = lvRead(lvParts.join(','), ',', ':');
+    if (S.lens === 'mine' && !S.mine) S.lens = 'all';
     return true;
   }
   function share() {
@@ -1603,7 +2153,7 @@
   var KITON = 0;      // set once the 3D models stand under the markers: the markers shrink to plates over them
   function markPx(p) { return ((narrow() ? 18 : 22) + (p.v || 2) * (narrow() ? 2 : 3) + (p.k === 'capital' ? 5 : 0) - (p.off ? 4 : 0)) * (KITON && !p.off ? 0.56 : 1); }
   var LABELED = PLACES.filter(function (p) { return (p.v || 0) >= 4 || p.k === 'capital'; });
-  var HOME = (function () { var q = PLACES.filter(function (p) { return !p.off && ((p.v || 0) >= 4 || p.k === 'capital'); }).map(function (p) { return [p.ex, p.ey]; }); return q.length >= 3 ? q : [[0, 0], [G.w, G.h]]; })();
+  var HOME = (function () { var hb = R.home, inb = function (p) { return !hb || (p.ll[1] >= hb[0] && p.ll[0] >= hb[1] && p.ll[1] <= hb[2] && p.ll[0] <= hb[3]); }; var q = PLACES.filter(function (p) { return !p.off && ((p.v || 0) >= 4 || p.k === 'capital') && inb(p); }).map(function (p) { return [p.ex, p.ey]; }); if (hb) q = q.concat([xy([hb[1], hb[0]]), xy([hb[3], hb[2]])]); return q.length >= 3 ? q : [[0, 0], [G.w, G.h]]; })();      // R.home: the box the first view frames (wargame.py HOME_BOX)
   // the names on the board: one span each, placed by the view, the most important first; one that would overlap a name
   // already shown waits (its marker still shows, and a tap opens it). Off the screen: not drawn at all.
   var TAG = {};
@@ -1625,8 +2175,21 @@
     return hudBox;
   }
   function over(a, k) { return a[0] < k[0] + k[2] && a[0] + a[2] > k[0] && a[1] < k[1] + k[3] && a[1] + a[3] > k[1]; }
-  function placeTags(proj, zoomed) {      // proj(p) -> [x, y, visible, px, pip]
+  var HOTTAG = [];      // the names of the six hottest places in Now, placed before every other name
+  for (var hti = 0; hti < 6; hti++) { var hsp = D.createElement('span'); hsp.className = 'wg-tag hot'; hsp.style.display = 'none'; hsp.setAttribute('aria-hidden', 'true'); tagsEl.appendChild(hsp); HOTTAG.push(hsp); }
+  function placeTags(proj, zoomed, hotProj) {      // proj(p) -> [x, y, visible, px, pip]; hotProj() -> [{x, y, vis, c, r, text}]
     var w = stage.clientWidth, h = stage.clientHeight, kept = hudRects().slice(), mk = [];
+    var hp = hotProj ? hotProj() : [];
+    HOTTAG.forEach(function (t, i) {
+      var q = hp[i];
+      if (!q || !q.vis || !q.text) { if (t.style.display !== 'none') t.style.display = 'none'; return; }
+      if (t.textContent !== q.text) { t.textContent = q.text; t._mw = 0; t.style.setProperty('--kc', q.c); }
+      if (!t._mw) { t.style.visibility = 'hidden'; t.style.display = ''; var rr = t.getBoundingClientRect(); t._mw = Math.ceil(rr.width) || 60; t._mh = Math.ceil(rr.height) || 20; t.style.visibility = ''; }
+      var tw = t._mw + 8, th = t._mh + 8, sp = [[q.x - tw / 2, q.y - q.r - th], [q.x - tw / 2, q.y + q.r * 0.6], [q.x + q.r, q.y - th / 2], [q.x - q.r - tw, q.y - th / 2]], ok = false, b2;
+      for (var j = 0; j < sp.length && !ok; j++) { b2 = [sp[j][0], sp[j][1], tw, th]; ok = b2[0] >= 2 && b2[1] >= 2 && b2[0] + tw <= w - 2 && b2[1] + th <= h - 2; for (var k2 = 0; ok && k2 < kept.length; k2++) if (over(b2, kept[k2])) ok = false; }
+      if (!ok) { if (t.style.display !== 'none') t.style.display = 'none'; return; }
+      kept.push(b2); t.style.display = ''; t.style.transform = 'translate(' + Math.round(b2[0] + 4) + 'px,' + Math.round(b2[1] + 4) + 'px)';
+    });
     tagOrder.forEach(function (p) { var q = proj(p); if (q && q[2] && !q[4]) mk.push([p, [q[0] - q[3] * 0.35, q[1] - q[3] * 0.75, q[3] * 0.7, q[3] * 0.7]]); });
     tagOrder.forEach(function (p) {
       var t = TAG[p.id], q = proj(p);
@@ -1666,7 +2229,10 @@
     if (mini.width !== Math.round(w * d)) { mini.width = Math.round(w * d); mini.height = Math.round(h * d); }
     var c = miniX; c.setTransform(d * w / G.w, 0, 0, d * h / G.h, 0, 0);
     if (posterEl.complete && posterEl.naturalWidth) c.drawImage(posterEl, 0, 0, G.w, G.h); else { c.fillStyle = '#0a0d12'; c.fillRect(0, 0, G.w, G.h); }
-    PLACES.forEach(function (p) { if (p.off) return; c.fillStyle = teamHex(p.o); c.fillRect(p.x - 6, p.y - 6, 12, 12); });
+    PLACES.forEach(function (p) { if (p.off) return; c.fillStyle = teamHex(p.o); c.fillRect(p.x - 5, p.y - 5, 10, 10); });
+    var fm = TID === 'ukraine' ? frontAt(R.today) : null;
+    if (fm) { var fp = frontPts(fm.line); c.beginPath(); fp.forEach(function (q, i) { c[i ? 'lineTo' : 'moveTo'](q[0], q[1]); }); c.lineWidth = G.w / w * 2; c.strokeStyle = '#FF5A48'; c.stroke(); }
+    if (S.mode === 'now') nowHot().forEach(function (hh) { c.fillStyle = hexA(hh.c, 0.35 + 0.5 * hh.n); c.beginPath(); c.arc(hh.x, hh.y, (10 + 22 * Math.sqrt(hh.n)) * G.w / Math.max(120, w) * 0.5, 0, 7); c.fill(); });
     var q = V && V.groundRect ? V.groundRect() : null;
     if (q) { c.beginPath(); q.forEach(function (p, i) { c[i ? 'lineTo' : 'moveTo'](clamp(p[0], -50, G.w + 50), clamp(p[1], -50, G.h + 50)); }); c.closePath(); c.lineWidth = G.w / w * 1.6; c.strokeStyle = GOLD; c.stroke(); c.fillStyle = 'rgba(244,196,48,0.10)'; c.fill(); }
   }
@@ -1739,15 +2305,56 @@
       x = onMap(mask); x.fillStyle = '#f00'; paths.forEach(function (c) { x.fill(c.p); });
       var b = onMap(ovlBase), s = ovlBase.width / FW;
       paths.forEach(function (c) { var side = (R.ctry || {})[c.n]; if (!side) return; var t = teamOf(side); b.fillStyle = t === 'blue' ? 'rgba(40,120,255,0.13)' : t === 'red' ? 'rgba(255,58,40,0.12)' : 'rgba(200,196,170,0.06)'; b.fill(c.p); });
+    })();
+    // THE MAP'S OWN DRAWING (1 November 2026): the rivers, motorways and railways (wargame.py --lines, read after the board is up),
+    // the borders, and the names printed on the ground like a strategy game's map: the countries in spaced capitals, the seas in
+    // italics. Drawn again when the lines arrive and when the page's fonts have loaded.
+    var LINESD = null;
+    function drawLin() {
+      var raw = lin.getContext('2d'); raw.setTransform(1, 0, 0, 1, 0, 0); raw.clearRect(0, 0, lin.width, lin.height);
       var l = onMap(lin), ls = lin.width / FW;
-      paths.forEach(function (c) { l.lineJoin = 'round'; l.lineWidth = 1.2 / ls; l.strokeStyle = 'rgba(236,226,196,0.30)'; l.stroke(c.p); });
+      l.lineJoin = 'round'; l.lineCap = 'round';
+      if (LINESD) {
+        if (LINESD.t) { l.setLineDash([5 / ls, 4 / ls]); l.lineWidth = 1.1 / ls; l.strokeStyle = 'rgba(205,212,224,0.2)'; l.stroke(new Path2D(LINESD.t)); l.setLineDash([]); }
+        if (LINESD.h) { l.lineWidth = 1.4 / ls; l.strokeStyle = 'rgba(255,186,104,0.24)'; l.stroke(new Path2D(LINESD.h)); }
+        if (LINESD.r) { l.lineWidth = 1.6 / ls; l.strokeStyle = 'rgba(92,168,236,0.6)'; l.stroke(new Path2D(LINESD.r)); }
+      }
+      paths.forEach(function (c) { l.lineWidth = 1.2 / ls; l.strokeStyle = 'rgba(236,226,196,0.30)'; l.stroke(c.p); });
       paths.forEach(function (c) {
         var side = (R.ctry || {})[c.n]; if (!side) return;
         var col = TEAMHEX[teamOf(side)] || TEAMHEX.grey;
         l.shadowColor = col; l.shadowBlur = 10; l.lineWidth = 2.6 / ls; l.strokeStyle = col; l.stroke(c.p);
         l.shadowBlur = 0; l.lineWidth = 1.1 / ls; l.strokeStyle = 'rgba(255,255,255,0.85)'; l.stroke(c.p);
       });
-    })();
+      mapNames(raw, ls);
+      if (texLin) texLin.needsUpdate = true;
+    }
+    function mapNames(x, ls) {
+      var k = lin.width / 2048, sy = lin.height / FH, at = function (mx, my) { return [(mx - FR[0]) * ls, (my - FR[1]) * sy]; };
+      var fam = FA ? '"Vazirmatn", Tahoma, sans-serif' : '"Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif';
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.textAlign = 'center'; x.textBaseline = 'middle'; if (FA) x.direction = 'rtl';      // pixels of the texture: the borders above left the map's transform on this same context
+      var spaced = function (sz, sp) { if ('letterSpacing' in x) x.letterSpacing = FA ? '0px' : Math.round(sz * sp) + 'px'; };
+      (G.c || []).forEach(function (c) {
+        if (!c.l || c.a < 700 || c.l[0] < 0 || c.l[0] > G.w || c.l[1] < 0 || c.l[1] > G.h) return;
+        var side = (R.ctry || {})[c.n], t = teamOf(side), sz = Math.round((c.a > 60000 ? 40 : c.a > 15000 ? 31 : c.a > 4000 ? 23 : 17) * k);
+        var name = FA ? tk('c:', c.n) : String(c.n).toUpperCase(), p = at(c.l[0], c.l[1]);
+        x.font = '700 ' + sz + 'px ' + fam; spaced(sz, 0.24);
+        x.lineWidth = Math.max(2, sz * 0.14); x.strokeStyle = 'rgba(3,5,8,0.6)'; x.strokeText(name, p[0], p[1]);
+        x.fillStyle = side ? (t === 'blue' ? 'rgba(176,208,255,0.66)' : t === 'red' ? 'rgba(255,180,166,0.62)' : 'rgba(236,226,196,0.52)') : 'rgba(236,226,196,0.4)';
+        x.fillText(name, p[0], p[1]);
+      });
+      (R.seas || []).forEach(function (q) {
+        var c = xy(q.ll); if (c[0] < -40 || c[0] > G.w + 40 || c[1] < -40 || c[1] > G.h + 40) return;
+        var sz = Math.round([0, 17, 23, 30][q.z || 2] * k), p = at(c[0], c[1]), name = FA ? tk('sea:', q.n) : q.n;
+        x.font = (FA ? '500 ' : 'italic 500 ') + sz + 'px ' + (FA ? fam : 'Georgia, "Times New Roman", serif'); spaced(sz, 0.18);
+        x.lineWidth = Math.max(2, sz * 0.12); x.strokeStyle = 'rgba(2,8,16,0.5)'; x.strokeText(name, p[0], p[1]);
+        x.fillStyle = 'rgba(132,192,242,0.62)'; x.fillText(name, p[0], p[1]);
+      });
+      x.restore();
+    }
+    drawLin();
+    if (GLR.lines) fetch(GLR.lines).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j) { LINESD = j; drawLin(); } }).catch(function () { });
+    if (D.fonts && D.fonts.ready) D.fonts.ready.then(function () { drawLin(); });
     var scorch = [], frontNow = null;
     function drawOvl() {
       var x = ovl.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, ovl.width, ovl.height); x.drawImage(ovlBase, 0, 0);
@@ -1808,12 +2415,15 @@
         '  vec3 col = mix(seaC, landC, land);',
         '  col *= mix(1.0, 0.26 + 1.32 * diff, land);',
         '  float nt = texture2D(tNight, vUv).r; col += pow(nt, 2.4) * vec3(1.0, 0.62, 0.26) * 1.25 * land * uNight;',
+        '  float nb = texture2D(tNight, vUv, 3.0).r; col += pow(nb, 1.7) * vec3(1.0, 0.48, 0.16) * 0.6 * uNight;',
+        '  float cst = clamp(texture2D(tMask, vUv, 2.5).r - land, 0.0, 1.0); col += vec3(0.08, 0.32, 0.46) * cst * 0.55;',
+        '  vec3 Vd = normalize(uCam - vW); vec3 Hh = normalize(L + Vd); col += vec3(1.0, 0.84, 0.6) * pow(max(Hh.y, 0.0), 120.0) * 0.45 * (1.0 - land);',
         '  vec4 ov = texture2D(tOvl, vUv); col = mix(col, ov.rgb, ov.a);',
         '  vec4 ln = texture2D(tLin, vUv); col += ln.rgb * ln.a * (0.82 + 0.18 * sin(uTime * 1.7));',
         '  float hx = hexEdge(vW.xz / uHex); float fw = fwidth(hx); col += vec3(0.96, 0.77, 0.19) * (1.0 - smoothstep(0.5 - fw * 1.5, 0.5, hx) * 0.0) * smoothstep(0.5 - fw * 1.6, 0.5, hx) * 0.07;',
         '  float o = max(max(uTheatre.x - vUv.x, vUv.x - uTheatre.z), max(uTheatre.y - vUv.y, vUv.y - uTheatre.w));',
         '  col = mix(col, vec3(0.012, 0.016, 0.022), smoothstep(-0.005, 0.05, o) * 0.82);',
-        '  float d = length(vW - uCam); col = mix(col, vec3(0.03, 0.045, 0.06), smoothstep(uFog.x, uFog.y, d) * 0.65);',
+        '  float d = length(vW - uCam); col = mix(col, vec3(0.035, 0.062, 0.09), smoothstep(uFog.x, uFog.y, d) * 0.7);',
         '  col = mix(vec3(0.02, 0.025, 0.03), col, uReady);',
         '  gl_FragColor = vec4(col, 1.0);',
         '}'].join('\n')
@@ -1889,6 +2499,51 @@
       fragmentShader: 'uniform float uTime; uniform vec3 uC; varying vec2 vP; void main(){ float r = length(vP); float a = atan(vP.y, vP.x); float s = fract((a / 6.2831853) + uTime * 0.25); float wedge = pow(1.0 - s, 7.0) * 0.55; float edge = smoothstep(0.93, 1.0, r) * (1.0 - smoothstep(1.0, 1.02, r)) * 0.35; float rings = (1.0 - smoothstep(0.0, 0.02, abs(fract(r * 3.0) - 0.5) - 0.48)) * 0.12; float a2 = (wedge + edge + rings) * (1.0 - smoothstep(0.98, 1.0, r)); gl_FragColor = vec4(uC * a2, 1.0); }'
     });
     var sweepGeo = new T.CircleGeometry(1, 64); sweepGeo.rotateX(-Math.PI / 2);
+    // ---- THE HEAT (1 November 2026): where the live feed reports fighting now (NOW), glowing on the ground, pulsing by how hot; a
+    // sharp ring round whatever started in the last hour; a beam of light over the hottest five. Two instanced layers and five
+    // sprites: seven draw calls at most, whatever the feed holds.
+    var HMAX = 60, heatOn = false, heatSel = null, HOT = [];
+    var heatGeo = new T.PlaneGeometry(2, 2); heatGeo.rotateX(-Math.PI / 2);
+    function heatLayer(frag, order) {
+      var m = new T.ShaderMaterial({ uniforms: { uTime: U.uTime }, transparent: true, depthTest: false, depthWrite: false, blending: T.AdditiveBlending,
+        vertexShader: 'attribute vec3 hc; attribute vec3 hd; varying vec3 vC; varying vec3 vD; varying vec2 vP; void main(){ vC = hc; vD = hd; vP = position.xz; gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform float uTime; varying vec3 vC; varying vec3 vD; varying vec2 vP; void main(){ float r = length(vP); if (r > 1.0) discard; ' + frag + ' }' });
+      var g = heatGeo.clone(), mesh = new T.InstancedMesh(g, m, HMAX);
+      g.setAttribute('hc', new T.InstancedBufferAttribute(new Float32Array(HMAX * 3), 3)); g.setAttribute('hd', new T.InstancedBufferAttribute(new Float32Array(HMAX * 3), 3));
+      mesh.count = 0; mesh.renderOrder = order; mesh.frustumCulled = false; mesh.visible = false; scene.add(mesh); return mesh;
+    }
+    var heatGlow = heatLayer('float n = vD.x; float pulse = 0.78 + 0.22 * sin(uTime * (1.2 + 1.3 * n) + vD.y * 6.2832); float core = exp(-r * r * 11.0) * 1.2; float halo = exp(-r * r * 3.0) * 0.48; float a = (core + halo) * (0.3 + 0.7 * n) * pulse * (1.0 + 0.7 * vD.z); a *= 1.0 - smoothstep(0.8, 1.0, r); gl_FragColor = vec4(vC * a, 1.0);', 3);
+    var heatRing = heatLayer('float a = 0.0; for (int k = 0; k < 2; k++) { float t = fract(uTime * 0.4 + vD.y + float(k) * 0.5); float rr = 0.1 + 0.9 * t; a += smoothstep(0.045, 0.0, abs(r - rr)) * (1.0 - t) * 1.4; } gl_FragColor = vec4(mix(vC, vec3(1.0), 0.4) * a, 1.0);', 4);
+    var beamTex = (function () {
+      var c = D.createElement('canvas'); c.width = 32; c.height = 256; var x = c.getContext('2d'), g = x.createLinearGradient(0, 256, 0, 0);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.2, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 256);
+      x.globalCompositeOperation = 'destination-in'; var h = x.createLinearGradient(0, 0, 32, 0); h.addColorStop(0, 'rgba(0,0,0,0)'); h.addColorStop(0.5, 'rgba(0,0,0,1)'); h.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = h; x.fillRect(0, 0, 32, 256);
+      return new T.CanvasTexture(c);
+    })();
+    var beams = [];
+    for (var bi = 0; bi < 5; bi++) { var bm = new T.Sprite(new T.SpriteMaterial({ map: beamTex, transparent: true, depthTest: false, depthWrite: false, blending: T.AdditiveBlending })); bm.center.set(0.5, 0); bm.visible = false; bm.renderOrder = 4; scene.add(bm); beams.push(bm); }
+    var M4h = new T.Matrix4(), V3h = new T.Vector3(), S3h = new T.Vector3(), Qh = new T.Quaternion();
+    function setHot(list) {
+      HOT = list || [];
+      var gc = heatGlow.geometry.attributes.hc, gd = heatGlow.geometry.attributes.hd, rc = heatRing.geometry.attributes.hc, rd = heatRing.geometry.attributes.hd, nr = 0, u0 = Math.max(0.8, homeD / 1000);
+      HOT.slice(0, HMAX).forEach(function (h, i) {
+        var col = rgb(h.c), sel = heatSel && Math.hypot(heatSel[0] - h.x, heatSel[1] - h.y) < 3 ? 1 : 0, rad = (8 + 26 * Math.sqrt(h.n)) * u0 * (sel ? 1.25 : 1), y = hAt(h.x, h.y);
+        M4h.compose(V3h.set(wx(h.x), y + 0.8, wz(h.y)), Qh, S3h.set(rad, 1, rad)); heatGlow.setMatrixAt(i, M4h); gc.setXYZ(i, col[0], col[1], col[2]); gd.setXYZ(i, h.n, (i * 0.618) % 1, sel);
+        if (h.fresh || sel) { M4h.compose(V3h.set(wx(h.x), y + 1, wz(h.y)), Qh, S3h.set(rad * 1.3, 1, rad * 1.3)); heatRing.setMatrixAt(nr, M4h); rc.setXYZ(nr, col[0], col[1], col[2]); rd.setXYZ(nr, h.n, (i * 0.37) % 1, sel); nr++; }
+      });
+      heatGlow.count = Math.min(HMAX, HOT.length); heatRing.count = nr;
+      [heatGlow, heatRing].forEach(function (m) { m.instanceMatrix.needsUpdate = true; m.geometry.attributes.hc.needsUpdate = true; m.geometry.attributes.hd.needsUpdate = true; });
+      beams.forEach(function (b, i) {
+        var h = HOT[i]; b.userData.h = h && h.n >= 0.35 ? h : null; if (!b.userData.h) { b.visible = false; return; }
+        var col = rgb(h.c); b.material.color.setRGB(col[0], col[1], col[2]); b.position.set(wx(h.x), hAt(h.x, h.y) + 0.5, wz(h.y)); b.scale.set(3.2 * u0, (22 + 70 * h.n) * u0, 1); b.visible = heatOn;
+      });
+      dirty = 1;
+    }
+    function hotShow(on) { heatOn = !!on; heatGlow.visible = heatRing.visible = heatOn; beams.forEach(function (b) { b.visible = heatOn && !!b.userData.h; }); }
+    function hotSel(ll) { heatSel = pt(ll); setHot(HOT); }
+    function hotProj() {      // the names of the hottest six, for the placer (placeTags)
+      return HOT.slice(0, 6).map(function (h) { var q = screenOf(V3h.set(wx(h.x), hAt(h.x, h.y), wz(h.y))); return { x: q[0], y: q[1], vis: q[2] && heatOn, c: h.c, r: 16, text: nowPlace(h.h) + (h.h.count > 1 ? '  ·  ' + N(h.h.count) : '') }; });
+    }
     var sweeps = sweepSites().map(function (id) { var m = new T.Mesh(sweepGeo, sweepMat.clone()); m.material.uniforms.uTime = U.uTime; m.material.uniforms.uC.value = new T.Color(teamHex(PL[id].o)); m.scale.set(16, 1, 16); m.userData.id = id; m.renderOrder = 2; scene.add(m); return m; });
     placeMarks();
     // ---- THE KIT ON THE BOARD (1 November 2026; build/simkit/SIMKIT.md). Every place stands as its 3D model at game scale (bigger
@@ -2335,7 +2990,7 @@
     }
     function home(instant) { var f = fitD(HOME, 0); goal.x = f.x; goal.z = f.z; goal.d = f.d; goal.yaw = 0; goal.pitch = 0.92; clampGoal(); if (instant) Object.assign(cam, goal); }
     // ---- the hands: drag to move, pinch or wheel to zoom, two fingers or the right button to turn, a tap to open a place
-    var ptrs = {}, pdown = null, moved = 0, last = null, gesture = null;
+    var ptrs = {}, pdown = null, moved = 0, last = null, gesture = null, lastTap = null;
     function screenOf(v3) { var v = v3.clone().project(camera); return [(v.x + 1) / 2 * vw, (1 - v.y) / 2 * vh, v.z < 1]; }
     function pickAt(cx, cy) {
       var r = glc.getBoundingClientRect(), best = null, bd = 1e9;
@@ -2375,6 +3030,11 @@
       if (!ptrs[ev.pointerId]) return;
       delete ptrs[ev.pointerId];
       if (Object.keys(ptrs).length === 0) {
+        if (moved < 6 && pdown && ev.type === 'pointerup' && ev.pointerType === 'touch') {      // a double tap: zoom in where it lands
+          var tnow = performance.now();
+          if (lastTap && tnow - lastTap.t < 330 && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < 34) { var gT = ground(ev.clientX, ev.clientY); if (gT) { touched(); goal.x = gT[0]; goal.z = gT[1]; goal.d = clamp(goal.d / 1.8, dMin, dMax); clampGoal(); } lastTap = null; gesture = null; pdown = null; return; }
+          lastTap = { t: tnow, x: ev.clientX, y: ev.clientY };
+        }
         if (moved < 6 && pdown && ev.type === 'pointerup') { var p = pickAt(ev.clientX, ev.clientY); if (p && p.unit) unitSheet(p.unit.f, p.unit); else if (p) placeSheet(p); else if (S.sel || !sheet.hidden) { select(null); if (!sheet.hidden) closeSheet(); } }
         gesture = null; pdown = null;
       } else if (gesture === 'two') { var id = Object.keys(ptrs)[0]; last = [ptrs[id][0], ptrs[id][1]]; last.g = ground(last[0], last[1]); gesture = 'pan'; }
@@ -2440,7 +3100,8 @@
       if (ovlDirty && now - (drawOvl.t || 0) > 220) { ovlDirty = 0; drawOvl.t = now; drawOvl(); }
       sprScale();
       renderer.render(scene, camera);
-      if (tagsT++ % 2 === 0) placeTags(function (p) { var m = marks[p.mi]; if (!m || !m.top) return null; var q = screenOf(m.top); return [q[0], q[1], q[2], markPx(p) * (m.pip ? 0.42 : 1), m.pip && S.sel !== p.id]; }, homeD / cam.d);
+      if (heatOn) beams.forEach(function (b, i) { if (b.visible) b.material.opacity = 0.55 + 0.3 * Math.sin(now / 520 + i * 1.7); });
+      if (tagsT++ % 2 === 0) placeTags(function (p) { var m = marks[p.mi]; if (!m || !m.top) return null; var q = screenOf(m.top); return [q[0], q[1], q[2], markPx(p) * (m.pip ? 0.42 : 1), m.pip && S.sel !== p.id]; }, homeD / cam.d, heatOn ? hotProj : null);
       if (tagsT % 10 === 0) miniDraw();
       frames++;
       if (now - fpsT > 1000) { fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now; if (fps < 32 && renderer.getPixelRatio() > 1) { if (++lowFor >= 2) { renderer.setPixelRatio(Math.max(1, renderer.getPixelRatio() - 0.25)); resize(); lowFor = 0; } } else lowFor = 0; }
@@ -2454,7 +3115,7 @@
     resize(); home(true); cam.d = goal.d * 1.25; cam.pitch = 1.2;
     kick();
     return {
-      kind: '3d', ready: readyP,
+      kind: '3d', ready: readyP, hot: setHot, hotShow: hotShow, hotSel: hotSel,
       reset: function () { shots.forEach(flyDone); shots = []; timers.forEach(clearTimeout); timers = []; GLOW.live = []; SMOKE.live = []; scorch = []; kitReset(); drawOvl(); marks.forEach(function (m) { m.hit = 0; m.s.material.color.setRGB(1, 1, 1); }); },
       thumb: thumb, units: function () { return units; }, kit: function () { return KIT; }, gridDark: gridDark,
       shot: shot, hit: hit, front: setFront, focus: focus, home: home, select: select, pulse: pulse, resize: resize,
@@ -2471,7 +3132,7 @@
     var cv = glc, ctx = cv.getContext('2d');
     if (!ctx) return null;
     var dpr = Math.min(2, W.devicePixelRatio || 1), vw = 1, vh = 1, ins = { l: 0, r: 0, t: 0, b: 0 };
-    var view = { x: G.w / 2, y: G.h / 2, s: 1 }, goalV = { x: G.w / 2, y: G.h / 2, s: 1 }, sMin = 1, FX = [], scorch = [], front = null, raf = 0;
+    var view = { x: G.w / 2, y: G.h / 2, s: 1 }, goalV = { x: G.w / 2, y: G.h / 2, s: 1 }, sMin = 1, FX = [], scorch = [], front = null, raf = 0, fHot = [], fHotOn = false, fSel = null;
     function fitS() { return Math.min((vw - ins.l - ins.r) / G.w, (vh - ins.t - ins.b) / G.h) * 0.96; }
     function resize(i) { if (i) ins = i; var r = stage.getBoundingClientRect(); vw = r.width; vh = r.height; cv.width = Math.round(vw * dpr); cv.height = Math.round(vh * dpr); sMin = fitS(); if (!resize.done) { home(true); resize.done = 1; } kick(); }
     function scr(x, y) { return [(x - view.x) * view.s + ins.l + (vw - ins.l - ins.r) / 2, (y - view.y) * view.s + ins.t + (vh - ins.t - ins.b) / 2]; }
@@ -2493,7 +3154,10 @@
       var k = 0.16; view.x += (goalV.x - view.x) * k; view.y += (goalV.y - view.y) * k; view.s += (goalV.s - view.s) * k;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, vw, vh);
       var o = scr(0, 0);
-      if (posterEl.complete && posterEl.naturalWidth) ctx.drawImage(posterEl, o[0], o[1], G.w * view.s, G.h * view.s);
+      if (posterEl.complete && posterEl.naturalWidth) {
+        var cs = Math.max(vw / G.w, vh / G.h); ctx.globalAlpha = 0.3; ctx.drawImage(posterEl, (vw - G.w * cs) / 2, (vh - G.h * cs) / 2, G.w * cs, G.h * cs); ctx.globalAlpha = 1;      // the ground continues, dimmed, past the fitted map: no black bars
+        ctx.drawImage(posterEl, o[0], o[1], G.w * view.s, G.h * view.s);
+      }
       ctx.save(); ctx.translate(o[0], o[1]); ctx.scale(view.s, view.s);
       if (front && UA) {
         ctx.save(); ctx.clip(new Path2D(UA.d)); ctx.fillStyle = 'rgba(255,50,36,0.32)'; ctx.fill(new Path2D(frontPath(front))); ctx.restore();
@@ -2501,6 +3165,15 @@
       }
       scorch.forEach(function (q) { var g = ctx.createRadialGradient(q[0], q[1], 0, q[0], q[1], q[2]); g.addColorStop(0, 'rgba(10,6,4,0.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q[0], q[1], q[2], 0, 7); ctx.fill(); });
       ctx.restore();
+      if (fHotOn) {
+        ctx.globalCompositeOperation = 'lighter';
+        fHot.forEach(function (h, i) {
+          var q = scr(h.x, h.y), rr = (8 + 26 * Math.sqrt(h.n)) * view.s * (fSel && Math.hypot(fSel[0] - h.x, fSel[1] - h.y) < 3 ? 1.25 : 1), pu = 0.8 + 0.2 * Math.sin(now / 400 + i);
+          var g = ctx.createRadialGradient(q[0], q[1], 0, q[0], q[1], rr); g.addColorStop(0, hexA(h.c, (0.35 + 0.6 * h.n) * pu)); g.addColorStop(0.35, hexA(h.c, 0.25 * pu)); g.addColorStop(1, hexA(h.c, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q[0], q[1], rr, 0, 7); ctx.fill();
+          if (h.fresh) { var t = (now / 2400 + i * 0.37) % 1; ctx.strokeStyle = hexA('#ffffff', 0.7 * (1 - t)); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(q[0], q[1], rr * (0.2 + 1.1 * t), 0, 7); ctx.stroke(); }
+        });
+        ctx.globalCompositeOperation = 'source-over';
+      }
       var keep = [];
       ctx.globalCompositeOperation = 'lighter';
       FX.forEach(function (f) {
@@ -2529,9 +3202,9 @@
         ctx.globalAlpha = 1; ctx.drawImage(badge(p.k, p.team, p.k === 'capital'), q[0] - px / 2, q[1] - px / 2, px, px);
         if (hits[p.id] && now - hits[p.id] < 9000) { ctx.strokeStyle = 'rgba(255,120,60,' + (0.5 + 0.5 * Math.sin(now / 150)) + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(q[0], q[1], px * 0.55, 0, 7); ctx.stroke(); }
       });
-      placeTags(function (p) { var q = scr(p.ex, p.ey); return [q[0], q[1], true, markPx(p) * z]; }, view.s / sMin);
+      placeTags(function (p) { var q = scr(p.ex, p.ey); return [q[0], q[1], true, markPx(p) * z]; }, view.s / sMin, fHotOn ? function () { return fHot.slice(0, 6).map(function (h) { var q = scr(h.x, h.y); return { x: q[0], y: q[1], vis: true, c: h.c, r: 14, text: nowPlace(h.h) + (h.h.count > 1 ? '  ·  ' + N(h.h.count) : '') }; }); } : null);
       miniDraw();
-      if (FX.length || Math.abs(goalV.s - view.s) > 0.001 || Math.abs(goalV.x - view.x) > 0.05 || Math.abs(goalV.y - view.y) > 0.05) raf = W.requestAnimationFrame(frame);
+      if (FX.length || (fHotOn && fHot.length) || Math.abs(goalV.s - view.s) > 0.001 || Math.abs(goalV.x - view.x) > 0.05 || Math.abs(goalV.y - view.y) > 0.05) raf = W.requestAnimationFrame(frame);
     }
     function kick() { if (!raf) raf = W.requestAnimationFrame(frame); }
     if (posterEl && !posterEl.complete) posterEl.addEventListener('load', kick);
@@ -2550,6 +3223,7 @@
     stage.addEventListener('wheel', function (ev) { if (ev.target.closest('.wg-panel, .wg-orb, .wg-tl, .wg-bf')) return; if (ev.deltaY > 0 && goalV.s <= sMin * 1.01) return; ev.preventDefault(); var m = inv(ev.clientX, ev.clientY), f = ev.deltaY < 0 ? 1.18 : 1 / 1.18, ns = clamp(goalV.s * f, sMin, sMin * 8); goalV.x = m[0] - (m[0] - goalV.x) * view.s / ns; goalV.y = m[1] - (m[1] - goalV.y) * view.s / ns; goalV.s = ns; kick(); }, { passive: false });
     return {
       kind: 'flat', ready: Promise.resolve(true),
+      hot: function (list) { fHot = list || []; kick(); }, hotShow: function (on) { fHotOn = !!on; kick(); }, hotSel: function (ll) { fSel = pt(ll); kick(); },
       reset: function () { FX = []; scorch = []; hits = {}; kick(); }, shot: shot,
       hit: function (id, res, instant) { if (res === 'hit' || res === 'partial') { hits[id] = performance.now(); var p = PL[id]; if (p && instant) scorch.push([p.ex, p.ey, 6]); kick(); } },
       front: function (pts) { front = pts; kick(); }, focus: focus, home: home, select: function (id) { S.sel = id; kick(); }, pulse: function (ids) { S.pulse = ids || []; kick(); }, resize: resize,
@@ -2568,12 +3242,14 @@
 
   // ---------------------------------------------------------------- the idle board, and the start
   function idle() {
-    var f = TID === 'ukraine' ? frontAt(R.today) : null;
-    if (f && V) V.front(frontPts(f.line), f.lobes);
-    clockSet(day(R.today), tr('Today'));
-    feedSet(R.title || R.meta.h1, R.now ? [{ w: R.now.state, c: GOLD }] : []);
+    if (V && V.kind === 'flat') frontToday();      // the 3D board draws it once its ground has heights (boot)
+    if (S.mode === 'now') { nowClock(); nowCycle(true); }
+    else { clockSet(day(R.today), tr('Today')); feedSet(R.title || R.meta.h1, R.now ? [{ w: R.now.state, c: GOLD }] : []); }
   }
-  readUrl();
+  // the mode the page opens in: Now, unless the address carries a plan (Simulate) or asks for a mode
+  var shared = readUrl(), askM = /[?&]mode=(now|sim|replay)\b/.exec(location.search);
+  S.mode = askM ? askM[1] : shared || /[?&]shot=(run|step|tab|brief|unit|compare|best)\b/.test(location.search) ? 'sim' : 'now';
+  tog(app, 'm-' + S.mode, true); $$('.wg-mode', hud).forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-mode') === S.mode); });
   if (!S.room.length) S.room = EX.slice(0, Math.min(5, EX.length)).map(function (x) { return x.id; });
   drawPanel(); orbDraw();
   var how = $('#wg-how-body'); if (how) how.innerHTML = howHtml();
@@ -2586,7 +3262,11 @@
     var at = /[?&]at=([\w-]+)(?::([\d.]+))?/.exec(location.search);
     if (at && PL[at[1]] && V) setTimeout(function () { touched(); lastTouch = Date.now() + 600000; V.focus([[PL[at[1]].ex, PL[at[1]].ey]], { tight: true, instant: true }); if (at[2]) V.zoomBy(+at[2]); }, 50);
     if (/[?&]dbg=1/.test(location.search)) setInterval(function () { var d = D.getElementById('wg-dbg') || D.body.appendChild(Object.assign(D.createElement('pre'), { id: 'wg-dbg' })); d.style.cssText = 'position:fixed;left:0;bottom:0;z-index:99;background:#003;color:#8cf;font:12px monospace;padding:6px'; var wide = []; $$('body *').forEach(function (e) { var r = e.getBoundingClientRect(); if (r.right > W.innerWidth + 1 && r.width > 0 && wide.length < 6 && !e.closest('#wg-dbg')) wide.push((e.id || e.className || e.tagName) + ':' + Math.round(r.right)); }); d.textContent = 'sw ' + D.documentElement.scrollWidth + ' iw ' + W.innerWidth + ' ' + wide.join(' | ') + ' ' + JSON.stringify(V && V.dbg ? V.dbg() : {}); }, 500);
-    if (m[1] === 'run') run();
+    if (m[1] === 'now') setMode('now');
+    else if (m[1] === 'best') { S.tab = 'best'; drawPanel(); bestStart(); }
+    else if (m[1] === 'replay') { var hh = (R.history || []).filter(function (x) { return x.id === m[2]; })[0] || (R.history || [])[(R.history || []).length - 1]; if (hh) { startReplay(hh.id); if (/[?&]seek=(\d+)/.test(location.search)) seek(+/[?&]seek=(\d+)/.exec(location.search)[1]); } }
+    else if (m[1] === 'guide') guide(0);
+    else if (m[1] === 'run') run();
     else if (m[1] === 'step') step(m[2]);
     else if (m[1] === 'tab') { S.tab = m[2]; drawPanel(); }
     else if (m[1] === 'brief') brief(EXID[m[2]] || EX[0]);
@@ -2594,9 +3274,17 @@
     else if (m[1] === 'compare') { S.saved = [{ n: tr('Plan A'), lv: planDefault() }].concat(EX.slice(0, 3).map(function (x) { return { n: x.n, lv: planOf(x), who: x.id }; })); S.tab = 'compare'; drawPanel(); compare(); }
   }
   function boot(v) {
-    V = v; layout(); idle(); if (S.tab === 'plan') drawTab();
-    (V.ready || Promise.resolve()).then(function () { var l = $('#wg-load'); if (l) l.remove(); tog(app, 'live', true); demo(); var f = TID === 'ukraine' ? frontAt(R.today) : null; if (f) V.front(frontPts(f.line), f.lobes); });
+    V = v; layout(); idle(); drawTab();
+    if (V.hot) V.hot(nowHot()); if (V.hotShow) V.hotShow(S.mode === 'now');
+    (V.ready || Promise.resolve()).then(function () {
+      var l = $('#wg-load'); if (l) l.remove(); tog(app, 'live', true);
+      if (V.kind !== 'flat') frontToday();
+      demo();
+      if (guideWanted() && S.mode === 'now') setTimeout(function () { guide(0); }, 900);
+    });
   }
+  // the live feed: read at once (the board draws it when it is up), then every minute while the tab shows
+  nowLoad().then(function () { nowPoll(); });
   var forceFlat = /[?&]flat=1/.test(location.search);
   if (!forceFlat && hasGL() && GLR.three) {
     var kitP = GLR.kit ? import(new URL(GLR.kit, location.href).href).catch(function (x) { if (W.console) console.warn('Conflict Simulator: the 3D kit did not load, drawing markers only', x); return null; }) : Promise.resolve(null);
@@ -2606,5 +3294,5 @@
       if (v) { tog(app, 'gl', true); boot(v); } else { switchToFlat(); idle(); }
     }, function (x) { if (W.console) console.warn('Conflict Simulator: three.js did not load, drawing the flat board', x); switchToFlat(); idle(); });
   } else { switchToFlat(); idle(); }
-  W.WG = { tagOverlaps: tagOverlaps, step: function (k) { if (S.tab === 'plan' && S.step === k) return; S.step = k; S.tab = 'plan'; drawPanel(); }, run: run, replay: startReplay, models: MODELS, params: params, state: S, runMany: runMany, runOne: runOne, seek: seek, view: function () { return V; }, fps: function () { return V && V.fps ? V.fps() : 0; }, brief: function (id) { brief(EXID[id] || EX[0]); }, place: function (id) { placeSheet(PL[id]); }, layout: layout };
+  W.WG = { tagOverlaps: tagOverlaps, step: function (k) { if (S.mode !== 'sim') setMode('sim'); if (S.tab === 'plan' && S.step === k) return; S.step = k; S.tab = 'plan'; drawPanel(); }, run: run, mode: setMode, now: function () { return NOW.doc; }, best: bestStart, guide: guide, replay: startReplay, models: MODELS, params: params, state: S, runMany: runMany, runOne: runOne, seek: seek, view: function () { return V; }, fps: function () { return V && V.fps ? V.fps() : 0; }, brief: function (id) { brief(EXID[id] || EX[0]); }, place: function (id) { placeSheet(PL[id]); }, layout: layout };
 })();

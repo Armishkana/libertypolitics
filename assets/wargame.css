@@ -1,5 +1,5 @@
 /* THE CONFLICT SIMULATOR (build/wargame.py, wargame.js). Added to the end of site.css by render.py; Iran Uncensored loads it as
-   assets/scenarios.css?v=2540fb5eb0. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
+   assets/scenarios.css?v=15e63d9857. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
    1 November 2026 (Armin: "a very high-end strategic video game look ... real video game visualizations"): THE BOARD IS THE
    PAGE. The theatre fills the first screen under the site's header, a WebGL board (wargame.js) with the command interface
    drawn over it on dark glass: the top bar, the order of battle (left), the panel (right; on a phone a bottom sheet), the
@@ -146,6 +146,7 @@
 .wg-mk li{display:flex;gap:10px;align-items:baseline;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.035);border:1px solid var(--wg-edge);font-size:13px}
 .wg-mk b{font:800 18px/1 var(--wg-hd);color:var(--wg-gold);min-width:46px}
 .wg-mk a,.wg-bet a,.wg-fine a,.wg-place a,.wg-bf a{color:var(--wg-gold)}
+.wg-fine a{display:inline-flex;align-items:center;min-height:40px}
 
 /* the briefing room */
 .wg-room{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -258,6 +259,7 @@
 
 /* the page below the board */
 .wg-below{padding-top:var(--s5,28px);padding-bottom:var(--s6,36px);color:var(--ink)}
+@media(max-width:759px){.wg-below{padding-top:var(--s4,16px);padding-bottom:var(--s4,16px)}}      /* the page question stays in the first two phone screens (phone-test.html), 1 Nov 2026 */
 .wg-crumb{margin:var(--s3,12px) 0 0;font:700 .9rem/1.3 var(--body);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .wg-crumb>a{color:var(--field);display:inline-flex;align-items:center;min-height:40px}
 .wg-sibs{display:inline-flex;flex-wrap:wrap;gap:6px}
@@ -295,7 +297,7 @@
   .wg-panel[data-sheet="max"]{height:calc(100% - 56px)}
   .wg-grab{display:grid;place-items:center;width:52%;height:40px;flex:none;padding:0;border:0;background:none;touch-action:none;cursor:grab}
   .wg-grab i{width:44px;height:5px;border-radius:3px;background:rgba(233,238,244,.4)}
-  .wg-ph{position:absolute;right:8px;top:0;padding:0}
+  .wg-ph{position:absolute;inset-inline-end:8px;top:0;padding:0}      /* the doors sit at the far end from the handle, in Persian too */
   .wg-ph .lpt-doors{height:40px;align-items:center}
   .wg-tabs{margin-top:0}
   .wg-tl{left:8px;right:8px;bottom:calc(46% + 8px);padding:6px 10px 2px}
@@ -327,25 +329,26 @@
 .wg.wg-full .wg-below{display:none}
 
 /* THE STREAM VIEW (build/stream.js): the board is the screen, the interface zoomed to it, every word 20px+ at 1920 x 1080 */
-html.lp-stream #wargame{width:100vw;height:100vh;padding:0;overflow:hidden}
-html.lp-stream #wargame .wg-app{height:100vh!important;min-height:0}
-html.lp-stream #wargame .wg-below{display:none}
-html.lp-stream #wargame .wg-top,html.lp-stream #wargame .wg-orb,html.lp-stream #wargame .wg-panel,html.lp-stream #wargame .wg-tl,html.lp-stream #wargame .wg-bf,html.lp-stream #wargame .wg-load,html.lp-stream #wargame .wg-sheet{zoom:var(--lps-z,1)}
-html.lp-stream #wargame .wg-nav,html.lp-stream #wargame .wg-mini,html.lp-stream #wargame .wg-credit{display:none}
-html.lp-stream #wargame .wg-top{right:190px}
-html.lp-stream #wargame .wg-orb{top:76px}
-html.lp-stream #wargame .wg-panel{width:360px;top:76px}
-html.lp-stream #wargame .wg-tl{right:380px}
-html.lp-stream #wargame .wg-bf{width:min(470px,calc(100% - 400px))}
-html.lp-stream #wargame .wg-tag{font-size:calc(14px * var(--lps-z,1));line-height:calc(20px * var(--lps-z,1))}
-html.lp-stream #wargame .wg-tag.cap{font-size:calc(15px * var(--lps-z,1))}
-html.lp-stream #wargame .wg-k,html.lp-stream #wargame .wg-bn,html.lp-stream #wargame .wg-dn,html.lp-stream #wargame .wg-on,html.lp-stream #wargame .wg-fine,html.lp-stream #wargame .wg-hint,html.lp-stream #wargame .wg-fl,html.lp-stream #wargame .wg-orb-sides,html.lp-stream #wargame .wg-lv>span,html.lp-stream #wargame .wg-ops,html.lp-stream #wargame .wg-sum dt,html.lp-stream #wargame .wg-date span,html.lp-stream #wargame .wg-exn>span,html.lp-stream #wargame .wg-lean,html.lp-stream #wargame .wg-fk,html.lp-stream #wargame .wg-bet small,html.lp-stream #wargame .wg-pm small,html.lp-stream #wargame .wg-hb .num,html.lp-stream #wargame .wg-face b,html.lp-stream #wargame .wg-onb,html.lp-stream #wargame .wg-onr,html.lp-stream #wargame .wg-mk li,html.lp-stream #wargame .wg-step h3 i,html.lp-stream #wargame .wg-orb-t,html.lp-stream #wargame .wg-tab,html.lp-stream #wargame .wg-lb,html.lp-stream #wargame .wg-chip,html.lp-stream #wargame .wg-seg button,html.lp-stream #wargame .wg-seat,html.lp-stream #wargame .wg-calls li,html.lp-stream #wargame .wg-oc-t>p,html.lp-stream #wargame .wg-bet,html.lp-stream #wargame .wg-body,html.lp-stream #wargame .wg-bf-in,html.lp-stream #wargame .wg-bf-r,html.lp-stream #wargame .wg-bf-own,html.lp-stream #wargame .wg-bf-nums,html.lp-stream #wargame .wg-bf-src,html.lp-stream #wargame .wg-step h3,html.lp-stream #wargame .wg-body h4,html.lp-stream #wargame .wg-bf h4{font-size:14px!important}
-html.lp-stream #wargame .wg-fh{font-size:17px}
-html.lp-stream #wargame .lpt-doors button{font-size:14px}
+html.lp-stream .wg{width:100vw;height:100vh;padding:0;overflow:hidden}
+html.lp-stream .wg .wg-app{height:100vh!important;min-height:0}
+html.lp-stream .wg .wg-below{display:none}
+html.lp-stream .wg .wg-top,html.lp-stream .wg .wg-orb,html.lp-stream .wg .wg-panel,html.lp-stream .wg .wg-tl,html.lp-stream .wg .wg-bf,html.lp-stream .wg .wg-load,html.lp-stream .wg .wg-sheet{zoom:var(--lps-z,1)}
+html.lp-stream .wg .wg-nav,html.lp-stream .wg .wg-mini,html.lp-stream .wg .wg-credit{display:none}
+html.lp-stream .wg .wg-top{right:190px}
+html.lp-stream .wg .wg-orb{top:76px}
+html.lp-stream .wg .wg-panel{width:360px;top:76px}
+html.lp-stream .wg .wg-tl{right:380px}
+html.lp-stream .wg .wg-bf{width:min(470px,calc(100% - 400px))}
+html.lp-stream .wg .wg-tag{font-size:calc(14px * var(--lps-z,1));line-height:calc(20px * var(--lps-z,1))}
+html.lp-stream .wg .wg-tag.cap{font-size:calc(15px * var(--lps-z,1))}
+html.lp-stream .wg .wg-k,html.lp-stream .wg .wg-bn,html.lp-stream .wg .wg-dn,html.lp-stream .wg .wg-on,html.lp-stream .wg .wg-fine,html.lp-stream .wg .wg-hint,html.lp-stream .wg .wg-fl,html.lp-stream .wg .wg-orb-sides,html.lp-stream .wg .wg-lv>span,html.lp-stream .wg .wg-ops,html.lp-stream .wg .wg-sum dt,html.lp-stream .wg .wg-date span,html.lp-stream .wg .wg-exn>span,html.lp-stream .wg .wg-lean,html.lp-stream .wg .wg-fk,html.lp-stream .wg .wg-bet small,html.lp-stream .wg .wg-pm small,html.lp-stream .wg .wg-hb .num,html.lp-stream .wg .wg-face b,html.lp-stream .wg .wg-onb,html.lp-stream .wg .wg-onr,html.lp-stream .wg .wg-mk li,html.lp-stream .wg .wg-step h3 i,html.lp-stream .wg .wg-orb-t,html.lp-stream .wg .wg-tab,html.lp-stream .wg .wg-lb,html.lp-stream .wg .wg-chip,html.lp-stream .wg .wg-seg button,html.lp-stream .wg .wg-seat,html.lp-stream .wg .wg-calls li,html.lp-stream .wg .wg-oc-t>p,html.lp-stream .wg .wg-bet,html.lp-stream .wg .wg-body,html.lp-stream .wg .wg-bf-in,html.lp-stream .wg .wg-bf-r,html.lp-stream .wg .wg-bf-own,html.lp-stream .wg .wg-bf-nums,html.lp-stream .wg .wg-bf-src,html.lp-stream .wg .wg-step h3,html.lp-stream .wg .wg-body h4,html.lp-stream .wg .wg-bf h4{font-size:14px!important}
+html.lp-stream .wg .wg-fh{font-size:17px}
+html.lp-stream .wg .lpt-doors button{font-size:14px}
 
 /* the index: the three theatres */
 .wgi{padding:var(--s5,28px) 0 var(--s6,36px)}
 .wgi .wg-lede{margin-bottom:var(--s4,16px)}
+.wgi-head{padding-bottom:var(--s3,12px)}.wgi-cards{padding-top:var(--s4,16px)}
 .wgi-l{list-style:none;margin:0;padding:0;display:grid;gap:16px}
 @media(min-width:760px){.wgi-l{grid-template-columns:repeat(3,1fr)}}
 .wgi-l a{position:relative;display:flex;flex-direction:column;height:100%;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#080B10;color:var(--ink);text-decoration:none;transition:transform .2s,border-color .2s,box-shadow .2s}
@@ -434,7 +437,7 @@ html.lp-stream #wargame .lpt-doors button{font-size:14px}
 .wg-cmp-b{display:flex;gap:6px;align-items:center}
 .wg-cmp-b .wg-chip{margin:0}
 .wg-unit-pic{display:block;width:100%;max-width:320px;height:auto;margin:6px auto 10px;border-radius:10px;background:radial-gradient(120% 90% at 50% 35%,rgba(140,170,210,.22),rgba(0,0,0,0) 70%),#0e141c}
-.wg-lnk{padding:0;border:0;background:none;color:var(--wg-gold);font:inherit;text-decoration:underline;cursor:pointer;min-height:32px}
+.wg-lnk{display:inline-flex;align-items:center;padding:0;border:0;background:none;color:var(--wg-gold);font:inherit;text-decoration:underline;cursor:pointer;min-height:40px}
 @media(max-width:759px){
   .wg-fcs,.wg-advs{gap:6px}
   .wg-steps button{min-height:48px;font-size:12px;letter-spacing:.02em}      /* 12px is the phone floor (phone test) */
@@ -443,3 +446,171 @@ html.lp-stream #wargame .lpt-doors button{font-size:14px}
 html.lp-stream .wg .wg-steps *,html.lp-stream .wg .wg-stepb *,html.lp-stream .wg .wg-foot2 *,html.lp-stream .wg .wg-next,html.lp-stream .wg .wg-why,html.lp-stream .wg .wg-cmp *,html.lp-stream .wg .wg-who *,html.lp-stream .wg .wg-bf-plan *{font-size:14px!important}      /* the stream view: nothing under 20px at 1920 (phone-test, the tool tours and the stream view) */
 .wg-mini.wg-hid{display:none}      /* it steps aside when the forces panel reaches down to it (layout() in wargame.js) */
 .wg-feed .wg-fh{white-space:normal;align-items:flex-start}#wg-fht{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:clip}      /* the caption wraps to two lines rather than cutting a word */
+
+/* ---------------------------------------------------------------- NOW, SIMULATE, REPLAY (1 November 2026; wargame.js "NOW")
+   Armin: "the default needs to be that I could see where everything stands right now ... with live updates". The switch at the
+   top (on a phone, at the top of the sheet, under the thumb); the live panel: how tense it is, the ticker newest first, the
+   situation; the breaking banner; the heat's names on the map; the goal, the grade and the cost; the Best plan; the guide. */
+.wg-modes{display:flex;gap:2px;margin-inline-start:10px;padding:3px;border-radius:11px;background:rgba(0,0,0,.42);border:1px solid var(--wg-edge)}
+.wg-mode{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 13px;border:0;border-radius:8px;background:none;color:var(--wg-dim);font:800 13px/1 var(--body)!important;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;transition:background .15s,color .15s}
+.wg-mode svg{width:17px;height:17px;flex:none}
+.wg-mode:hover{color:var(--wg-ink);background:rgba(255,255,255,.05)}
+.wg-mode[aria-selected="true"]{color:#14120B;background:linear-gradient(180deg,#FFD24A,#E8B21A);box-shadow:0 2px 10px rgba(244,196,48,.3)}
+.wg-mode[data-mode="now"][aria-selected="true"] svg circle{animation:wgPulse 1.6s ease-in-out infinite}
+.wg-mode.hint:not([aria-selected="true"]){color:#FFE7A0;box-shadow:inset 0 0 0 1px rgba(244,196,48,.7),0 0 16px rgba(244,196,48,.35)}
+@keyframes wgPulse{0%,100%{opacity:1}50%{opacity:.35}}
+.wg-modes-s{display:none}
+.wg-app:not(.m-sim) .wg-tabs{display:none}
+.wg-app.m-now .wg-play,.wg-app.m-now .wg-spd,.wg-app.m-now .wg-scrub,.wg-app.m-now .wg-orb{display:none}
+.wg-app.m-now .wg-feed{min-height:0}
+/* the live panel */
+.wg-lv{display:flex;align-items:center;gap:10px;margin:2px 0 12px;font:700 13px/1.2 var(--body);color:var(--wg-dim)}
+.wg-lv-on,.wg-lv-off{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:999px;font:800 12px/1 var(--body);letter-spacing:.16em;text-transform:uppercase}
+.wg-lv-on{color:#FFD9D4;background:rgba(255,59,48,.16);box-shadow:inset 0 0 0 1px rgba(255,90,72,.55)}
+.wg-lv-on i{width:8px;height:8px;border-radius:50%;background:#FF3B30;box-shadow:0 0 10px #FF3B30;animation:wgPulse 1.4s ease-in-out infinite}
+.wg-lv-off{color:#FFD58A;background:rgba(244,180,48,.12);box-shadow:inset 0 0 0 1px rgba(244,180,48,.45)}
+.wg-lv-off i{width:8px;height:8px;border-radius:50%;background:#C9A23A}
+.wg-thr{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center;margin:0 0 6px;padding:10px 12px;border-radius:12px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid var(--wg-edge)}
+.wg-thr-d{position:relative;width:96px;height:58px}
+.wg-dial{display:block;width:96px;height:56px}
+.wg-dial0{fill:none;stroke:rgba(255,255,255,.1);stroke-width:9;stroke-linecap:round}
+.wg-dial1{fill:none;stroke-width:9;stroke-linecap:round;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
+.wg-thr-d b{position:absolute;left:0;right:0;bottom:-2px;text-align:center;font:800 26px/1 var(--wg-hd)}
+.wg-thr-t{display:grid;gap:3px;min-width:0}
+.wg-thr-t>b{font:800 26px/1 var(--wg-hd);letter-spacing:.04em;text-transform:uppercase}
+.wg-thr-x{font:700 12px/1.3 var(--body);color:var(--wg-dim)}
+.wg-thr-x.up{color:#FF9A8D}.wg-thr-x.dn{color:#8FE3A8}
+.wg-tick{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-tk{position:relative;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid var(--wg-edge);transition:border-color .15s,background .15s}
+.wg-tk:hover{border-color:var(--wg-edge2);background:rgba(255,255,255,.06)}
+.wg-tk.on{border-color:var(--kc);background:rgba(255,255,255,.07);box-shadow:0 0 0 1px var(--kc),0 4px 16px rgba(0,0,0,.35)}
+.wg-tk-b{display:grid;gap:4px;width:100%;min-height:44px;padding:9px 11px 6px;border:0;background:none;color:var(--wg-ink);text-align:start;cursor:pointer}
+.wg-tk-m{display:flex;align-items:center;gap:8px;min-width:0;font:700 12px/1.2 var(--body);color:var(--wg-dim)}
+.wg-tk-m i{width:9px;height:9px;flex:none;border-radius:50%;background:var(--kc);box-shadow:0 0 8px var(--kc)}
+.wg-tk.fresh .wg-tk-m i{animation:wgPulse 1.2s ease-in-out infinite}
+.wg-tk-m b{color:var(--kc);letter-spacing:.1em;text-transform:uppercase;font-weight:800}
+.wg-tk-m span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#D5DCE4}
+.wg-tk-m time{margin-inline-start:auto;flex:none}
+.wg-tk-t{display:block;font:600 14px/1.38 var(--body);color:#F1F4F8;text-align:start;unicode-bidi:plaintext}      /* a headline in another language keeps its own direction on the Persian page */
+.wg-tk-s{display:inline-flex;align-items:center;min-height:40px;margin:0 11px 6px;font:700 12px/1 var(--body);color:var(--wg-gold);text-decoration:none}
+.wg-tk-s:hover{text-decoration:underline}
+.wg-sit{margin:14px 0 6px;padding:11px 12px;border-radius:10px;background:rgba(0,0,0,.28);border:1px solid var(--wg-edge);font-size:13.5px;line-height:1.5;color:#D5DCE4}
+.wg-sit p{margin:4px 0 0}
+.wg-sit .wg-fine{margin:6px 0 0}
+/* the breaking banner: calm, over the board, under the top bar */
+.wg-brk{position:absolute;z-index:4;top:76px;left:calc((100% - 416px) / 2);transform:translateX(-50%);width:min(620px,calc(100% - 470px));display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:rgba(18,8,9,.88);border:1px solid rgba(255,90,72,.45);box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 32px rgba(255,59,48,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.wg-brk[hidden]{display:none}
+.wg-brk-k{display:inline-flex;align-items:center;gap:7px;flex:none;font:800 12px/1 var(--body);letter-spacing:.18em;text-transform:uppercase;color:#FF8A7A}
+.wg-brk-k i{width:8px;height:8px;border-radius:50%;background:#FF3B30;box-shadow:0 0 10px #FF3B30;animation:wgPulse 1.4s ease-in-out infinite}
+.wg-brk-t{display:grid;gap:2px;flex:1;min-width:0;min-height:40px;padding:2px 0;border:0;background:none;color:#fff;text-align:start;cursor:pointer}
+.wg-brk-t b{font:700 15px/1.3 var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start;unicode-bidi:plaintext}
+.wg-brk-t span{font:600 12px/1.2 var(--body);color:#E8C3BE}
+.wg-brk-s{flex:none;font:700 12px/1 var(--body);color:var(--wg-gold);text-decoration:none;white-space:nowrap}
+.wg-brk-x{flex:none}
+/* the names of the hot places on the map */
+.wg-tag.hot{padding:2px 8px;border-radius:999px;font:800 12px/16px var(--body);letter-spacing:.03em;color:#fff;background:rgba(8,10,14,.78);box-shadow:inset 0 0 0 1px var(--kc,#FF6A3D),0 0 14px var(--kc,#FF6A3D);text-shadow:none}
+/* the cost of the run on the board, as it plays */
+.wg-cost{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:4px 0 0;font:700 12px/1.4 var(--body);color:var(--wg-dim)}
+.wg-cost[hidden]{display:none}
+.wg-cost b{color:var(--wg-gold);letter-spacing:.14em;text-transform:uppercase;font-weight:800}
+.wg-cost em{font-style:normal;color:#fff;font-weight:800}
+.wg-cost i{font-style:normal;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--wg-dim)}
+/* the goal, the grade */
+.wg-goal{margin:0 0 12px}
+.wg-gls{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.wg-gb{min-height:40px;padding:6px 12px;border:1px solid var(--wg-edge);border-radius:999px;background:rgba(255,255,255,.035);color:var(--wg-ink);font:700 13px/1.2 var(--body)}
+.wg-gb:hover{border-color:var(--wg-edge2)}
+.wg-gb[aria-checked="true"]{border-color:var(--wg-gold);background:rgba(244,196,48,.16);color:#FFE7A0}
+.wg-gw{margin:6px 0 0;color:var(--wg-dim);font-size:13px}
+.wg-grade{display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:center;margin:10px 0 12px;padding:12px;border-radius:12px;background:radial-gradient(120% 140% at 0% 50%,color-mix(in srgb,var(--gc) 16%,transparent),transparent 60%),rgba(0,0,0,.25);border:1px solid color-mix(in srgb,var(--gc) 45%,transparent)}
+.wg-grade-l{display:grid;place-items:center;align-content:center;width:76px;height:76px;border-radius:50%;box-shadow:inset 0 0 0 3px var(--gc),0 0 22px color-mix(in srgb,var(--gc) 40%,transparent)}
+.wg-grade-l b{font:800 40px/1 var(--wg-hd);color:var(--gc)}
+.wg-grade-l small{font:800 12px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--wg-dim)}
+.wg-grade-t h4{margin:0 0 4px!important;font:800 18px/1.15 var(--body)!important;letter-spacing:0!important;text-transform:none!important;color:#fff!important}
+.wg-grade-t p{margin:0;font-size:13.5px;line-height:1.45}
+.wg-grade-t .num{color:var(--gc)}
+/* the cost on both sides */
+.wg-costs h4{display:flex;align-items:center;gap:8px}
+.wg-est{padding:1px 7px;border-radius:4px;background:rgba(255,255,255,.07);color:var(--wg-dim);font:700 12px/1.4 var(--body);letter-spacing:.06em;text-transform:none}
+.wg-ct{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.wg-ct th,.wg-ct td{padding:8px 8px;border-bottom:1px solid var(--wg-edge);text-align:start;vertical-align:top}
+.wg-ct thead th{font:800 12px/1.3 var(--body);letter-spacing:.06em}
+.wg-ct thead th.b{color:#9CC4FF}.wg-ct thead th.r{color:#FFB3A8}
+.wg-ct tbody th{font-weight:700;color:var(--wg-dim);width:34%}
+.wg-ct td{font-weight:800;color:#fff}
+.wg-tobest{margin:10px 0 0!important;border-color:rgba(244,196,48,.5)!important;color:#FFE7A0!important}
+/* the Best plan */
+.wg-bsides{margin:0 0 10px}
+.wg-prog{position:relative;height:10px;margin:18px 0 8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+.wg-prog i{position:absolute;inset-inline-start:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#E8B21A,#FFD24A);box-shadow:0 0 14px rgba(244,196,48,.5);transition:width .2s}
+.wg-bests{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.wg-bp{padding:12px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--wg-edge)}
+.wg-bp:first-child{border-color:color-mix(in srgb,var(--gc) 55%,transparent);box-shadow:inset 0 0 30px color-mix(in srgb,var(--gc) 9%,transparent)}
+.wg-bp-h{display:flex;align-items:center;gap:10px}
+.wg-bp-n{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1px solid var(--wg-edge2);font:800 14px/1 var(--wg-hd);color:var(--wg-dim)}
+.wg-bp-g{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:color-mix(in srgb,var(--gc) 18%,transparent);color:var(--gc);font:800 22px/1 var(--wg-hd)}
+.wg-bp-p{margin-inline-start:auto;font:800 26px/1 var(--wg-hd);color:#fff}
+.wg-bp-s{margin:8px 0 6px;color:#D5DCE4;font-size:13px;line-height:1.45}
+.wg-drv{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:4px;font-size:13px}
+.wg-drv b{color:#8FE3A8;font:800 15px/1 var(--wg-hd)}
+.wg-bp-b{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}
+.wg-bp-b .wg-run,.wg-bp-b .wg-chip{margin:0}
+.wg-xbars{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.wg-xbars li{display:grid;grid-template-columns:40px minmax(0,1fr) 30% 44px;gap:8px;align-items:center;font-size:13px}
+.wg-xb-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wg-xb-b{position:relative;height:8px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}
+.wg-xb-b i{position:absolute;inset-inline-start:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#3D8BFF,#7FB2FF)}
+.wg-xbars b{text-align:end}
+.wg-tsrc{display:inline-block;margin-top:3px;font:700 12px/1 var(--body);color:var(--wg-gold);text-decoration:none}
+.wg-cmp .wg-gr th,.wg-cmp .wg-gr td{border-bottom:2px solid var(--wg-edge2)}
+.wg-cmp .wg-gr b{font:800 16px/1 var(--wg-hd);margin-inline-end:4px}
+/* the guide: three steps, the first visit only */
+.wg-guide{position:absolute;z-index:9;left:50%;bottom:132px;transform:translateX(-50%);width:min(380px,calc(100% - 460px));min-width:280px;padding:16px 18px 14px;border-radius:16px;background:linear-gradient(180deg,rgba(18,24,34,.97),rgba(10,14,20,.97));border:1px solid rgba(244,196,48,.5);box-shadow:0 18px 40px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.4);color:var(--wg-ink);text-align:center}
+.wg-guide[hidden]{display:none}
+.wg-gd-dots{display:flex;justify-content:center;gap:6px}
+.wg-gd-dots i{width:22px;height:4px;border-radius:2px;background:rgba(255,255,255,.15)}
+.wg-gd-dots i.on{background:var(--wg-gold)}
+.wg-gd-e{display:grid;place-items:center;width:44px;height:44px;margin:12px auto 6px;border-radius:50%;background:rgba(244,196,48,.14);color:var(--wg-gold)}
+.wg-gd-e svg{width:24px;height:24px}
+.wg-guide h3{margin:0;font:800 24px/1.1 var(--wg-hd);letter-spacing:.03em;text-transform:uppercase}
+.wg-guide p{margin:6px 0 0;font-size:14px;line-height:1.5;color:#D5DCE4}
+.wg-gd-b{display:grid;grid-template-columns:auto 1fr;gap:8px;margin-top:14px}
+.wg-gd-b .wg-run,.wg-gd-b .wg-chip{margin:0}
+@media(max-width:1099px){.wg-brk{left:calc((100% - 360px) / 2);width:calc(100% - 400px)}}
+@media(max-width:759px){
+  .wg-top .wg-modes{display:none}
+  .wg-modes-s{display:grid;grid-template-columns:repeat(3,1fr);margin:0 10px 6px;flex:none}
+  .wg-modes-s .wg-mode{justify-content:center;padding:0 6px;font-size:12px!important;letter-spacing:.04em}
+  .wg-app.m-now .wg-clock .wg-cdate{display:none}
+  .wg-panel[data-sheet="min"]{height:206px}
+  .wg-lv{display:none}      /* the top bar already says Live and how long ago */
+  .wg-panel[data-sheet="min"] .wg-foot2{display:none}      /* the low sheet shows how tense it is; Simulate is one tap above it */
+  .wg-app.brk-on .wg-nav{top:128px}      /* the breaking banner sits where the camera buttons start */
+  .wg-panel[data-sheet="min"]~.wg-tl{bottom:214px}
+  .wg-brk{top:58px;left:8px;right:8px;width:auto;transform:none}
+  .wg-brk-s{display:none}
+  .wg-guide{left:10px;right:10px;width:auto;min-width:0;transform:none;bottom:auto;top:64px}
+  .wg-thr{grid-template-columns:80px 1fr;padding:8px 10px}
+  .wg-thr-d,.wg-dial{width:80px}
+  .wg-thr-t>b{font-size:22px}
+  .wg-xbars li{grid-template-columns:40px minmax(0,1fr) 22% 40px}
+  .wg-cost{gap:2px 10px}
+}
+@media(prefers-reduced-motion:reduce){.wg-lv-on i,.wg-brk-k i,.wg-tk.fresh .wg-tk-m i,.wg-mode svg circle{animation:none}}
+/* the stream view: Now readable from across a room (stream.js zooms the board's interface to the screen) */
+html.lp-stream .wg .wg-brk,html.lp-stream .wg .wg-guide{zoom:var(--lps-z,1)}
+html.lp-stream .wg .wg-brk{top:76px;left:calc((100vw / var(--lps-z,1) - 380px) / 2);width:min(620px,calc(100vw / var(--lps-z,1) - 420px))}
+html.lp-stream .wg .wg-tk-t{font-size:15px!important}
+html.lp-stream .wg .wg-tk-m,html.lp-stream .wg .wg-lv,html.lp-stream .wg .wg-sit,html.lp-stream .wg .wg-gw,html.lp-stream .wg .wg-gb,html.lp-stream .wg .wg-cost,html.lp-stream .wg .wg-ct,html.lp-stream .wg .wg-drv,html.lp-stream .wg .wg-bp-s,html.lp-stream .wg .wg-xbars li,html.lp-stream .wg .wg-thr-x,html.lp-stream .wg .wg-mode{font-size:14px!important}
+html.lp-stream .wg .wg-app.m-now .wg-fh{font-size:20px}
+html.lp-stream .wg .wg-app.m-now .wg-fl{font-size:15px}
+html.lp-stream .wg .wg-tag.hot{font-size:calc(14px * var(--lps-z,1));line-height:calc(20px * var(--lps-z,1))}
+.wg-bf-cite{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px;font:700 12px/1.3 var(--body)}
+.wg-bf-cite span{color:var(--wg-dim);letter-spacing:.12em;text-transform:uppercase}
+.wg-bf-cite a{display:inline-flex;align-items:center;min-height:40px;padding:0 9px;border-radius:999px;background:rgba(244,196,48,.1);border:1px solid rgba(244,196,48,.35);color:#FFE7A0;text-decoration:none}
+.wg-bf-cite a:hover{background:rgba(244,196,48,.2)}
+html.lp-stream .wg .wg-bn{display:none}
+html.lp-stream .wg .wg-top{gap:8px}
+html.lp-stream .wg .wg-modes{margin-inline-start:4px}
+html.lp-stream .wg .wg-mode{padding:0 10px}
+html.lp-stream .wg .wg-th{padding:0 9px}

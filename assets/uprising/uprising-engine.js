@@ -49,7 +49,20 @@
     THR: [0.25, 0.6, 1.0, 1.6],   // the threat at which the regime moves up a rung
     fearK: 220,               // a night killing about 0.1% of the crowd cuts the next days' turnout by 60-80% (audit P2)
     fearDecay: 0.995,         // per hour: half-life about six days
+    // THE COST ON ALL SIDES (1 November 2026). A tally only: these counts never feed back into the run and never draw a random
+    // number, so every outcome and the backtest are exactly what they were. Calibrated, as an estimate, on research.json
+    // costs.casualties: injured per death by rung (2019: Amnesty 304 dead, 2,000 to 4,000 injured reported; January 2026:
+    // HRANA 5,777 dead, 7,403 seriously injured reported, unverified), and the forces' own dead (HRANA: 68 against 517
+    // protesters in 2022; 214 against 5,777 by 27 January 2026).
+    IPD: [0, 0, 22, 7, 1.3],          // protesters injured per protester killed, by rung (birdshot wounds many, kills few)
+    IB: [0, 1.6e-5, 3e-5, 1e-5, 0],   // protesters hurt by batons, gas and pellets per exposed person per hour, by rung
+    FCR: [0, 1e-5, 2e-5, 7e-4, 3.6e-3],   // forces hurt per exposed protester per hour, by rung (stones, close contact, crowds that fight back)
+    FOV: 2e-5,                // forces hurt per member per hour where a crowd overruns their line, per unit of pressure over one
+    FDR: 0.035,               // forces killed per force injured in unarmed clashes (judgement, from the counts above)
   };
+  // which force each pool belongs to, for the cost on all sides (1978: the police, the gendarmerie, SAVAK)
+  const FORCE_OF = { cons: 'faraja', pol: 'faraja', spec: 'faraja', bmem: 'basij', bsec: 'basij', irgc: 'irgc', plain: 'plain' };
+  const FORCES = ['faraja', 'basij', 'irgc', 'plain', 'prox', 'army'];
   const LEVELS = ['Watching', 'Batons and tear gas', 'Birdshot and some live fire', 'Live fire on crowds', 'Massacre: heavy weapons'];
   // The forces as pools (audit P1, table (b2)). share of the street force, the rung it is committed at, the belief theta at
   // which it starts to cross over, and whether that needs an elite split first. Shares are a labelled estimate.
@@ -292,6 +305,9 @@
     const ev = opt.record ? [] : null, fl = { s: {}, re: 0, bl: 0, abroad: 0, chk: 0, raid: 0 };
     const rec = opt.record ? { c: [], f: [], k: [], al: [], dead: [], pw: [], g: [] } : null;
     const tl = [];
+    // the cost on all sides: a tally that never feeds back (K.IPD, the forces' casualties, the hours that price the money)
+    const cas = { pInj: 0, fh: 0, ch: 0, nh: 0, lh: 0, sh: { bazaar: 0, truck: 0, oil: 0, civil: 0 }, f: {} };
+    for (const fk of FORCES) cas.f[fk] = [0, 0, 0];      // dead, injured, crossed over
     function E(t, type, h, extra) { if (ev) ev.push(Object.assign({ t, type, h: h == null ? -1 : h }, extra || {})); }
     const TW = TARGETW[P.targets] || TARGETW.centre;
     const armedTouch = X.armA;
@@ -415,7 +431,7 @@
       if (fs > 0) { const sc = F / fs; for (let i = 0; i < N; i++) f[i] *= sc; }
 
       // --- the clashes, hex by hex
-      let deadH = 0, arrH = 0, lossF = 0, contested = 0, dronesLeft = dronesPer, peacefulBig = 0;
+      let deadH = 0, arrH = 0, lossF = 0, injH = 0, fInjH = 0, contested = 0, dronesLeft = dronesPer, peacefulBig = 0;
       const coreShareNow = F > 0 ? coreF() / F : 0;
       const droneSup = X.armed ? clamp(dronesPer / (F0 * 0.02 + 1), 0, 1) * 0.25 : 0;
       const raidMul = 1 + 0.3 * hospRaid * (1 - P.medics);      // hospital raids; medics only offset that penalty (audit P14)
@@ -445,6 +461,8 @@
         const dd = ci * K.LAMBDA[Lv] * expo * (0.6 + 0.8 * B.open[i]) * (1 + dens) * raidMul * (X.armed ? 1.4 : 1) * (pw[i] ? 1 : 1.25) * nightM * periM;
         const aa = ci * K.MU[Lv] * expo * (night && !pw[i] ? 1.5 : 1) * (1 + 0.3 * P.film);
         c[i] = Math.max(0, ci - dd - aa); dead[i] += dd; deadH += dd; arrH += aa;
+        injH += dd * K.IPD[Lv] + ci * expo * K.IB[Lv];
+        if (!X.armed) fInjH += (ci * expo * K.FCR[Lv] + (rho > 1 ? fi * K.FOV * Math.min(rho - 1, 2) : 0)) * (1 - 0.75 * P.discipline);
         if (Lv >= 3 && ci > 20000 && P.discipline > 0.75 && !X.armed) peacefulBig++;
         if (rho > 1) {
           k[i] = Math.min(1, k[i] + 0.12 * Math.min(rho - 1, 2));
@@ -465,6 +483,13 @@
       }
       for (let i = 0; i < N; i++) if (f[i] < 0) f[i] = 0;
       if (lossF > 0) { const Fa = activeF() || 1; for (const p of PL) if (Lv >= p.at) p.n = Math.max(0, p.n - lossF * p.n / Fa); prox = Math.max(0, prox - lossF * prox / Fa); }
+      cas.pInj += injH;
+      if (fInjH > 0 || lossF > 0) {      // the forces' dead and injured, shared over the pools on the street by their size
+        const Fa = activeF() || 1, fd = fInjH * K.FDR + lossF * 0.35, fj = fInjH * (1 - K.FDR) + lossF * 0.65;
+        for (const p of PL) if (Lv >= p.at || (p.at === 1 && Lv >= 0)) { const r = cas.f[FORCE_OF[p.id]], sh = p.n / Fa; if (r) { r[0] += fd * sh; r[1] += fj * sh; } }
+        if (Lv >= 2 && prox > 0) { cas.f.prox[0] += fd * prox / Fa; cas.f.prox[1] += fj * prox / Fa; }
+        if (armyState === 1 && Lv >= 3 && army > 0) { cas.f.army[0] += fd * army / Fa; cas.f.army[1] += fj * army / Fa; }
+      }
       // the arrest wave after the street phase: identified from phone data and cameras (arrests-and-afterwards)
       if (!waveOn && peak > pop * 0.003 && t > peakAt + 24 && C < peak * 0.15 && outcome == null) { waveOn = true; waveLeft = peak * 0.011 * (1 + 0.3 * P.film); E(t, 'wave'); }
       if (waveOn && waveLeft > 0) { const a2 = Math.min(waveLeft, peak * 0.011 / 240); waveLeft -= a2; arrH += a2; fear = Math.min(1.2, fear + 30 * a2 / Math.max(1, peak)); }
@@ -555,6 +580,7 @@
         const r = 0.01 * Math.max(0, bel - (p.theta < 5 ? p.theta * thMul : p.theta)) * (0.3 + P.fraternize) * (0.3 + P.discipline * (1 - armedTouch));
         if (r <= 0) continue;
         const d = p.n * r; p.n -= d; defH += d;
+        if (cas.f[FORCE_OF[p.id]]) cas.f[FORCE_OF[p.id]][2] += d;
       }
       if (defH > 0) {
         defT += defH; dayGain += defH > F0 * 0.002 ? 1 : 0;
@@ -566,7 +592,7 @@
       if (army > 0) {
         if (armyState === 0 && ctl > 0.35 && bel < 0.4 && R() < 0.01) { armyState = 1; E(t, 'army', -1, { s: 1 }); }
         else if ((armyState === 0 || armyState === 1) && daysMob >= 7 && (split || coreAll() < 0.7) && sigma > 0.4 && R() < 0.02 * X.armyMul) { armyState = 2; E(t, 'army', -1, { s: 2 }); for (const h of B.garH) k[h] = Math.max(k[h], 0); }
-        else if (armyState === 2 && split && bel > 0.8 && R() < 0.001) { armyState = 3; E(t, 'army', -1, { s: 3 }); for (const h of B.garH) { al[h] += army * 0.4 / B.garH.length; k[h] = Math.max(k[h], 0.6); } defT += army * 0.4; }
+        else if (armyState === 2 && split && bel > 0.8 && R() < 0.001) { armyState = 3; E(t, 'army', -1, { s: 3 }); for (const h of B.garH) { al[h] += army * 0.4 / B.garH.length; k[h] = Math.max(k[h], 0.6); } defT += army * 0.4; cas.f.army[2] += army * 0.4; }
       }
       // reinforcements on the highways from the regional headquarters, unless the roads are held or the trucks stopped
       const blkNow = () => { let blk = 0; for (const i of B.entries) blk += (B.art[i] + 1) * clamp(Math.max(0, k[i]) * 0.7 + b[i] * 0.6, 0, 1); return clamp(blk / B.entCap, 0, 1); };
@@ -584,11 +610,12 @@
 
       // --- record
       F = activeF();
+      cas.fh += F; cas.ch += C; if (Lv >= 3) cas.lh++; if (X.year >= 1995 && (netCut || X.netMode === 'off')) cas.nh++; for (const sk of SECTORS) cas.sh[sk] += sig[sk];
       if (rec) {
         rec.c.push(Float32Array.from(c)); rec.f.push(Float32Array.from(f)); rec.k.push(Float32Array.from(k)); rec.al.push(Float32Array.from(al));
         rec.dead.push(Float32Array.from(dead)); rec.pw.push(Uint8Array.from(pw));
         rec.g.push({ t, hr, C, F, Lv, bel, cm, sigma, sig: Object.assign({}, sig), ctl, obj: objHeldW, dead: deadT, arr: arrT, def: defT, al: al.reduce((a, v) => a + v, 0), mood, fatigue, fear, army: armyState,
-          net: netCut || X.netMode === 'off', power: pwrCity < 1, Nt, held: Array.from(held), split, chk, counter: counterAt >= 0 && !counterDone ? 1 : 0, pools: PL.map(p => Math.round(p.n)), prox: Math.round(prox) });
+          net: netCut || X.netMode === 'off', power: pwrCity < 1, inj: Math.round(cas.pInj), fdead: Math.round(cas.f.faraja[0] + cas.f.basij[0] + cas.f.irgc[0] + cas.f.plain[0] + cas.f.prox[0] + cas.f.army[0]), Nt, held: Array.from(held), split, chk, counter: counterAt >= 0 && !counterDone ? 1 : 0, pools: PL.map(p => Math.round(p.n)), prox: Math.round(prox) });
       }
       if (t % 6 === 5) tl.push([Math.round(ctl * 1000) / 1000, Math.round(C), Math.round(F), Lv, Math.round(bel * 100) / 100]);
 
@@ -624,6 +651,7 @@
       outcome, tEnd, dead: Math.round(deadT), arrested: Math.round(arrT), defected: Math.round(defT), peak: Math.round(peak), peakAt, lvMax,
       netCutAt, ctl, objHeld: objHeldW, bel, army: armyState, tvHeld, sigma: (sig.bazaar + sig.truck + sig.oil + sig.civil) / 4, sig, nation: X.nation, proxies: X.proxies, turnout: X.turnout, tl,
       firstDef, blockedReinf: !!fl.bl, split, splitAt, massacreAt, counterAt, days: tEnd / 24,
+      cas: casOut(cas, deadT, arrT, F0, X),
     };
     if (rec) { out.rec = rec; out.ev = ev; out.X = X; out.F0 = F0; }
     return out;
@@ -689,16 +717,24 @@
     return out;
   }
 
+  // The cost on all sides, one run: the people's dead, injured and arrested; each force's dead, injured and crossed over; and
+  // the hours the page prices in money (research.json costs): force-hours on the street, person-hours out, hours with the
+  // internet cut, hours of live fire, and strike depth by sector summed over the hours.
+  function casOut(cas, deadT, arrT, F0, X) {
+    const f = {}; for (const fk of FORCES) f[fk] = cas.f[fk].map(v => Math.round(v));
+    const sh = {}; for (const sk of SECTORS) sh[sk] = Math.round(cas.sh[sk] * 10) / 10;
+    return { p: [Math.round(deadT), Math.round(cas.pInj), Math.round(arrT)], f, fh: Math.round(cas.fh), ch: Math.round(cas.ch), nh: cas.nh, lh: cas.lh, sh, F0: Math.round(F0), nat: X.nation };
+  }
   // ------------------------------------------------------------------ many runs
   const OUTCOMES = ['liberated', 'army', 'zones', 'stalemate', 'war', 'crushed'];
   function emptyOut() { const o = {}; for (const k of OUTCOMES) o[k] = 0; return o; }
   function batch(Bj, S, n, seed0, slim) {
-    const res = { n, out: emptyOut(), dead: [], arrested: [], peak: [], tEnd: [], def: [], runs: [] };
+    const res = { n, out: emptyOut(), dead: [], arrested: [], peak: [], tEnd: [], def: [], cas: [], runs: [] };
     for (let r = 0; r < n; r++) {
       const seed = (seed0 + r * 7919) >>> 0;
       const o = run(Bj, S, seed);
       res.out[o.outcome]++;
-      res.dead.push(o.dead); res.arrested.push(o.arrested); res.peak.push(o.peak); res.tEnd.push(o.tEnd); res.def.push(o.defected);
+      res.dead.push(o.dead); res.arrested.push(o.arrested); res.peak.push(o.peak); res.tEnd.push(o.tEnd); res.def.push(o.defected); res.cas.push(o.cas);
       if (!slim) res.runs.push({ seed, o: o.outcome, dead: o.dead, ctl: o.ctl, obj: o.objHeld, def: o.defected, army: o.army, tv: o.tvHeld, net: o.netCutAt, lv: o.lvMax,
         sig: o.sigma, nat: o.nation, prox: o.proxies, blk: o.blockedReinf, fd: o.firstDef, tEnd: o.tEnd, peak: o.peak, tl: o.tl, turn: o.turnout, split: o.split, mas: o.massacreAt, bel: o.bel });
     }
@@ -750,7 +786,7 @@
   }
 
   // ------------------------------------------------------------------ the worker
-  const API = { run, batch, prep, resolve, planOf, autoTurnout, factors, withTx, candidates, quant, rng, PLANS, DIALS, SECTORS, LEVELS, OUTCOMES, K, K_SRC, BASEW, TARGETW, NATION, NET, POOLS, POOLS_1978, GROUP };
+  const API = { run, batch, prep, resolve, planOf, autoTurnout, factors, withTx, candidates, quant, rng, casOut, FORCES, PLANS, DIALS, SECTORS, LEVELS, OUTCOMES, K, K_SRC, BASEW, TARGETW, NATION, NET, POOLS, POOLS_1978, GROUP };
   G.UPR = API;
   if (typeof WorkerGlobalScope !== 'undefined' && G instanceof WorkerGlobalScope) {
     const BOARDS = {};

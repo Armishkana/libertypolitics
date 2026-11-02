@@ -1,29 +1,31 @@
 /* The Regime Board (build/regime.py writes the page and the data; this file makes it move). Shared by libertypolitics.com
    and iranuncensored.com, English and Persian: every word comes from the page's own data (#rg-data, "w").
 
-   ONE STAGE (31 Oct 2026). Armin: "When I'm playing with the timeline, it's all the way at the top, and I can't even see
-   what's happening to the board ... I click on the filter IRGC or technocrats. It's all the way at the top ... when I
-   switch from whole chart to branch to faction to day by day, this whole zoom-in and zoom-out option disappears." So the
-   board is one window the height of the screen (#rg-zw, .rg-stage): the views and the filters on its top edge, the board
-   in the middle, the timeline docked on its bottom edge. Every control sits on the same screen as what it changes.
+   ONE BOARD YOU WALK (1 Nov 2026). Armin: "the difference between the whole chart option and the factions option is not
+   very clear ... merge those two together ... make it significantly easier to maneuver". Structure is the layout and
+   faction is a lens: the reader walks the regime the way it is built (the whole regime, a branch, a chair) and the
+   "Colour by faction" switch paints every face by its camp wherever they are. regime.py prints every level (so the page
+   reads without scripts); this file shows one level at a time and moves everything with the timeline.
 
-     FOUR VIEWS     the whole chart (the Supreme Leader on top, every branch a column under him, like the original image
-                    by @HekasrehCrisis), the factions (one column per camp), day by day (one column per war, a row per
-                    day) and a plain list by branch (the server-drawn board: readable on a phone, buttons for the keyboard
-                    and screen readers). The first three are drawn at real size and scaled with one CSS transform inside
-                    the window: pinch and drag on a phone, wheel or trackpad and drag on a computer, double-tap to zoom in,
-                    + / - / Fit / Full screen. In the list, + and - make the faces bigger or smaller. Zoom never goes away.
-                    ?view=camps|days|board, ?z=<zoom over fit>,<x>,<y> and ?p=<id> open a view, a zoom or a person.
-     THE TIMELINE   docked under the board: a slider from the first day to today and a button per war; every face falls on
-                    its day, successors appear only once the chair is theirs, the counts on the filters follow the day.
-     FILTERS        everyone / taken out / still in place / unknown (each with its number at that day), the camps, and a
-                    name search. On a chart a face that does not match goes faint and a search flies to what it found; in
-                    the list it is hidden. The three big counts at the top are the same filters.
-     THE SHEET      a tap on any face: who they are, what happened, everyone who has sat in that chair (the "empty chairs"
-                    that were a section of their own until 31 Oct 2026), their camp and why, sources.
-     A PICTURE      registered with build/shareimg.js (window.LPShotQ, id 'regime'): every face in chart order, the fallen grey
-                    with a red line, at the day and filter the reader is looking at. The button shows only once LPShot exists.
-   No dialog() calls, no animation that hides content; prefers-reduced-motion jumps instead of playing. */
+     LEVELS       #rg-l0 (the Supreme Leader's chair, the most emptied chairs, a tile per branch) and one .rg-br per branch.
+                  A tile, a breadcrumb or "Back" moves between them (history.pushState, ?b=<branch>).
+     THE BAR      sticky over the board: "Find anyone" (a list of matches as you type; a choice walks to that person,
+                  lights their face and opens their card), who to show (everyone / taken out / still in place / unknown,
+                  each with its number on the day), and Colour by faction (the camp chips, a tap lights one camp, and a
+                  bar of each camp's share of the chairs still standing and of those taken out).
+     ROSTERS      a big body's every member behind one button (regime.py roster_html): a search box and camp chips here.
+     PROVINCES    the map: a tap (or the list under it) opens that province: its corps commander and Friday prayer
+                  leader, its members of the Assembly of Experts and of Parliament (?pv=<province>).
+     THE TIMELINE docked at the foot of the stage: a slider from the first day to today, Replay and a button per war;
+                  every face falls on its day, every count, damage meter and province moves with it.
+     THE CARD     a tap on any face: a sheet from the bottom on a phone, a panel at the side on a computer. Their fate,
+                  their seats, their camp and why, the chair's line of holders, sources, Share this person; Previous and
+                  Next (and a swipe) walk the people of the same part. ?p=<id> opens it. Each card opened is ticked
+                  (localStorage, "dossiers opened"); the page works the same without it.
+     DAY BY DAY   the second tab: every fall, war by war and day by day (?v=days).
+     A PICTURE    registered with build/shareimg.js (window.LPShotQ, id 'regime'): the faces the reader is looking at.
+   No dialog() calls, no animation that hides content; prefers-reduced-motion jumps instead of playing. The data carries
+   a schema number (regime.py SCHEMA): a script that does not know it leaves the printed board alone. */
 (function () {
   'use strict';
   var D = document, W = window;
@@ -31,26 +33,24 @@
   if (!root || !blob) return;
   var X;
   try { X = JSON.parse(blob.textContent); } catch (err) { return; }
+  if (!X || X.schema !== 2) return;
   var w = X.w, FA = X.lang === 'fa', P = X.p, BY = {};
   var RTL = (D.documentElement.getAttribute('dir') || '').toLowerCase() === 'rtl';
-  P.forEach(function (p) { BY[p.id] = p; });
+  P.forEach(function (p) { BY[p.id] = p; if (!p.n) p.n = p.en; });      // an English page sends the name once (en)
   var $ = function (id) { return D.getElementById(id); };
   var REDUCE = W.matchMedia && W.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var GONE = { killed: 1, died: 1 };
   var DIG = '۰۱۲۳۴۵۶۷۸۹';
   function num(n) { var s = String(n); return FA ? s.replace(/[0-9]/g, function (d) { return DIG[+d]; }) : s; }
-  // the bar under the three numbers: how much of the board is gone at the day on the timeline (regime.py, share_bar)
-  function shareBar(c) {
-    var bar = root.querySelector('.rg-share'), l = $('rg-share-l');
-    if (!bar) return;
-    var tot = Math.max(1, c.k + c.a + c.u), pk = Math.round(100 * c.k / tot), pu = Math.round(100 * c.u / tot);
-    bar.style.setProperty('--k', pk + '%'); bar.style.setProperty('--u', pu + '%');
-    var b = l && l.querySelector('b'); if (b) b.textContent = num(pk) + (FA ? '٪' : '%');
-  }
   // every class switch goes through here: the state is forced to true or false, and a class is written only when it changes.
   // classList.toggle(c, undefined) FLIPS the class, which made 24 faces blink on every step of the timeline (31 Oct 2026).
   function tog(n, c, on) { on = !!on; if (n.classList.contains(c) !== on) { if (on) n.classList.add(c); else n.classList.remove(c); } return on; }
   function el(tag, cls, text) { var n = D.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function each(sel, f, from) { [].forEach.call((from || root).querySelectorAll(sel), f); }
+  function sget(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
+  function sset(k, v) { try { W.localStorage.setItem(k, v); } catch (e) { } }
+  function url() { try { return new URL(W.location.href); } catch (e) { return null; } }
+  function setUrl(u, push, state) { try { if (push) W.history.pushState(state || null, '', u); else W.history.replaceState(state || W.history.state, '', u); } catch (e) { } }
 
   /* ---------------------------------------------------------------- dates */
   var DAY = 86400000;
@@ -69,10 +69,10 @@
   }
   function say(isoDay) {
     var a = isoDay.split('-').map(Number);
-    if (FA) { var j = jalali(a[0], a[1], a[2] || 15); return num(j[2] + ' ' + FA_M[j[1] - 1] + ' ' + j[0]); }
-    return (a[2] ? a[2] + ' ' : '') + EN_M[a[1] - 1] + ' ' + a[0];
+    if (FA) { var j = jalali(a[0], a[1] || 7, a[2] || 15); return num((a[2] ? j[2] + ' ' : '') + FA_M[j[1] - 1] + ' ' + j[0]); }
+    return (a[2] ? a[2] + ' ' : '') + EN_M[(a[1] || 1) - 1] + ' ' + a[0];
   }
-  function sayShort(isoDay) {      // under a face on the chart: 28 Feb 2026, or ۹ اسفند ۱۴۰۴
+  function sayShort(isoDay) {
     var a = isoDay.split('-').map(Number);
     if (FA || !a[1]) return say(isoDay);
     return (a[2] ? a[2] + ' ' : '') + EN_M[a[1] - 1].slice(0, 3) + ' ' + a[0];
@@ -83,21 +83,39 @@
     return EN_M[a[1] - 1] + ' ' + a[0];
   }
 
-  /* ---------------------------------------------------------------- one face, and where a person stands on a day */
+  /* ---------------------------------------------------------------- one face (the twin of regime.py face()) */
+  function initials(n) { var b = String(n || '').split(/[\s-]+/).filter(function (x) { return /^[A-Za-z\u0600-\u06FF]/.test(x) && !/^(سید|سیده)$/.test(x); }); var t = b.length > 1 ? [b[0][0], b[b.length - 1][0]] : ((b[0] || '?').slice(0, 2)).split(''); return t.join(/[؀-ۿ]/.test(t.join('')) ? ' ' : '').toUpperCase(); }      // Persian initials apart by a thin space: joined they can spell a word (ر + ا = «را»)
   function face(p) {
     var f = el('span', 'rg-face');
-    if (p.c && X.camps[p.c]) f.style.setProperty('--c', X.camps[p.c].c);
+    if (p.c && X.camps[p.c]) f.style.setProperty('--cc', X.camps[p.c].c);
     if (p.img) { var i = el('img'); i.src = X.root + 'assets/regime/' + p.img; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.width = 200; i.height = 250; i.draggable = false; f.appendChild(i); }
-    else { var s = el('span', 'rg-ini', initials(p.en)); s.setAttribute('aria-hidden', 'true'); f.appendChild(s); }
+    else { var s = el('span', 'rg-ini', initials(FA && p.fa ? p.fa : p.en)); s.setAttribute('aria-hidden', 'true'); f.appendChild(s); }
     if (GONE[p.s]) { var x = el('i', 'rg-x' + (p.s === 'died' ? ' rg-x-d' : '')); x.setAttribute('aria-hidden', 'true'); f.appendChild(x); }
     else if (p.s === 'unknown' || p.s === 'wounded') { var q = el('i', 'rg-q' + (p.s === 'wounded' ? ' rg-q-w' : ''), p.s === 'wounded' ? '+' : '?'); q.setAttribute('aria-hidden', 'true'); f.appendChild(q); }
     return f;
   }
-  function initials(n) { var b = String(n || '').split(/[\s-]+/).filter(function (x) { return /^[A-Za-z]/.test(x); }); return (b.length > 1 ? b[0][0] + b[b.length - 1][0] : (b[0] || '?').slice(0, 2)).toUpperCase(); }
   function stLine(p) { var s = w['st_' + (p.s || 'alive')] || ''; return (p.dd && p.s !== 'alive' && p.s !== 'unknown') ? s + ' · ' + p.dd : s; }
+  function stSpan(p) {      // the fate line three ways (regime.py st3): CSS shows the one the timeline's day calls for
+    var s = el('span', 'rg-s');
+    s.appendChild(el('i', 'rg-s-now', stLine(p)));
+    if (GONE[p.s]) s.appendChild(el('i', 'rg-s-was', w.st_alive));
+    if (p.rp) s.appendChild(el('i', 'rg-s-pre', w.not_yet));
+    return s;
+  }
+  function mark(n, p) { n.classList.add('is-' + (p.s || 'alive')); n.setAttribute('data-id', p.id); n.setAttribute('data-camp', p.c || ''); n.setAttribute('data-camp2', p.c2 || ''); return n; }
+  function row(p, sub) {      // one compact row (a roster, a province, the search, the days): face, name, a line, the fate
+    var b = mark(el('button', 'rg-rw'), p); b.type = 'button';
+    b.appendChild(face(p));
+    var t = el('span', 'rg-rwt'); t.appendChild(el('b', null, p.n)); t.appendChild(el('span', 'rg-rws', sub != null ? sub : (p.st || p.r || ''))); b.appendChild(t);
+    if (p.c && X.camps[p.c]) { var d = el('i', 'rg-dot'); d.style.setProperty('--cc', X.camps[p.c].c); d.setAttribute('aria-hidden', 'true'); b.appendChild(d); }
+    b.appendChild(stSpan(p));
+    return b;
+  }
+
+  /* ---------------------------------------------------------------- where a person stands on a day */
   var cur = X.today;
   // k taken out by that day, g died by that day, a in the chair, u fate unknown (today only), pre: the chair not yet theirs,
-  // x out of the chair some other way (removed, arrested). The counts, the filters and the picture all read this one answer.
+  // x out of the chair some other way (removed, arrested). The counts, the filters, the meters and the picture all read it.
   function stAt(p, d) {
     if (GONE[p.s] && p.d && p.d <= d) return p.s === 'killed' ? 'k' : 'g';
     if (d >= X.today) return (p.s === 'alive' || p.s === 'wounded') ? 'a' : p.s === 'unknown' ? 'u' : GONE[p.s] ? 'g' : 'x';
@@ -108,469 +126,316 @@
   function tally(d) { var t = { k: 0, a: 0, u: 0, all: 0 }; P.forEach(function (p) { var s = stAt(p, d); if (s in t) t[s]++; if (s !== 'pre') t.all++; }); return t; }
 
   /* ---------------------------------------------------------------- the stage */
-  var zw = $('rg-zw'), vp = $('rg-vp'), chart = $('rg-chart'), list = $('rg-list'), zfl = zw.querySelector('.rg-zfl');
-  var hint = zw.querySelector('.rg-zhint'), hintText = hint ? hint.textContent : '';
-  var CELLS = [];      // every face drawn on any of the zooming views, attached or not
-  var BOARDS = [];     // the branches, in the printed board's order: { k, n, ids }
-  [].forEach.call(root.querySelectorAll('#rg-board .rg-b'), function (b) {
-    var ids = [].map.call(b.querySelectorAll('.rg-t'), function (t) { return t.getAttribute('data-id'); }).filter(function (i) { return BY[i]; });
-    var h = b.querySelector('h3');
-    BOARDS.push({ k: b.getAttribute('data-b'), n: h ? h.textContent : '', ids: ids });
+  var stage = $('rg-zw'), board = $('rg-board'), daysEl = $('rg-days'), crumb = $('rg-crumb'), cr = $('rg-cr');
+  var NODES = [];      // everything on the page that stands for one person (data-id): the timeline, the filters and the lens move them
+  function collect() { NODES = [].slice.call(root.querySelectorAll('[data-id]')); }
+  var BOARD = X.boards;      // unit -> branch
+  var LEVEL = '', PV = '', TAB = 'board';
+  function branchOf(p) { return BOARD[p.u] || ''; }
+
+  /* ---------------------------------------------------------------- walking the levels */
+  function crumbs() {
+    cr.textContent = '';
+    function step(label, go, here) {
+      var li = el('li');
+      if (here) { var s = el('span', 'rg-cr-here', label); s.setAttribute('aria-current', 'page'); li.appendChild(s); }
+      else { var b = el('button', 'rg-cr-b', label); b.type = 'button'; b.addEventListener('click', go); li.appendChild(b); }
+      cr.appendChild(li);
+    }
+    step(w.top, function () { walk(''); }, !LEVEL);
+    if (LEVEL) step(X.bn[LEVEL] || '', function () { pvPick(''); }, !(LEVEL === 'provinces' && PV));
+    if (LEVEL === 'provinces' && PV && X.pvs[PV]) step(X.pvs[PV][0], null, true);
+    cr.hidden = !LEVEL;      // on the whole regime the heading says where you are; the trail is for the way back
+  }
+  function walk(b, o) {      // b: '' for the whole regime, else a branch key
+    o = o || {};
+    if (b && !root.querySelector('.rg-br[data-b="' + b + '"]')) b = '';
+    var changed = b !== LEVEL;
+    LEVEL = b;
+    tog($('rg-l0'), 'is-on', !b);
+    each('.rg-br', function (x) { tog(x, 'is-on', x.getAttribute('data-b') === b); }, board);
+    if (b === 'provinces' && o.pv !== undefined) pvPick(o.pv, { quiet: true });
+    else if (b !== 'provinces') PV = '';
+    crumbs();
+    if (!o.pop) {
+      var u = url();
+      if (u) {
+        if (b) u.searchParams.set('b', b); else u.searchParams.delete('b');
+        if (b !== 'provinces') u.searchParams.delete('pv');
+        u.searchParams.delete('view');
+        setUrl(u, changed && !o.replace, { rgb: b });
+      }
+    }
+    applyFilter();
+    if (changed && o.scroll !== false) toStage();
+  }
+  // the whole regime's tiles, the "most emptied" strip, a link to the provinces: a tap walks in (no page load, Back comes back)
+  board.addEventListener('click', function (ev) {
+    var t = ev.target.closest && ev.target.closest('[data-b]');
+    if (!t || !board.contains(t)) return;
+    if (t.classList.contains('rg-tile') || t.classList.contains('rg-topv')) { ev.preventDefault(); walk(t.getAttribute('data-b')); return; }
+    if (t.classList.contains('rg-mo')) { ev.preventDefault(); reveal(t.getAttribute('data-chair'), false); return; }
+    if (t.classList.contains('rg-pvsee')) { ev.preventDefault(); openRoster(t.getAttribute('data-b'), t.getAttribute('href').split('-').slice(3).join('-')); return; }
   });
-  var BNAME = {}, BKEY = {};
-  BOARDS.forEach(function (b) { BNAME[b.k] = b.n; b.ids.forEach(function (i) { BKEY[i] = b.k; }); });
-  var ORDER = [];      // every person in the chart's order (the picture uses it)
-
-  function cell(p, big, sub) {
-    var c = el('div', 'rg-cp is-' + (p.s || 'alive') + (big ? ' is-top' : ''));
-    c.setAttribute('data-id', p.id); c.setAttribute('data-camp', p.c || ''); c.setAttribute('data-camp2', p.c2 || '');
-    c.appendChild(face(p)); c.appendChild(el('b', null, p.n));
-    c.appendChild(el('span', 'rg-cps', sub === 'role' ? (p.r || '') : GONE[p.s] && p.d ? sayShort(p.d) : p.s === 'unknown' ? (w.st_unknown || '') : (p.r || '')));
-    c.title = p.n + (p.r ? ' · ' + p.r : '');
-    CELLS.push(c);
-    return c;
+  W.addEventListener('popstate', function (ev) {
+    var u = url(); if (!u) return;
+    if (!(ev.state && ev.state.rgp)) shut();
+    else if (BY[ev.state.rgp] && openId !== ev.state.rgp) open(ev.state.rgp, null, true, true);
+    var b = u.searchParams.get('b') || '';
+    walk(b, { pop: true, pv: u.searchParams.get('pv') || '', scroll: true });
+    if (TAB !== 'board') setTab('board', true);
+  });
+  // the stage's top, under the site's own sticky bars, measured (each site pads its scrolling differently)
+  function toStage() {
+    var r = stage.getBoundingClientRect(), top = parseFloat(stage.style.getPropertyValue('--rg-top')) || 0;
+    if (r.top >= top - 2 && r.top < (W.innerHeight || 700) * .35) return;
+    var y = (W.pageYOffset || 0) + r.top - top - 4;
+    try { W.scrollTo({ top: y, behavior: REDUCE ? 'auto' : 'smooth' }); } catch (e) { W.scrollTo(0, y); }
   }
-  function column(col, sub) {      // one box of faces: a branch, a camp or a war, cut into labelled groups
-    var sec = el('section', 'rg-cc'); sec.setAttribute('data-b', col.k);
-    if (col.c) { sec.style.setProperty('--c', col.c); sec.classList.add('is-camp'); }
-    var h = el('div', 'rg-cch'), k = col.ids.filter(function (i) { return BY[i].s === 'killed'; }).length;
-    h.appendChild(el('h3', null, col.n));
-    var c = el('span', 'rg-cchc num'); c.appendChild(el('b', null, num(k))); c.appendChild(D.createTextNode(' / ' + num(col.ids.length))); h.appendChild(c);
-    var bp = el('span', 'rg-bp'); bp.setAttribute('aria-hidden', 'true'); bp.style.setProperty('--p', Math.round(100 * k / col.ids.length) + '%'); h.appendChild(bp);
-    if (col.w) h.appendChild(el('p', 'rg-ccw', col.w));
-    sec.appendChild(h);
-    col.groups.forEach(function (g) {
-      var gw = el('div', 'rg-cg');
-      if (col.groups.length > 1 || col.label1) gw.appendChild(el('p', 'rg-cgl', g.n));
-      var gg = el('div', 'rg-cgg'); g.ids.forEach(function (id) { gg.appendChild(cell(BY[id], false, sub)); }); gw.appendChild(gg);
-      sec.appendChild(gw);
-    });
-    col.el = sec;
-    return sec;
+  function into(n) {      // a face to the middle of the screen
+    try { n.scrollIntoView({ block: 'center', behavior: REDUCE ? 'auto' : 'smooth' }); } catch (e) { n.scrollIntoView(); }
   }
-  function groupBy(ids, keyOf, nameOf) { var gs = [], at = {}; ids.forEach(function (id) { var u = keyOf(id); if (!(u in at)) { at[u] = gs.length; gs.push({ u: u, n: nameOf(u), ids: [] }); } gs[at[u]].ids.push(id); }); return gs; }
-  function head(title) {
-    var h = el('div', 'rg-c-head');
-    h.appendChild(el('p', 'rg-c-h1', title));
-    h.appendChild(el('p', 'rg-c-sub'));
-    return h;
+  var hitT = null;
+  function flash(id) {
+    clearTimeout(hitT);
+    each('.is-hit', function (n) { n.classList.remove('is-hit'); });
+    each('[data-id="' + id + '"]', function (n) { n.classList.add('is-hit'); }, board);
+    hitT = setTimeout(function () { each('.is-hit', function (n) { n.classList.remove('is-hit'); }); }, 2600);
   }
-
-  /* the three zooming views, each built the first time it is opened: { el, cols, toph } */
-  var LAY = {};
-  var BUILD = {
-    chart: function () {      // the Supreme Leader's chair on top, every branch a box under him
-      var lay = el('div', 'rg-lay'), top = [];
-      var cols = BOARDS.map(function (b) { return { k: b.k, n: b.n, ids: b.ids.slice() }; });
-      if (cols.length && cols[0].k === 'leader' && cols[0].ids.length) {
-        var t = cols[0].ids[0]; top.push(t);
-        for (var guard = 0; guard < 6; guard++) {
-          var nx = P.filter(function (p) { return p.rp === t && top.indexOf(p.id) < 0; })[0];
-          if (!nx) break;
-          top.push(nx.id); t = nx.id;
-        }
-        cols[0].ids = cols[0].ids.filter(function (i) { return top.indexOf(i) < 0; });
-      }
-      cols = cols.filter(function (c) { return c.ids.length; });
-      var h1 = root.querySelector('.rg-head h1');
-      lay.appendChild(head(h1 ? h1.textContent : ''));
-      if (top.length) {
-        var tb = el('div', 'rg-c-top'); tb.appendChild(el('p', 'rg-c-topl', w.z_top));
-        var chn = el('div', 'rg-c-chain');
-        top.forEach(function (id, i) {
-          if (i) { var a = el('i', 'rg-arrow'); a.setAttribute('aria-hidden', 'true'); chn.appendChild(a); }
-          chn.appendChild(cell(BY[id], true));
-        });
-        tb.appendChild(chn); lay.appendChild(tb);
-      }
-      ORDER = top.slice();
-      var row = el('div', 'rg-c-cols');
-      cols.forEach(function (col) {
-        col.groups = groupBy(col.ids, function (id) { return BY[id].u || ''; }, function (u) { return X.units[u] || ''; });
-        row.appendChild(column(col)); col.ids.forEach(function (i) { ORDER.push(i); });
-      });
-      lay.appendChild(row);
-      return { el: lay, cols: cols, toph: top.length ? 330 : 150, topped: !!top.length };
-    },
-    camps: function () {      // one box per camp, its people by branch
-      var lay = el('div', 'rg-lay'), cols = [];
-      lay.appendChild(head(w.v_camps));
-      var keys = Object.keys(X.camps).concat(['']);
-      keys.forEach(function (k) {
-        var ids = ORDER.filter(function (i) { var p = BY[i]; return k ? (p.c === k || p.c2 === k) : !p.c; });
-        if (!ids.length) return;
-        var col = { k: k || 'none', n: k ? X.camps[k].n : w.no_camp, w: k ? X.camps[k].w : '', c: k ? X.camps[k].c : '', ids: ids, minC: 2, hx: 64 };
-        col.groups = groupBy(ids, function (i) { return BKEY[i] || ''; }, function (b) { return BNAME[b] || ''; });
-        cols.push(col);
-      });
-      var row = el('div', 'rg-c-cols is-flat');
-      cols.forEach(function (c) { row.appendChild(column(c)); });
-      lay.appendChild(row);
-      return { el: lay, cols: cols, toph: 150 };
-    },
-    days: function () {      // one box per war (or the days between), a row per day of falls, oldest first
-      var lay = el('div', 'rg-lay'), cols = [], byKey = {};
-      lay.appendChild(head(w.v_days));
-      var fallen = P.filter(function (p) { return GONE[p.s] && p.d; }).sort(function (a, b) { return a.d.localeCompare(b.d) || ORDER.indexOf(a.id) - ORDER.indexOf(b.id); });
-      var last = null;
-      fallen.forEach(function (p) {
-        var g = warOf(p.d), key = g ? g.id || g.n : 'gap';
-        if (!last || last.key !== key) {      // the days between two wars make a box of their own, named by their months
-          last = byKey[key + cols.length] = { key: key, k: key, n: g ? g.n : '', war: g, ids: [], minC: 2, label1: true };
-          cols.push(last);
-        }
-        last.ids.push(p.id);
-      });
-      cols.forEach(function (c) {
-        if (!c.war) { var a = BY[c.ids[0]].d, b = BY[c.ids[c.ids.length - 1]].d; c.n = sayMonth(a) === sayMonth(b) ? sayMonth(a) : sayMonth(a) + ' ' + w.to + ' ' + sayMonth(b); }
-        c.groups = groupBy(c.ids, function (i) { return BY[i].d; }, function (d) { var o = opOn(d); return say(d) + (o ? ' · ' + o.n : ''); });
-      });
-      var row = el('div', 'rg-c-cols is-flat');
-      cols.forEach(function (c) { row.appendChild(column(c, 'role')); });
-      lay.appendChild(row);
-      return { el: lay, cols: cols, toph: 150 };
+  // walk to a person (the search, the "most emptied" strip): their branch, their province or roster opened, their face lit
+  function reveal(id, andOpen) {
+    var p = BY[id]; if (!p) return;
+    if (TAB !== 'board') setTab('board');
+    var b = branchOf(p);
+    walk(b, { pv: b === 'provinces' ? (p.pv || '') : undefined, scroll: false });
+    var art = root.querySelector('.rg-br[data-b="' + b + '"]') || board;
+    var n = art.querySelector('.rg-cm[data-id="' + id + '"], .rg-pp[data-id="' + id + '"]');
+    if (!n) {      // an ordinary member: in the roster, under their province
+      n = art.querySelector('.rg-rw[data-id="' + id + '"]');
+      if (n) { var rs = n.closest('.rg-roster'); if (rs) { rs.open = true; rosterReset(rs); } var g = n.closest('.rg-rg'); if (g) g.open = true; }
     }
-  };
-  function layout(v) { if (!LAY[v]) { if (!LAY.chart) LAY.chart = BUILD.chart(); if (!LAY[v]) LAY[v] = BUILD[v](); applyTime(cur, true); applyFilter(); } return LAY[v]; }
+    if (filt !== 'all' && stAt(p, cur) !== FST[filt]) setFilter('all');
+    if (campOn) setCamp('');
+    if (n) { flash(id); setTimeout(function () { into(n); }, 30); }
+    else toStage();
+    if (andOpen !== false) open(id, n || null);
+  }
 
-  /* ---------------------------------------------------------------- filters and search */
-  var view = 'chart', filt = 'all', q = '', campOn = '';
+  /* ---------------------------------------------------------------- who to show */
+  var filt = 'all', campOn = '';
   var FST = { fallen: 'k', standing: 'a', unknown: 'u' };
-  function matches(p) {
-    if (filt !== 'all' && stAt(p, cur) !== FST[filt]) return false;
-    if (q) {
-      var hay = (p.en + ' ' + (p.fa || '') + ' ' + (p.r || '') + ' ' + (X.units[p.u] || '')).toLowerCase();
-      if (hay.indexOf(q) < 0) return false;
-    }
-    return true;
-  }
-  function inCamp(n) { return !campOn || n.getAttribute('data-camp') === campOn || n.getAttribute('data-camp2') === campOn; }
-  var hits = 0;
+  function inCamp(p) { return !campOn || p.c === campOn || p.c2 === campOn; }
   function applyFilter() {
-    var shown = 0;
-    [].forEach.call(list.querySelectorAll('.rg-t'), function (t) {
-      var p = BY[t.getAttribute('data-id')]; var ok = !!p && matches(p) && inCamp(t);
-      t.hidden = !ok; if (ok) shown++;
+    var on = filt !== 'all';
+    NODES.forEach(function (n) {
+      var p = BY[n.getAttribute('data-id')]; if (!p) return;
+      tog(n, 'is-dim', on && stAt(p, cur) !== FST[filt]);
+      tog(n, 'is-fade', !!campOn && !inCamp(p));
     });
-    [].forEach.call(list.querySelectorAll('.rg-b'), function (s) { s.hidden = !s.querySelector('.rg-t:not([hidden])'); });
-    hits = 0;
-    var lay = LAY[view];
-    CELLS.forEach(function (c) {      // a chart keeps its shape: a face that does not match goes faint
-      var p = BY[c.getAttribute('data-id')], ok = !!p && matches(p) && inCamp(c);
-      tog(c, 'is-dim', !ok); tog(c, 'is-hit', !!q && ok);
-      if (ok && lay && lay.el.contains(c)) hits++;
-    });
-    if (view !== 'board') shown = hits;
-    $('rg-none').hidden = shown > 0;
-    if (hint) { hint.textContent = q ? w.found.replace('{n}', num(shown)) : hintText; tog(hint, 'is-q', !!q); }
-    tog(root, 'rg-filtering', filt !== 'all' || !!q || !!campOn);
+    var art = LEVEL ? root.querySelector('.rg-br.is-on') : null, shown = 1;
+    each('.rg-ch', function (c) { c.hidden = on && !c.querySelector('[data-id]:not(.is-dim)'); }, board);
+    each('.rg-sub', function (s) { s.hidden = !s.querySelector('.rg-ch:not([hidden])'); }, board);
+    each('.rg-roster', rosterApply, board);
+    if (art) shown = art.querySelector('.rg-ch:not([hidden]), .rg-rw:not([hidden]), .rg-pv, .rg-topv') ? 1 : 0;
+    $('rg-none').hidden = TAB !== 'board' || !!shown;
+    tog(root, 'rg-filtering', on || !!campOn);
   }
   function setFilter(f) {
     filt = f;
-    [].forEach.call(root.querySelectorAll('.rg-f'), function (x) { var on = x.getAttribute('data-f') === f; tog(x, 'is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-    [].forEach.call(root.querySelectorAll('.rg-cn'), function (x) { var on = x.getAttribute('data-f') === f; tog(x, 'is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-    applyFilter(); list.scrollTop = 0;
+    each('.rg-f', function (x) { var on = x.getAttribute('data-f') === f; tog(x, 'is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    each('.rg-cn', function (x) { var on = x.getAttribute('data-f') === f; tog(x, 'is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    applyFilter();
   }
-  [].forEach.call(root.querySelectorAll('.rg-f'), function (b) { b.addEventListener('click', function () { setFilter(b.getAttribute('data-f')); }); });
+  each('.rg-f', function (b) { b.addEventListener('click', function () { setFilter(b.getAttribute('data-f')); }); });
   // the three big counts are the same filters: a tap lights them and brings the board up to where they can be seen
-  [].forEach.call(root.querySelectorAll('.rg-cn'), function (b) {
-    b.addEventListener('click', function () { var f = b.getAttribute('data-f'); setFilter(filt === f ? 'all' : f); toStage(); });
+  each('.rg-cn', function (b) { b.addEventListener('click', function () { var f = b.getAttribute('data-f'); setFilter(filt === f ? 'all' : f); toStage(); }); });
+
+  /* ---------------------------------------------------------------- colour by faction */
+  var lensBtn = $('rg-lens'), campW = $('rg-campw'), campKey = $('rg-campkey'), cbar = $('rg-cbar');
+  var CAMPK = Object.keys(X.camps).filter(function (k) { return P.some(function (p) { return p.c === k || p.c2 === k; }); });
+  var chipN = {};
+  CAMPK.forEach(function (k) {
+    var b = el('button', 'rg-ck'); b.type = 'button'; b.setAttribute('data-c', k); b.setAttribute('aria-pressed', 'false'); b.style.setProperty('--cc', X.camps[k].c);
+    b.appendChild(el('i')); b.appendChild(el('span', null, X.camps[k].n)); chipN[k] = el('b', 'num'); b.appendChild(chipN[k]);
+    b.title = X.camps[k].w;
+    b.addEventListener('click', function () { setCamp(campOn === k ? '' : k); });
+    campKey.appendChild(b);
   });
-  function toStage() {
-    var r = zw.getBoundingClientRect(), top = parseFloat(zw.style.getPropertyValue('--rg-top')) || 0;
-    var y = (W.pageYOffset || 0) + r.top - top - 6;      // measured, not scrollIntoView: each site pads its own scrolling differently
-    if (Math.abs(r.top - top - 6) > 4) { try { W.scrollTo({ top: y, behavior: REDUCE ? 'auto' : 'smooth' }); } catch (e) { W.scrollTo(0, y); } }
+  var campLine = el('p', 'rg-cw'); campW.insertBefore(campLine, cbar);
+  function setCamp(k) {
+    campOn = k;
+    each('.rg-ck', function (x) { var on = x.getAttribute('data-c') === k; tog(x, 'is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); }, campKey);
+    campLine.textContent = k ? X.camps[k].w : w.lens_hint;
+    tog(campW, 'has-c', !!k);
+    applyFilter();
   }
-  var flyT = null;
-  $('rg-q').addEventListener('input', function () {
-    q = this.value.trim().toLowerCase(); applyFilter(); list.scrollTop = 0;
-    clearTimeout(flyT); if (q && view !== 'board') flyT = setTimeout(flyToHits, 350);
+  function setLens(on) {
+    tog(root, 'is-lens', on);
+    lensBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    campW.hidden = !on;
+    if (!on && campOn) setCamp('');
+    sset('rg-lens', on ? '1' : '0');
+  }
+  lensBtn.addEventListener('click', function () { setLens(!root.classList.contains('is-lens')); });
+  setCamp('');
+  function campBar(d) {      // each camp's share of the chairs still standing, and of those taken out, on the day
+    var a = {}, k = {}, ta = 0, tk = 0;
+    P.forEach(function (p) {
+      var c = p.c && X.camps[p.c] ? p.c : ''; if (!c) return;
+      var s = stAt(p, d);
+      if (s === 'a') { a[c] = (a[c] || 0) + 1; ta++; } else if (s === 'k') { k[c] = (k[c] || 0) + 1; tk++; }
+    });
+    cbar.textContent = '';
+    [[w.cbar_a, a, ta], [w.cbar_k, k, tk]].forEach(function (r) {
+      var line = el('div', 'rg-cb'); line.appendChild(el('span', 'rg-cbl', r[0] + ' · ' + num(r[2])));
+      var bar = el('span', 'rg-cbb');
+      CAMPK.forEach(function (c) { if (!r[1][c]) return; var i = el('i'); i.style.width = (100 * r[1][c] / Math.max(1, r[2])) + '%'; i.style.background = X.camps[c].c; i.title = X.camps[c].n + ': ' + num(r[1][c]); bar.appendChild(i); });
+      line.appendChild(bar); cbar.appendChild(line);
+    });
+    CAMPK.forEach(function (c) { var n = 0; P.forEach(function (p) { if ((p.c === c || p.c2 === c) && stAt(p, d) !== 'pre') n++; }); chipN[c].textContent = num(n); });
+  }
+
+  /* ---------------------------------------------------------------- find anyone */
+  var qIn = $('rg-q'), ql = $('rg-ql'), qHits = [], qAt = -1;
+  function fold(v) { v = String(v || ''); try { v = v.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) { } return v.toLowerCase().replace(/[ً-ٟ‌]/g, '').replace(/[يى]/g, 'ی').replace(/ك/g, 'ک'); }
+  var HAY = {};
+  P.forEach(function (p) {
+    HAY[p.id] = { n: fold(p.en + ' ' + (p.fa || '') + ' ' + (p.n || '')), r: fold((p.r || '') + ' ' + (p.st || '') + ' ' + (X.units[p.u] || '') + ' ' + (p.pv && X.pvs[p.pv] ? X.pvs[p.pv].join(' ') + ' ' + p.pv.replace(/-/g, ' ') : '') + ' ' + (p.al || []).map(function (a) { return a[1]; }).join(' ')) };
+  });
+  function search(q) {
+    q = fold(q).trim(); if (!q) return [];
+    var out = [];
+    P.forEach(function (p) {
+      var h = HAY[p.id], i = h.n.indexOf(q), s = -1;
+      if (i === 0) s = 0; else if (i > 0 && /\s/.test(h.n[i - 1])) s = 1; else if (i > 0) s = 2; else if (h.r.indexOf(q) >= 0) s = 3;
+      if (s >= 0) out.push([s + (p.t === 'm' ? .5 : 0), p]);
+    });
+    out.sort(function (a, b) { return a[0] - b[0] || (GONE[b[1].s] ? 1 : 0) - (GONE[a[1].s] ? 1 : 0); });
+    return out.slice(0, 8).map(function (x) { return x[1]; });
+  }
+  function qShow() {
+    var v = qIn.value; qHits = search(v); qAt = -1; ql.textContent = '';
+    if (!v.trim()) { ql.hidden = true; qIn.setAttribute('aria-expanded', 'false'); return; }
+    if (!qHits.length) { var e = el('li', 'rg-qn', w.find_none); e.setAttribute('role', 'presentation'); ql.appendChild(e); }
+    qHits.forEach(function (p, i) {
+      var li = el('li', 'rg-qo'); li.setAttribute('role', 'option'); li.id = 'rg-qo-' + i; li.setAttribute('aria-selected', 'false');
+      var b = row(p, (p.r || '') + (X.bn[branchOf(p)] ? ' · ' + X.bn[branchOf(p)] : ''));
+      b.removeAttribute('data-id'); b.setAttribute('data-q', p.id); b.tabIndex = -1;
+      b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+      b.addEventListener('click', function () { qPick(p.id); });
+      li.appendChild(b); ql.appendChild(li);
+    });
+    ql.hidden = false; qIn.setAttribute('aria-expanded', 'true');
+  }
+  function qMove(k) {
+    if (!qHits.length) return;
+    qAt = (qAt + k + qHits.length) % qHits.length;
+    each('.rg-qo', function (li, i) { li.setAttribute('aria-selected', i === qAt ? 'true' : 'false'); tog(li, 'is-at', i === qAt); }, ql);
+    qIn.setAttribute('aria-activedescendant', 'rg-qo-' + qAt);
+  }
+  function qClose() { ql.hidden = true; qIn.setAttribute('aria-expanded', 'false'); qIn.removeAttribute('aria-activedescendant'); }
+  function qPick(id) { qIn.value = ''; qClose(); qIn.blur(); reveal(id); }
+  qIn.addEventListener('input', qShow);
+  qIn.addEventListener('focus', function () { if (qIn.value.trim()) qShow(); });
+  qIn.addEventListener('blur', function () { setTimeout(qClose, 150); });
+  qIn.addEventListener('keydown', function (ev) {
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); qMove(1); }
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); qMove(-1); }
+    else if (ev.key === 'Enter') { ev.preventDefault(); var p = qHits[qAt < 0 ? 0 : qAt]; if (p) qPick(p.id); }
+    else if (ev.key === 'Escape') { qIn.value = ''; qClose(); }
   });
 
-  /* the camp key: one chip per camp, a tap lights its people on whichever view is open */
-  (function () {
-    var key = $('rg-campkey');
-    Object.keys(X.camps).forEach(function (k) {
-      if (!P.some(function (p) { return p.c === k || p.c2 === k; })) return;
-      var b = el('button', 'rg-ck'); b.type = 'button'; b.setAttribute('data-c', k); b.setAttribute('aria-pressed', 'false'); b.style.setProperty('--c', X.camps[k].c);
-      b.appendChild(el('i')); b.appendChild(el('span', null, X.camps[k].n)); b.title = X.camps[k].w;
+  /* ---------------------------------------------------------------- the rosters of the big bodies */
+  function rosterTools(rs) {
+    var box = rs.querySelector('.rg-rs-tools'); if (!box || box.getAttribute('data-on')) return;
+    box.setAttribute('data-on', '1'); box.hidden = false;
+    var inp = el('input', 'rg-find rg-rs-q'); inp.type = 'search'; inp.placeholder = w.roster_q; inp.setAttribute('aria-label', w.roster_q); inp.dir = 'auto'; inp.autocomplete = 'off';
+    box.appendChild(inp);
+    var ids = [].map.call(rs.querySelectorAll('.rg-rw'), function (r) { return BY[r.getAttribute('data-id')]; }).filter(Boolean);
+    var cs = el('div', 'rg-camps rg-rs-c scroll');
+    CAMPK.forEach(function (k) {
+      var n = ids.filter(function (p) { return p.c === k || p.c2 === k; }).length; if (!n) return;
+      var b = el('button', 'rg-ck'); b.type = 'button'; b.setAttribute('data-c', k); b.setAttribute('aria-pressed', 'false'); b.style.setProperty('--cc', X.camps[k].c);
+      b.appendChild(el('i')); b.appendChild(el('span', null, X.camps[k].n)); b.appendChild(el('b', 'num', num(n)));
       b.addEventListener('click', function () {
-        campOn = campOn === k ? '' : k;
-        [].forEach.call(key.querySelectorAll('.rg-ck'), function (x) { var on = x.getAttribute('data-c') === campOn; tog(x, 'is-on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
-        applyFilter(); list.scrollTop = 0;
-        if (campOn && view === 'camps') { var col = LAY.camps.cols.filter(function (c) { return c.k === k; })[0]; if (col) flyTo([col.el]); }
+        var on = rs.getAttribute('data-c') === k ? '' : k; rs.setAttribute('data-c', on);
+        each('.rg-ck', function (x) { var y = x.getAttribute('data-c') === on; tog(x, 'is-on', y); x.setAttribute('aria-pressed', y ? 'true' : 'false'); }, cs);
+        rosterApply(rs);
       });
-      key.appendChild(b);
+      cs.appendChild(b);
     });
-  })();
-
-  /* ---------------------------------------------------------------- views */
-  var POSE = {};      // where each zooming view was left: { s, x, y, atFit, vw, vh }
-  function setView(v) {
-    if (LAY[view] && view !== 'board') POSE[view] = { s: Z.s, x: Z.x, y: Z.y, atFit: Z.atFit, vw: vp.clientWidth, vh: vp.clientHeight };
-    view = v;
-    [].forEach.call(root.querySelectorAll('.rg-v'), function (b) { var on = b.getAttribute('data-v') === v; tog(b, 'is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-    var zoomy = v !== 'board';
-    vp.hidden = !zoomy; list.hidden = zoomy;
-    tog(zw, 'is-list', !zoomy);
-    if (zoomy) {
-      var lay = layout(v);
-      if (chart.firstChild !== lay.el) { chart.textContent = ''; chart.appendChild(lay.el); }
-      chart.setAttribute('data-v', v);
-      applyFilter();
-      plan();
-      var ps = POSE[v];
-      if (ps && !ps.atFit && ps.vw === vp.clientWidth && ps.vh === vp.clientHeight) { bounds(); Z.s = ps.s; Z.x = ps.x; Z.y = ps.y; Z.atFit = false; Z.ready = true; clamp(); paint(); }
-      else fit(false);
-      if (q) flyToHits();
-    } else applyFilter();
-    try { var u = new URL(W.location.href); if (v === 'chart') u.searchParams.delete('view'); else u.searchParams.set('view', v); if (v === 'board') u.searchParams.delete('z'); W.history.replaceState(null, '', u); } catch (e) { }
+    if (cs.childNodes.length) box.appendChild(cs);
+    inp.addEventListener('input', function () { rosterApply(rs); });
   }
-  [].forEach.call(root.querySelectorAll('.rg-v'), function (b) { b.addEventListener('click', function () { if (b.getAttribute('data-v') !== view) setView(b.getAttribute('data-v')); }); });
+  function rosterReset(rs) {
+    var i = rs.querySelector('.rg-rs-q'); if (i) i.value = '';
+    rs.setAttribute('data-c', '');
+    each('.rg-ck', function (x) { tog(x, 'is-on', false); x.setAttribute('aria-pressed', 'false'); }, rs);
+    rosterApply(rs);
+  }
+  function rosterApply(rs) {
+    var i = rs.querySelector('.rg-rs-q'), q = i ? fold(i.value).trim() : '', c = rs.getAttribute('data-c') || '', on = filt !== 'all', any = 0;
+    each('.rg-rw', function (r) {
+      var p = BY[r.getAttribute('data-id')]; if (!p) return;
+      var ok = (!q || (HAY[p.id].n + ' ' + HAY[p.id].r).indexOf(q) >= 0) && (!c || p.c === c || p.c2 === c) && !(on && stAt(p, cur) !== FST[filt]);
+      r.parentNode.hidden = !ok; r.hidden = !ok; if (ok) any++;
+    }, rs);
+    each('.rg-rg', function (g) {
+      var n = g.querySelectorAll('.rg-rw:not([hidden])').length, b = g.querySelector('summary b');
+      g.hidden = !n; if (b) b.textContent = num(n);
+      if (q || c || on) g.open = n > 0 && (q || c || n <= 12) ? true : g.open;
+    }, rs);
+    var none = rs.querySelector('.rg-rs-none'); if (none) none.hidden = !!any;
+  }
+  each('.rg-roster', function (rs) { rs.addEventListener('toggle', function () { if (rs.open) rosterTools(rs); }); }, board);
+  function openRoster(b, pv) {
+    walk(b, { scroll: false });
+    var rs = root.querySelector('#rg-rs-' + b); if (!rs) return;
+    rs.open = true; rosterTools(rs); rosterReset(rs);
+    var g = pv && root.querySelector('#rg-rs-' + b + '-' + pv);
+    if (g) g.open = true;
+    setTimeout(function () { into(g || rs); }, 30);
+  }
 
-  /* ---------------------------------------------------------------- pan and zoom */
-  // Z: s = scale, x/y = where the drawing's top-left corner sits in the window, cw/ch = the drawing's real size.
-  var Z = { s: 1, x: 0, y: 0, cw: 1, ch: 1, fit: 1, min: .1, max: 3, atFit: true, ready: false };
-  var CELL_W = 112, CELL_H = 134, GAP = 6, PAD = 16, COLGAP = 24, STACK = 30, GLAB = 34, CPAD = 44;
-  function rowsOf(col, c) { var r = 0; col.groups.forEach(function (g) { r += Math.ceil(g.ids.length / c); }); return r; }
-  function boxH(col, c) { return (c === 1 ? 150 : 96) + (col.hx || 0) + rowsOf(col, c) * (CELL_H + GAP) + ((col.groups.length > 1 || col.label1) ? col.groups.length * GLAB : 0); }
-  function boxW(c) { return c * CELL_W + (c - 1) * GAP + PAD * 2 + 4; }
-  function plan() {      // how many faces wide each box is, and which short boxes stack under the one before: the layout that lets the whole drawing sit largest in this window
-    var lay = LAY[view]; if (!vp || !lay || !lay.cols.length) return;
-    var COLS = lay.cols, vw = vp.clientWidth || 360, vh = (vp.clientHeight || 400) - hintH(), best = null;
-    for (var R = 2; R <= 70; R++) {
-      var cs = [], hs = [], Hmax = 0;
-      COLS.forEach(function (col) { var c = Math.min(col.minC || 1, col.ids.length); while (c < 12 && rowsOf(col, c) > R) c++; cs.push(c); hs.push(boxH(col, c)); Hmax = Math.max(Hmax, boxH(col, c)); });
-      var slots = [], s = null;
-      COLS.forEach(function (col, i) {      // in the drawing's own order: a box sits under the one before it when both fit the tallest column
-        if (s && s.h + STACK + hs[i] <= Hmax) { s.items.push(i); s.h += STACK + hs[i]; s.w = Math.max(s.w, boxW(cs[i])); }
-        else { s = { items: [i], h: hs[i], w: boxW(cs[i]) }; slots.push(s); }
-      });
-      var Wd = CPAD * 2 + (slots.length - 1) * COLGAP;
-      slots.forEach(function (x) { Wd += x.w; });
-      var sc = Math.min(vw / Wd, vh / (Hmax + lay.toph + CPAD * 2));
-      if (!best || sc > best.sc + 1e-6) best = { sc: sc, cs: cs, slots: slots };
+  /* ---------------------------------------------------------------- the provinces */
+  var pvArt = root.querySelector('.rg-br[data-b="provinces"]');
+  var PVFALL = {};      // province -> the falls tied to it: [date, was its corps commander]
+  P.forEach(function (p) { if (p.pv && p.s === 'killed' && p.d) (PVFALL[p.pv] = PVFALL[p.pv] || []).push([p.d, p.u === 'irgc-prov']); });
+  function pvLevel(k, d) { var n = 0, c = false; (PVFALL[k] || []).forEach(function (f) { if (f[0] <= d) { n++; if (f[1]) c = true; } }); return c ? 'k' : String(Math.min(3, n)); }
+  function pvFill(a) {      // its members of the Assembly of Experts and of Parliament, drawn the first time the province opens
+    each('.rg-pvx', function (x) {
+      if (x.getAttribute('data-on')) return; x.setAttribute('data-on', '1');
+      var ul = el('ul', 'rg-rows'); ul.setAttribute('data-seq', '1');
+      (x.getAttribute('data-ids') || '').split(' ').forEach(function (id) { var p = BY[id]; if (!p) return; var li = el('li'); li.appendChild(row(p)); ul.appendChild(li); });
+      x.insertBefore(ul, x.querySelector('.rg-pvsee'));
+    }, a);
+    collect(); applyTime(cur, true); applyFilter(); paintSeen();
+  }
+  function pvPick(k, o) {
+    o = o || {};
+    if (!pvArt) return;
+    if (k && !X.pvs[k]) k = '';
+    PV = k;
+    each('.rg-pv', function (a) { var on = a.getAttribute('data-pv') === k; tog(a, 'is-on', on); if (on) pvFill(a); }, pvArt);
+    each('.rg-pvp', function (p) { tog(p, 'is-sel', p.getAttribute('data-pv') === k); }, pvArt);
+    each('.rg-pvb', function (b) { var on = b.getAttribute('data-pv') === k; tog(b, 'is-on', on); if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); }, pvArt);
+    tog(pvArt, 'has-pv', !!k);
+    if (LEVEL === 'provinces') crumbs();
+    if (!o.quiet) {
+      var u = url(); if (u) { if (k) u.searchParams.set('pv', k); else u.searchParams.delete('pv'); setUrl(u, false); }
+      var a = k && pvArt.querySelector('.rg-pv.is-on');
+      if (a && o.scroll !== false) { var r = a.getBoundingClientRect(); if (r.top > (W.innerHeight || 700) * .7 || r.top < 0) into(a.querySelector('.rg-pvh') || a); }
     }
-    var row = lay.el.querySelector('.rg-c-cols'); row.textContent = '';
-    best.slots.forEach(function (x) {
-      var sl = el('div', 'rg-cs');
-      x.items.forEach(function (i) { COLS[i].el.style.setProperty('--n', best.cs[i]); sl.appendChild(COLS[i].el); });
-      row.appendChild(sl);
+  }
+  if (pvArt) {
+    pvArt.addEventListener('click', function (ev) {
+      var t = ev.target.closest && ev.target.closest('.rg-pvp, .rg-pvb');
+      if (!t) return;
+      ev.preventDefault(); pvPick(PV === t.getAttribute('data-pv') && t.classList.contains('rg-pvp') ? '' : t.getAttribute('data-pv'));
     });
-    measure();
-  }
-  function measure() { Z.cw = chart.offsetWidth || 1; Z.ch = chart.offsetHeight || 1; }
-  function hintH() {      // while the "pinch or scroll" hint is up, the fitted board starts under it, never behind it
-    if (!hint || !hint.offsetHeight) return 0;
-    return Math.max(0, Math.round(hint.getBoundingClientRect().bottom - vp.getBoundingClientRect().top) + 6);
-  }
-  function bounds() {
-    var vw = vp.clientWidth, vh = vp.clientHeight - hintH();
-    Z.fit = Math.min(vw / Z.cw, vh / Z.ch) * .97;
-    Z.min = Z.fit * .9;
-    Z.max = Math.max(Z.fit * 1.5, 3);      // a face is drawn 64px at scale 1 from a 200px picture: 3 is as sharp as it gets
-  }
-  var raf = 0;
-  function paint() { raf = 0; chart.style.transform = 'translate(' + Z.x.toFixed(2) + 'px,' + Z.y.toFixed(2) + 'px) scale(' + Z.s.toFixed(5) + ')'; }
-  function later() { if (!raf) raf = (W.requestAnimationFrame || setTimeout)(paint); }
-  function clamp() {      // the drawing can be moved, never lost: what is smaller than the window stays inside it, what is larger keeps an edge in view
-    var vw = vp.clientWidth, vh = vp.clientHeight, M = 48;
-    Z.s = Math.max(Z.min, Math.min(Z.max, Z.s));
-    var sw = Z.cw * Z.s, sh = Z.ch * Z.s;
-    Z.x = sw <= vw ? Math.max(0, Math.min(vw - sw, Z.x)) : Math.max(vw - sw - M, Math.min(M, Z.x));
-    Z.y = sh <= vh ? Math.max(0, Math.min(vh - sh, Z.y)) : Math.max(vh - sh - M, Math.min(M, Z.y));
-  }
-  function clampPaint() { bounds(); clamp(); paint(); }
-  function fitPose() { var vw = vp.clientWidth, hh = hintH(), vh = vp.clientHeight - hh; return { s: Z.fit, x: (vw - Z.cw * Z.fit) / 2, y: hh + (vh - Z.ch * Z.fit) / 2 }; }
-  function fit(anim) { bounds(); var f = fitPose(); Z.atFit = true; Z.ready = true; go(f.s, f.x, f.y, anim, true); }
-  var moveT = null;
-  function moving(on) {      // the drawing is a layer only while it moves, so the faces are drawn sharp again once it stops
-    clearTimeout(moveT);
-    if (on) { chart.style.willChange = 'transform'; tog(vp, 'is-moving', true); }
-    else moveT = setTimeout(function () { chart.style.willChange = ''; tog(vp, 'is-moving', false); }, 180);
-  }
-  var anim = null, animEnd = null;
-  function stopAnim() { if (anim) { (W.cancelAnimationFrame || clearTimeout)(anim); anim = null; } clearTimeout(animEnd); }
-  function go(s, x, y, animate, keepFit) {
-    stopAnim();
-    var s0 = Z.s, x0 = Z.x, y0 = Z.y;
-    function done() { stopAnim(); Z.s = s; Z.x = x; Z.y = y; if (!keepFit) Z.atFit = false; clamp(); paint(); moving(false); saveZ(); }
-    if (!animate || REDUCE) { done(); return; }
-    var now = function () { return W.performance && performance.now ? performance.now() : Date.now(); };
-    var t0 = now(), T = 300; moving(true);
-    animEnd = setTimeout(done, T + 120);      // a page the browser stops drawing (a tab in the background) still arrives where it was going
-    (function frame() {
-      var k = Math.min(1, (now() - t0) / T), e = 1 - Math.pow(1 - k, 3);
-      if (k >= 1) { done(); return; }
-      Z.s = s0 * Math.pow(s / s0, e); Z.x = x0 + (x - x0) * e; Z.y = y0 + (y - y0) * e;
-      paint();
-      anim = (W.requestAnimationFrame || setTimeout)(frame);
-    })();
-  }
-  function zoomBy(f, px, py, animate) {      // f times larger, the point (px, py) of the window staying where it is
-    bounds();
-    var s = Math.max(Z.min, Math.min(Z.max, Z.s * f)), k = s / Z.s;
-    go(s, px - (px - Z.x) * k, py - (py - Z.y) * k, animate);
-  }
-  function local(ev) { var r = vp.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
-  function centre() { return { x: vp.clientWidth / 2, y: vp.clientHeight / 2 }; }
-  function flyTo(nodes) {      // zoom so the faces found sit in the middle, large enough to read
-    if (!nodes.length || view === 'board') return;
-    var r = vp.getBoundingClientRect(), a = { l: 1e9, t: 1e9, r: -1e9, b: -1e9 };
-    nodes.forEach(function (n) {
-      var b = n.getBoundingClientRect();
-      a.l = Math.min(a.l, (b.left - r.left - Z.x) / Z.s); a.t = Math.min(a.t, (b.top - r.top - Z.y) / Z.s);
-      a.r = Math.max(a.r, (b.right - r.left - Z.x) / Z.s); a.b = Math.max(a.b, (b.bottom - r.top - Z.y) / Z.s);
-    });
-    bounds();
-    var vw = vp.clientWidth, vh = vp.clientHeight, bw = a.r - a.l + 160, bh = a.b - a.t + 160;
-    var s = Math.max(Z.fit, Math.min(Math.min(1.2, Z.max), vw / bw, vh / bh));
-    go(s, vw / 2 - (a.l + a.r) / 2 * s, vh / 2 - (a.t + a.b) / 2 * s, true);
-  }
-  function flyToHits() { if (view !== 'board' && q && LAY[view]) flyTo([].slice.call(LAY[view].el.querySelectorAll('.rg-cp.is-hit'))); }
-
-  /* ?z=<zoom over fit>,<x>,<y> (the middle of the window, as a share of the drawing): kept only when it is not the whole board */
-  var zT = null;
-  function saveZ() {
-    clearTimeout(zT);
-    zT = setTimeout(function () {
-      try {
-        var u = new URL(W.location.href);
-        if (Z.atFit || view === 'board') u.searchParams.delete('z');
-        else u.searchParams.set('z', (Z.s / Z.fit).toFixed(2) + ',' + ((vp.clientWidth / 2 - Z.x) / Z.s / Z.cw).toFixed(3) + ',' + ((vp.clientHeight / 2 - Z.y) / Z.s / Z.ch).toFixed(3));
-        W.history.replaceState(null, '', u);
-      } catch (e) { }
-    }, 400);
-  }
-  function loadZ() {
-    var m; try { m = (new URL(W.location.href).searchParams.get('z') || '').split(','); } catch (e) { return; }
-    if (m.length !== 3 || m.some(function (v) { return !isFinite(+v) || v === ''; })) return;
-    bounds();
-    var s = Math.max(Z.min, Math.min(Z.max, Z.fit * +m[0]));
-    go(s, vp.clientWidth / 2 - +m[1] * Z.cw * s, vp.clientHeight / 2 - +m[2] * Z.ch * s, false);
   }
 
-  /* the hands: one finger or the mouse drags, two fingers pinch, a still tap opens a face, two quick taps zoom in */
-  var PT = {}, G = null, lastTap = { t: 0, x: 0, y: 0 };
-  function pts() { return Object.keys(PT).map(function (k) { return PT[k]; }); }
-  function startPan(p) { G.mode = 'pan'; G.sx = p.x; G.sy = p.y; G.x0 = Z.x; G.y0 = Z.y; }
-  function startPinch() {
-    var a = pts(); G.mode = 'pinch'; G.multi = true; G.moved = true;
-    G.d0 = Math.max(1, Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y)); G.s0 = Z.s;
-    G.mx = (a[0].x + a[1].x) / 2; G.my = (a[0].y + a[1].y) / 2; G.x0 = Z.x; G.y0 = Z.y;
-  }
-  function used() { tog(zw, 'rg-used', true); }      // the hint has done its job once the reader has moved the board
-  vp.addEventListener('pointerdown', function (ev) {
-    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-    try { vp.setPointerCapture(ev.pointerId); } catch (e) { }
-    var p = local(ev); PT[ev.pointerId] = p;
-    stopAnim(); bounds(); moving(true); used();
-    var n = pts().length;
-    if (n === 1) { G = { moved: false, multi: false, cx: ev.clientX, cy: ev.clientY }; startPan(p); }
-    else if (n === 2 && G) startPinch();
-  });
-  vp.addEventListener('pointermove', function (ev) {
-    if (!PT[ev.pointerId] || !G) return;
-    var p = local(ev); PT[ev.pointerId] = p;
-    if (G.mode === 'pinch' && pts().length >= 2) {
-      var a = pts(), d = Math.max(1, Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y));
-      var mx = (a[0].x + a[1].x) / 2, my = (a[0].y + a[1].y) / 2;
-      var s = Math.max(Z.min, Math.min(Z.max, G.s0 * d / G.d0)), k = s / G.s0;
-      Z.s = s; Z.x = mx - (G.mx - G.x0) * k; Z.y = my - (G.my - G.y0) * k;
-    } else if (G.mode === 'pan') {
-      var dx = p.x - G.sx, dy = p.y - G.sy;
-      if (!G.moved && Math.hypot(dx, dy) > 6) G.moved = true;
-      if (!G.moved) return;
-      Z.x = G.x0 + dx; Z.y = G.y0 + dy;
-    }
-    Z.atFit = false; clamp(); later();
-  });
-  function up(ev) {
-    if (!PT[ev.pointerId]) return;
-    delete PT[ev.pointerId];
-    var left = pts();
-    if (left.length === 1 && G) { startPan(left[0]); return; }      // one finger lifted from a pinch: the other drags on
-    if (left.length) return;
-    var g = G; G = null; moving(false);
-    if (g && !g.moved && !g.multi && ev.type === 'pointerup') tap(ev);
-    else saveZ();
-  }
-  vp.addEventListener('pointerup', up);
-  vp.addEventListener('pointercancel', up);
-  vp.addEventListener('lostpointercapture', function (ev) { if (PT[ev.pointerId]) up(ev); });
-  vp.addEventListener('wheel', function (ev) {
-    var k = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? vp.clientHeight : 1, dy = ev.deltaY * k, dx = ev.deltaX * k;
-    bounds();
-    if (!ev.ctrlKey && Math.abs(dx) > Math.abs(dy) * 1.2) {      // a trackpad's sideways swipe moves the drawing
-      ev.preventDefault(); stopAnim(); Z.x -= dx; Z.atFit = false; clamp(); later(); moving(true); moving(false); saveZ(); return;
-    }
-    if (!ev.ctrlKey && dy > 0 && Z.s <= Z.min * 1.001) return;      // already the whole board: the page scrolls on
-    ev.preventDefault(); stopAnim(); moving(true); used();
-    var p = local(ev), f = Math.exp(-dy * (ev.ctrlKey ? .01 : .0022)), s = Math.max(Z.min, Math.min(Z.max, Z.s * f)), r = s / Z.s;
-    Z.x = p.x - (p.x - Z.x) * r; Z.y = p.y - (p.y - Z.y) * r; Z.s = s; Z.atFit = false;
-    clamp(); later(); moving(false); saveZ();
-  }, { passive: false });
-  vp.addEventListener('keydown', function (ev) {      // the keyboard: arrows move, + and - zoom, 0 fits
-    var c = centre(), step = 80, k = ev.key;
-    if (k === '+' || k === '=') zoomBy(1.5, c.x, c.y, true);
-    else if (k === '-' || k === '_') zoomBy(1 / 1.5, c.x, c.y, true);
-    else if (k === '0') fit(true);
-    else if (/^Arrow/.test(k)) { bounds(); go(Z.s, Z.x + (k === 'ArrowLeft' ? step : k === 'ArrowRight' ? -step : 0), Z.y + (k === 'ArrowUp' ? step : k === 'ArrowDown' ? -step : 0), true); }
-    else return;
-    ev.preventDefault();
-  });
-  function tap(ev) {
-    var p = local(ev), now = Date.now();
-    var hit = D.elementFromPoint(ev.clientX, ev.clientY), c = hit && hit.closest ? hit.closest('.rg-cp') : null;
-    if (c && vp.contains(c)) {
-      lastTap.t = 0;
-      var f = c.querySelector('.rg-face').getBoundingClientRect();
-      if (f.width >= (ev.pointerType === 'mouse' ? 14 : 28)) { open(c.getAttribute('data-id'), vp); return; }      // a mouse is precise, a finger is not
-      bounds(); zoomBy(Math.max(2.2, .8 / Z.s), p.x, p.y, true);      // too small to be sure which face: bring it close first
-      return;
-    }
-    if (now - lastTap.t < 340 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 32) { lastTap.t = 0; zoomBy(2, p.x, p.y, true); return; }
-    lastTap = { t: now, x: p.x, y: p.y };
-  }
-  /* the list zooms too: + and - make every face bigger or smaller, Fit puts it back */
-  var LZ = 1, LZMAX = 3;
-  function listZoom(z) { LZ = Math.max(0, Math.min(LZMAX, z)); list.setAttribute('data-z', LZ); }
-  function btn(id, f) { var b = $(id); if (b) b.addEventListener('click', f); }
-  btn('rg-zin', function () { if (view === 'board') { listZoom(LZ + 1); return; } used(); var c = centre(); zoomBy(1.6, c.x, c.y, true); });
-  btn('rg-zout', function () { if (view === 'board') { listZoom(LZ - 1); return; } used(); var c = centre(); zoomBy(1 / 1.6, c.x, c.y, true); });
-  btn('rg-zfit', function () { if (view === 'board') { listZoom(1); list.scrollTop = 0; return; } fit(true); });
-
-  /* full screen, for the live show: the whole stage (views, filters, board, timeline), the browser's own or the window filled */
-  function fsEl() { return D.fullscreenElement || D.webkitFullscreenElement || null; }
-  function isFull() { return fsEl() === zw || zw.classList.contains('rg-full'); }
-  function cssFull(on) { tog(zw, 'rg-full', on); afterFull(); }
-  function setFull(on) {
-    if (on) {
-      var req = zw.requestFullscreen || zw.webkitRequestFullscreen;
-      if (req) {
-        try { var pr = req.call(zw); if (pr && pr.then) pr.then(null, function () { cssFull(true); }); return; } catch (e) { }
-      }
-      cssFull(true);
-    } else {
-      if (fsEl()) { try { (D.exitFullscreen || D.webkitExitFullscreen).call(D); } catch (e) { } }
-      if (zw.classList.contains('rg-full')) cssFull(false);
-    }
-  }
-  function afterFull() {
-    var on = isFull();
-    tog(zw, 'is-full', on);
-    tog(D.documentElement, 'rg-lock', zw.classList.contains('rg-full') || !sheet.hidden);
-    var b = $('rg-zfull');
-    if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', on ? w.z_exit : w.z_full); b.title = on ? w.z_exit : w.z_full; }
-    if (on && sheet.parentNode !== zw) zw.appendChild(sheet);      // the person's story opens over the board, inside full screen
-    if (!on && sheet.parentNode !== root) root.appendChild(sheet);
-    setTimeout(refit, 60);
-  }
-  btn('rg-zfull', function () { setFull(!isFull()); });
-  D.addEventListener('fullscreenchange', afterFull);
-  D.addEventListener('webkitfullscreenchange', afterFull);
-
-  /* ---------------------------------------------------------------- the timeline, docked under the board */
+  /* ---------------------------------------------------------------- the timeline, docked at the foot of the stage */
   var T0 = ms(X.t0 || '2020-01-01'), T1 = ms(X.today), SPAN = Math.round((T1 - T0) / DAY);
   var range = $('rg-range'); range.max = SPAN; range.value = SPAN;
   var dates = {};
@@ -621,37 +486,60 @@
     t.addEventListener('click', function () { stop(); range.value = SPAN; applyTime(X.today); });
     box.appendChild(t); warBtns.today = t;
   })();
+  // the damage meters: a tile's and a branch's "9 of 15 taken out", read again on every day of the timeline
+  var METERS = [];
+  each('[data-mt]', function (m) {
+    var host = m.closest('[data-b]'), b = host && host.getAttribute('data-b');
+    if (b && X.bids[b]) METERS.push({ bar: m.querySelector('.rg-mtb i'), t: m.querySelector('.rg-mtt'), ids: X.bids[b] });
+  });
+  function meters(d) {
+    METERS.forEach(function (m) {
+      var k = 0; m.ids.forEach(function (i) { var p = BY[i]; if (p && p.s === 'killed' && p.d && p.d <= d) k++; });
+      if (m.bar) m.bar.style.width = Math.round(100 * k / Math.max(1, m.ids.length)) + '%';
+      if (m.t) m.t.textContent = w.meter.replace('{k}', num(k)).replace('{n}', num(m.ids.length));
+    });
+  }
+  function shareBar(c) {      // the bar under the three numbers: how much of the board is gone on the day (regime.py share_bar)
+    var bar = root.querySelector('.rg-share'), l = $('rg-share-l');
+    if (!bar) return;
+    var tot = Math.max(1, c.k + c.a + c.u), pk = Math.round(100 * c.k / tot), pu = Math.round(100 * c.u / tot);
+    bar.style.setProperty('--k', pk + '%'); bar.style.setProperty('--u', pu + '%');
+    var b = l && l.querySelector('b'); if (b) b.textContent = num(pk) + (FA ? '٪' : '%');
+  }
   function applyTime(d, quiet) {
     cur = d;
     var atEnd = d >= X.today;
-    var nodes = [].slice.call(list.querySelectorAll('.rg-t')).concat(CELLS);
-    nodes.forEach(function (t) {
+    NODES.forEach(function (t) {
       var p = BY[t.getAttribute('data-id')]; if (!p) return;
-      var s = stAt(p, d), down = s === 'k' || s === 'g';
-      tog(t, 'is-down', down);
+      var s = stAt(p, d);
+      tog(t, 'is-down', s === 'k' || s === 'g');
       tog(t, 'is-up', !atEnd && s === 'a');
       tog(t, 'is-pre', s === 'pre');
     });
     var c = tally(d);
     $('rg-ck').textContent = num(c.k); $('rg-ca').textContent = num(c.a); $('rg-cu').textContent = num(c.u);
     shareBar(c);
-    [].forEach.call(root.querySelectorAll('.rg-f [data-n]'), function (b) { var k = b.getAttribute('data-n'); b.textContent = num(k === 'all' ? c.all : c[FST[k]]); });
-    var said = atEnd ? w.today + ' · ' + say(d) : say(d);
-    $('rg-date').textContent = said;
-    Object.keys(LAY).forEach(function (v) { var x = LAY[v].el.querySelector('.rg-c-sub'); if (x) x.textContent = num(c.k) + ' ' + w.n_killed + ' · ' + said; });
+    each('.rg-f [data-n]', function (b) { var k = b.getAttribute('data-n'); b.textContent = num(k === 'all' ? c.all : c[FST[k]]); });
+    $('rg-date').textContent = atEnd ? w.today + ' · ' + say(d) : say(d);
     var wr = atEnd ? null : warOn(d), wn = $('rg-warnow');
     if (wn) { wn.hidden = !wr; wn.textContent = wr ? wr.n : ''; }
     warBtns.forEach(function (x) { var g = x.g, on = !atEnd && (g.a ? (d >= g.a && d <= g.b) : d <= g.b); tog(x.b, 'is-on', on); x.b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
     if (warBtns.today) tog(warBtns.today, 'is-on', atEnd);
     tog(root, 'is-past', !atEnd);
+    meters(d);
+    if (pvArt) each('.rg-pvp', function (p) { var v = pvLevel(p.getAttribute('data-pv'), d); if (p.getAttribute('data-lv') !== v) p.setAttribute('data-lv', v); }, pvArt);
+    if (root.classList.contains('is-lens')) campBar(d); else campDirty = true;
+    if (daysBuilt) each('.rg-dd', function (g) { tog(g, 'is-future', g.getAttribute('data-d') > d); }, daysEl);
     if (filt !== 'all') applyFilter();      // who counts as taken out or in place depends on the day
     if (!quiet) event(d);
   }
-  function event(d) {      // over the board: the last day of falls on or before the day the timeline is on
+  var campDirty = true;
+  lensBtn.addEventListener('click', function () { if (campDirty) { campBar(cur); campDirty = false; } });
+  function event(d) {      // in the dock: the last day of falls on or before the day the timeline is on
     var last = null;
     for (var i = dayList.length - 1; i >= 0; i--) { if (dayList[i] <= d) { last = dayList[i]; break; } }
     var ev = $('rg-ev'); ev.textContent = '';
-    if (!last) return;
+    if (!last || d >= X.today) return;
     var ppl = dates[last].filter(function (p) { return p.s === 'killed'; });
     if (!ppl.length) ppl = dates[last];
     ev.appendChild(el('b', 'num', say(last) + ': '));
@@ -677,49 +565,130 @@
     })();
   });
 
-  /* ---------------------------------------------------------------- the sheet */
-  var sheet = $('rg-sheet'), inner = $('rg-sh-in'), opener = null;
-  function link(u) { var a = el('a', null, u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]); a.href = u; a.target = '_blank'; a.rel = 'noopener'; return a; }
-  function chairLine(p) {      // everyone who has sat in this person's chair, first to last (the same post, rp)
-    var first = p, seen = {}; seen[p.id] = 1;
-    while (first.rp && BY[first.rp] && !seen[first.rp]) { first = BY[first.rp]; seen[first.id] = 1; }
-    var line = [first], at = first, guard = 0;
-    while (guard++ < 12) {
-      var nx = P.filter(function (o) { return o.rp === at.id && line.indexOf(o) < 0; }).sort(function (a, b) { return (a.d || '9').localeCompare(b.d || '9'); })[0];
-      if (!nx) break;
-      line.push(nx); at = nx;
-    }
-    if (line.indexOf(p) < 0) line = [p];
-    return line;
+  /* ---------------------------------------------------------------- day by day */
+  var daysBuilt = false;
+  function buildDays() {
+    if (daysBuilt) return; daysBuilt = true;
+    var fallen = P.filter(function (p) { return GONE[p.s] && p.d; }).sort(function (a, b) { return a.d.localeCompare(b.d) || a.n.localeCompare(b.n); });
+    var box = null, key = null;
+    fallen.forEach(function (p) {
+      var g = warOf(p.d), k = g ? g.id : 'gap-' + p.d.slice(0, 7);
+      if (k !== key) {
+        key = k; box = el('div', 'rg-dw');
+        var h = el('h3', 'rg-dwh', g ? g.n : sayMonth(p.d)); if (g && g.k) h.appendChild(el('span', 'num', w.killed_n.replace('{k}', num(g.k))));
+        box.appendChild(h); box._day = null; daysEl.appendChild(box);
+      }
+      if (box._day !== p.d) {
+        box._day = p.d;
+        var dd = el('div', 'rg-dd'); dd.setAttribute('data-d', p.d);
+        var dh = el('p', 'rg-ddh'); dh.appendChild(el('b', 'num', say(p.d))); var o = opOn(p.d); if (o) dh.appendChild(el('span', 'rg-op', o.n)); dd.appendChild(dh);
+        box._ul = el('ul', 'rg-rows rg-ddl'); box._ul.setAttribute('data-seq', '1'); dd.appendChild(box._ul); box.appendChild(dd);
+      }
+      var li = el('li'); li.appendChild(row(p, (p.r || '') + (X.bn[branchOf(p)] ? ' · ' + X.bn[branchOf(p)] : ''))); box._ul.appendChild(li);
+    });
+    collect(); applyTime(cur, true); applyFilter(); paintSeen();
   }
-  function open(id, from) {
+  var tabs = $('rg-tabs');
+  function setTab(v, quiet) {
+    TAB = v === 'days' ? 'days' : 'board';
+    each('.rg-tab', function (b) { var on = b.getAttribute('data-v') === TAB; tog(b, 'is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); }, tabs);
+    if (TAB === 'days') buildDays();
+    board.hidden = TAB !== 'board'; crumb.hidden = TAB !== 'board'; daysEl.hidden = TAB !== 'days';
+    applyFilter();
+    if (!quiet) { var u = url(); if (u) { if (TAB === 'days') u.searchParams.set('v', 'days'); else u.searchParams.delete('v'); u.searchParams.delete('view'); setUrl(u, false); } }
+  }
+  each('.rg-tab', function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-v')); }); }, tabs);
+
+  /* ---------------------------------------------------------------- dossiers opened (this reader's own, in this browser) */
+  var SEEN = {};
+  try { (JSON.parse(sget('rg-seen') || '[]') || []).forEach(function (i) { if (BY[i]) SEEN[i] = 1; }); } catch (e) { }
+  var seenEl = $('rg-seen');
+  function paintSeen() {
+    var k = Object.keys(SEEN).length;
+    seenEl.textContent = w.seen_n.replace('{k}', num(k)).replace('{n}', num(P.length));
+    seenEl.hidden = !k;
+    NODES.forEach(function (n) { tog(n, 'is-seen', !!SEEN[n.getAttribute('data-id')]); });
+  }
+  function see(id) { if (SEEN[id]) return; SEEN[id] = 1; sset('rg-seen', JSON.stringify(Object.keys(SEEN))); paintSeen(); }
+
+  /* ---------------------------------------------------------------- the card */
+  var sheet = $('rg-sheet'), inner = $('rg-sh-in'), opener = null, SEQ = [], openId = null;
+  var WIDE = W.matchMedia ? W.matchMedia('(min-width: 1100px)') : { matches: false };
+  function link(u) { var a = el('a', null, u.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]); a.href = u; a.target = '_blank'; a.rel = 'noopener'; return a; }
+  function chairOf(p) { for (var i = 0; i < X.chairs.length; i++) if (X.chairs[i].indexOf(p.id) >= 0) return X.chairs[i].map(function (j) { return BY[j]; }).filter(Boolean); return [p]; }
+  function seqFrom(from, id) {      // Previous and Next walk the people of the part the card was opened from
+    var box = from && from.closest ? from.closest('[data-seq]') : null, ids = [];
+    if (box) [].forEach.call(box.querySelectorAll('[data-id]'), function (n) { var i = n.getAttribute('data-id'); if (ids.indexOf(i) < 0 && !n.closest('[hidden]')) ids.push(i); });
+    if (ids.indexOf(id) < 0) { var p = BY[id], b = p && branchOf(p); ids = (b && X.bids[b] ? X.bids[b] : []).filter(function (i) { return BY[i] && BY[i].t !== 'm'; }); if (ids.indexOf(id) < 0) ids = [id]; }
+    return ids;
+  }
+  function chip(label, o) {
+    var b = mark(el('button', 'rg-sh-cp'), o); b.type = 'button';
+    b.appendChild(face(o)); var s = el('span'); if (label) s.appendChild(el('small', null, label)); s.appendChild(el('b', null, o.n)); s.appendChild(el('small', null, stLine(o))); b.appendChild(s);
+    b.addEventListener('click', function () { if (BY[o.id]) open(o.id, null, true); });
+    return b;
+  }
+  function open(id, from, keepSeq, popped) {
     var p = BY[id]; if (!p) return;
-    opener = from || D.activeElement;
+    var was = !sheet.hidden;
+    if (!keepSeq) { opener = from || D.activeElement; SEQ = seqFrom(from, id); }
+    else if (SEQ.indexOf(id) < 0) SEQ = [id];
+    openId = id;
     inner.textContent = '';
-    var top = el('div', 'rg-sh-top');
-    var x = el('button', 'rg-sh-x'); x.type = 'button'; x.setAttribute('aria-label', w.close); x.textContent = '×'; x.addEventListener('click', close);
+    var nav = el('div', 'rg-sh-nav'), at = SEQ.indexOf(id);
+    function navBtn(k, label, cls) {
+      var b = el('button', 'rg-sh-nb ' + cls); b.type = 'button'; b.setAttribute('aria-label', label); b.title = label;
+      b.disabled = SEQ.length < 2; b.addEventListener('click', function () { step(k); }); return b;
+    }
+    nav.appendChild(navBtn(-1, w.prev, 'is-prev'));
+    nav.appendChild(el('span', 'rg-sh-at num', SEQ.length > 1 ? w.n_of.replace('{i}', num(at + 1)).replace('{n}', num(SEQ.length)) : ''));
+    nav.appendChild(navBtn(1, w.next, 'is-next'));
+    var x = el('button', 'rg-sh-x'); x.type = 'button'; x.setAttribute('aria-label', w.close); x.title = w.close; x.textContent = '×'; x.addEventListener('click', close);
+    nav.appendChild(x);
+    inner.appendChild(nav);
+    var top = mark(el('div', 'rg-sh-top'), p);
     top.appendChild(face(p));
     var t = el('div', 'rg-sh-t');
     var h = el('h2', null, p.n); h.id = 'rg-sh-n'; t.appendChild(h);
-    if (FA && p.en) t.appendChild(el('p', 'rg-sh-alt', p.en)); else if (!FA && p.fa) { var f = el('p', 'rg-sh-alt', p.fa); f.lang = 'fa'; f.dir = 'rtl'; t.appendChild(f); }
-    t.appendChild(el('p', 'rg-sh-r', p.r || ''));
+    if (FA && p.en) { var a1 = el('p', 'rg-sh-alt', p.en); a1.lang = 'en'; a1.dir = 'ltr'; t.appendChild(a1); }
+    else if (!FA && p.fa) { var f = el('p', 'rg-sh-alt', p.fa); f.lang = 'fa'; f.dir = 'rtl'; t.appendChild(f); }
     t.appendChild(el('p', 'rg-pill is-' + (p.s || 'alive'), stLine(p)));
-    top.appendChild(t); top.appendChild(x); inner.appendChild(top);
+    top.appendChild(t); inner.appendChild(top);
     if (p.sn) inner.appendChild(el('p', 'rg-sh-sn', p.sn));
     var facts = el('dl', 'rg-sh-f');
     function fact(k, v) { if (!v) return; facts.appendChild(el('dt', null, k)); facts.appendChild(el('dd', null, v)); }
     if (GONE[p.s] || p.s === 'wounded') { fact(w.by, p.by); fact(w.op, p.op); fact(w.where, p.pl); }
     fact(w.sanct, p.sa);
     if (facts.childNodes.length) inner.appendChild(facts);
-    var line = chairLine(p);
+    // the seats: the role that places them, and every other body they sit on
+    var seats = el('ul', 'rg-sh-seats');
+    var s0 = el('li'); s0.appendChild(el('b', null, p.r || '')); var u0 = [X.units[p.u], p.st, p.pv && X.pvs[p.pv] ? X.pvs[p.pv][0] : ''].filter(function (v, i, a) { return v && a.indexOf(v) === i; }).join(' · ');
+    if (u0) s0.appendChild(el('span', null, u0)); seats.appendChild(s0);
+    inner.appendChild(seats);
+    if (p.al && p.al.length) {      // one person, many seats: every other body they sit on
+      inner.appendChild(el('h3', null, w.seats_h));
+      var also = el('ul', 'rg-sh-seats');
+      p.al.forEach(function (a) { var li = el('li', 'is-also'); li.appendChild(el('b', null, a[1] || '')); li.appendChild(el('span', null, X.units[a[0]] || '')); also.appendChild(li); });
+      inner.appendChild(also);
+    }
+    if (p.c && X.camps[p.c]) {
+      var cb = el('div', 'rg-sh-c'); cb.style.setProperty('--cc', X.camps[p.c].c);
+      var ct = el('p', 'rg-sh-ct'); ct.appendChild(el('span', 'rg-sh-k', w.camp)); ct.appendChild(el('b', null, X.camps[p.c].n + (p.c2 && X.camps[p.c2] ? ' · ' + X.camps[p.c2].n : '')));
+      if (p.cs && X.sure[p.cs]) ct.appendChild(el('span', 'rg-sure', X.sure[p.cs]));
+      cb.appendChild(ct);
+      if (p.cw) cb.appendChild(el('p', null, p.cw));
+      cb.appendChild(el('p', 'rg-dim', X.camps[p.c].w));
+      inner.appendChild(cb);
+    }
+    var line = chairOf(p);
     if (line.length > 1) {      // the chair: everyone who sat in it, an arrow between each, this person lit
       inner.appendChild(el('h3', null, w.chair_h));
-      var row = el('div', 'rg-sh-line scroll');
+      var lr = el('div', 'rg-sh-line scroll');
       line.forEach(function (o, i) {
-        if (i) { var a = el('i', 'rg-arrow'); a.setAttribute('aria-hidden', 'true'); row.appendChild(a); }
-        var c = chip(null, o); if (o === p) { c.classList.add('is-me'); c.setAttribute('aria-current', 'true'); } row.appendChild(c);
+        if (i) { var ar = el('i', 'rg-arrow'); ar.setAttribute('aria-hidden', 'true'); lr.appendChild(ar); }
+        var c = chip(null, o); if (o === p) { c.classList.add('is-me'); c.setAttribute('aria-current', 'true'); } lr.appendChild(c);
       });
-      inner.appendChild(row);
+      inner.appendChild(lr);
     } else {      // a link that is not the same post (the person took over from someone in another chair)
       var before = p.rep && BY[p.rep], after = P.filter(function (o) { return o.rep === p.id; });
       if (before || after.length) {
@@ -729,31 +698,38 @@
         inner.appendChild(ch);
       }
     }
-    if (p.c && X.camps[p.c]) {
-      var cb = el('div', 'rg-sh-c'); cb.style.setProperty('--c', X.camps[p.c].c);
-      var ct = el('p', 'rg-sh-ct'); ct.appendChild(el('span', 'rg-sh-k', w.camp)); ct.appendChild(el('b', null, X.camps[p.c].n + (p.c2 && X.camps[p.c2] ? ' · ' + X.camps[p.c2].n : '')));
-      if (p.cs && X.sure[p.cs]) ct.appendChild(el('span', 'rg-sure', X.sure[p.cs]));
-      cb.appendChild(ct);
-      if (p.cw) cb.appendChild(el('p', null, p.cw));
-      cb.appendChild(el('p', 'rg-dim', X.camps[p.c].w));
-      inner.appendChild(cb);
-    }
     if (p.b) { inner.appendChild(el('h3', null, w.bio)); inner.appendChild(el('p', null, p.b)); }
-    if (p.past && p.past.length) { inner.appendChild(el('h3', null, w.past)); var ul = el('ul', 'rg-sh-past'); p.past.forEach(function (x) { ul.appendChild(el('li', null, x)); }); inner.appendChild(ul); }
-    if (p.src && p.src.length) { var s = el('p', 'rg-sh-src'); s.appendChild(el('span', 'rg-sh-k', w.sources)); p.src.slice(0, 8).forEach(function (u) { s.appendChild(link(u)); }); inner.appendChild(s); }
+    if (p.past && p.past.length) { inner.appendChild(el('h3', null, w.past)); var ul = el('ul', 'rg-sh-past'); p.past.forEach(function (v) { ul.appendChild(el('li', null, v)); }); inner.appendChild(ul); }
+    if (p.src && p.src.length) { var s = el('p', 'rg-sh-src'); s.appendChild(el('span', 'rg-sh-k', w.sources)); p.src.slice(0, 8).forEach(function (i) { var u = (X.src || [])[i]; if (u) s.appendChild(link(u)); }); inner.appendChild(s); }
     if (p.cr) inner.appendChild(el('p', 'rg-sh-cr', '📷 ' + p.cr));
+    var sh = el('button', 'btn btn-line rg-sh-share', w.share_p); sh.type = 'button';
+    var canon = root.getAttribute('data-canon') || (W.location.origin + W.location.pathname);
+    sh.setAttribute('data-share', ''); sh.setAttribute('data-url', canon + '?p=' + encodeURIComponent(p.id));
+    sh.setAttribute('data-title', p.n + (p.r ? ' · ' + p.r : '')); sh.setAttribute('data-text', stLine(p) + ' · ' + w.tabs);
+    inner.appendChild(sh);
     personCalls(p);      // Make your call, Liberty Politics only: the betting markets that name this person (below)
-    if (isFull() && sheet.parentNode !== zw) zw.appendChild(sheet);
-    sheet.hidden = false; D.documentElement.classList.add('rg-lock');
+    sheet.hidden = false;
+    side();
     inner.scrollTop = 0;
     try { x.focus({ preventScroll: true }); } catch (e) { x.focus(); }
-    try { var u = new URL(W.location.href); u.searchParams.set('p', id); W.history.replaceState(null, '', u); } catch (e) { }
+    // a card is a step in the history: a phone's Back closes it and leaves the reader where they were
+    var u = url(); if (u) { u.searchParams.set('p', id); setUrl(u, !was && !popped, { rgb: LEVEL, rgp: id }); }
+    collect(); applyTime(cur, true); applyFilter();
+    see(id);
   }
+  function step(k) { if (SEQ.length < 2) return; var i = SEQ.indexOf(openId); open(SEQ[(i + k + SEQ.length) % SEQ.length], null, true); }
+  function side() {      // a sheet from the bottom on a phone (the page held still), a panel at the side on a computer (the board stays live)
+    var wide = !!WIDE.matches;
+    tog(sheet, 'is-side', wide);
+    sheet.setAttribute('aria-modal', wide ? 'false' : 'true');
+    tog(D.documentElement, 'rg-lock', !sheet.hidden && !wide);
+  }
+  if (WIDE.addEventListener) WIDE.addEventListener('change', function () { if (!sheet.hidden) side(); });
   // Make your call (build/calls.js, ../CALLS.md): on Liberty Politics only (calls.js is never on an Iran Uncensored page,
   // so W.LPCalls is the switch), the sheet of a person a betting market names carries that market, to call it right there.
   // One mount, moved into each sheet as it opens; it stays hidden for a person no market names.
   var callsEl = null, callsFor = null, callsWait = false;
-  function fold(v) { v = String(v || ''); try { v = v.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { } return v.toLowerCase().replace(/[^a-z]+/g, ' ').trim(); }
+  function ascii(v) { v = String(v || ''); try { v = v.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch (e) { } return v.toLowerCase().replace(/[^a-z]+/g, ' ').trim(); }
   function personCalls(p) {
     var L = W.LPCalls;
     callsFor = p;
@@ -762,7 +738,7 @@
       W.addEventListener('load', function () { if (W.LPCalls && !sheet.hidden && callsFor) personCalls(callsFor); });
     }
     if (!L || FA || !p.en) return;
-    var me = ' ' + fold(p.en) + ' ';
+    var me = ' ' + ascii(p.en) + ' ';
     if (me.trim().split(' ').length < 2) return;
     if (!callsEl) { callsEl = el('div', 'lpc rg-sh-calls'); callsEl.setAttribute('data-lpc-tool', 'regime'); callsEl.setAttribute('data-lpc-n', '2'); }
     callsEl.setAttribute('data-lpc-h', 'Your call on ' + p.en);
@@ -770,42 +746,53 @@
     L.mount(callsEl, { n: 2, filter: function (m) {
       var t = m.tools || [];
       if (t.indexOf('regime') < 0 && t.indexOf('intel') < 0) return false;
-      return [m.q].concat(m.o.map(function (o) { return o[0]; })).some(function (x) { return (' ' + fold(x) + ' ').indexOf(me) >= 0; });
+      return [m.q].concat(m.o.map(function (o) { return o[0]; })).some(function (x) { return (' ' + ascii(x) + ' ').indexOf(me) >= 0; });
     } });
   }
-  function chip(label, o) {
-    var b = el('button', 'rg-sh-cp is-' + o.s); b.type = 'button';
-    b.appendChild(face(o)); var s = el('span'); if (label) s.appendChild(el('small', null, label)); s.appendChild(el('b', null, o.n)); s.appendChild(el('small', null, stLine(o))); b.appendChild(s);
-    b.addEventListener('click', function () { if (BY[o.id]) open(o.id, opener); });
-    return b;
-  }
   function close() {
-    sheet.hidden = true; tog(D.documentElement, 'rg-lock', zw.classList.contains('rg-full'));
-    try { var u = new URL(W.location.href); u.searchParams.delete('p'); W.history.replaceState(null, '', u); } catch (e) { }
-    if (opener && opener.focus) try { opener.focus({ preventScroll: true }); } catch (e) { }
+    if (W.history.state && W.history.state.rgp) { W.history.back(); return; }      // popstate below shuts it
+    shut();
+  }
+  function shut() {
+    if (sheet.hidden) return;
+    sheet.hidden = true; openId = null; tog(D.documentElement, 'rg-lock', false);
+    var u = url(); if (u) { u.searchParams.delete('p'); setUrl(u, false); }
+    if (opener && opener.focus && D.body.contains(opener)) try { opener.focus({ preventScroll: true }); } catch (e) { }
   }
   sheet.addEventListener('click', function (ev) { if (ev.target === sheet) close(); });
   D.addEventListener('keydown', function (ev) {
-    if (ev.key !== 'Escape') return;
-    if (!sheet.hidden) close();
-    else if (zw.classList.contains('rg-full')) setFull(false);
+    if (sheet.hidden) return;
+    if (ev.key === 'Escape') close();
+    else if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') && !/INPUT|TEXTAREA|SELECT/.test((D.activeElement || {}).tagName || '')) {
+      var k = ev.key === 'ArrowRight' ? 1 : -1; step(RTL ? -k : k);
+    }
   });
-  list.addEventListener('click', function (ev) {
-    var t = ev.target.closest && ev.target.closest('.rg-t');
-    if (t && list.contains(t)) open(t.getAttribute('data-id'), t);
-  });
-  // The newest faces taken out, in the head (regime.py, "THE HEAD AS A SCOREBOARD"): a tap opens the same sheet as the board.
-  [].forEach.call(root.querySelectorAll('.rg-lf'), function (b) {
-    b.addEventListener('click', function () { if (BY[b.getAttribute('data-id')]) open(b.getAttribute('data-id'), b); });
+  (function swipe() {      // a sideways swipe on the card: the next or the previous person
+    var sx = 0, sy = 0, on = false;
+    inner.addEventListener('pointerdown', function (ev) { if (ev.pointerType === 'mouse') return; on = true; sx = ev.clientX; sy = ev.clientY; });
+    inner.addEventListener('pointerup', function (ev) {
+      if (!on) return; on = false;
+      var dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (Math.abs(dx) > 70 && Math.abs(dy) < 45) { var k = dx < 0 ? 1 : -1; step(RTL ? -k : k); }
+    });
+    inner.addEventListener('pointercancel', function () { on = false; });
+  })();
+  // any face anywhere on the board (a chair, a predecessor, a roster row, a province, the days) opens its card
+  root.addEventListener('click', function (ev) {
+    var t = ev.target.closest && ev.target.closest('button[data-id]');
+    if (!t || !root.contains(t) || sheet.contains(t)) return;
+    open(t.getAttribute('data-id'), t);
   });
 
   /* ---------------------------------------------------------------- a picture to post (build/shareimg.js) */
-  function shown() {      // the faces the reader is looking at, in the chart's order
-    var on = filt !== 'all' || !!q || !!campOn;
-    return (ORDER.length ? ORDER : P.map(function (p) { return p.id; })).filter(function (id) {
-      var p = BY[id]; if (!p) return false;
-      return !on || (matches(p) && (!campOn || p.c === campOn || p.c2 === campOn));
+  function shown() {      // the faces the reader is looking at: this level's, or the falls of Day by day, as the filters leave them
+    var box = TAB === 'days' ? daysEl : LEVEL ? root.querySelector('.rg-br.is-on') : $('rg-l0'), ids = [];
+    if (box) [].forEach.call(box.querySelectorAll('[data-id]'), function (n) {
+      var i = n.getAttribute('data-id'); if (ids.indexOf(i) >= 0 || n.closest('[hidden]') || n.classList.contains('is-dim') || n.classList.contains('is-fade')) return;
+      if (n.closest('.rg-roster') && !n.closest('.rg-roster').open) return;
+      ids.push(i);
     });
+    return ids.slice(0, 180);
   }
   (W.LPShotQ = W.LPShotQ || []).push({
     id: 'regime',
@@ -820,19 +807,19 @@
       var best = { cell: 0, cols: 1, rows: 1 };
       for (var c = 1; c <= N; c++) { var r = Math.ceil(N / c), s = Math.min(box.w / c, box.h / r); if (s > best.cell) best = { cell: s, cols: c, rows: r }; }
       var cell = best.cell, rad = cell * .44, ox = box.x + (box.w - best.cols * cell) / 2, oy = box.y + (box.h - best.rows * cell) / 2;
-      var red = (kit.c && kit.c.red) || '#E5484D';
+      var red = (kit.c && kit.c.red) || '#E5484D', lens = root.classList.contains('is-lens');
       return Promise.all(ids.map(function (id) { var p = BY[id]; return p.img && kit.img ? kit.img(X.root + 'assets/regime/' + p.img) : Promise.resolve(null); })).then(function (imgs) {
         ids.forEach(function (id, i) {
-          var p = BY[id], img = imgs[i], col = i % best.cols, row = Math.floor(i / best.cols);
+          var p = BY[id], img = imgs[i], col = i % best.cols, row_ = Math.floor(i / best.cols);
           if (RTL) col = best.cols - 1 - col;
-          var cx = ox + col * cell + cell / 2, cy = oy + row * cell + cell / 2;
+          var cx = ox + col * cell + cell / 2, cy = oy + row_ * cell + cell / 2;
           var st = stAt(p, cur), down = st === 'k' || st === 'g', pre = st === 'pre';
           ctx.save();
           if (pre) ctx.globalAlpha = .25;
           ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.closePath(); ctx.save(); ctx.clip();
           if (img && img.naturalWidth) {
-            var iw = img.naturalWidth, ih = img.naturalHeight, side = Math.min(iw, ih);
-            ctx.drawImage(img, (iw - side) / 2, (ih - side) * .22, side, side, cx - rad, cy - rad, rad * 2, rad * 2);
+            var iw = img.naturalWidth, ih = img.naturalHeight, side_ = Math.min(iw, ih);
+            ctx.drawImage(img, (iw - side_) / 2, (ih - side_) * .22, side_, side_, cx - rad, cy - rad, rad * 2, rad * 2);
           } else {
             ctx.fillStyle = (kit.c && kit.c.panel) || '#222'; ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
             ctx.fillStyle = (kit.c && kit.c.dim) || '#999'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -845,7 +832,7 @@
           }
           ctx.restore();
           ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-          ctx.lineWidth = Math.max(1.5, rad * .07); ctx.strokeStyle = down ? red : ((p.c && X.camps[p.c] && X.camps[p.c].c) || (kit.c && kit.c.line) || '#444'); ctx.stroke();
+          ctx.lineWidth = Math.max(1.5, rad * .07); ctx.strokeStyle = down ? red : ((lens && p.c && X.camps[p.c] && X.camps[p.c].c) || (kit.c && kit.c.line) || '#444'); ctx.stroke();
           if (down) {
             ctx.beginPath(); ctx.moveTo(cx - rad * .74, cy + rad * .74); ctx.lineTo(cx + rad * .74, cy - rad * .74);
             ctx.lineWidth = Math.max(2.5, rad * .15); ctx.lineCap = 'round'; ctx.strokeStyle = red; ctx.stroke();
@@ -857,16 +844,16 @@
   });
   // the button shows once the picture maker is there (share.js may load it after this file); it stays hidden if it never comes
   function shotReady() { var b = $('rg-shot'), ok = !!(W.LPShot && typeof W.LPShot.open === 'function'); if (b && ok) b.hidden = false; return ok; }
-  btn('rg-shot', function () { if (W.LPShot && typeof W.LPShot.open === 'function') W.LPShot.open('regime', $('rg-shot')); });
+  var shotB = $('rg-shot'); if (shotB) shotB.addEventListener('click', function () { if (W.LPShot && typeof W.LPShot.open === 'function') W.LPShot.open('regime', shotB); });
   (function wait(n) { if (!shotReady() && n < 40) setTimeout(function () { wait(n + 1); }, 500); })(0);
 
   /* ---------------------------------------------------------------- start */
-  // the stage is the height of the screen under the site's own sticky bars, and its timeline clears any bar fixed at the
-  // bottom (the live-show pill): both measured, never assumed, so it fits the same on both sites
+  // the bar sticks under the site's own sticky header and the timeline clears any bar fixed at the bottom (the live-show
+  // pill): both measured, never assumed, so it fits the same on both sites
   function chrome() {
     var top = 0, bot = 0, pl = 0, pr = 0, vh = W.innerHeight || 700, vw = D.documentElement.clientWidth || W.innerWidth || 360;
     [].forEach.call(D.body.children, function (n) {
-      if (n === zw || n.contains(zw) || n === sheet) return;
+      if (n === stage || n.contains(stage) || n === sheet) return;
       var s = W.getComputedStyle(n); if (s.position !== 'sticky' && s.position !== 'fixed') return;
       var r = n.getBoundingClientRect(); if (!r.height || r.height > vh / 3 || s.display === 'none' || s.visibility === 'hidden') return;
       if (s.position === 'sticky') { if (s.top !== 'auto') top = Math.max(top, (parseFloat(s.top) || 0) + r.height); }
@@ -875,29 +862,27 @@
       else if (r.width < vw * .5 && r.right < vw / 2) pl = Math.max(pl, r.right);
       else bot = Math.max(bot, vh - r.top);      // a bar across the bottom: the timeline sits above it
     });
-    var z = zw.getBoundingClientRect(), cut = function (v, edge) { return Math.max(0, Math.round(v - edge)); };
-    zw.style.setProperty('--rg-top', Math.round(top) + 'px');
-    zw.style.setProperty('--rg-bot', Math.round(bot) + 'px');
-    zw.style.setProperty('--rg-pr', cut(pr, vw - z.right) + 'px');
-    zw.style.setProperty('--rg-pl', cut(pl, z.left) + 'px');
+    var z = stage.getBoundingClientRect(), cut = function (v, edge) { return Math.max(0, Math.round(v - edge)); };
+    stage.style.setProperty('--rg-top', Math.round(top) + 'px');
+    stage.style.setProperty('--rg-bot', Math.round(bot) + 'px');
+    stage.style.setProperty('--rg-pr', cut(pr, vw - z.right) + 'px');
+    stage.style.setProperty('--rg-pl', cut(pl, z.left) + 'px');
   }
   chrome();
-  tog(zw, 'is-js', true);
-  $('rg-time').hidden = false; $('rg-bar').hidden = false; zfl.hidden = false; if (hint) hint.hidden = false;
-  listZoom(1);
-  var start = 'chart';
-  try { var v0 = new URL(W.location.href).searchParams.get('view'); if (v0 === 'board' || v0 === 'camps' || v0 === 'days') start = v0; } catch (e) { }
+  tog(stage, 'is-js', true); tog(root, 'rg-js', true);
+  $('rg-time').hidden = false; $('rg-bar').hidden = false; crumb.hidden = false; tabs.hidden = false;
+  collect();
+  var u0 = url(), b0 = u0 && u0.searchParams.get('b') || '', v0 = u0 && (u0.searchParams.get('v') || u0.searchParams.get('view')) || '';
+  if (v0 === 'camps' || sget('rg-lens') === '1') setLens(true);      // ?view=camps was the factions view until 1 Nov 2026: it is the lens now
   applyTime(X.today, true); event(X.today);
-  setView(start);
-  if (start !== 'board') loadZ();
-  // the words of the board are measured once the page's fonts are in: if a drawing is still the whole board, it fits again
-  function refit() { if (view === 'board' || !vp.clientWidth) return; if (Z.atFit) { plan(); fit(false); } else { measure(); clampPaint(); } }
-  if (D.fonts && D.fonts.ready) D.fonts.ready.then(refit, function () { });
-  W.addEventListener('load', function () { chrome(); refit(); });
+  walk(b0, { replace: true, scroll: false, pv: u0 && u0.searchParams.get('pv') || '' });
+  if (v0 === 'days') setTab('days', true);
+  paintSeen();
+  W.addEventListener('load', chrome);
   var rz = null;
-  W.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(function () { chrome(); POSE = {}; refit(); }, 180); });
+  W.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(chrome, 180); });
   (function fromAddress() {
-    var p; try { p = new URL(W.location.href).searchParams.get('p'); } catch (e) { return; }
+    var p = u0 && u0.searchParams.get('p');
     if (p && BY[p]) open(p);
   })();
 })();
