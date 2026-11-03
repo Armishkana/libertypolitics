@@ -670,3 +670,84 @@ html.lp-stream .rg-wl,html.lp-stream .rg-wb{display:none}
   .rg-tab .rg-kstar{margin-inline-end:4px}
 }
 .rg-kb .rg-ce{margin:4px 0 0;font-size:.75rem}
+
+/* EVERYONE: the whole regime as one chart (3 Nov 2026, regime.js "EVERYONE"). The window (.rg-ov) holds a plane (.rg-pln)
+   that one transform moves and scales; the bands, the branch boxes and their parts are ordinary flow inside it. A face's
+   colour says its fate (the legend): pale in place, red taken out, grey died, removed or arrested, amber unknown. Far out
+   (.z-far) the names fold away and every face is a tile; a branch's name grows by --zi so it still reads. */
+.rg-org{margin-top:var(--s3)}
+.rg-oh{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);align-items:center;justify-content:space-between}
+.rg-sz{display:flex;align-items:center;gap:var(--s2);min-width:0;max-width:100%}
+.rg-sz-l{font-size:.8rem;font-weight:700;color:var(--dim);flex:none}
+.rg-sz-b{display:flex;gap:4px;overflow-x:auto;min-width:0;padding:2px}
+.rg-szb{flex:none;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:700 .85rem/1 var(--body,inherit);cursor:pointer;white-space:nowrap}
+.rg-szb:hover{border-color:var(--dim)}
+.rg-szb.is-on{background:var(--field);border-color:var(--field);color:var(--bg)}
+.rg-szb:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.78rem;font-weight:600;color:var(--dim)}
+.rg-legend span::before{content:"";display:inline-block;width:12px;height:12px;margin-inline-end:6px;border-radius:50%;vertical-align:-2px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line)}
+.rg-legend .lg-k::before{background:var(--rg-kill);box-shadow:none}
+.rg-legend .lg-g::before{background:var(--dim);box-shadow:none}
+.rg-legend .lg-u::before{background:var(--rg-unk);box-shadow:none}
+.rg-ov{position:relative;margin-top:var(--s3);height:min(72vh,780px);min-height:380px;overflow:hidden;border-radius:var(--r2);border:1px solid var(--line);
+  background:var(--sunk);background-image:radial-gradient(circle,color-mix(in srgb,var(--line) 70%,transparent) 1px,transparent 1.2px);background-size:22px 22px;
+  touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;overscroll-behavior:contain}
+.rg-ov.is-grab{cursor:grabbing}
+.rg-ov:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+@media(max-width:700px){.rg-ov{height:58vh;min-height:320px}.rg-ohint{font-size:.75rem}}
+.rg-pln{position:absolute;left:0;top:0;transform-origin:0 0;padding:150px 28px 40px;display:flex;flex-direction:column;align-items:center;gap:110px}
+.rg-pln.is-moving{will-change:transform}
+.rg-oband{position:relative;width:100%;display:flex;flex-direction:column;align-items:center}
+.rg-oband+.rg-oband::before{content:"";position:absolute;top:-110px;left:50%;width:2px;height:110px;background:var(--line)}
+.rg-obl{margin-bottom:14px;padding:6px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font:800 .8rem/1.2 var(--body,inherit);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);
+  transform:scale(var(--zi,1));transform-origin:50% 100%}
+.rg-obr{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:96px 28px;width:100%;padding-top:80px}
+.rg-obx{position:relative;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;min-width:250px;max-width:1500px;padding:14px;border-radius:var(--r2);background:var(--panel);border:1px solid var(--line)}
+.rg-oband.is-top .rg-obx{border-color:color-mix(in srgb,var(--field) 55%,var(--line));box-shadow:0 0 0 4px color-mix(in srgb,var(--field) 12%,transparent)}
+.rg-obh{position:absolute;bottom:100%;inset-inline-start:0;width:calc(100% / var(--zi,1));padding-bottom:6px;transform:scale(var(--zi,1));transform-origin:0 100%;pointer-events:none}
+[dir=rtl] .rg-obh{transform-origin:100% 100%}
+.rg-obt{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.rg-obt b{font:800 1rem/1.15 var(--display,inherit);color:var(--ink)}
+.rg-olf{font-size:.78rem;font-weight:700;color:var(--dim);white-space:nowrap}
+.rg-olf.is-low{color:var(--rg-kill)}
+.rg-opt{min-width:0}
+.rg-oph{margin:0 0 8px;font-size:.75rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.rg-og{display:grid;grid-template-columns:repeat(var(--cols,1),124px);gap:6px}
+.rg-on{--ring:var(--line);position:relative;display:flex;align-items:center;gap:7px;width:124px;height:60px;padding:5px 6px;border-radius:var(--r);border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;text-align:start;cursor:pointer;overflow:hidden}
+.rg-on:hover{border-color:var(--dim)}
+.rg-on:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-on .rg-face{width:34px;height:34px}
+.rg-on .rg-face img,.rg-on .rg-ini{box-shadow:0 0 0 2px var(--ring)}
+.rg-on .rg-ini b{font-size:.75rem}
+.rg-on .rg-x,.rg-on .rg-q,.rg-on .rg-face::after{transform:scale(.6);transform-origin:100% 0}
+.rg-ont{display:flex;flex-direction:column;min-width:0}
+.rg-ont b{font-size:.75rem;line-height:1.15;font-weight:800;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rg-onr{font-size:.75rem;line-height:1.2;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rg-on.is-al{border-style:dashed;opacity:.85}
+.rg-on.is-sl{grid-column:1/-1;width:auto;min-width:230px;height:84px;gap:12px;border-color:var(--field)}
+.rg-on.is-sl .rg-face{width:62px;height:62px}
+.rg-on.is-sl .rg-ont b{font-size:1rem}.rg-on.is-sl .rg-onr{font-size:.75rem}
+/* fate as colour: the tile itself, so it still reads as a mosaic far out */
+.rg-on.is-down{background:color-mix(in srgb,var(--rg-kill) 22%,var(--bg));border-color:var(--rg-kill)}
+.rg-on.is-died.is-down,.rg-on.is-removed,.rg-on.is-arrested{background:color-mix(in srgb,var(--dim) 35%,var(--bg));border-color:var(--dim)}
+.rg-on.is-unknown,.rg-on.is-wounded{border-color:var(--rg-unk)}
+.rg-on.is-unknown{background:color-mix(in srgb,var(--rg-unk) 16%,var(--bg))}
+.rg-on.is-pre{opacity:.3}
+.rg.is-lens .rg-on:not(.is-down){border-color:var(--cc-b,var(--line))}
+.z-far .rg-ont{visibility:hidden}
+.z-far .rg-on .rg-face{visibility:hidden}
+.z-far .rg-oph{visibility:hidden}
+.z-mid .rg-onr{visibility:hidden}
+.rg-oz{position:absolute;inset-inline-end:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
+.rg-zb{min-width:44px;min-height:44px;padding:0 10px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:800 1.15rem/1 var(--body,inherit);cursor:pointer}
+.rg-zb.is-fit{font-size:.78rem}
+.rg-zb:hover{border-color:var(--dim)}
+.rg-ohint{position:absolute;inset-inline-start:10px;top:10px;max-width:calc(100% - 90px);padding:8px 12px;border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);font-size:.78rem;font-weight:600;color:var(--dim);pointer-events:none;z-index:2}
+.rg-onote{margin-top:var(--s2);font-size:.8rem;color:var(--dim)}
+.rg-tabs{overflow-x:auto}
+@media(max-width:700px){
+  .rg-oz{flex-direction:row;gap:4px}
+  .rg-zb{min-width:40px;min-height:40px;border-radius:10px}
+  .rg-zb.is-fit{font-size:.75rem;padding:0 8px}
+  .rg-ohint{top:auto;bottom:10px;max-width:calc(100% - 20px)}
+}

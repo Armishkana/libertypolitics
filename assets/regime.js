@@ -22,12 +22,15 @@
                   their seats, their camp and why, the chair's line of holders, sources, Share this person; Previous and
                   Next (and a swipe) walk the people of the same part. ?p=<id> opens it. Each card opened is ticked
                   (localStorage, "dossiers opened"); the page works the same without it.
-     DAY BY DAY   the third tab: every fall, war by war and day by day (?v=days).
-     KEY PLAYERS  the first tab and the first view (2 Nov 2026, Armin: "a version of this for people to be able to only track
+     DAY BY DAY   the fourth tab: every fall, war by war and day by day (?v=days).
+     EVERYONE     the first tab and the first view since 3 Nov 2026 (Armin: "'Key figures only' must NOT be the default"):
+                  the whole regime as one chart to pinch, wheel-zoom and drag, with a size picker (Top 10 ... All); section
+                  "EVERYONE" below. ?n=<size> keeps a size; no ?v is this view.
+     KEY PLAYERS  the third tab, "Top officials only" (2 Nov 2026, Armin: "a version of this for people to be able to only track
                   and see the most important people"): the 20 of data/regime-key.json as cards, the biggest names taken
                   out under them, and the reader's own WATCHLIST above them (a star on a card or in any person's sheet;
                   localStorage 'rg-watch', the page works the same without it). A key player carries data-key everywhere
-                  (a gold star on the face). ?v=board opens the board, ?b= a branch; no ?v is Key players.
+                  (a gold star on the face). ?v=key opens it, ?v=board the board, ?b= a branch.
      NO PHOTO     the figure of their post (regime.py AV_SPRITE, av_kind: cleric, seyyed cleric, uniform, woman, civilian),
                   never a grey circle.
      A PICTURE    registered with build/shareimg.js (window.LPShotQ, id 'regime'): the faces the reader is looking at.
@@ -93,10 +96,10 @@
   /* ---------------------------------------------------------------- one face (the twin of regime.py face()) */
   function initials(n) { var b = String(n || '').split(/[\s-]+/).filter(function (x) { return /^[A-Za-z\u0600-\u06FF]/.test(x) && !/^(سید|سیده)$/.test(x); }); var t = b.length > 1 ? [b[0][0], b[b.length - 1][0]] : ((b[0] || '?').slice(0, 2)).split(''); return t.join(/[؀-ۿ]/.test(t.join('')) ? ' ' : '').toUpperCase(); }      // Persian initials apart by a thin space: joined they can spell a word (ر + ا = «را»)
   var SVGNS = 'http://www.w3.org/2000/svg';
-  function face(p) {
+  function face(p, later) {      // later: the chart sets the picture only once the face is on screen and big enough to see
     var f = el('span', 'rg-face');
     if (p.c && X.camps[p.c]) f.style.setProperty('--cc', X.camps[p.c].c);
-    if (p.img) { var i = el('img'); i.src = X.root + 'assets/regime/' + p.img; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.width = 200; i.height = 250; i.draggable = false; f.appendChild(i); }
+    if (p.img) { var i = el('img'); if (later) i.setAttribute('data-src', X.root + 'assets/regime/' + p.img); else i.src = X.root + 'assets/regime/' + p.img; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.width = 200; i.height = 250; i.draggable = false; f.appendChild(i); }
     else {
       var av = p.av || 'ci', s = el('span', 'rg-ini rg-av'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('data-av', av);
       var sv = D.createElementNS(SVGNS, 'svg'); sv.setAttribute('focusable', 'false');
@@ -145,7 +148,7 @@
   var NODES = [];      // everything on the page that stands for one person (data-id): the timeline, the filters and the lens move them
   function collect() { NODES = [].slice.call(root.querySelectorAll('[data-id]')); }
   var BOARD = X.boards;      // unit -> branch
-  var LEVEL = '', PV = '', TAB = keyEl ? 'key' : 'board';
+  var LEVEL = '', PV = '', TAB = 'chart';
   function branchOf(p) { return BOARD[p.u] || ''; }
 
   /* ---------------------------------------------------------------- walking the levels */
@@ -198,7 +201,7 @@
     else if (BY[ev.state.rgp] && openId !== ev.state.rgp) open(ev.state.rgp, null, true, true);
     var b = u.searchParams.get('b') || '';
     walk(b, { pop: true, pv: u.searchParams.get('pv') || '', scroll: true });
-    var vv = u.searchParams.get('v'), want = vv === 'days' ? 'days' : (vv === 'board' || b || !keyEl) ? 'board' : 'key';
+    var vv = u.searchParams.get('v'), want = vv === 'days' ? 'days' : (vv === 'key' && keyEl) ? 'key' : (vv === 'board' || b) ? 'board' : 'chart';
     if (TAB !== want) setTab(want, true);
   });
   // the stage's top, under the site's own sticky bars, measured (each site pads its scrolling differently)
@@ -221,6 +224,12 @@
   // walk to a person (the search, the "most emptied" strip): their branch, their province or roster opened, their face lit
   function reveal(id, andOpen) {
     var p = BY[id]; if (!p) return;
+    if (TAB === 'chart') {      // on the chart the search flies to the face instead of changing the view
+      if (filt !== 'all' && stAt(p, cur) !== FST[filt]) setFilter('all');
+      if (campOn) setCamp('');
+      orgGo(id); if (andOpen !== false) open(id, null);
+      return;
+    }
     if (TAB !== 'board') setTab('board');
     var b = branchOf(p);
     walk(b, { pv: b === 'provinces' ? (p.pv || '') : undefined, scroll: false });
@@ -543,6 +552,7 @@
     if (warBtns.today) tog(warBtns.today, 'is-on', atEnd);
     tog(root, 'is-past', !atEnd);
     meters(d);
+    if (ORGBUILT) orgLeft(d);
     if (pvArt) each('.rg-pvp', function (p) { var v = pvLevel(p.getAttribute('data-pv'), d); if (p.getAttribute('data-lv') !== v) p.setAttribute('data-lv', v); }, pvArt);
     if (root.classList.contains('is-lens')) campBar(d); else campDirty = true;
     if (daysBuilt) each('.rg-dd', function (g) { tog(g, 'is-future', g.getAttribute('data-d') > d); }, daysEl);
@@ -606,17 +616,19 @@
   }
   var tabs = $('rg-tabs');
   function setTab(v, quiet) {
-    TAB = v === 'days' ? 'days' : (v === 'key' && keyEl) ? 'key' : 'board';
+    TAB = v === 'days' ? 'days' : (v === 'key' && keyEl) ? 'key' : v === 'board' ? 'board' : 'chart';
     each('.rg-tab', function (b) { var on = b.getAttribute('data-v') === TAB; tog(b, 'is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); }, tabs);
     if (TAB === 'days') buildDays();
     board.hidden = TAB !== 'board'; crumb.hidden = TAB !== 'board'; daysEl.hidden = TAB !== 'days';
     if (keyEl) keyEl.hidden = TAB !== 'key';
+    orgEl.hidden = TAB !== 'chart';
+    if (TAB === 'chart') orgShow();
     tog(root, 'rg-on-key', TAB === 'key');
     applyFilter();
     if (!quiet) {
       var u = url();
       if (u) {
-        if (TAB === (keyEl ? 'key' : 'board')) u.searchParams.delete('v'); else u.searchParams.set('v', TAB);
+        if (TAB === 'chart') u.searchParams.delete('v'); else u.searchParams.set('v', TAB);
         u.searchParams.delete('view'); setUrl(u, false);
       }
     }
@@ -919,6 +931,228 @@
   var shotB = $('rg-shot'); if (shotB) shotB.addEventListener('click', function () { if (W.LPShot && typeof W.LPShot.open === 'function') W.LPShot.open('regime', shotB); });
   (function wait(n) { if (!shotReady() && n < 40) setTimeout(function () { wait(n + 1); }, 500); })(0);
 
+
+  /* ---------------------------------------------------------------- EVERYONE: the whole regime as one chart to zoom
+     3 Nov 2026, Armin: "Default = EVERYONE: one zoomable, pannable org chart (pinch and wheel zoom, drag to pan, smooth on
+     phone) with a size picker". The boxes come from regime.py org() (ORG): the Office of the Supreme Leader on top, the
+     armed forces, the state, then the clerics, the money, the media and the bomb; inside each branch its parts, each part's
+     people in power order. One plane of ordinary buttons moved by one CSS transform: a gesture only rewrites that
+     transform (one frame each), the pictures load only for faces on screen once they are big enough to see, and far out
+     the names fold away so 700 faces stay a light mosaic of who is in place (pale) and who was taken out (red). */
+  var orgEl = $('rg-org'), ov = $('rg-ov'), op = $('rg-op'), szEl = $('rg-sz');
+  var SIZES = X.sizes || [P.length], SIZE = SIZES[SIZES.length - 1], ORGBUILT = false, POS = [], LEFTS = [];
+  var Z = { s: 1, x: 0, y: 0, fit: 1, w: 1, h: 1 };
+  function sizeFrom(u) { var n = u ? parseInt(u.searchParams.get('n'), 10) : 0; return SIZES.indexOf(n) >= 0 ? n : SIZES[SIZES.length - 1]; }
+  function inSize(p) { return !p.w || p.w <= SIZE; }
+  function sizeButtons() {
+    szEl.textContent = '';
+    SIZES.forEach(function (n, i) {
+      var all = i === SIZES.length - 1, b = el('button', 'rg-szb' + (n === SIZE ? ' is-on' : ''), (all ? w.sz_all : w.sz_top).replace('{n}', num(n)));
+      b.type = 'button'; b.setAttribute('aria-pressed', n === SIZE ? 'true' : 'false');
+      b.addEventListener('click', function () { if (n !== SIZE) { SIZE = n; orgDraw(true); var u = url(); if (u) { if (all) u.searchParams.delete('n'); else u.searchParams.set('n', n); setUrl(u, false); } } });
+      szEl.appendChild(b);
+    });
+    var note = $('rg-onote'); if (note) note.textContent = (SIZE === SIZES[SIZES.length - 1] ? w.all_note : w.sz_note).replace('{n}', num(SIZE));
+  }
+  function onode(p, seat) {
+    var b = mark(el('button', 'rg-on' + (p.k === 1 ? ' is-sl' : '') + (seat ? ' is-al' : '')), p); b.type = 'button';
+    b.appendChild(face(p, true));
+    var t = el('span', 'rg-ont'); t.appendChild(el('b', null, p.n));
+    t.appendChild(el('span', 'rg-onr', seat || (p.r || '').replace(/\s*\([^)]*\)/g, '').split(/;/)[0]));
+    b.appendChild(t);
+    return b;
+  }
+  function orgDraw(refit) {
+    op.textContent = ''; POS = []; LEFTS = [];
+    var count = 0;
+    (X.org || []).forEach(function (band) {
+      var bd = el('div', 'rg-oband is-' + band.k);
+      if (band.n) bd.appendChild(el('p', 'rg-obl', band.n));
+      var row_ = el('div', 'rg-obr'); bd.appendChild(row_);
+      band.br.forEach(function (br) {
+        var box = el('section', 'rg-obx'); box.setAttribute('data-b', br.b);
+        var ids = [];
+        br.parts.forEach(function (pt) {
+          var ppl = pt.ids.map(function (i) { return BY[i]; }).filter(function (p) { return p && inSize(p); });
+          var al = (pt.al || []).filter(function (a) { return BY[a[0]] && inSize(BY[a[0]]); });
+          if (!ppl.length && !al.length) return;
+          var part = el('div', 'rg-opt'), n = ppl.length + al.length;
+          if (br.parts.length > 1 || X.units[pt.u] !== br.n) part.appendChild(el('h4', 'rg-oph', X.units[pt.u] || ''));
+          var grid = el('div', 'rg-og'); grid.setAttribute('data-seq', '1');
+          grid.style.setProperty('--cols', Math.max(1, Math.min(n, Math.ceil(Math.sqrt(n * .5)))));
+          ppl.forEach(function (p) { grid.appendChild(onode(p)); ids.push(p.id); count++; });
+          al.forEach(function (a) { grid.appendChild(onode(BY[a[0]], a[1] || w.also_seat)); });
+          part.appendChild(grid); box.appendChild(part);
+        });
+        if (!box.childNodes.length) return;
+        var h = el('header', 'rg-obh'), ht = el('span', 'rg-obt'); ht.appendChild(el('b', null, br.n));
+        var lf = el('span', 'rg-olf'); ht.appendChild(lf); h.appendChild(ht); box.insertBefore(h, box.firstChild);
+        LEFTS.push({ t: lf, ids: ids });
+        row_.appendChild(box);
+      });
+      if (row_.childNodes.length) op.appendChild(bd);
+    });
+    // the plane's width: wide enough that the boxes make a shape near the screen's, never a ribbon
+    var vw = ov.clientWidth || 360, vh = ov.clientHeight || 500;
+    var area = count * 130 * 66 * 2.3, want = Math.sqrt(area * Math.max(.75, Math.min(1.8, vw / vh)));
+    op.style.width = Math.round(Math.max(vw >= 700 ? 1500 : 980, Math.min(3400, want))) + 'px';      // a few people: the branches side by side, not a column
+    sizeButtons();
+    collect(); applyTime(cur, true); applyFilter(); paintSeen();
+    orgLeft(cur);
+    measure();
+    if (refit !== false) startView();
+    lod(true);
+  }
+  function measure() {      // every face's box in the plane's own units, once per drawing (the plane moves, its insides do not)
+    var r0 = op.getBoundingClientRect(), s = Z.s || 1;
+    Z.w = op.offsetWidth; Z.h = op.offsetHeight;
+    POS = [].map.call(op.querySelectorAll('.rg-on'), function (n) { var r = n.getBoundingClientRect(); return { n: n, x: (r.left - r0.left) / s, y: (r.top - r0.top) / s, w: r.width / s, h: r.height / s }; });
+  }
+  function orgLeft(d) {      // "12 of 15 left" on every branch box, on the timeline's day
+    LEFTS.forEach(function (o) {
+      var a = 0, n = 0; o.ids.forEach(function (i) { var st = stAt(BY[i], d); if (st === 'pre') return; n++; if (st === 'a') a++; });
+      o.t.textContent = w.left_n.replace('{a}', num(a)).replace('{n}', num(n));
+      tog(o.t, 'is-low', n > 0 && a / n < .75);
+    });
+  }
+  // ---- moving the plane
+  var raf = 0;
+  function paint() { raf = 0; op.style.transform = 'translate3d(' + Z.x.toFixed(1) + 'px,' + Z.y.toFixed(1) + 'px,0) scale(' + Z.s.toFixed(4) + ')'; }
+  function ask() { if (!raf) raf = W.requestAnimationFrame(paint); }
+  function clampZ() {
+    var vw = ov.clientWidth, vh = ov.clientHeight, pw = Z.w * Z.s, ph = Z.h * Z.s, m = 48;
+    Z.x = pw <= vw ? (vw - pw) / 2 : Math.min(m, Math.max(vw - pw - m, Z.x));
+    Z.y = ph <= vh ? Math.min(Math.max(Z.y, 0), vh - ph) : Math.min(m, Math.max(vh - ph - m, Z.y));
+  }
+  function zoomAt(s, cx, cy) {      // to scale s, keeping the plane's point under (cx, cy) where it is
+    s = Math.max(Z.fit * .8, Math.min(2.6, s));
+    var px = (cx - Z.x) / Z.s, py = (cy - Z.y) / Z.s;
+    Z.s = s; Z.x = cx - px * s; Z.y = cy - py * s; clampZ(); ask(); settle();
+  }
+  function fit(anim) {
+    var vw = ov.clientWidth || 360, vh = ov.clientHeight || 500;
+    var all = Math.min(vw / Z.w, vh / Z.h);
+    Z.fit = Math.min(1, all > .22 ? all : vw / Z.w);
+    to(Z.fit, (vw - Z.w * Z.fit) / 2, 8, anim);
+  }
+  function startView() {      // the whole chart when it can be read; on a phone, its top (the Office and the armed forces) at a size to read, the rest a drag or a pinch away
+    fit(false);
+    var vw = ov.clientWidth || 360, s = Math.min(.9, vw / Z.w);      // as wide as the window, read from the top down
+    if (s < .24) s = .34;
+    cancelAnimationFrame(tw); Z.s = s; Z.x = vw / 2 - Z.w / 2 * s; Z.y = 8; clampZ(); paint(); settle();
+  }
+  var tw = 0;
+  function to(s, x, y, anim) {      // a short glide to a view (none with reduced motion)
+    cancelAnimationFrame(tw);
+    var a = { s: Z.s, x: Z.x, y: Z.y }, t0 = 0, dur = anim && !REDUCE ? 320 : 0;
+    function f(t) {
+      if (!t0) t0 = t;
+      var k = dur ? Math.min(1, (t - t0) / dur) : 1, e = 1 - Math.pow(1 - k, 3);
+      Z.s = a.s + (s - a.s) * e; Z.x = a.x + (x - a.x) * e; Z.y = a.y + (y - a.y) * e;
+      if (k >= 1) clampZ();
+      paint();
+      if (k < 1) tw = W.requestAnimationFrame(f); else settle();
+    }
+    tw = W.requestAnimationFrame(f);
+  }
+  var setT = 0, LOD = '';
+  function settle() { tog(op, 'is-moving', true); clearTimeout(setT); setT = setTimeout(function () { tog(op, 'is-moving', false); lod(); }, 160); }
+  function lod(force) {      // far: faces as tiles; near: names, then pictures, only for what is on screen
+    var s = Z.s, k = s < .3 ? 'far' : s < .55 ? 'mid' : 'near';
+    if (k !== LOD || force) { tog(ov, 'z-far', k === 'far'); tog(ov, 'z-mid', k === 'mid'); LOD = k; }
+    var zi = Math.max(1, Math.min(2.6, .45 / s)).toFixed(1);      // on the titles alone: a variable on the window would restyle every face
+    if (zi !== Z.zi || force) { Z.zi = zi; each('.rg-obh, .rg-obl', function (t) { t.style.setProperty('--zi', zi); }, op); }
+    if (s < .45) return;
+    var vw = ov.clientWidth, vh = ov.clientHeight, x0 = -Z.x / s - 80, y0 = -Z.y / s - 80, x1 = x0 + vw / s + 160, y1 = y0 + vh / s + 160;
+    POS.forEach(function (q) {
+      if (q.done || q.x > x1 || q.x + q.w < x0 || q.y > y1 || q.y + q.h < y0) return;
+      var i = q.n.querySelector('img[data-src]'); if (i) { i.src = i.getAttribute('data-src'); i.removeAttribute('data-src'); }
+      q.done = true;
+    });
+  }
+  // ---- the hands: one finger or the mouse drags, two fingers pinch, the wheel zooms where it points
+  var PT = {}, moved = false, g = null;
+  function rel(ev) { var r = ov.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
+  function startG() {
+    var ks = Object.keys(PT);
+    if (ks.length === 1) { var a = PT[ks[0]]; g = { one: true, ax: a.x, ay: a.y, x: Z.x, y: Z.y }; }
+    else if (ks.length >= 2) { var p1 = PT[ks[0]], p2 = PT[ks[1]]; g = { one: false, d: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1, mx: (p1.x + p2.x) / 2, my: (p1.y + p2.y) / 2, s: Z.s, x: Z.x, y: Z.y }; }
+    else g = null;
+  }
+  ov.addEventListener('pointerdown', function (ev) {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    if (ev.target.closest && ev.target.closest('.rg-oz')) return;
+    cancelAnimationFrame(tw);
+    PT[ev.pointerId] = rel(ev); if (Object.keys(PT).length === 1) moved = false;
+    startG(); tog(ov, 'is-grab', true);
+    var hint = $('rg-ohint'); if (hint) hint.hidden = true;
+  });
+  ov.addEventListener('pointermove', function (ev) {
+    if (!PT[ev.pointerId] || !g) return;
+    PT[ev.pointerId] = rel(ev);
+    var ks = Object.keys(PT);
+    if (g.one && ks.length === 1) {
+      var a = PT[ks[0]], dx = a.x - g.ax, dy = a.y - g.ay;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 7) return;
+      if (!moved) { moved = true; try { ov.setPointerCapture(ev.pointerId); } catch (e) { } }
+      Z.x = g.x + dx; Z.y = g.y + dy;
+    } else if (!g.one && ks.length >= 2) {
+      moved = true;
+      var p1 = PT[ks[0]], p2 = PT[ks[1]], d = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1, mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      var s = Math.max(Z.fit * .8, Math.min(2.6, g.s * d / g.d)), px = (g.mx - g.x) / g.s, py = (g.my - g.y) / g.s;
+      Z.s = s; Z.x = mx - px * s; Z.y = my - py * s;
+    } else return;
+    clampZ(); ask(); settle();
+  });
+  function up(ev) { if (!PT[ev.pointerId]) return; delete PT[ev.pointerId]; startG(); if (!Object.keys(PT).length) tog(ov, 'is-grab', false); }
+  ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up); ov.addEventListener('lostpointercapture', up);
+  ov.addEventListener('click', function (ev) {
+    if (moved) { ev.stopPropagation(); ev.preventDefault(); moved = false; return; }      // a drag is not a tap
+    var t = ev.target.closest && ev.target.closest('.rg-on');      // a face too small to hit surely: the tap zooms in on it, a second tap opens it
+    if (!t) return;
+    var r = t.getBoundingClientRect();
+    if (r.height >= 40) return;
+    ev.stopPropagation(); ev.preventDefault();
+    var o = ov.getBoundingClientRect(), cx = r.left + r.width / 2 - o.left, cy = r.top + r.height / 2 - o.top;
+    var s = Math.min(2.6, Math.max(Z.s * 2, 48 / (r.height / Z.s))), px = (cx - Z.x) / Z.s, py = (cy - Z.y) / Z.s;
+    to(s, ov.clientWidth / 2 - px * s, ov.clientHeight / 2 - py * s, true);
+  }, true);
+  ov.addEventListener('wheel', function (ev) {
+    ev.preventDefault();
+    var dy = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1), q = rel(ev);
+    if (!ev.ctrlKey && Math.abs(ev.deltaX) > Math.abs(dy)) { Z.x -= ev.deltaX; clampZ(); ask(); settle(); return; }
+    zoomAt(Z.s * Math.exp(-dy * (ev.ctrlKey ? .01 : .0018)), q.x, q.y);
+  }, { passive: false });
+  ov.addEventListener('dblclick', function (ev) { if (ev.target.closest && ev.target.closest('.rg-on, .rg-oz')) return; var q = rel(ev); zoomAt(Z.s * 1.8, q.x, q.y); });
+  ov.addEventListener('keydown', function (ev) {
+    var k = ev.key, m = 80;
+    if (k === '+' || k === '=') zoomAt(Z.s * 1.25, ov.clientWidth / 2, ov.clientHeight / 2);
+    else if (k === '-' || k === '_') zoomAt(Z.s / 1.25, ov.clientWidth / 2, ov.clientHeight / 2);
+    else if (k === '0') fit(true);
+    else if (/^Arrow/.test(k) && ev.target === ov) { Z.x += k === 'ArrowLeft' ? m : k === 'ArrowRight' ? -m : 0; Z.y += k === 'ArrowUp' ? m : k === 'ArrowDown' ? -m : 0; clampZ(); ask(); settle(); }
+    else return;
+    ev.preventDefault();
+  });
+  each('.rg-zb', function (b) { b.addEventListener('click', function () {
+    var z = b.getAttribute('data-z'), cx = ov.clientWidth / 2, cy = ov.clientHeight / 2;
+    if (z === 'fit') fit(true); else { var s = Math.max(Z.fit * .8, Math.min(2.6, Z.s * (z === 'in' ? 1.6 : 1 / 1.6))), px = (cx - Z.x) / Z.s, py = (cy - Z.y) / Z.s; to(s, cx - px * s, cy - py * s, true); }
+  }); }, orgEl);
+  function orgShow() {
+    if (!ORGBUILT) { ORGBUILT = true; SIZE = sizeFrom(url()); orgDraw(true); }
+    else { measure(); clampZ(); paint(); lod(true); }
+  }
+  function orgGo(id) {      // the search: to that face, big enough to read, lit, its card open
+    var p = BY[id]; if (!p) return;
+    if (!inSize(p)) { SIZE = SIZES[SIZES.length - 1]; orgDraw(false); }
+    var q = null; POS.forEach(function (o) { if (!q && o.n.getAttribute('data-id') === id && !o.n.classList.contains('is-al')) q = o; });
+    if (!q) return;
+    var s = Math.max(Z.s, 1.1), vw = ov.clientWidth, vh = ov.clientHeight;
+    to(s, vw / 2 - (q.x + q.w / 2) * s, vh / 2 - (q.y + q.h / 2) * s, true);
+    toStage(); flash(id);
+  }
+  var orz = 0;
+  W.addEventListener('resize', function () { clearTimeout(orz); orz = setTimeout(function () { if (ORGBUILT && !orgEl.hidden) { var f = Z.s <= Z.fit * 1.01; measure(); if (f) fit(false); else { clampZ(); paint(); } lod(true); } }, 200); });
+
   /* ---------------------------------------------------------------- start */
   // the bar sticks under the site's own sticky header and the timeline clears any bar fixed at the bottom (the live-show
   // pill): both measured, never assumed, so it fits the same on both sites
@@ -948,7 +1182,7 @@
   if (v0 === 'camps' || sget('rg-lens') === '1') setLens(true);      // ?view=camps was the factions view until 1 Nov 2026: it is the lens now
   applyTime(X.today, true); event(X.today);
   walk(b0, { replace: true, scroll: false, pv: u0 && u0.searchParams.get('pv') || '' });
-  setTab(v0 === 'days' ? 'days' : (v0 === 'board' || b0 || !keyEl) ? 'board' : 'key', true);
+  setTab(v0 === 'days' ? 'days' : (v0 === 'key' && keyEl) ? 'key' : (v0 === 'board' || b0) ? 'board' : 'chart', true);
   paintWatch();
   paintSeen();
   W.addEventListener('load', chrome);

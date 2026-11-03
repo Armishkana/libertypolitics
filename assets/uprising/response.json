@@ -1,0 +1,461 @@
+{
+  "_what": "THE REGIME-RESPONSE MODEL of the Uprising Simulator's plan room (build/uprising-plan.js, 3 November 2026). Who the regime sends to a crowd, when, how many, and what makes it climb the ladder from watching to machine guns. Every line rests on how past crackdowns in Iran unfolded (2009, November 2019, 2022, January 2026), with its sources. Numbers marked est are estimates: the model's own reading of the record, never a reported figure. Outcomes on the page are likelihoods over many runs, never predictions.",
+  "_safety": "Analytical and historical only. It describes how crackdowns have unfolded in the public record. It holds no current positions, no unit locations, no routes, and nothing a security force does not already know. Forces arrive on the map from a compass side, never from a named base. Read by uprising.py --check (every unit, rung and trigger must carry a source) and by the monthly fact recheck (LIVING.md, 'The Uprising Simulator's facts').",
+  "readUtc": "2026-11-03T00:00:00Z",
+  "recheckDays": 30,
+  "units": [
+    {
+      "id": "police",
+      "n": "Local police (FARAJA)",
+      "fa": "پلیس محلی (فراجا)",
+      "icon": "P",
+      "role": "First on the street: patrol cars watch, film and make arrests at the edges. About half are conscripts.",
+      "roleFa": "اولین نیرو تو خیابون: ماشین‌های گشت نگاه می‌کنن، فیلم می‌گیرن و از کناره‌ها دستگیر می‌کنن. حدود نصف‌شون سرباز وظیفه‌ان.",
+      "arriveMin": [
+        5,
+        20
+      ],
+      "per100k": [
+        25,
+        45
+      ],
+      "maxRung": 1,
+      "est": true,
+      "why": "Arrival time and numbers are est: police stations sit in every district, so a patrol reaches a crowd within minutes; no source gives a count on the street.",
+      "src": [
+        "https://www.washingtoninstitute.org/policy-analysis/protests-and-regime-suppression-post-revolutionary-iran",
+        "https://www.hrw.org/news/2019/11/19/iran-security-forces-violently-crack-down-protesters"
+      ],
+      "iconFa": "پ"
+    },
+    {
+      "id": "basij",
+      "n": "Basij units, many on motorbikes",
+      "fa": "یگان‌های بسیج، خیلی‌هاشون موتورسوار",
+      "icon": "B",
+      "role": "Neighbourhood militia. Charges crowds on motorbikes in threes, beats and arrests; filmed firing into the crowd at Azadi Square on 15 June 2009.",
+      "roleFa": "شبه‌نظامی‌های محله. سه‌تا سه‌تا با موتور به جمعیت حمله می‌کنن، می‌زنن و می‌گیرن؛ ۲۵ خرداد ۸۸ تو میدون آزادی از تیراندازی‌شون به مردم فیلم هست.",
+      "arriveMin": [
+        20,
+        60
+      ],
+      "per100k": [
+        40,
+        90
+      ],
+      "maxRung": 4,
+      "est": true,
+      "why": "Arrival est from neighbourhood bases; AP (Oct 2022) and the 2009 footage show the Basij as the first force to charge.",
+      "src": [
+        "https://en.wikipedia.org/wiki/2009_Iranian_presidential_election_protests",
+        "https://en.wikipedia.org/wiki/Basij",
+        "https://www.iranintl.com/en/202206205680"
+      ],
+      "iconFa": "ب"
+    },
+    {
+      "id": "plain",
+      "n": "Plain-clothes agents",
+      "fa": "لباس‌شخصی‌ها",
+      "icon": "C",
+      "role": "Deniable men without uniform: snatch people at exits and side streets; in Zahedan in 2022 plain-clothes shooters fired from roofs.",
+      "roleFa": "آدم‌هایی بدون لباس فرم که می‌شه انکارشون کرد: سر خروجی‌ها و کوچه‌ها آدم می‌گیرن؛ زاهدان ۱۴۰۱ لباس‌شخصی‌ها از پشت‌بوم شلیک کردن.",
+      "arriveMin": [
+        25,
+        70
+      ],
+      "per100k": [
+        8,
+        20
+      ],
+      "maxRung": 5,
+      "est": true,
+      "why": "Not quantifiable in any source (est); placed with the Basij, as in 2009 and 2022.",
+      "src": [
+        "https://www.amnesty.org/en/latest/news/2022/10/iran-at-least-82-baluchi-protesters-and-bystanders-killed-in-bloody-crackdown/",
+        "https://en.wikipedia.org/wiki/1999_Iranian_student_protests"
+      ],
+      "iconFa": "ل"
+    },
+    {
+      "id": "special",
+      "n": "Police special units (Yegan-e Vijeh, NOPO)",
+      "fa": "یگان ویژه و نوپو",
+      "icon": "S",
+      "role": "Riot police with tear gas, water cannon, armoured vehicles and, in November 2019, automatic weapons fired at unarmed people. About half are based in Tehran.",
+      "roleFa": "پلیس ضدشورش با گاز اشک‌آور، ماشین آب‌پاش، خودروی زرهی، و آبان ۹۸ با سلاح خودکار رو به مردم بی‌سلاح. حدود نصف‌شون تو تهرانن.",
+      "arriveMin": [
+        45,
+        120
+      ],
+      "per100k": [
+        15,
+        40
+      ],
+      "maxRung": 4,
+      "capital": 2.0,
+      "est": true,
+      "why": "Arrival est (they are concentrated in a few bases); US Treasury and Wikipedia on NOPO in 2019; 'about half based in Tehran' gives the capital its double weight.",
+      "src": [
+        "https://en.wikipedia.org/wiki/Iranian_Police_Special_Units",
+        "https://www.unitedagainstnucleariran.com/sanctioned-person/irans-counter-terror-special-forces-nopo"
+      ],
+      "iconFa": "و"
+    },
+    {
+      "id": "irgc",
+      "n": "IRGC ground units",
+      "fa": "یگان‌های زمینی سپاه",
+      "icon": "G",
+      "role": "Sent in when police and Basij cannot clear the streets. Led the killing in 2019, 2022 and January 2026; truck-mounted heavy machine guns in Mahshahr (2019), Javanrud (2022) and Karaj (2026).",
+      "roleFa": "وقتی پلیس و بسیج نتونن خیابون رو خالی کنن میان. کشتار ۹۸، ۱۴۰۱ و دی ۱۴۰۴ رو اینا رهبری کردن؛ تیربار سنگین روی وانت تو ماهشهر (۹۸)، جوانرود (۱۴۰۱) و کرج (۱۴۰۴).",
+      "arriveMin": [
+        180,
+        480
+      ],
+      "per100k": [
+        30,
+        80
+      ],
+      "maxRung": 6,
+      "est": true,
+      "why": "The hours are est: the record shows the IRGC deployed after a day or more of police failure in 2019 and 2022, and on the second night in January 2026; within one night the model only brings them after the special units fail.",
+      "src": [
+        "https://en.wikipedia.org/wiki/Islamic_Revolutionary_Guard_Corps",
+        "https://al-monitor.com/originals/2022/11/iran-deploys-heavy-weaponry-crush-kurdish-protests",
+        "https://en.wikipedia.org/wiki/2026_Iran_massacres"
+      ],
+      "iconFa": "س"
+    },
+    {
+      "id": "foreign",
+      "n": "Iraqi militias (reported, not confirmed)",
+      "fa": "شبه‌نظامی‌های عراقی (گزارش شده، تأیید نشده)",
+      "icon": "M",
+      "optional": true,
+      "role": "Reported in January 2026: Iraqi PMF factions brought in by bus, Arabic-speaking forces seen in Karaj. Estimates run from 800 to nearly 5,000. Not independently confirmed, so the model leaves them out unless you switch them on.",
+      "roleFa": "دی ۱۴۰۴ گزارش شد: گروه‌هایی از حشدالشعبی عراق با اتوبوس آورده شدن و نیروهای عرب‌زبان تو کرج دیده شدن. تخمین‌ها از ۸۰۰ تا نزدیک ۵۰۰۰ نفره. هیچ منبع مستقلی تأییدش نکرده، برای همین مدل حساب‌شون نمی‌کنه مگه اینکه خودتون روشنش کنید.",
+      "arriveMin": [
+        600,
+        900
+      ],
+      "per100k": [
+        2,
+        8
+      ],
+      "maxRung": 6,
+      "onlyBig": true,
+      "est": true,
+      "why": "Reports, not findings: Iran International (800), a source to CNN (nearly 5,000), The Media Line (60+ buses). Only in cities over a million, after ten hours.",
+      "src": [
+        "https://en.wikipedia.org/wiki/Involvement_of_foreign_militias_in_the_suppression_of_protests_in_Iran"
+      ],
+      "iconFa": "ع"
+    }
+  ],
+  "ladder": [
+    {
+      "r": 0,
+      "n": "Watching",
+      "fa": "زیر نظر",
+      "what": "Patrols watch, film and photograph faces.",
+      "whatFa": "گشت‌ها نگاه می‌کنن، فیلم می‌گیرن و از صورت‌ها عکس می‌گیرن.",
+      "hurt": 0,
+      "kill": 0,
+      "scatter": 0,
+      "src": [
+        "https://www.irishtimes.com/world/middle-east/2026/02/15/iran-turns-to-digital-surveillance-tools-to-track-down-protesters"
+      ]
+    },
+    {
+      "r": 1,
+      "n": "Batons and arrests",
+      "fa": "باتوم و دستگیری",
+      "what": "Charges with batons, people dragged into vans.",
+      "whatFa": "حمله با باتوم، آدم‌ها رو می‌کشن تو ون.",
+      "hurt": 0.001,
+      "kill": 0,
+      "scatter": 0.04,
+      "src": [
+        "https://en.wikipedia.org/wiki/2009_Iranian_presidential_election_protests"
+      ]
+    },
+    {
+      "r": 2,
+      "n": "Tear gas and water cannon",
+      "fa": "گاز اشک‌آور و آب‌پاش",
+      "what": "Gas and water to break the crowd into the side streets.",
+      "whatFa": "گاز و آب که جمعیت رو بشکنن و بفرستن تو کوچه‌ها.",
+      "hurt": 0.002,
+      "kill": 2e-06,
+      "scatter": 0.08,
+      "src": [
+        "https://iranwire.com/en/politics/109507",
+        "https://en.wikipedia.org/wiki/Mahsa_Amini_protests"
+      ]
+    },
+    {
+      "r": 3,
+      "n": "Pellet guns",
+      "fa": "ساچمه",
+      "what": "Birdshot and paintball at faces and eyes, to blind and to mark.",
+      "whatFa": "ساچمه و پینت‌بال به صورت و چشم، برای کور کردن و علامت زدن.",
+      "hurt": 0.005,
+      "kill": 1e-05,
+      "scatter": 0.11,
+      "src": [
+        "https://www.amnesty.org/en/latest/news/2021/07/iran-security-forces-use-live-ammunition-and-birdshot-to-crush-khuzestan-protests-2/",
+        "https://en.wikipedia.org/wiki/Mahsa_Amini_protests"
+      ]
+    },
+    {
+      "r": 4,
+      "n": "Live fire",
+      "fa": "شلیک جنگی",
+      "what": "Rifles and shotguns aimed at heads and chests.",
+      "whatFa": "تفنگ و شاتگان رو به سر و سینه.",
+      "hurt": 0.007,
+      "kill": 0.0001,
+      "scatter": 0.16,
+      "src": [
+        "https://www.amnesty.org/en/latest/news/2020/11/iran-internet-deliberately-shut-down-during-november-2019-killings/",
+        "https://www.justiceinfo.net/en?p=129354"
+      ]
+    },
+    {
+      "r": 5,
+      "n": "Rooftop shooters",
+      "fa": "تک‌تیرانداز روی پشت‌بوم",
+      "what": "Shooters on police and other roofs pick out people in the crowd.",
+      "whatFa": "تیراندازها از پشت‌بوم کلانتری‌ها و ساختمون‌ها آدم‌ها رو تو جمعیت نشونه می‌گیرن.",
+      "hurt": 0.008,
+      "kill": 0.00018,
+      "scatter": 0.19,
+      "src": [
+        "https://www.amnesty.org/en/latest/news/2022/10/iran-at-least-82-baluchi-protesters-and-bystanders-killed-in-bloody-crackdown/",
+        "https://en.wikipedia.org/wiki/2026_Iran_massacres"
+      ]
+    },
+    {
+      "r": 6,
+      "n": "Heavy machine guns",
+      "fa": "تیربار سنگین",
+      "what": "Truck-mounted heavy machine guns fired into crowds, mostly on the edges of cities.",
+      "whatFa": "تیربار سنگین روی وانت رو به جمعیت، بیشتر حاشیهٔ شهرها.",
+      "hurt": 0.01,
+      "kill": 0.0003,
+      "scatter": 0.24,
+      "src": [
+        "https://en.wikipedia.org/wiki/2019%E2%80%932020_Iranian_protests",
+        "https://al-monitor.com/originals/2022/11/iran-deploys-heavy-weaponry-crush-kurdish-protests"
+      ]
+    }
+  ],
+  "_rates": "hurt, kill and scatter are est shares of the crowd facing that rung per 5 minutes, before the balance of forces. Calibrated so one night in one city lands in the order of the record: Zahedan's 30 September 2022 (Amnesty: at least 82 killed in the day), a bad night of November 2019 in one city (Amnesty 304 to 323 over five days in about 100 cities; IHRNGO 324; Mahshahr tens), and 8 and 9 January 2026 (Amnesty 3,117 to over 5,000 nationwide in 48 hours, so hundreds in the worst cities). They are not a forecast for any real night.",
+  "triggers": [
+    {
+      "id": "size",
+      "n": "A big crowd in one place",
+      "fa": "جمعیت زیاد یه جا",
+      "rule": "One crowd over 5,000 brings gas; over 15,000, pellet guns. Size alone has not brought live fire: in 2009 millions marched. Live fire comes with holding, red lines, the edges and the dark.",
+      "ruleFa": "یه جمعیت بالای ۵ هزار نفر گاز میاره؛ بالای ۱۵ هزار نفر ساچمه. فقط زیاد بودن جمعیت شلیک جنگی نیاورده: ۸۸ میلیون‌ها نفر راهپیمایی کردن. شلیک جنگی با موندن، خط قرمزها، حاشیهٔ شهر و تاریکی میاد.",
+      "at": [
+        [
+          1000,
+          1
+        ],
+        [
+          5000,
+          2
+        ],
+        [
+          15000,
+          3
+        ]
+      ],
+      "est": true,
+      "src": [
+        "https://en.wikipedia.org/wiki/2009_Iranian_presidential_election_protests",
+        "https://en.wikipedia.org/wiki/2019%E2%80%932020_Iranian_protests"
+      ]
+    },
+    {
+      "id": "hold",
+      "n": "Holding a square",
+      "fa": "نگه داشتن یه میدون",
+      "rule": "A crowd that will not leave climbs one rung about every 45 minutes it holds.",
+      "ruleFa": "جمعیتی که نمی‌ره، تقریباً هر ۴۵ دقیقه که بمونه یه پله بالاتر می‌بره سرکوب رو.",
+      "everyMin": 45,
+      "est": true,
+      "src": [
+        "https://en.wikipedia.org/wiki/Mahsa_Amini_protests"
+      ]
+    },
+    {
+      "id": "redline",
+      "n": "Near a red line",
+      "fa": "نزدیک خط قرمز",
+      "rule": "A crowd within 800 m of state TV, the governorate, a police headquarters or an IRGC base gets live fire two rungs sooner.",
+      "ruleFa": "جمعیتی که تا ۸۰۰ متری صداوسیما، استانداری، فرماندهی پلیس یا پایگاه سپاه برسه، دو پله زودتر شلیک جنگی می‌گیره.",
+      "m": 800,
+      "plus": 2,
+      "est": true,
+      "src": [
+        "https://www.hrw.org/news/2019/11/19/iran-security-forces-violently-crack-down-protesters",
+        "https://en.wikipedia.org/wiki/2019%E2%80%932020_Iranian_protests"
+      ]
+    },
+    {
+      "id": "spread",
+      "n": "Many places at once",
+      "fa": "چند جا با هم",
+      "rule": "Four or more crowds at the same time stretch the forces thin, and make an internet shutdown likely.",
+      "ruleFa": "چهار جمعیت یا بیشتر هم‌زمان نیروها رو پخش و کم می‌کنه، و احتمال قطع اینترنت رو بالا می‌بره.",
+      "crowds": 4,
+      "est": true,
+      "src": [
+        "https://www.amnesty.org/en/latest/news/2020/11/iran-internet-deliberately-shut-down-during-november-2019-killings/",
+        "https://en.wikipedia.org/wiki/Mahsa_Amini_protests"
+      ]
+    },
+    {
+      "id": "dark",
+      "n": "Night and a blackout",
+      "fa": "شب و قطعی",
+      "rule": "After midnight with the internet off, the killing comes one rung sooner: the January 2026 massacres were at night under a blackout. Not always: Zahedan on 30 September 2022 was at midday with the internet on.",
+      "ruleFa": "بعد از نصف شب و با اینترنت قطع، کشتار یه پله زودتر میاد: کشتار دی ۱۴۰۴ شب و زیر قطعی بود. ولی همیشه نه: زاهدان ۸ مهر ۱۴۰۱ ظهر بود و اینترنت وصل.",
+      "est": true,
+      "src": [
+        "https://www.amnesty.org/en/latest/news/2026/01/internet-shutdown-in-iran-hides-violations-in-escalating-protests/",
+        "https://www.amnesty.org/en/latest/news/2022/10/iran-at-least-82-baluchi-protesters-and-bystanders-killed-in-bloody-crackdown/"
+      ]
+    },
+    {
+      "id": "edge",
+      "n": "The edges of the city",
+      "fa": "حاشیهٔ شهر",
+      "rule": "Crowds on the outskirts and highways met heavier weapons sooner: Mahshahr and the edges of Tehran in 2019, Karaj in 2026.",
+      "ruleFa": "جمعیت‌های حاشیهٔ شهر و بزرگراه‌ها زودتر با سلاح سنگین‌تر روبه‌رو شدن: ماهشهر و حاشیهٔ تهران تو ۹۸، کرج تو ۱۴۰۴.",
+      "plus": 1,
+      "est": true,
+      "src": [
+        "https://iranhr.net/en/print/5/4059/",
+        "https://en.wikipedia.org/wiki/2026_Iran_massacres"
+      ]
+    }
+  ],
+  "internet": {
+    "n": "The internet",
+    "fa": "اینترنت",
+    "rule": "Slowed as soon as crowds form; cut when crowds are in many places at once, usually in the evening and before the worst killing. 2019: ordered the evening of 15 November, about six days. January 2026: from the evening of 8 January, connectivity under 2%.",
+    "ruleFa": "به محض اینکه جمعیت جمع بشه کند می‌شه؛ وقتی چند جا با هم جمعیت باشه قطع می‌شه، معمولاً عصر و قبل از بدترین کشتار. آبان ۹۸: دستورش عصر ۲۴ آبان داده شد، حدود شش روز. دی ۱۴۰۴: از عصر ۱۸ دی، اتصال زیر ۲ درصد.",
+    "cutChancePerHour": 0.35,
+    "minCrowds": 3,
+    "minPeople": 15000,
+    "est": true,
+    "effects": "With it off, fewer people hear where to go (the crowd grows about 40% slower in the model, est), groups lose their timing, and the killing is hidden.",
+    "effectsFa": "وقتی قطعه، آدم‌های کمتری خبردار می‌شن کجا برن (تو مدل جمعیت حدود ۴۰ درصد کندتر زیاد می‌شه، تخمین)، گروه‌ها هماهنگی‌شون رو از دست می‌دن، و کشتار پنهون می‌مونه.",
+    "src": [
+      "https://www.hrw.org/news/2019/11/19/iran-security-forces-violently-crack-down-protesters",
+      "https://www.amnesty.org/en/latest/news/2020/11/iran-internet-deliberately-shut-down-during-november-2019-killings/",
+      "https://restofworld.org/2026/iran-starlink-internet-shutdown/"
+    ]
+  },
+  "crowd": {
+    "walk": 0.7,
+    "walkBig": 0.5,
+    "_walk": "metres a second for a marching column (a dense column well under 1 m/s, the 2009 march); 0.5 above 20,000 (est)",
+    "grow": 0.018,
+    "_grow": "share a crowd grows per 5 minutes while it moves through busy streets, est; less after 22:00 and with the internet off",
+    "breakAt": 0.22,
+    "_breakAt": "a crowd whose resolve falls under this scatters into the side streets (est)",
+    "evening": [
+      [
+        0,
+        0.35
+      ],
+      [
+        6,
+        0.3
+      ],
+      [
+        9,
+        0.55
+      ],
+      [
+        12,
+        0.75
+      ],
+      [
+        16,
+        1.0
+      ],
+      [
+        18,
+        1.15
+      ],
+      [
+        20,
+        1.1
+      ],
+      [
+        22,
+        0.8
+      ],
+      [
+        24,
+        0.5
+      ]
+    ],
+    "_evening": "turnout by start hour (est): after work and when the bazaar closes is biggest (16:00 to 21:00); the 20:00 call of 8 January 2026 brought every district out at once.",
+    "src": [
+      "https://iranhumanrights.org/?p=2523",
+      "https://al-monitor.com/originals/2022/10/bold-tactics-have-kept-iran-protests-going",
+      "https://www.iranintl.com/en/202512302678"
+    ]
+  },
+  "sources": [
+    {
+      "url": "https://www.justiceinfo.net/en?p=129354",
+      "title": "Iran protests crackdown sparked 'crimes against humanity': UN mission (UN Fact-Finding Mission, March 2024: shotguns, assault rifles and submachine guns used where there was no imminent threat; as many as 551 killed)",
+      "publisher": "JusticeInfo",
+      "date": "2024-03"
+    },
+    {
+      "url": "https://www.hrw.org/news/2019/11/19/iran-security-forces-violently-crack-down-protesters",
+      "title": "Iran: Security Forces Violently Crack Down on Protesters",
+      "publisher": "Human Rights Watch",
+      "date": "2019-11-19"
+    },
+    {
+      "url": "https://www.amnesty.org/en/latest/news/2020/11/iran-internet-deliberately-shut-down-during-november-2019-killings/",
+      "title": "Iran: Internet deliberately shut down during November 2019 killings",
+      "publisher": "Amnesty International",
+      "date": "2020-11"
+    },
+    {
+      "url": "https://www.amnesty.org/en/latest/news/2026/01/internet-shutdown-in-iran-hides-violations-in-escalating-protests/",
+      "title": "Iran: Internet shutdown hides violations in escalating deadly crackdown on protesters",
+      "publisher": "Amnesty International",
+      "date": "2026-01"
+    },
+    {
+      "url": "https://iranhr.net/en/print/5/4059/",
+      "title": "Iran Report: At Least 324 People Killed in November Protests (Mahshahr)",
+      "publisher": "Iran Human Rights (IHRNGO)",
+      "date": "2019-12"
+    },
+    {
+      "url": "https://www.amnesty.org/en/latest/news/2022/10/iran-at-least-82-baluchi-protesters-and-bystanders-killed-in-bloody-crackdown/",
+      "title": "Iran: At least 82 Baluchi protesters and bystanders killed in bloody crackdown",
+      "publisher": "Amnesty International",
+      "date": "2022-10"
+    }
+  ],
+  "scale": {
+    "capital": 9840100,
+    "forces": 0.75,
+    "crowds": 0.6,
+    "_": "est: a city's forces scale with its people to the power 0.75 (provincial capitals keep garrisons and the IRGC moves units between cities, al-monitor 2022/11), the site's own plans scale their crowds to the power 0.6, both measured against Tehran."
+  }
+}

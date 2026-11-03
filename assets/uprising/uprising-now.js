@@ -51,7 +51,7 @@ function boot() {
   }
 
   // ================================================================== Now and Simulate
-  const DEEP = ['city', 's', 'c', 'mode', 'adv', 'tab', 'cmp', 'res', 'play'];
+  const DEEP = ['city', 's', 'c', 'mode', 'adv', 'tab', 'cmp', 'res', 'play', 'pl'];
   let view = box.dataset.view === 'sim' ? 'sim' : 'now', simP = null, simCity = null;
   function setView(v, keepAddr) {
     view = v; box.dataset.view = v;
@@ -74,9 +74,11 @@ function boot() {
       simCity = id;
       const bootEl = D.getElementById('up-boot'); tog(bootEl, 'off', false);
       const t = D.getElementById('up-boot-t'); if (t && byId[id]) t.textContent = tf('Loading the streets of {c}...', { c: FA ? byId[id].fa : byId[id].n });
-      simP = import('./uprising.js').then(m => m.start({ city: id })).catch(err => { console.error(err); if (t) t.textContent = tr('Something went wrong loading the simulator. Reload the page to try again.'); });
+      // the plan room (uprising-plan.js, 3 November 2026) is the city view; the 3D street board only when the address asks (?view=3d)
+      const want3d = qs.get('view') === '3d' || ['s', 'mode', 'adv', 'cmp', 'res', 'play'].some(k => qs.has(k));
+      simP = (want3d ? import('./uprising.js').then(m => m.start({ city: id })) : import('./uprising-plan.js').then(m => m.start({ city: id }))).catch(err => { console.error(err); if (t) t.textContent = tr('Something went wrong loading the simulator. Reload the page to try again.'); });
     } else if (id && id !== simCity) {
-      simCity = id; simP.then(() => { if (W.UPRPAGE && W.UPRPAGE.switchCity) W.UPRPAGE.switchCity(id); });
+      simCity = id; simP.then(() => { if (W.UPPLAN && W.UPPLAN.switchCity) W.UPPLAN.switchCity(id); else if (W.UPRPAGE && W.UPRPAGE.switchCity) W.UPRPAGE.switchCity(id); });
     }
   }
   $$('#up-view [data-view]').forEach(b => b.addEventListener('click', () => { if (b.dataset.view === 'sim') enterSim(); else setView('now'); }));
@@ -348,7 +350,7 @@ function boot() {
   size();
   draw(); drawSources();
   if (!NOW) drawAge();
-  const deep = DEEP.some(k => qs.has(k)) || qs.get('view') === 'sim';
+  const deep = DEEP.some(k => qs.has(k)) || qs.get('view') === 'sim' || qs.get('view') === '3d';
   if (deep) enterSim(qs.get('city') && byId[qs.get('city')] ? qs.get('city') : null);
   else { setView('now', true); guide(); }
   poll().then(drawSources);
