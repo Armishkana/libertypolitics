@@ -734,6 +734,17 @@
       cands.forEach(function (c) { if (c.n && !c.last && c.ns.lens === 'bank' && (!bk || c.score > bk.score)) bk = c; });
       if (bk) best = bk;
     }
+    // A PAST EVENT NAMED BY ITS DATE IS ANSWERED FROM THE BANK, as history is (2 Nov 2026, LP ask gate: "what did hamas leaders
+    // say about october 7" went to the last 24 hours, whose one post naming Hamas leaders and October 7 was about two of them
+    // being killed, and beat the bank's Hamas leaders on the day, 0.87 to 0.86). A date the room reads as an event (oct7) or a
+    // year before this one, with no time said, asks about the past. A headline asked in its own words still comes back
+    // wherever it is (the rule below, AN ITEM WHOSE OWN HEADLINE IS THE QUESTION, runs after this one).
+    var pastYear = (p.raw.match(/\b(?:19|20)\d\d\b/g) || []).some(function (y) { return +y < new Date().getFullYear(); });
+    if (best && best.ns.lens === 'live' && !p.timed && !so && (/(^| )oct7( |$)/.test(p.allq) || pastYear)) {
+      var bk2 = null;
+      cands.forEach(function (c) { if (c.n && !c.last && c.ns.lens === 'bank' && (!bk2 || c.score > bk2.score)) bk2 = c; });
+      if (bk2) best = bk2;
+    }
     // AN ITEM WHOSE OWN HEADLINE IS THE QUESTION IS THE ANSWER, WHEREVER IT IS (1 Nov 2026, ask gate: "Hamas shooting Gazans"
     // asked from the bank, where that headline is, went to the last 24 hours because two posts there carried the same three
     // words in another story, a funeral where Gazans shot in the air, and their top three scored higher). The rule above for

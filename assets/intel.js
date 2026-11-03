@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=ebbb7e0b98) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=4caf3e06c4) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -37,6 +37,20 @@
     if (v) Object.keys(v).forEach(function (k) { r = r.split('{' + k + '}').join(String(v[k])); });
     return r;
   }
+  /* ROOM EVENTS (2 Nov 2026, Armin: "Is this helping us with both Liberty Politics and Iran Uncensored Intel Room?").
+     Page views alone cannot say whether the room is USED, so five events go to Google Analytics through window.lpTrack
+     (build/harden.py writes it beside the Google tag, which exists only on the live address, so a copy opened on the PC
+     sends nothing): intel_story_open (one item opened, its kind and platform), intel_video_play (a video played here),
+     intel_search (a search asked: how many words and whether typed or spoken, NEVER the words, because a reader inside
+     Iran must never have what they typed sent anywhere), intel_lens (which lens) and intel_trend (a Trending story row
+     picked: all, blindspots or a story, never which). Taps from the room to his places are the go_* events already. Read
+     weekly by projects/hub/site-analytics.py (weekly-self-review step 4d). Test: build/test_harden.py, ROOM EVENTS. */
+  var TRK_SPOT = '';
+  function track(e, p) { try { if (window.gtag && window.lpTrack) { p = p || {}; p.room_lang = FA ? 'fa' : 'en'; window.lpTrack(e, p); } } catch (x) { } }
+  // wordCount, not words (2 Nov 2026): intel.js already has words(it), an item's own text, further down this same scope, and
+  // the later function declaration wins, so track() handed the typed string to tkOf() and the ask box threw before it asked
+  // (both sites' phone tests, tour "Show me on the ask step"). build/test_harden.py fails two top-level functions of one name.
+  function wordCount(t) { return String(t || '').trim().split(/\s+/).filter(Boolean).length; }
   // N() and LN() go straight into innerHTML, and a saved item can be written by anyone (24 Oct 2026): a number is drawn as a
   // number (anything else is 0), and a string the room formatted itself ("50+", "1:23", "2026-10") is escaped first.
   function N(n) {
@@ -1406,7 +1420,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=ebbb7e0b98): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=4caf3e06c4): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2597,7 +2611,14 @@
   function writeUrl() {
     if (!history.replaceState || SHOWING) return;          // the show screen (intel-prep.js) owns the address while it is up
     var h = location.hash === '#add' ? '' : location.hash;
-    history.replaceState(null, '', location.pathname + query() + h);
+    // NO TYPED WORDS IN THE ADDRESS WHILE A COUNTER IS ON (2 Nov 2026). Google Analytics reads the address on every page
+    // change it sees (page_location) and its site search report reads ?q= by itself, so a search written here would leave
+    // the reader's own words with Google: never for a reader inside Iran. On the live site (window.gtag) the address keeps
+    // every filter except q and qm; saved views (query()) still keep the search. GA Admin redaction of q is the second
+    // lock (his task 6hgrXxCcQVGJGHvQ). Test: build/test_harden.py, ROOM EVENTS.
+    var qs = query();
+    if (window.gtag) qs = qs.replace(/([?&])qm?=[^&]*/g, '$1').replace(/&&+/g, '&').replace(/[?&]+$/, '').replace(/\?&/, '?');
+    history.replaceState(null, '', location.pathname + qs + h);
   }
   var defLens = 'bank', SHOWING = /[?&](show|s|l)=/.test(location.search);          // ?s=: a saved show (intel-prep.js loadSaved); ?l=: a shared list
   function readUrl(search) {
@@ -2875,6 +2896,7 @@
   function openSpot(i) {
     var SL = spotList(), it = SL[i]; if (!it) return;
     spotAt = i;
+    if (TRK_SPOT !== String(it.id || it.u || i)) { TRK_SPOT = String(it.id || it.u || i); track('intel_story_open', { lens: S.lens, kind: String(kindOf(it) || ''), platform: String(pfOf(it) || '') }); }
     var y = ytId(it.u), dlg = $('ir-spot');
     var srcName = it.src === 'Document' ? T('the document') : it.src === 'News' ? (it.h || T('the news site')) : T(it.src);
     var rg = isRegime(it), lit = pics() || it._pics;          // regime media: never a link; a Persian page: pictures only once tapped
@@ -3046,7 +3068,7 @@
     say(picsOn ? T('Pictures and videos now load on this device. Switch them off here any time.') : T('Nothing from another site loads until you tap it.'));
   }
   function picsLabel() { var b = $('ir-pics'); if (b) { b.setAttribute('aria-pressed', picsOn ? 'true' : 'false'); var sp = b.querySelector('span'); if (sp) sp.textContent = picsOn ? T('Pictures: on') : T('Pictures: off'); } }
-  function closeSpot() { var d = $('ir-spot'); spotAt = -1; SPOTL = null; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
+  function closeSpot() { var d = $('ir-spot'); spotAt = -1; TRK_SPOT = ''; SPOTL = null; if (d.open) { if (d.close) d.close(); else d.removeAttribute('open'); } d.innerHTML = ''; }
 
   /* ------------------------------------------------------------ an X post's pictures and video (17 October 2026) */
   // Armin: "you need to show an image or something of the video ... i should be able to play the video or see the full
@@ -3110,7 +3132,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=ebbb7e0b98,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=4caf3e06c4,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -3766,7 +3788,7 @@
 
   /* ------------------------------------------------------------ wiring */
   function wire() {
-    $('ir-ask').addEventListener('submit', function (ev) { ev.preventDefault(); askAny($('ir-q').value); $('ir-q').blur(); });
+    $('ir-ask').addEventListener('submit', function (ev) { ev.preventDefault(); track('intel_search', { lens: S.lens, words: wordCount($('ir-q').value), how: 'typed' }); askAny($('ir-q').value); $('ir-q').blur(); });
     $('ir-q').addEventListener('search', function () { if (!$('ir-q').value) clearAll(); });
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SR) {
@@ -3776,7 +3798,7 @@
         try { rec = new SR(); } catch (e) { mic.hidden = true; return; }
         rec.lang = FA ? 'fa-IR' : document.documentElement.lang || 'en'; rec.interimResults = true; rec.maxAlternatives = 1;
         mic.classList.add('on'); say(T('Listening. Say what you are looking for.'));
-        rec.onresult = function (ev) { var s = ''; for (var i = 0; i < ev.results.length; i++) s += ev.results[i][0].transcript; $('ir-q').value = s; if (ev.results[ev.results.length - 1].isFinal) askAny(s); };
+        rec.onresult = function (ev) { var s = ''; for (var i = 0; i < ev.results.length; i++) s += ev.results[i][0].transcript; $('ir-q').value = s; if (ev.results[ev.results.length - 1].isFinal) { track('intel_search', { lens: S.lens, words: wordCount(s), how: 'spoken' }); askAny(s); } };
         rec.onerror = function (ev) { say(ev.error === 'not-allowed' ? T('The microphone is blocked for this site. Type it instead.') : T('I did not catch that. Try again, or type it.')); };
         rec.onend = function () { mic.classList.remove('on'); rec = null; };
         rec.start();
@@ -3813,7 +3835,7 @@
       if ((b = t.closest('[data-link]'))) { pickLink(b.getAttribute('data-link')); return; }
       if ((b = t.closest('button[data-win]'))) { pickWin(winOf(b.getAttribute('data-win'))); return; }
       // the live tab, once it is on, opens the time menu (THE TIME PICKER); any other lens closes it
-      if ((b = t.closest('button[data-lens]'))) { if (b.getAttribute('data-lens') === 'live' && S.lens === 'live') { openWin(null, ev.detail === 0); return; } WIN_OPEN = false; useLens(b.getAttribute('data-lens')); say(''); return; }
+      if ((b = t.closest('button[data-lens]'))) { if (b.getAttribute('data-lens') === 'live' && S.lens === 'live') { openWin(null, ev.detail === 0); return; } WIN_OPEN = false; useLens(b.getAttribute('data-lens')); track('intel_lens', { lens: S.lens }); say(''); return; }
       if ((b = t.closest('button[data-pf]'))) {
         var pv = b.getAttribute('data-pf');
         if (pv === '') S.pf = []; else { var pa = S.pf.indexOf(pv); if (pa >= 0) S.pf.splice(pa, 1); else S.pf.push(pv); }
@@ -3837,7 +3859,7 @@
         if (hv && S.lens !== 'live') useLens('live', true);
         if (!hv) hotRowExt().forEach(function (xk) { delete S.ext[xk]; });          // Everything clears the row's add-on chips too
         S.hot = !hv ? '' : S.hot === hv ? '' : hv;
-        if (S.hot) { S.link = ''; S.with = ''; }
+        if (S.hot) { S.link = ''; S.with = ''; track('intel_trend', { pick: S.hot === 'all' || S.hot === 'blind' ? S.hot : 'story' }); }
         say(''); render(); if (!S.place) frameShown(); return;
       }
       if ((b = t.closest('button[data-fx]'))) {
@@ -3913,7 +3935,7 @@
       else if (b.hasAttribute('data-rp-all')) { var rit = spotList()[spotAt]; repliesOf(rit, function (e) { if (e && e.r.length) { var bx = $('ir-s-rp'); if (bx) bx.innerHTML = repliesHead(rit, e) + repliesHtml(rit, e.r, false); } }); }
       else if (b.hasAttribute('data-pics1')) { var pit = spotList()[spotAt]; if (pit) { pit._pics = 1; openSpot(spotAt); } }
       else if (b.hasAttribute('data-copyt')) { var cit = spotList()[spotAt]; if (cit) { var ct = postText(cit); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ct).then(function () { b.textContent = T('Headline copied.'); }, function () { fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); }); else fallbackCopy(ct, function () { b.textContent = T('Headline copied.'); }); } }
-      else if (b.hasAttribute('data-play')) { hush(null); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="' + esc(T('Video')) + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
+      else if (b.hasAttribute('data-play')) { hush(null); track('intel_video_play', { lens: S.lens, player: 'youtube' }); var v = b.parentNode; v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + b.getAttribute('data-play') + '?autoplay=1&rel=0" title="' + esc(T('Video')) + '" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>'; }
       else if (b.hasAttribute('data-with')) { var wid = b.getAttribute('data-with'); closeSpot(); S.with = wid; S.link = ''; S.hot = ''; LT = 'items'; render(); frameShown(); var wi2 = itemById(wid); say(T('What connects to "{what}": {n} items.', { what: cut(wi2 ? wi2.t : '', 60), n: N(shown.length) }), true); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       else if (b.hasAttribute('data-who')) { var wk = b.getAttribute('data-who'), wit = spotList()[spotAt]; closeSpot(); clearAll(); S.who = wk; render(); frameShown(); say(T('Every post here from {who}: {n}.', { who: wit ? whoName(wit) : wk, n: N(shown.length) }), true); $('ir-items').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       else if (b.hasAttribute('data-map')) { var mit = spotList()[spotAt]; if (!mit) return; var k = mit.p; closeSpot(); pulseAt(k); box.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
@@ -4193,7 +4215,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=ebbb7e0b98'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=4caf3e06c4'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

@@ -2545,6 +2545,10 @@
     // it before the phone test looked (fa/news/, "the topic is cut", three runs in a row)
     setInterval(function () { var s0 = $('ir-sh-stage'); if (!s0) return; var t0 = $('ir-sh-tt'), kb = s0.clientWidth + 'x' + s0.clientHeight + (t0 ? '|' + t0.offsetWidth + 'x' + t0.offsetHeight : ''); if (kb !== lastBox) { lastBox = kb; refitSoon(); } }, 250);
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(refitSoon);
+    // and every font that finishes loading later (2 Nov 2026): document.fonts.ready settles before a font the page has not
+    // asked for yet starts, so the Persian face arriving after it changed the topic to three lines with nothing to say so
+    // but the quarter-second look (Iran Uncensored phone test, "the topic is cut" at 34px, a busy PC)
+    if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refitSoon);
     function roleName(r) { return r.role === 'on' ? '' : r.role === 'rel' ? T('Related') : Object.prototype.hasOwnProperty.call(ROLE, r.role) ? ROLE[r.role] : ''; }
     function srcLine(x) { var h = String(x.u).replace(/^https?:\/\/(www\.)?/, '').split('/')[0]; return T('Open the source: {site}', { site: x.src === 'News' && x.h ? x.h : h }); }
     /* WHO COVERED THIS STORY, on the screen (25 Oct 2026): of the outlets that carried it, how many lean left, centre and
@@ -2725,6 +2729,7 @@
     if (mode === 'present' && rows.some(function (r) { return /^https:\/\/(www\.)?(x|twitter)\.com\//.test(r.it.u || ''); })) tw().catch(function () {});          // X's player loads once, early
     paintTopic();
     if (mode === 'read') setMode('read'); else go(at);
+    try { refit(); } catch (e) { }          // fitted before it says it is ready, not one timer later (2 Nov 2026)
     sh.setAttribute('data-ready', '1');
   }
 })();
