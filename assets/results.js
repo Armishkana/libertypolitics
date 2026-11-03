@@ -81,6 +81,10 @@
         return d;
       });
     }
+    // A tab brought back to the front reads at once instead of waiting out the rest of its 30 seconds.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && !mockOn && doc && timer) load().then(poll, poll);
+    });
     function poll() {
       clearTimeout(timer);
       var wait = mockOn ? 1500 : 30000;
@@ -91,7 +95,14 @@
       }, wait);
     }
     return {
-      start: function (m) { mockOn = !!m; return load().then(function (d) { poll(); return d; }); },
+      // A first read that fails (a network blip, the site mid-rebuild) is tried again every 5 seconds: before this, the map
+      // said "could not load" until someone pressed reload, which on a stream nobody does.
+      start: function (m) {
+        mockOn = !!m; var self = this;
+        return load().then(function (d) { poll(); return d; }, function () {
+          return new Promise(function (ok) { setTimeout(ok, 5000); }).then(function () { return self.start(mockOn); });
+        });
+      },
       setMock: function (m) { mockOn = !!m; return this.start(mockOn); },
       restart: function () { if (engine) { engine.restart(); engine.apply(); emit(); } },
       show: function (d) { doc = d; emit(); },      // the browser test lays its own numbers over the map; the next read replaces them
@@ -819,7 +830,10 @@
   }).catch(function () {});
 
   Promise.all([
-    fetch(GEO + 'states.json').then(function (r) { return r.json(); }),
+    (function geoRead() {      // the map's shapes: tried again every 5 seconds until they arrive, never left blank
+      return fetch(GEO + 'states.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .catch(function () { return new Promise(function (ok) { setTimeout(ok, 5000); }).then(geoRead); });
+    })(),
     fetch(GEO + 'house-hex.json').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
   ]).then(function (got) {
     geo = got[0]; drawMap();
