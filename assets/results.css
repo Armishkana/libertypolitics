@@ -180,7 +180,9 @@
 
 /* STREAM VIEW: the menu, the footer and everything else on the page go; the map fills the screen (OBS, screen share).
    ?stream=1 opens it, &transparent=1 also drops the ground for a browser source laid over video. */
-html.em-streaming body>:not(main),html.em-streaming main>:not(#em){display:none!important}
+/* #em sits inside the record pane (#record) since the page gained its Discussion tab: keep that pane, hide its other children */
+html.em-streaming body>:not(main),html.em-streaming main>:not(#em):not(#record),html.em-streaming #record>:not(#em){display:none!important}
+html.em-streaming #record{display:block!important;padding:0;margin:0}
 html.em-streaming body{overflow:hidden}
 html.em-streaming .ctabs{display:none!important}      /* the country tabs (world.bar) are for a reader, not for a stream */
 .em.em-s{padding:12px 0 0;min-height:100vh}
