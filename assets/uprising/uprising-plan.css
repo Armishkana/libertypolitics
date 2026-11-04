@@ -75,16 +75,25 @@
 .lg-avoid{border-radius:50%;border:1.6px dashed #eb4549;background:rgba(235,69,73,.14)}
 .lg-crowd{border-radius:50%;background:#f5b842;color:#17130a}
 .lg-force{border-radius:5px;background:#eb4549;color:#fff}
+.lg-ghost{border-radius:50%;border:2px dashed #f5b842;color:#f5b842;opacity:.75}
+.lg-pend{border-radius:50%;border:2px dashed #f5b842;background:#101317;color:#f5b842}
 .lg-ring{border-radius:50%;border:2.5px solid #8fdcff}
 .lg-lad i{width:16px!important;height:10px!important;border-radius:3px}
 .upp-hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:10px;align-items:center;max-width:calc(100% - 140px);padding:6px 6px 6px 14px;border-radius:24px;background:#8fdcff;color:#06131b;font-weight:700;font-size:13px}
 .upp-hint .upp-ib{background:#06131b;color:#fff;border-color:#06131b;font-size:13px;border-radius:20px}
 /* playback */
-.upp-play{position:absolute;inset-inline:0;bottom:0;z-index:3;display:grid;grid-template-columns:auto 1fr;grid-template-areas:'clock ctl' 'feed feed';gap:6px 12px;padding:10px 12px;background:linear-gradient(rgba(8,10,13,0),rgba(8,10,13,.92) 22%)}
+.upp-play{position:absolute;inset-inline:0;bottom:0;z-index:3;display:grid;grid-template-columns:auto 1fr;grid-template-areas:'goal goal' 'clock ctl' 'feed feed';gap:6px 12px;padding:10px 12px;background:linear-gradient(rgba(8,10,13,0),rgba(8,10,13,.92) 22%)}
+/* the goal of the night, always on screen while it plays (4 Nov 2026) */
+.upp-goal{grid-area:goal;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:13px;font-weight:700;color:#fff;min-width:0}
+.upp-gbar{flex:1 1 140px;min-width:100px;height:8px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+.upp-gbar b{display:block;height:100%;width:0;background:#f5b842;border-radius:4px;transition:width .3s linear}
+.upp-gbar.done b{background:#7ad48a}
+.upp-goal em{font-style:normal;font-size:12px;font-weight:700;color:#8fdcff}
 .upp-clock{grid-area:clock;display:flex;flex-direction:column;justify-content:center}
 .upp-clock b{font:800 30px/1 var(--disp);color:#fff;font-variant-numeric:tabular-nums}
 .upp-clock span{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--dim)}
 .upp-clock span b{font:700 12px/1.2 var(--txt);color:#fff}
+.upp-clock span span{display:inline-flex;flex-wrap:nowrap;gap:4px;white-space:nowrap;max-width:none!important}
 .upp-clock .off{color:#8fdcff;font-weight:700}
 .upp-ctl{grid-area:ctl;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:flex-end}
 .upp-ctl input[type=range]{flex:1;min-width:120px;min-height:40px;accent-color:#8fdcff}
@@ -103,9 +112,21 @@
 .upp-debrief{position:absolute;top:60px;inset-inline-end:12px;z-index:4;width:min(380px,calc(100% - 24px));overflow:auto;padding:14px 16px;border-radius:10px;background:var(--glass2);border:1px solid var(--edge);box-shadow:0 12px 40px rgba(0,0,0,.5)}
 .upp-dh{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .upp-dh h3{margin:0;font-size:16px;color:#fff}
+.upp-dh4{margin:12px 0 4px;font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.upp-badges{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+.upp-badge{display:inline-flex;align-items:center;min-height:28px;padding:3px 10px;border-radius:14px;font-size:12px;color:var(--dim);border:1px dashed rgba(255,255,255,.2)}
+.upp-badge.on{color:#17130a;background:#f5b842;border:1px solid #f5b842;font-weight:700}
+.upp-badge.had{color:#f5d68f;border-style:solid;border-color:rgba(245,184,66,.45)}
+.upp-best{margin:6px 0 0;font-size:13px;font-weight:700;color:#ffd27a}
+/* the first night's tips (4 Nov 2026): one at a time, top of the map, nothing drawn under it */
+.upp-coach{position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:5;width:min(420px,calc(100% - 120px));padding:12px 14px;border-radius:10px;background:#8fdcff;color:#06131b;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.upp-coach p{margin:0 0 8px;font-size:14px;font-weight:700;line-height:1.35}
+.upp-coach div{display:flex;flex-wrap:wrap;gap:6px}
+.upp-coach .upp-chip{color:#06131b;border-color:rgba(6,19,27,.35);background:rgba(255,255,255,.35)}
+.upp-coach .upp-chip.on{background:#06131b;color:#fff;border-color:#06131b}
 .upp-why{list-style:none;margin:10px 0;padding:0;display:grid;gap:8px}
 .upp-why li{display:flex;gap:8px;font-size:13px;line-height:1.45}
-.upp-why i{flex:none;font-style:normal;font-size:11px;margin-top:3px}
+.upp-why i{flex:none;font-style:normal;font-size:12px;margin-top:2px}
 .upp-why li.up i{color:#5fd39a}.upp-why li.down i{color:#eb4549}
 /* compare */
 .upp-ct{overflow-x:auto;margin:0 -4px}
@@ -133,7 +154,10 @@
   .upp-side{border-inline-end:0;border-top:1px solid var(--edge)}
   .upp.playing{grid-template-rows:1fr 0}
   .upp.playing .upp-side{display:none}
-  .upp-play{grid-template-columns:1fr;grid-template-areas:'clock' 'ctl' 'feed';padding:8px;gap:4px}
+  .upp-play{grid-template-columns:1fr;grid-template-areas:'clock' 'goal' 'ctl' 'feed';padding:8px;gap:4px}
+  .upp-goal{font-size:12px}
+  .upp-coach{top:58px;left:8px;transform:none;width:calc(100% - 72px)}
+  [dir=rtl] .upp-coach{left:auto;right:8px}
   .upp-ctl{justify-content:flex-start;flex-wrap:nowrap}
   .upp-ctl input[type=range]{min-width:0;width:0;flex:1 1 0}
   .upp-spd button{min-width:40px;padding:0}
@@ -151,5 +175,5 @@
    (--lps-z, 1.5 at 1920 x 1080), like the rest of the tool (uprising.css). The map's canvas is not zoomed (it measures the
    pointer); its buttons, key, playback bar and debrief are. Every word 13.5px or more on the canvas, so 20px on the stream. */
 html.lp-stream #uprising .upp{top:calc(60px * var(--lps-z,1));grid-template-columns:calc(400px * var(--lps-z,1)) minmax(0,1fr)}
-html.lp-stream #uprising :is(.upp-side,.upp-zoom,.upp-keyb,.upp-legend,.upp-play,.upp-hint,.upp-debrief){zoom:var(--lps-z,1)}
+html.lp-stream #uprising :is(.upp-side,.upp-zoom,.upp-keyb,.upp-legend,.upp-play,.upp-hint,.upp-debrief,.upp-coach){zoom:var(--lps-z,1)}
 html.lp-stream #uprising .upp :is(#upp-stop,.upp-3d,.upp-check,.upp-chip,.upp-clock span,.upp-ct table,.upp-dl div,.upp-feed li,.upp-ficon,.upp-gfrom,.upp-gl,.upp-gr,.upp-gr2 label,.upp-h small,.upp-hint,.upp-ib,.upp-keyb,.upp-lab,.upp-ladder li,.upp-legend h4,.upp-legend i,.upp-legend ul,.upp-legend ol,.upp-safe,.upp-sb,.upp-small,.upp-spd button,.upp-tabs button,.upp-trig li,.upp-units p,.upp-why i,.upp-why li){font-size:13.5px}

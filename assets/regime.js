@@ -60,6 +60,13 @@
   function sget(k) { try { return W.localStorage.getItem(k); } catch (e) { return null; } }
   function sset(k, v) { try { W.localStorage.setItem(k, v); } catch (e) { } }
   function url() { try { return new URL(W.location.href); } catch (e) { return null; } }
+  /* USE OF THE BOARD (4 Nov 2026, the brief: "usage is measured"): counts only, through window.lpTrack, which build/harden.py
+     writes beside the Google tag on the live address alone (a copy opened on the PC sends nothing). rg_tab (which view),
+     rg_card (a card opened), rg_fullscreen, rg_branch (which chip), rg_quiz_start, rg_quiz_end (the score), rg_find (a
+     search result picked: NEVER the words, a reader inside Iran must never have what they typed sent anywhere), rg_fix (the
+     "something wrong here?" link). Read weekly by projects/hub/site-analytics.py (boardEvents); what the recheck does with
+     them: LIVING.md, "The Regime Board roster recheck". */
+  function track(e, p) { try { if (W.gtag && W.lpTrack) { p = p || {}; p.board_lang = FA ? 'fa' : 'en'; W.lpTrack(e, p); } } catch (x) { } }
   function setUrl(u, push, state) { try { if (push) W.history.pushState(state || null, '', u); else W.history.replaceState(state || W.history.state, '', u); } catch (e) { } }
 
   /* ---------------------------------------------------------------- dates */
@@ -99,7 +106,16 @@
   function face(p, later) {      // later: the chart sets the picture only once the face is on screen and big enough to see
     var f = el('span', 'rg-face');
     if (p.c && X.camps[p.c]) f.style.setProperty('--cc', X.camps[p.c].c);
-    if (p.img) { var i = el('img'); if (later) i.setAttribute('data-src', X.root + 'assets/regime/' + p.img); else i.src = X.root + 'assets/regime/' + p.img; i.alt = ''; i.loading = 'lazy'; i.decoding = 'async'; i.width = 200; i.height = 250; i.draggable = false; f.appendChild(i); }
+    // later: a chart face. 4 Nov 2026 (Armin: "When I zoom in and out some pictures disappear"): its picture is the small copy
+    // (assets/regime/t/, regime.py thumb()), set by lod() for every face on screen at EVERY zoom, never by the browser's own
+    // lazy loading (which decides from scrolling, and the chart moves by a transform, not a scroll); a small copy that fails
+    // falls back to the full picture, and that failing to the figure of their post, so a face is never left empty.
+    if (p.img) {
+      var i = el('img'), full = X.root + 'assets/regime/' + p.img;
+      if (later) { i.setAttribute('data-src', X.root + 'assets/regime/t/' + p.img); i.onerror = function () { if (i.src !== full && i.src.indexOf('/t/') >= 0) i.src = full; else { i.onerror = null; var q = Object.assign({}, p); delete q.img; q.av = q.av || 'ci'; var g = face(q); f.replaceChild(g.firstChild, i); } }; }
+      else { i.src = full; i.loading = 'lazy'; }
+      i.alt = ''; i.decoding = 'async'; i.width = 200; i.height = 250; i.draggable = false; f.appendChild(i);
+    }
     else {
       var av = p.av || 'ci', s = el('span', 'rg-ini rg-av'); s.setAttribute('aria-hidden', 'true'); s.setAttribute('data-av', av);
       var sv = D.createElementNS(SVGNS, 'svg'); sv.setAttribute('focusable', 'false');
@@ -359,7 +375,7 @@
     qIn.setAttribute('aria-activedescendant', 'rg-qo-' + qAt);
   }
   function qClose() { ql.hidden = true; qIn.setAttribute('aria-expanded', 'false'); qIn.removeAttribute('aria-activedescendant'); }
-  function qPick(id) { qIn.value = ''; qClose(); qIn.blur(); reveal(id); }
+  function qPick(id) { qIn.value = ''; qClose(); qIn.blur(); track('rg_find', {}); reveal(id); }
   qIn.addEventListener('input', qShow);
   qIn.addEventListener('focus', function () { if (qIn.value.trim()) qShow(); });
   qIn.addEventListener('blur', function () { setTimeout(qClose, 150); });
@@ -616,7 +632,9 @@
   }
   var tabs = $('rg-tabs');
   function setTab(v, quiet) {
-    TAB = v === 'days' ? 'days' : (v === 'key' && keyEl) ? 'key' : v === 'board' ? 'board' : 'chart';
+    TAB = v === 'days' ? 'days' : (v === 'key' && keyEl) ? 'key' : v === 'board' ? 'board' : (v === 'quiz' && quizEl) ? 'quiz' : 'chart';
+    if (TAB !== 'chart' && FS) fsToggle();
+    if (quizEl) { quizEl.hidden = TAB !== 'quiz'; if (TAB === 'quiz') quizStart(false); }
     each('.rg-tab', function (b) { var on = b.getAttribute('data-v') === TAB; tog(b, 'is-on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); }, tabs);
     if (TAB === 'days') buildDays();
     board.hidden = TAB !== 'board'; crumb.hidden = TAB !== 'board'; daysEl.hidden = TAB !== 'days';
@@ -626,6 +644,7 @@
     tog(root, 'rg-on-key', TAB === 'key');
     applyFilter();
     if (!quiet) {
+      track('rg_tab', { v: TAB });
       var u = url();
       if (u) {
         if (TAB === 'chart') u.searchParams.delete('v'); else u.searchParams.set('v', TAB);
@@ -739,7 +758,13 @@
     if (p.b) { inner.appendChild(el('h3', null, w.bio)); inner.appendChild(el('p', null, p.b)); }
     if (p.past && p.past.length) { inner.appendChild(el('h3', null, w.past)); var ul = el('ul', 'rg-sh-past'); p.past.forEach(function (v) { ul.appendChild(el('li', null, v)); }); inner.appendChild(ul); }
     if (p.src && p.src.length) { var s = el('p', 'rg-sh-src'); s.appendChild(el('span', 'rg-sh-k', w.sources)); p.src.slice(0, 8).forEach(function (i) { var u = (X.src || [])[i]; if (u) s.appendChild(link(u)); }); inner.appendChild(s); }
+    if (p.ao) inner.appendChild(el('p', 'rg-sh-ao' + (p.au ? ' is-un' : ''), (p.au ? w.as_of_un : w.as_of).replace('{d}', p.ao)));
     if (p.cr) inner.appendChild(el('p', 'rg-sh-cr', '📷 ' + p.cr));
+    if (D.documentElement.classList.contains('modes-on')) {      // a correction goes to the page's discussion, which the recheck reads (LIVING.md)
+      var fx = el('a', 'rg-sh-fix', w.fix_this); fx.href = '#discussion';
+      fx.addEventListener('click', function () { track('rg_fix', { unit: p.u || '' }); shut(); });
+      inner.appendChild(fx);
+    }
     var sh = el('button', 'btn btn-line rg-sh-share', w.share_p); sh.type = 'button';
     var canon = root.getAttribute('data-canon') || (W.location.origin + W.location.pathname);
     sh.setAttribute('data-share', ''); sh.setAttribute('data-url', canon + '?p=' + encodeURIComponent(p.id));
@@ -755,7 +780,7 @@
     // a card is a step in the history: a phone's Back closes it and leaves the reader where they were
     var u = url(); if (u) { u.searchParams.set('p', id); setUrl(u, !was && !popped, { rgb: LEVEL, rgp: id }); }
     collect(); applyTime(cur, true); applyFilter();
-    see(id);
+    see(id); if (!was) track('rg_card', { view: TAB, key: p.k ? 1 : 0 });
   }
   function step(k) { if (SEQ.length < 2) return; var i = SEQ.indexOf(openId); open(SEQ[(i + k + SEQ.length) % SEQ.length], null, true); }
   function side() {      // a sheet from the bottom on a phone (the page held still), a panel at the side on a computer (the board stays live)
@@ -942,6 +967,15 @@
   var orgEl = $('rg-org'), ov = $('rg-ov'), op = $('rg-op'), szEl = $('rg-sz');
   var SIZES = X.sizes || [P.length], SIZE = SIZES[SIZES.length - 1], ORGBUILT = false, POS = [], LEFTS = [];
   var Z = { s: 1, x: 0, y: 0, fit: 1, w: 1, h: 1 };
+  // THE BRANCH CHIPS (4 Nov 2026): draw only one group of branches (regime.py GROUPS), the Supreme Leader's office on top; ?g=
+  var GRP = 'all', grpEl = $('rg-grp');
+  function grpFrom(u) { var g = u ? u.searchParams.get('g') : ''; return g && X.groups && X.groups[g] ? g : 'all'; }
+  function grpPaint() { if (grpEl) each('.rg-gb', function (b) { var on = b.getAttribute('data-g') === GRP; tog(b, 'is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }, grpEl); }
+  if (grpEl) each('.rg-gb', function (b) { b.addEventListener('click', function () {
+    var g = b.getAttribute('data-g'); if (g === GRP) return;
+    GRP = g; grpPaint(); orgDraw(false); fit(true); track('rg_branch', { g: g });
+    var u = url(); if (u) { if (g === 'all') u.searchParams.delete('g'); else u.searchParams.set('g', g); setUrl(u, false); }
+  }); }, grpEl);
   function sizeFrom(u) { var n = u ? parseInt(u.searchParams.get('n'), 10) : 0; return SIZES.indexOf(n) >= 0 ? n : SIZES[SIZES.length - 1]; }
   function inSize(p) { return !p.w || p.w <= SIZE; }
   function sizeButtons() {
@@ -970,6 +1004,7 @@
       if (band.n) bd.appendChild(el('p', 'rg-obl', band.n));
       var row_ = el('div', 'rg-obr'); bd.appendChild(row_);
       band.br.forEach(function (br) {
+        if (GRP !== 'all' && br.b !== 'leader' && (X.groups[GRP] || []).indexOf(br.b) < 0) return;
         var box = el('section', 'rg-obx'); box.setAttribute('data-b', br.b);
         var ids = [];
         br.parts.forEach(function (pt) {
@@ -1062,7 +1097,9 @@
     if (k !== LOD || force) { tog(ov, 'z-far', k === 'far'); tog(ov, 'z-mid', k === 'mid'); LOD = k; }
     var zi = Math.max(1, Math.min(2.6, .45 / s)).toFixed(1);      // on the titles alone: a variable on the window would restyle every face
     if (zi !== Z.zi || force) { Z.zi = zi; each('.rg-obh, .rg-obl', function (t) { t.style.setProperty('--zi', zi); }, op); }
-    if (s < .45) return;
+    // 4 Nov 2026: this returned below 45% zoom, so a face first seen zoomed out had no picture, and CSS hid every face below
+    // 30%: zooming out "made pictures disappear". Now every face on screen gets its picture at every zoom (a small copy).
+    if (!POS.length || !POS[0].w || op.offsetWidth !== Z.w || op.offsetHeight !== Z.h) measure();
     var vw = ov.clientWidth, vh = ov.clientHeight, x0 = -Z.x / s - 80, y0 = -Z.y / s - 80, x1 = x0 + vw / s + 160, y1 = y0 + vh / s + 160;
     POS.forEach(function (q) {
       if (q.done || q.x > x1 || q.x + q.w < x0 || q.y > y1 || q.y + q.h < y0) return;
@@ -1081,7 +1118,7 @@
   }
   ov.addEventListener('pointerdown', function (ev) {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-    if (ev.target.closest && ev.target.closest('.rg-oz')) return;
+    if (ev.target.closest && ev.target.closest('.rg-oz')) { moved = false; return; }      // a pinch makes no click to clear "moved": a button pressed after one must not be swallowed (4 Nov 2026)
     cancelAnimationFrame(tw);
     PT[ev.pointerId] = rel(ev); if (Object.keys(PT).length === 1) moved = false;
     startG(); tog(ov, 'is-grab', true);
@@ -1107,7 +1144,7 @@
   function up(ev) { if (!PT[ev.pointerId]) return; delete PT[ev.pointerId]; startG(); if (!Object.keys(PT).length) tog(ov, 'is-grab', false); }
   ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up); ov.addEventListener('lostpointercapture', up);
   ov.addEventListener('click', function (ev) {
-    if (moved) { ev.stopPropagation(); ev.preventDefault(); moved = false; return; }      // a drag is not a tap
+    if (moved && !(ev.target.closest && ev.target.closest('.rg-oz'))) { ev.stopPropagation(); ev.preventDefault(); moved = false; return; }      // a drag is not a tap
     var t = ev.target.closest && ev.target.closest('.rg-on');      // a face too small to hit surely: the tap zooms in on it, a second tap opens it
     if (!t) return;
     var r = t.getBoundingClientRect();
@@ -1135,15 +1172,16 @@
   });
   each('.rg-zb', function (b) { b.addEventListener('click', function () {
     var z = b.getAttribute('data-z'), cx = ov.clientWidth / 2, cy = ov.clientHeight / 2;
+    if (z === 'fs') { fsToggle(); return; }
     if (z === 'fit') fit(true); else { var s = Math.max(Z.fit * .8, Math.min(2.6, Z.s * (z === 'in' ? 1.6 : 1 / 1.6))), px = (cx - Z.x) / Z.s, py = (cy - Z.y) / Z.s; to(s, cx - px * s, cy - py * s, true); }
   }); }, orgEl);
   function orgShow() {
-    if (!ORGBUILT) { ORGBUILT = true; SIZE = sizeFrom(url()); orgDraw(true); }
+    if (!ORGBUILT) { ORGBUILT = true; SIZE = sizeFrom(url()); GRP = grpFrom(url()); grpPaint(); orgDraw(true); }
     else { measure(); clampZ(); paint(); lod(true); }
   }
   function orgGo(id) {      // the search: to that face, big enough to read, lit, its card open
     var p = BY[id]; if (!p) return;
-    if (!inSize(p)) { SIZE = SIZES[SIZES.length - 1]; orgDraw(false); }
+    if (!inSize(p) || (GRP !== 'all' && !op.querySelector('.rg-on[data-id="' + id + '"]'))) { SIZE = SIZES[SIZES.length - 1]; GRP = 'all'; grpPaint(); orgDraw(false); }
     var q = null; POS.forEach(function (o) { if (!q && o.n.getAttribute('data-id') === id && !o.n.classList.contains('is-al')) q = o; });
     if (!q) return;
     var s = Math.max(Z.s, 1.1), vw = ov.clientWidth, vh = ov.clientHeight;
@@ -1152,6 +1190,126 @@
   }
   var orz = 0;
   W.addEventListener('resize', function () { clearTimeout(orz); orz = setTimeout(function () { if (ORGBUILT && !orgEl.hidden) { var f = Z.s <= Z.fit * 1.01; measure(); if (f) fit(false); else { clampZ(); paint(); } lod(true); } }, 200); });
+
+  /* ---------------------------------------------------------------- FULL SCREEN (4 Nov 2026)
+     Armin: "There is no way to make the zoomable chart fullscreen, and there should be." The button in the zoom stack puts
+     the chart part (#rg-org: the size picker, the branch chips, the legend, the chart) over the whole screen. Where the
+     browser has the Fullscreen API for an element it is used (Esc is the browser's); where it has not (an iPhone's Safari)
+     the same class fills the window with fixed positioning, the page under it held still, and Esc or the button leave.
+     The card moves inside while it lasts, so a tap on a face still opens it. The view keeps its centre across the change. */
+  var FS = false, fsB = $('rg-fsb'), sheetHome = null;
+  function fsEl() { return D.fullscreenElement || D.webkitFullscreenElement || null; }
+  function fsSet(on) {
+    if (on === FS) return;
+    var cx = ov.clientWidth / 2, cy = ov.clientHeight / 2, px = (cx - Z.x) / Z.s, py = (cy - Z.y) / Z.s;
+    FS = on;
+    tog(orgEl, 'is-fs', on); tog(D.documentElement, 'rg-fs-lock', on);
+    if (on) { sheetHome = sheet.parentNode; orgEl.appendChild(sheet); }
+    else if (sheetHome && sheet.parentNode !== sheetHome) sheetHome.appendChild(sheet);
+    if (fsB) { fsB.setAttribute('aria-pressed', on ? 'true' : 'false'); var l = fsB.getAttribute(on ? 'data-off' : 'data-on'); fsB.setAttribute('aria-label', l); fsB.title = l; }
+    var again = function () { Z.x = ov.clientWidth / 2 - px * Z.s; Z.y = ov.clientHeight / 2 - py * Z.s; clampZ(); paint(); lod(true); };
+    again(); W.requestAnimationFrame(function () { W.requestAnimationFrame(again); }); setTimeout(again, 350);
+    try { ov.focus({ preventScroll: true }); } catch (e) { }
+  }
+  function fsToggle() {
+    if (!FS) {
+      fsSet(true); track('rg_fullscreen', {});
+      var r = orgEl.requestFullscreen || orgEl.webkitRequestFullscreen;
+      if (r) { try { var pr = r.call(orgEl); if (pr && pr.catch) pr.catch(function () { }); } catch (e) { } }      // refused: the class alone fills the window
+    } else if (fsEl()) { var x = D.exitFullscreen || D.webkitExitFullscreen; try { var q = x.call(D); if (q && q.catch) q.catch(function () { fsSet(false); }); } catch (e) { fsSet(false); } }
+    else fsSet(false);
+  }
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (t) { D.addEventListener(t, function () { if (FS && !fsEl()) fsSet(false); }); });
+  W.addEventListener('keydown', function (ev) {      // capture: an open card takes Esc first (its own handler), the next Esc leaves
+    if (ev.key !== 'Escape' || !FS || !sheet.hidden) return;
+    ev.preventDefault(); fsToggle();      // the browser's own full screen usually eats Esc itself; when the page gets it, it leaves either kind
+  }, true);
+
+  /* ---------------------------------------------------------------- THE POWER QUIZ (4 Nov 2026)
+     The brief: "game-like elements where they help understanding (e.g. a 'who really holds power' quiz)". Ten rounds, three
+     kinds, every answer read from this page's own data, so the quiz is exactly as right as the board: WHO HAS MORE POWER (two
+     key players, data/regime-key.json order, and the one line of what the stronger one's chair decides), WHO SITS IN THIS
+     CHAIR TODAY (a chair emptied in the war: the holder today among the ones taken out of it), WHICH ONE WAS TAKEN OUT (one
+     killed, two still in place). The reader's best score stays in this browser (rg-quiz-best); the page works without it. */
+  var quizEl = $('rg-quiz'), qzB = $('rg-qz-b'), QZ = null;
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function postOf(p) { return String(p.r || '').replace(/\s*[(（][^)）]*[)）]/g, '').split(/[;؛]/)[0].trim(); }
+  function quizRounds() {
+    var key = P.filter(function (p) { return p.k && !GONE[p.s]; }).sort(function (a, b) { return a.k - b.k; });
+    var R = [], used = {};
+    // who has more power: pairs at least three places apart, so the answer is a fact of the order and not a coin toss
+    shuffle(key.slice()).forEach(function (a) {
+      if (R.length >= 4) return;
+      var b = shuffle(key.filter(function (o) { return Math.abs(o.k - a.k) >= 3 && !used[o.id] && o.id !== a.id; }))[0];
+      if (!b || used[a.id]) return; used[a.id] = used[b.id] = 1;
+      R.push({ t: 'more', q: w.qz_more, opts: shuffle([a, b]), ok: a.k < b.k ? a.id : b.id });
+    });
+    // who sits in this chair today
+    shuffle((X.chairs || []).map(function (c) { return c.map(function (i) { return BY[i]; }).filter(Boolean); }).filter(function (c) {
+      var now = c[c.length - 1]; return c.length >= 3 && !GONE[now.s] && now.s !== 'removed' && now.s !== 'arrested' && c.slice(0, -1).some(function (o) { return GONE[o.s]; });
+    })).slice(0, 3).forEach(function (c) {
+      var now = c[c.length - 1], before = shuffle(c.slice(0, -1)).slice(0, 2);
+      R.push({ t: 'chair', q: w.qz_chair.replace('{post}', postOf(now)), opts: shuffle([now].concat(before)), ok: now.id });
+    });
+    // which one has been taken out
+    var down = shuffle(P.filter(function (p) { return p.s === 'killed' && p.img && p.t !== 'm' && p.d >= '2025-06'; })), up = shuffle(P.filter(function (p) { return (p.s === 'alive') && p.img && p.t !== 'm' && p.u !== 'former'; }));
+    for (var i = 0; R.length < 10 && i < down.length && up.length >= 2 * (i + 1); i++) R.push({ t: 'out', q: w.qz_out, opts: shuffle([down[i], up[2 * i], up[2 * i + 1]]), ok: down[i].id });
+    return shuffle(R).slice(0, 10);
+  }
+  function qzFace(p) { var f = face(p); f.classList.add('rg-qz-f'); return f; }
+  function quizStart(again) {
+    if (!qzB || (QZ && !again)) return;
+    QZ = { r: quizRounds(), i: 0, s: 0 }; track('rg_quiz_start', { again: again ? 1 : 0 });
+    quizShow();
+  }
+  function quizShow() {
+    qzB.textContent = '';
+    var n = QZ.r.length;
+    if (QZ.i >= n) {      // the end: the score, the best so far, share it, play again
+      var best = Math.max(QZ.s, +(sget('rg-quiz-best') || 0) || 0); sset('rg-quiz-best', String(best)); if (!QZ.sent) { QZ.sent = 1; track('rg_quiz_end', { score: QZ.s, of: n }); }
+      qzB.appendChild(el('p', 'rg-qz-score num', w.qz_score.replace('{s}', num(QZ.s)).replace('{n}', num(n))));
+      qzB.appendChild(el('p', 'rg-qz-end', w.qz_end.replace('{s}', num(QZ.s)).replace('{n}', num(n))));
+      qzB.appendChild(el('p', 'rg-dim', w.qz_best.replace('{s}', num(best)).replace('{n}', num(n))));
+      var a = el('div', 'rg-qz-acts');
+      var sh = el('button', 'btn btn-line', w.share); sh.type = 'button'; sh.setAttribute('data-share', '');
+      var canon = root.getAttribute('data-canon') || (W.location.origin + W.location.pathname);
+      sh.setAttribute('data-url', canon + '?v=quiz'); sh.setAttribute('data-title', w.qz_h); sh.setAttribute('data-text', w.qz_share.replace('{s}', num(QZ.s)).replace('{n}', num(n)));
+      var ag = el('button', 'btn btn-key', w.qz_again); ag.type = 'button'; ag.addEventListener('click', function () { quizStart(true); });
+      a.appendChild(ag); a.appendChild(sh); qzB.appendChild(a);
+      return;
+    }
+    var R = QZ.r[QZ.i];
+    var hd = el('div', 'rg-qz-top'); hd.appendChild(el('span', 'rg-qz-n num', num(QZ.i + 1) + ' / ' + num(n))); if (QZ.i) hd.appendChild(el('span', 'rg-qz-s num', w.qz_score.replace('{s}', num(QZ.s)).replace('{n}', num(QZ.i))));
+    var bar = el('span', 'rg-qz-bar'); bar.style.setProperty('--q', (100 * QZ.i / n).toFixed(1) + '%'); hd.appendChild(bar);
+    qzB.appendChild(hd);
+    qzB.appendChild(el('h3', 'rg-qz-q', R.q));
+    var row_ = el('div', 'rg-qz-o' + (R.opts.length > 2 ? ' is-3' : ''));
+    var note = el('div', 'rg-qz-note');
+    R.opts.forEach(function (p) {
+      var b = el('button', 'rg-qz-c'); b.type = 'button'; b.setAttribute('data-qid', p.id);
+      b.appendChild(qzFace(p)); b.appendChild(el('b', null, p.n)); var sub = el('span', null, R.t === 'chair' ? (GONE[p.s] ? stLine(p) : '') : postOf(p)); if (R.t === 'chair' && GONE[p.s]) sub.className = 'rg-qz-after'; b.appendChild(sub);      // the fate is shown only once answered: it would give the answer away
+      b.addEventListener('click', function () {
+        if (row_.classList.contains('is-done')) return;
+        tog(row_, 'is-done', true);
+        var right = p.id === R.ok; if (right) QZ.s++;
+        each('.rg-qz-c', function (o) { var id = o.getAttribute('data-qid'); tog(o, 'is-ok', id === R.ok); tog(o, 'is-no', id === p.id && !right); o.setAttribute('aria-disabled', 'true'); }, row_);
+        var okP = BY[R.ok];
+        note.appendChild(el('p', 'rg-qz-v ' + (right ? 'is-ok' : 'is-no'), right ? w.qz_right : w.qz_wrong));
+        var why = R.t === 'more' ? (w.qz_rank.replace('{n}', num(okP.k)) + (okP.kw ? ' · ' + okP.kw : ''))
+          : R.t === 'chair' ? okP.n + ': ' + (okP.r || '') : okP.n + ': ' + stLine(okP) + (okP.sn ? '. ' + okP.sn : '');
+        note.appendChild(el('p', 'rg-qz-why', why));
+        var src = okP.src && okP.src.length && (X.src || [])[okP.src[0]];
+        var ac = el('div', 'rg-qz-acts');
+        var op_ = el('button', 'btn btn-line', w.qz_open); op_.type = 'button'; op_.addEventListener('click', function () { open(okP.id, op_); }); ac.appendChild(op_);
+        if (src) ac.appendChild(link(src));
+        var nx = el('button', 'btn btn-key rg-qz-next', w.qz_next); nx.type = 'button'; nx.addEventListener('click', function () { QZ.i++; quizShow(); try { qzB.querySelector('.rg-qz-c').focus({ preventScroll: true }); } catch (e) { } });
+        ac.appendChild(nx); note.appendChild(ac);
+        try { nx.focus({ preventScroll: true }); } catch (e) { }
+      });
+      row_.appendChild(b);
+    });
+    qzB.appendChild(row_); qzB.appendChild(note);
+  }
 
   /* ---------------------------------------------------------------- start */
   // the bar sticks under the site's own sticky header and the timeline clears any bar fixed at the bottom (the live-show
@@ -1182,7 +1340,7 @@
   if (v0 === 'camps' || sget('rg-lens') === '1') setLens(true);      // ?view=camps was the factions view until 1 Nov 2026: it is the lens now
   applyTime(X.today, true); event(X.today);
   walk(b0, { replace: true, scroll: false, pv: u0 && u0.searchParams.get('pv') || '' });
-  setTab(v0 === 'days' ? 'days' : (v0 === 'key' && keyEl) ? 'key' : (v0 === 'board' || b0) ? 'board' : 'chart', true);
+  setTab(v0 === 'days' ? 'days' : (v0 === 'key' && keyEl) ? 'key' : v0 === 'quiz' ? 'quiz' : (v0 === 'board' || b0) ? 'board' : 'chart', true);
   paintWatch();
   paintSeen();
   W.addEventListener('load', chrome);

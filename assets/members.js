@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=6efa069cd2; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=42d7cf3462; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -104,8 +104,8 @@ const same = (a, b) => !!(a && b && typeof a.isEqual === 'function' && a.isEqual
 
 /* ------------------------------------------------------------------ the reader's own account, as this file sees it */
 let PRIV = null, PROF = null, mineFor = '', MYPOSTS = { post: false, reply: false, warroom: false };
-/* warroom (15 October 2026): the reader has a live post or reply of their own in the War Room's discussion. The Lead mission
-   "Bring a plan to the War Room" ticks itself from it, and build/people.py grants its XP from the same posts. The key is
+/* warroom (15 October 2026): the reader has a live post or reply of their own in the Strategy Room's discussion. The Lead mission
+   "Bring a plan to the Strategy Room" ticks itself from it, and build/people.py grants its XP from the same posts. The key is
    the room's discussion on each site (build/room.py, KEY_OF). */
 const ROOM_KEY = IU ? 'page:room' : 'page:build';
 /* post and reply (15 October 2026, community-strategy.md "THE RECRUITMENT SCREEN"): the reader has a live post of their own
@@ -2243,7 +2243,7 @@ function start() {
   D.addEventListener('lp:posted', ev => {
     if (ev && ev.detail && ev.detail.report) return;
     MYPOSTS[ev && ev.detail && ev.detail.reply ? 'reply' : 'post'] = true; paintState();
-    /* the event does not say which discussion the post was in (community.js), so the War Room's tick reads the reader's own
+    /* the event does not say which discussion the post was in (community.js), so the Strategy Room's tick reads the reader's own
        posts again, once, until it is done (15 October 2026) */
     if (!MYPOSTS.warroom) setTimeout(() => { loadMine(true).catch(() => { }); }, 1500);
   });

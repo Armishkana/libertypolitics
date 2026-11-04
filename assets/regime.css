@@ -735,7 +735,8 @@ html.lp-stream .rg-wl,html.lp-stream .rg-wb{display:none}
 .rg-on.is-pre{opacity:.3}
 .rg.is-lens .rg-on:not(.is-down){border-color:var(--cc-b,var(--line))}
 .z-far .rg-ont{visibility:hidden}
-.z-far .rg-on .rg-face{visibility:hidden}
+/* 4 Nov 2026: far out the face stays (it hid here, and pictures "disappeared" on zoom); regime.js lod() loads every one on screen */
+.z-far .rg-on .rg-face{width:44px;height:44px}
 .z-far .rg-oph{visibility:hidden}
 .z-mid .rg-onr{visibility:hidden}
 .rg-oz{position:absolute;inset-inline-end:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
@@ -750,4 +751,69 @@ html.lp-stream .rg-wl,html.lp-stream .rg-wb{display:none}
   .rg-zb{min-width:40px;min-height:40px;border-radius:10px}
   .rg-zb.is-fit{font-size:.75rem;padding:0 8px}
   .rg-ohint{top:auto;bottom:10px;max-width:calc(100% - 20px)}
+}
+
+/* 4 Nov 2026: THE BRANCH CHIPS over the chart, the legend's key star and second seat, FULL SCREEN, the card's "as of" line,
+   and THE POWER QUIZ (regime.js). Tap targets 40px and up, text 12px and up, nothing hidden and then animated in. */
+.rg-oh{row-gap:var(--s2)}
+.rg-grp{display:flex;gap:4px;overflow-x:auto;max-width:100%;padding:2px;flex:1 1 100%}
+.rg-gb{flex:none;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);font:700 .85rem/1 var(--body,inherit);cursor:pointer;white-space:nowrap}
+.rg-gb:hover{border-color:var(--dim)}
+.rg-gb.is-on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.rg-gb:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-legend .lg-key::before,.rg-legend .lg-al::before{display:none}
+.rg-legend .lg-key{display:inline-flex;align-items:center;gap:6px}
+.rg-legend .lg-al{padding:0 8px;border:1px dashed var(--dim);border-radius:6px}
+.rg-fsb{display:inline-flex;align-items:center;justify-content:center}
+.rg-fsb svg{fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.rg-fsb .rg-fs-out,.rg-fsb[aria-pressed=true] .rg-fs-in{display:none}
+.rg-fsb[aria-pressed=true] .rg-fs-out{display:inline}
+html.rg-fs-lock{overflow:hidden}
+html.rg-fs-lock body{overflow:hidden}
+.rg-org.is-fs{position:fixed;inset:0;z-index:2147483000;margin:0;display:flex;flex-direction:column;gap:var(--s2);
+  padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:var(--bg);overflow:hidden}
+.rg-org.is-fs .rg-ov{flex:1 1 auto;height:auto;min-height:0;margin-top:0}
+.rg-org.is-fs .rg-onote{display:none}
+.rg-org.is-fs .rg-legend{font-size:.75rem}
+.rg-org:fullscreen{width:100%;height:100%}
+.rg-org.is-fs .rg-sheet{z-index:2147483001}
+.rg-sh-ao{margin-top:var(--s2);font-size:.78rem;color:var(--dim)}
+.rg-sh-ao::before{content:"✓ ";color:#2FA36B;font-weight:800}
+.rg-sh-ao.is-un::before{content:"! ";color:var(--rg-unk)}
+.rg-sh-fix{display:inline-flex;align-items:center;min-height:40px;margin-top:var(--s2);font-size:.85rem;font-weight:700;color:var(--field)}
+.rg-quiz{margin-top:var(--s4);max-width:760px}
+.rg-qz-h h2{margin:0}
+.rg-qz-b{margin-top:var(--s4)}
+.rg-qz-top{position:relative;display:flex;justify-content:space-between;gap:var(--s3);padding-bottom:10px;font-size:.85rem;font-weight:700;color:var(--dim)}
+.rg-qz-car{position:absolute;inset-inline:0;bottom:0;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.rg-qz-car::after{content:"";position:absolute;inset-block:0;inset-inline-start:0;width:var(--q,0%);background:var(--field)}
+.rg-qz-q{margin:var(--s4) 0 var(--s3);font-size:1.25rem;line-height:1.25}
+.rg-qz-o{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s3)}
+.rg-qz-o.is-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rg-qz-c{display:flex;flex-direction:column;align-items:center;gap:6px;min-height:44px;padding:var(--s3) 8px;border-radius:var(--r2);border:2px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;text-align:center;cursor:pointer}
+.rg-qz-c:hover{border-color:var(--dim)}
+.rg-qz-c:focus-visible{outline:2px solid var(--field);outline-offset:2px}
+.rg-qz-c b{font-size:.9rem;line-height:1.2}
+.rg-qz-c span:not(.rg-face):not(.rg-ini){font-size:.75rem;line-height:1.25;color:var(--dim)}
+.rg-qz-c .rg-face{width:72px;height:72px}
+.rg-qz-o.is-done .rg-qz-c{cursor:default}
+.rg-qz-o:not(.is-done) .rg-x,.rg-qz-o:not(.is-done) .rg-q,.rg-qz-o:not(.is-done) .rg-qz-after{display:none}      /* no fate mark before the answer: it would give it away */
+.rg-qz-c.is-ok{border-color:#2FA36B;background:color-mix(in srgb,#2FA36B 14%,var(--panel))}
+.rg-qz-c.is-no{border-color:var(--rg-kill);background:color-mix(in srgb,var(--rg-kill) 14%,var(--panel))}
+.rg-qz-note{margin-top:var(--s3)}
+.rg-qz-v{font-weight:800;font-size:1.05rem}.rg-qz-v.is-ok{color:#2FA36B}.rg-qz-v.is-no{color:var(--rg-kill)}
+.rg-qz-why{margin-top:6px;color:var(--ink)}
+.rg-qz-acts{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin-top:var(--s3)}
+.rg-qz-acts a{display:inline-flex;align-items:center;min-height:40px;font-size:.8rem;color:var(--dim)}
+.rg-qz-score{font:800 3rem/1 var(--display,inherit);color:var(--field)}
+.rg-qz-end{margin-top:var(--s2);font-size:1.05rem}
+@media(max-width:480px){
+  .rg-qz-o.is-3{gap:6px}
+  .rg-qz-c{padding:10px 4px}
+  .rg-qz-c .rg-face{width:56px;height:56px}
+  .rg-qz-q{font-size:1.1rem}
+}
+@media(max-width:700px){      /* five tabs since the quiz (4 Nov 2026): two rows on a phone, never a tab under 40px wide */
+  .rg-tabs{flex-wrap:wrap;border-radius:20px}
+  .rg-tab{flex:1 1 30%;min-width:88px}
 }

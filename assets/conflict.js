@@ -1,64 +1,49 @@
-/* The Conflict Simulator, Iran theatre (3 November 2026). Both sites, both languages. Built by build/conflict.py.
-   A turn-based plan-and-watch game on a flat SVG map. The map's layout (every marker, label and name) is computed and
-   checked for overlap at build time; this file only scales it. No animation loop: a move draws once, with CSS.
-   Model: run() below, one campaign with its uncertain numbers drawn from their ranges; many() runs it 500 times.
-   Every number it reads is in the page's data block, each with its source or its "estimate" reason (#cf-facts). */
+/* The Conflict Simulator, Iran theatre (build/conflict.py, conflict.css; fifth rebuild, 4 November 2026).
+   One zoomable map of the region. Every unit of data/conflict/forces.json is a marker or a list row that opens a card:
+   a drawing, key specs, what it means, its members, its sources and the date it was last publicly reported. The
+   Simulate tab runs a round 400 times with the numbers of data/conflict/iran.json and plays the most typical run on the map.
+   Nothing hides and animates back in; arcs draw once, and not at all for a reader who asks for reduced motion. */
 (function () {
   'use strict';
-  var el = document.getElementById('cf-data'), app = document.getElementById('cf-app');
-  if (!el || !app) return;
-  var D = JSON.parse(el.textContent), FA = D.lang === 'fa', F = D.facts, A = D.A;
+  var app = document.getElementById('cf-app'), blob = document.getElementById('cf-data');
+  if (!app || !blob || !window.CF_GEO) return;
+  var D = JSON.parse(blob.textContent), G = window.CF_GEO, FA = D.lang === 'fa', IU = D.site === 'iu';
+  var NS = 'http://www.w3.org/2000/svg';
 
   /* ------------------------------------------------------------------ words */
   var W = {
-    plan: ['Plan', 'نقشه'], play: ['Play', 'اجرا'], debrief: ['Debrief', 'نتیجه'],
-    start: ['Start from', 'شروع از'], goal: ['Your goal', 'هدفتون'], forces: ['Forces', 'نیروها'], defence: ['Defence', 'دفاع'],
-    targets: ['Targets', 'هدف‌ها'], rules: ['Length and extras', 'مدت و بقیه'], go: ['Play it', 'اجراش کن'],
-    carriers: ['Carrier strike groups', 'ناوگروه‌های هواپیمابر'], ddg: ['Destroyers', 'ناوشکن‌ها'], tlam: ['Destroyer cells with Tomahawks', 'خونه‌های ناوشکن با تاماهاوک'],
-    ssgn: ['A cruise-missile submarine', 'یه زیردریایی موشک‌انداز'], b2: ['GBU-57 bunker busters (B-2)', 'بمب سنگرشکن جی‌بی‌یو-۵۷ (بی-۲)'],
-    b1: ['B-1B bombers with JASSM-ERs', 'بمب‌افکن بی-۱ با موشک جَسم'], land: ['US jets from Persian Gulf bases', 'جت‌های آمریکا از پایگاه‌های خلیج فارس'],
-    israel: ['Israel', 'اسرائیل'], full: ['All in', 'کامل'], limited: ['Limited', 'محدود'], out: ['Stays out', 'بیرون'],
-    thaad: ['US THAAD batteries go to', 'آتشبارهای تاد آمریکا کجا برن'], split: ['One each', 'هر کدوم یکی'], gulf: ['Persian Gulf bases', 'پایگاه‌های خلیج فارس'],
-    pac: ['Patriot interceptors in the Persian Gulf', 'موشک پاتریوت تو خلیج فارس'], shipdef: ['Destroyer interceptors cover', 'رهگیرهای ناوشکن از کجا دفاع کنن'],
-    oildef: ['Defend Saudi and Qatari oil and gas', 'دفاع از نفت و گاز عربستان و قطر'],
-    ad: ['Air defence and radars', 'پدافند هوایی و رادارها'], launch: ['Missile launchers and bases', 'سکوها و پایگاه‌های موشکی'],
-    nuke: ['Nuclear sites', 'سایت‌های هسته‌ای'], navy: ['IRGC navy, mines, coastal missiles', 'نیروی دریایی سپاه، مین، موشک ساحلی'],
-    jets: ['Remaining fighter jets', 'جنگنده‌های باقی‌مونده'], rep: ['Repression forces (Basij, IRGC Tehran, police)', 'نیروهای سرکوب (بسیج، سپاه تهران، پلیس)'],
-    leaders: ['Regime officials', 'مقام‌های رژیم'], none: ['None', 'هیچ‌کدوم'], irgc: ['IRGC chiefs only', 'فقط فرمانده‌های سپاه'],
-    irgc_artesh: ['IRGC and Artesh chiefs', 'فرمانده‌های سپاه و ارتش'], all: ['Everyone, politicians too', 'همه، سیاستمدارها هم'],
-    energy: ['Iranian energy', 'انرژی ایران'], oil: ['Oil exports (Kharg)', 'صادرات نفت (خارک)'], ref: ['Refineries and fuel', 'پالایشگاه و سوخت'],
-    power: ['Power plants and grid', 'نیروگاه‌ها و شبکه برق'], raid: ['Commando raid for the uranium', 'عملیات کماندویی برای اورانیوم'],
-    days: ['How long', 'چقدر طول بکشه'], d3: ['3 days', '۳ روز'], d10: ['10 days', '۱۰ روز'], d30: ['30 days', '۳۰ روز'],
-    net: ['Get the internet to Iranians', 'رسوندن اینترنت به ایرانی‌ها'], off: ['Off', 'نه'], on: ['On', 'آره'], first: ['First', 'اول'],
-    yes: ['Yes', 'آره'], no: ['No', 'نه'], now: ['now', 'الان'],
-    turn: ['Turn', 'مرحله'], night1: ['Night 1', 'شب اول'], day: ['Day', 'روز'], days_: ['Days', 'روزهای'], after: ['What it leads to', 'به کجا می‌رسه'],
-    prev: ['Back', 'قبلی'], next: ['Next', 'بعدی'], auto: ['Auto', 'خودکار'], pause: ['Pause', 'توقف'], toDebrief: ['See the result', 'نتیجه رو ببین'],
-    mleft: ['Its missiles left', 'موشک‌های باقی‌مونده‌ش'], tleft: ['Its launchers working', 'سکوهای سالمش'],
-    iIL: ['Interceptors over Israel', 'رهگیرهای بالای اسرائیل'], iG: ['Interceptors over the Persian Gulf', 'رهگیرهای بالای خلیج فارس'], hz: ['Hormuz', 'هرمز'],
-    open: ['open', 'باز'], closed: ['closed', 'بسته'], dayN: ['day', 'روز'],
-    win: ['WIN', 'بُرد'], lose: ['LOSS', 'باخت'], met: ['Your goal was met in', 'به هدفتون رسیدید تو'], ofRuns: ['of 500 runs', 'از ۵۰۰ اجرا'],
-    likely: ['The likely real plan', 'نقشه‌ی واقعیِ محتمل'], vs: ['Your plan against the likely real plan', 'نقشه‌ی شما در برابر نقشه‌ی واقعیِ محتمل'],
-    you: ['You', 'شما'], odds: ['How likely each outcome is', 'احتمال هر نتیجه'], cost: ['The cost', 'هزینه'], diff: ['What made the difference', 'چی فرق ایجاد کرد'],
-    share: ['Share my result', 'نتیجه‌م رو بفرست'], copied: ['Link copied', 'لینک کپی شد'], again: ['Change the plan', 'نقشه رو عوض کن'], watch: ['Watch it again', 'دوباره ببین'],
-    o_goal: ['Your goal is met', 'به هدفتون می‌رسید'], o_crack: ['The regime cracks', 'رژیم ترک برمی‌داره'], o_deal: ['A deal ends it', 'یه توافق تمومش می‌کنه'],
-    o_hz: ['Hormuz shut for more than 5 days', 'هرمز بیشتر از ۵ روز بسته می‌مونه'], o_oil: ['A big hit on Persian Gulf oil and gas', 'ضربه‌ی بزرگ به نفت و گاز خلیج فارس'],
-    o_heu: ['Its enriched uranium survives', 'اورانیوم غنی‌شده‌ش سالم می‌مونه'], o_pick: ['Pickaxe Mountain is shut', 'کوه کلنگ گزلا بسته می‌شه'],
-    k_il: ['Killed in Israel', 'کشته در اسرائیل'], k_g: ['Killed at Persian Gulf bases and cities (US troops among them)', 'کشته تو پایگاه‌ها و شهرهای خلیج فارس (با نظامی‌های آمریکایی)'],
-    k_ir: ['Killed in Iran', 'کشته در ایران'], civ: ['about half of them civilians', 'حدود نصفشون غیرنظامی'], k_raid: ['US commandos killed in the raid', 'کماندوهای آمریکایی کشته‌شده تو عملیات'],
-    usd: ['What the US spends', 'خرج آمریکا'], intc: ['Interceptors fired (all sides)', 'رهگیرهای شلیک‌شده (همه‌ی طرف‌ها)'], worth: ['worth', 'به ارزش'],
-    oilp: ['Oil price', 'قیمت نفت'], calm: ['calm', 'آروم'], up: ['up', 'بالا'], spike: ['spike', 'جهش'],
-    typical: ['The most typical of the 500 runs', 'معمولی‌ترین اجرا از ۵۰۰ تا'], est: ['estimate', 'تخمین'],
-    legend: ['Key', 'راهنما'], kb: ['The US, Israel and partners', 'آمریکا، اسرائیل و متحدهاشون'], kr: ['The Islamic Republic and its allies', 'جمهوری اسلامی و متحدهاش'],
-    kn: ['Persian Gulf states (not fighting)', 'کشورهای خلیج فارس (بی‌طرف)'], kmove: ['the move in this step', 'حرکتِ این قدم'], ktrue: ['true spot of a marker moved aside', 'جای دقیقِ نشونه‌ای که کنار رفته'],
-    why: ['Why', 'چرا'], range: ['middle 80% of runs', '۸۰ درصدِ وسطِ اجراها'], running: ['Running 500 simulations', 'در حال اجرای ۵۰۰ شبیه‌سازی'],
-    better: ['better than', 'بهتر از'], worse: ['worse than', 'بدتر از'], same: ['the same as', 'مثل'], pts: ['points', 'امتیاز'],
-    tryit: ['If you change', 'اگه عوض کنید'], best1: ['One change that would help most', 'یه تغییر که بیشتر از همه کمک می‌کنه'], tryit2: ['Try it', 'امتحانش کن'],
-    nobetter: ['No single change raises your odds by 5 points or more. Try another goal.', 'هیچ تغییر تکی‌ای شانستون رو ۵ امتیاز یا بیشتر بالا نمی‌بره. یه هدف دیگه رو امتحان کنید.'], to: ['to', 'به'], moves: ['your goal moves', 'هدفتون جابه‌جا می‌شه'],
-    rnow: ['Right now', 'همین الان'], rnowSub: ['Where the forces stand today. Pick a plan on the right and press Play.', 'نیروها امروز کجان. یه نقشه انتخاب کنید و اجرا رو بزنید.'],
-    rnowSubM: ['Where the forces stand today. Pick a plan below and press Play.', 'نیروها امروز کجان. یه نقشه پایین انتخاب کنید و اجرا رو بزنید.'],
-    i_ij: ['icon', 'آیکون'], gradeOf: ['Grade', 'نمره'], shareT: ['My plan on the Conflict Simulator', 'نقشه‌ی من تو شبیه‌ساز درگیری'],
-    uncertain: ['Likelihoods, not certainties: each bar is how often it happened in 500 runs with the uncertain numbers drawn from their ranges.', 'احتمالن، نه قطعیت: هر نوار نشون می‌ده تو ۵۰۰ اجرا با عددهای نامطمئن چند بار اتفاق افتاد.'],
-    noTargets: ['Pick at least one target.', 'حداقل یه هدف انتخاب کنید.'], wait3: ['Waiting for the third carrier: the campaign starts in about 18 days, and the regime repairs launchers meanwhile.', 'صبر برای ناو سوم: حمله حدود ۱۸ روز دیگه شروع می‌شه و رژیم تو این مدت سکوهاشو تعمیر می‌کنه.']
+    map: ['Map', 'نقشه'], list: ['All units', 'همهٔ نیروها'], sim: ['Simulate', 'شبیه‌سازی'],
+    search: ['Search: a ship, a base, a missile…', 'جستجو: یه کشتی، یه پایگاه، یه موشک…'], nohit: ['Nothing by that name', 'چیزی با این اسم نیست'],
+    layers: ['Layers', 'لایه‌ها'], sides: ['Sides', 'طرف‌ها'], all: ['All', 'همه'], none: ['None', 'هیچ‌کدوم'],
+    legend: ['Key', 'راهنما'], zin: ['Zoom in', 'بزرگ‌تر'], zout: ['Zoom out', 'کوچیک‌تر'], reset: ['Whole region', 'کل منطقه'],
+    full: ['Full screen', 'تمام صفحه'], exitfull: ['Leave full screen', 'خروج از تمام صفحه'], close: ['Close', 'بستن'],
+    pos: ['Position', 'جا'], specs: ['Key specs', 'مشخصات اصلی'], means: ['What it means in a conflict', 'تو یه درگیری یعنی چی'],
+    mem: ['In this group', 'تو این گروه'], partof: ['Part of', 'جزو'], src: ['Sources', 'منبع‌ها'], asof: ['As of', 'تا'],
+    rep: ['Reported', 'گزارش‌شده'], est: ['Estimate', 'تخمین'], old: ['Not rechecked against the news within its limit: being refreshed', 'تو موعدش با خبرها مقایسه نشده: داره به‌روز می‌شه'],
+    aged: ['This position was reported {n} days ago. Ships move: read it as where it was, not where it is.', 'این جا {n} روز پیش گزارش شده. کشتی‌ها جابه‌جا می‌شن: یعنی جایی که بود، نه جایی که الان هست.'],
+    ring: ['Show its range on the map', 'بُردش رو روی نقشه نشون بده'], ringoff: ['Hide the range', 'بُرد رو پنهون کن'], rings: ['Clear range rings', 'پاک کردن دایره‌های بُرد'],
+    from: ['from', 'از'], km: ['km', 'کیلومتر'], onmap: ['Show on the map', 'روی نقشه نشون بده'], count: ['Count', 'تعداد'],
+    notplaced: ['Not a place on the map: a type of weapon or aircraft.', 'یه جا روی نقشه نیست: یه نوع سلاح یا هواپیماست.'],
+    lgUS: ['United States', 'آمریکا'], lgIL: ['Israel', 'اسرائیل'], lgIR: ['Islamic Republic', 'جمهوری اسلامی'], lgPX: ['Its proxies', 'نیروهای نیابتیش'], lgG: ['Persian Gulf states, shipping', 'کشورهای خلیج فارس، کشتیرانی'],
+    lgCl: ['A number: several units close together. Tap to zoom in.', 'عدد: چندتا نیرو نزدیک هم. بزنید تا بزرگ بشه.'],
+    lgRing: ['Dashed circle: a range, measured on the globe.', 'دایرهٔ خط‌چین: بُرد، روی کرهٔ زمین اندازه گرفته شده.'],
+    lgPos: ['Ships are shown where they were last publicly reported, never live. Faded: older than its recheck.', 'کشتی‌ها جایی نشون داده می‌شن که آخرین بار عمومی گزارش شدن، نه زنده. کم‌رنگ: از موعد بررسی‌ش گذشته.'],
+    units: ['units', 'نیرو'], shown: ['shown', 'نشون داده شده'],
+    // the simulator
+    preset: ['Start from a round', 'از یه دور شروع کنید'], who: ['The Islamic Republic fires', 'جمهوری اسلامی شلیک می‌کنه'],
+    salvo: ['Ballistic missiles on day 1', 'موشک بالستیک روز اول'], dr: ['Drones for each missile', 'پهپاد برای هر موشک'], days: ['Days of fighting', 'روزهای درگیری'],
+    aim: ['Where it aims', 'کجا رو هدف می‌گیره'], strike: ['The US and Israel strike', 'آمریکا و اسرائیل حمله می‌کنن'],
+    cv: ['Carriers in range', 'ناو هواپیمابر در دسترس'], b2: ['B-2 bombers', 'بمب‌افکن B-2'], tlam: ['Tomahawks, all days', 'تاماهاک، کل روزها'],
+    ilj: ['Israel\'s air force joins', 'نیروی هوایی اسرائیل هم میاد'], targets: ['What they hit', 'چی رو می‌زنن'],
+    shield: ['The shield: interceptors available', 'سپر: رهگیرهای موجود'], thIL: ['US THAAD: share sent to Israel', 'تاد آمریکا: سهمی که به اسرائیل می‌ره'],
+    go: ['Run it 400 times', '۴۰۰ بار اجراش کن'], running: ['Running…', 'داره اجرا می‌شه…'], again: ['Change the round', 'دور رو عوض کنید'],
+    day: ['Day', 'روز'], prev: ['Back', 'قبلی'], next: ['Next day', 'روز بعد'], play: ['Play', 'پخش'], pause: ['Pause', 'مکث'],
+    sourced: ['sourced', 'منبع‌دار'], guess: ['estimate', 'تخمین'], off: ['off', 'خاموش'], on: ['on', 'روشن'], yes: ['Yes', 'آره'], no: ['No', 'نه'],
+    score: ['Score for the US and Israel', 'نمره برای آمریکا و اسرائیل'], shieldHeld: ['Missiles stopped', 'موشک‌های متوقف‌شده'],
+    launchCut: ['Launch power removed', 'قدرت شلیک از بین‌رفته'], left: ['Interceptors left', 'رهگیرهای باقی‌مونده'], cost: ['Interceptors fired, cost', 'هزینهٔ رهگیرهای شلیک‌شده'],
+    through: ['through', 'رد شد'], stopped: ['stopped', 'متوقف شد'], fired: ['fired', 'شلیک شد'], why: ['What happened, and why', 'چی شد، و چرا'],
+    range: ['in 8 of 10 runs between', 'تو ۸ تا از ۱۰ اجرا بین'], and: ['and', 'و'], share: ['Share this round', 'این دور رو بفرستید'], copied: ['Link copied', 'لینک کپی شد'],
+    hz: ['Hormuz', 'هرمز'], pk: ['Kill chance per shot, in the simulator', 'شانس زدن با هر شلیک، تو شبیه‌ساز']
   };
   function w(k) { var x = W[k]; return x ? x[FA ? 1 : 0] : k; }
   var DIG = '۰۱۲۳۴۵۶۷۸۹';
@@ -69,694 +54,754 @@
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function $(s, r) { return (r || document).querySelector(s); }
   function $$(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
-
-  /* ------------------------------------------------------------------ the dice: a seeded generator, so a plan always gives the same result */
-  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-  function tri(r, lo, m, hi) { var u = r(), c = (m - lo) / ((hi - lo) || 1); return u < c ? lo + Math.sqrt(u * (hi - lo) * (m - lo)) : hi - Math.sqrt((1 - u) * (hi - lo) * (hi - m)); }
-  function draw(f, r) { if (!f) return 0; if (f.lo == null || f.hi == null || f.lo === f.hi) return f.v != null ? f.v : (f.lo || 0); var m = f.v != null ? f.v : (f.lo + f.hi) / 2; return tri(r, Math.min(f.lo, f.hi), Math.min(Math.max(m, Math.min(f.lo, f.hi)), Math.max(f.lo, f.hi)), Math.max(f.lo, f.hi)); }
-  function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
-
-  /* ------------------------------------------------------------------ THE MODEL: one campaign */
-  var SETS = ['ad', 'launch', 'nuke', 'navy', 'jets', 'rep', 'lead', 'oil', 'ref', 'power'];
-  function turnsOf(days) { return days === 3 ? [1, 1, 1] : days === 10 ? [1, 2, 3, 4] : [1, 3, 6, 10, 10]; }
-  function costOf(k) { var f = F[k]; if (!f) return 0; var v = f.v != null ? f.v : (f.lo + f.hi) / 2; return v < 1000 ? v * 1e6 : v; }
-
-  function run(p, seed, rec) {
-    var r = rng(seed), need = A.need.v, steps = [], turns = [];
-    var wait = p.carriers >= 3;
-    var BM = draw(F.ir_bm, r), TELs = draw(F.ir_tel, r), DR = draw(F.ir_dr, r);
-    var TEL0 = TELs * (wait ? 1 + A.rebuild.v * A.wait_days.v / 7 : 1), TEL = TEL0;
-    var salvo = draw(F.ir_salvo, r), d1 = tri(r, 1.2, 1.8, 2.4), ad0 = draw(F.ir_ad, r);
-    var pk = draw(F.intercept, r), pE = draw(A.empty_kill, r);
-    var hzTry = r() < F.hormuz.v, gulfHit = r() < F.gulf_hits.v, prox = draw(F.proxies, r), coh = draw(F.cohesion, r);
-    var dmg = {}; SETS.forEach(function (s) { dmg[s] = 0; });
-    var cvAim = draw(A.cv_aim, r), host = p.oildef ? 1 : A.host.v, landAim = p.land ? draw(A.land_aim, r) * host : 0;
-    var ilAim = (p.israel === 'full' ? 1 : p.israel === 'limited' ? 0.35 : 0) * F.il_sorties.v * A.il_aim.v;
-    var cells = F.ddg_cells.v, tlamAll = Math.round(p.ddg * cells * p.tlam) + (p.ssgn ? F.ssgn.v : 0), tlamLeft = tlamAll;
-    var smCells = p.ddg * cells * (1 - p.tlam), smShip = smCells * A.ship_share.v, smArea = smCells - smShip, sm3 = Math.min(smArea * 0.35, draw(A.sm3_cap, r)), sm6 = smArea - sm3;
-    var thIL = (p.thaad === 'israel' ? 2 : p.thaad === 'split' ? 1 : 0) * F.thaad_batt.v, thG = (2 * F.thaad_batt.v - thIL) + A.gulf_thaad.v;
-    var pools = {
-      il: [{ k: 'thaad', n: thIL, s: 2, c: costOf('thaad_cost'), us: 1 }, { k: 'sm3', n: p.shipdef === 'israel' ? sm3 : 0, s: 2, c: costOf('sm3_cost'), us: 1 },
-           { k: 'arrow', n: draw(A.arrow_left, r), s: 1.5, c: costOf('arrow_cost') }, { k: 'sm6', n: p.shipdef === 'israel' ? sm6 : 0, s: 2, c: costOf('sm6_cost'), us: 1 },
-           { k: 'sling', n: draw(A.sling_left, r), s: 2, c: costOf('sling_cost') }],
-      g: [{ k: 'thaad', n: thG - A.gulf_thaad.v, s: 2, c: costOf('thaad_cost'), us: 1 }, { k: 'gthaad', n: A.gulf_thaad.v, s: 2, c: costOf('thaad_cost') },
-          { k: 'sm3', n: p.shipdef === 'gulf' ? sm3 : 0, s: 2, c: costOf('sm3_cost'), us: 1 }, { k: 'sm6', n: p.shipdef === 'gulf' ? sm6 : 0, s: 2, c: costOf('sm6_cost'), us: 1 },
-          { k: 'pac', n: p.pac, s: F.pac3_doc.v || 2, c: costOf('pac3_cost'), us: 1 }]
-    };
-    var start = { il: sum(pools.il), g: sum(pools.g) };
-    var rateEnd = 1, usUsd = 0, used = { n: 0, usd: 0 }, leak = { il: 0, g: 0, o: 0 }, fired = { m: 0, d: 0 }, closure = 0, deadIR = 0;
-    var mop = p.b2, pickShut = false, halls = false, raidOK = false, raidDead = 0, tl = turnsOf(p.days), day = 1;
-    var fullRef = 2 * cvAim + 70 + F.il_sorties.v * A.il_aim.v;      // the 2026 war: two carriers, land jets, Israel all in
-    function sum(ps) { return ps.reduce(function (a, b) { return a + b.n; }, 0); }
-    function defend(ps, m, pkx) {      // m missiles at one area: engaged while the right interceptors last
-      var stopped = 0, left = m;
-      for (var i = 0; i < ps.length && left > 0; i++) {
-        var can = Math.min(left, Math.floor(ps[i].n / ps[i].s));
-        if (can <= 0) continue;
-        ps[i].n -= can * ps[i].s; used.n += can * ps[i].s; used.usd += can * ps[i].s * ps[i].c; if (ps[i].us) usUsd += can * ps[i].s * ps[i].c;
-        stopped += can * pkx; left -= can;
-      }
-      stopped += left * pE;
-      return { stop: Math.round(stopped), through: Math.max(0, Math.round(m - stopped)) };
-    }
-    var weights = {}; SETS.forEach(function (s) { weights[s] = s === 'lead' ? (p.leaders === 'none' ? 0 : 1) : (+p[s] || 0); });
-    var tw = SETS.reduce(function (a, s) { return a + weights[s]; }, 0) || 1;
-    for (var t = 0; t < tl.length; t++) {
-      var d = tl[t], adWork = ad0 * (1 - dmg.ad), eff = 0.6 + 0.4 * (1 - adWork / Math.max(ad0, 0.01));
-      var air = (p.carriers * cvAim + landAim + ilAim) * d * eff * (t === 0 && !wait ? 1.2 : 1);
-      var tlam = Math.min(tlamLeft, Math.round(t === 0 ? tlamAll * 0.5 : tlamAll * 0.5 / (tl.length - 1)));
-      tlamLeft -= tlam;
-      var jassm = p.b1 * F.b1_load.v;
-      var cap = air + tlam + jassm, alloc = {};
-      var wt = {}; SETS.forEach(function (s) { wt[s] = weights[s] * (t === 0 && s === 'ad' && weights.ad ? 2 : 1); });
-      var tw2 = SETS.reduce(function (a, s) { return a + wt[s]; }, 0) || 1;
-      SETS.forEach(function (s) { alloc[s] = cap * wt[s] / tw2; dmg[s] = 1 - (1 - dmg[s]) * Math.exp(-alloc[s] / need[s]); });
-      if (t === 0 && mop && p.nuke) {
-        pickShut = r() < 1 - Math.exp(-mop / A.pickaxe.v.close);
-        halls = r() < A.pickaxe.v.halls * Math.min(1, mop / 8);
-        dmg.nuke = 1 - (1 - dmg.nuke) * Math.exp(-mop / 12);
-      }
-      if (t === 1 && p.raid) { raidOK = r() < draw(A.raid, r) * (dmg.ad > 0.5 ? 1 : 0.6); raidDead = Math.round(draw(A.raid_dead, r)); }
-      var intensity = Math.min(1.6, Math.max(0.15, cap / d / fullRef)) * (p.power ? 1.1 : 1);
-      deadIR += draw(A.dead_ir_day, r) * d * intensity;
-      /* the answer */
-      var sup = 1 - A.watch.v * dmg.launch;
-      TEL = TEL0 * (1 - 0.6 * dmg.launch);
-      var m = Math.min(BM, salvo * (TEL / TEL0) * sup * (t === 0 ? d1 + 0.5 * (d - 1) : 0.5 * d) * (wait ? 1.05 : 1));
-      m = Math.max(0, Math.round(m)); BM -= m;
-      var dr = Math.round(Math.min(DR, m * A.drone_ratio.v)); DR -= dr;
-      fired.m += m; fired.d += dr;
-      var sIL = p.israel === 'out' ? 0.3 : 0.5, sO = gulfHit ? 0.05 : 0, sS = 0.05, sG = 1 - sIL - sO - sS;
-      rateEnd = (TEL / TEL0) * sup;      // what it could fire a day now, against an undamaged day
-      var mIL = Math.round(m * sIL), mO = Math.round(m * sO), mG = m - mIL - mO - Math.round(m * sS);
-      var aIL = defend(pools.il, mIL, pk), aG = defend(pools.g, mG, pk);
-      var aO = p.oildef ? defend(pools.g, mO, pk) : { stop: Math.round(mO * pE), through: mO - Math.round(mO * pE) };
-      var drThrough = Math.round(dr * (1 - A.drone_kill.v));
-      leak.il += aIL.through; leak.g += aG.through + Math.round(drThrough * 0.15); leak.o += aO.through + (gulfHit ? Math.round(drThrough * 0.04) : 0);
-      var hzDays = hzTry ? d * Math.max(0, 1 - 0.9 * dmg.navy) : 0;
-      closure += hzDays;
-      var proxy = r() < prox;
-      if (rec) {
-        var lbl = t === 0 ? w('night1') : (d === 1 ? w('day') + ' ' + fd(day) : w('days_') + ' ' + fd(day) + '–' + fd(day + d - 1));
-        var S = [];
-        var top = SETS.filter(function (s) { return wt[s] > 0 && s !== 'lead'; }).sort(function (a, b) { return alloc[b] - alloc[a]; });
-        var hits = top.slice(0, 2);
-        if (tlam > 0) S.push({ sd: 'b', from: ['b_ships'], to: sto(hits), k: 'tlam', n: tlam, sets: hits, sub: p.ssgn && t === 0 ? 'ssgn' : '' });
-        if (t === 0 && mop && p.nuke) S.push({ sd: 'b', from: ['b_b2'], to: ['pickaxe'], k: 'mop', n: mop, ok: pickShut, halls: halls });
-        if (p.carriers || landAim || jassm) S.push({ sd: 'b', from: ['b_cv'].concat(landAim ? ['b_land'] : []).concat(jassm ? ['b_b1'] : []), to: sto(top.slice(0, 3)), k: 'air', n: Math.round((p.carriers * cvAim + landAim) * d * eff + jassm), c: p.carriers, land: !!landAim, b1: jassm ? p.b1 : 0, jassm: jassm, sets: top.slice(0, 3) });
-        if (ilAim) S.push({ sd: 'b', from: ['b_il'], to: sto(top.slice(0, 2)), k: 'il', n: Math.round(ilAim * d * eff), sets: top.slice(0, 2) });
-        if (t === 0 && p.leaders !== 'none') S.push({ sd: 'b', from: ['b_il'], to: ['tehran'], k: 'lead', tier: p.leaders });
-        if (t === 0 && p.rep) S.push({ sd: 'b', from: ['b_cv'], to: D.sets.rep, k: 'rep' });
-        if (t === 1 && p.raid) S.push({ sd: 'b', from: ['b_ships'], to: ['isfahan-nuclear'], k: 'raid', ok: raidOK, dead: raidDead });
-        if (m > 0) {
-          S.push({ sd: 'r', from: D.sets.o_west, to: D.sets.r_il, k: 'mil', n: mIL, stop: aIL.stop, thr: aIL.through, left: sum(pools.il) / Math.max(1, start.il) });
-          S.push({ sd: 'r', from: D.sets.o_south, to: D.sets.r_gulf, k: 'mg', n: mG, stop: aG.stop, thr: aG.through, dr: dr, left: sum(pools.g) / Math.max(1, start.g) });
-          if (mO) S.push({ sd: 'r', from: D.sets.o_south, to: D.sets.r_oil, k: 'mo', n: mO, thr: aO.through, def: !!p.oildef });
-        } else S.push({ sd: 'r', from: D.sets.o_west, to: D.sets.r_il, k: 'quiet' });
-        if (hzTry && t === 0) S.push({ sd: 'r', from: D.sets.o_navy, to: ['hormuz'], k: 'hz', d: hzDays });
-        else if (hzTry && hzDays >= 0.5) S.push({ sd: 'r', from: D.sets.o_navy, to: ['hormuz'], k: 'hz2', d: hzDays });
-        if (proxy && (t === 1 || t === 2)) S.push({ sd: 'r', from: t === 1 ? D.sets.o_hz : D.sets.o_ht, to: t === 1 ? D.sets.t_hz : D.sets.t_ht, k: t === 1 ? 'hzb' : 'ht' });
-        turns.push({ lbl: lbl, steps: S, st: { bm: BM, tel: TEL / TEL0, il: sum(pools.il) / Math.max(1, start.il), g: sum(pools.g) / Math.max(1, start.g), hz: hzTry && hzDays >= 0.5, cd: closure, dmg: JSON.parse(JSON.stringify(dmg)) } });
-      }
-      day += d;
-    }
-    /* what it leads to */
-    var heu = raidOK ? false : r() < F.heu.v;
-    var dealP = A.deal.v * (0.7 + 0.3 * (dmg.launch + dmg.nuke)) * (p.leaders === 'all' ? 0.5 : 1);
-    if (hzTry) closure += draw(A.hz_after, r) * Math.max(0.15, 1 - 0.85 * dmg.navy);
-    var deal = r() < dealP;
-    if (deal) heu = false;
-    var R = A.regime.v, pf = F.fall_mkt.v * (1 + (R.rep - 1) * dmg.rep);
-    if (p.leaders !== 'none') pf *= 1 + (R.irgc - 1) * dmg.lead;
-    if (p.leaders === 'irgc_artesh' || p.leaders === 'all') pf *= 1 - (1 - R.artesh) * dmg.lead;
-    if (p.leaders === 'all') pf *= 1 + (R.pol - 1) * dmg.lead;
-    if (p.power) pf *= 1 - (1 - R.power) * dmg.power;
-    if (p.ref) pf *= 1 - (1 - R.ref) * dmg.ref;
-    if (p.net) pf *= R.net;
-    if (p.days >= 30) pf *= R.long;
-    pf *= F.cohesion.v / Math.max(0.3, coh);
-    pf = Math.min(R.cap, pf);
-    var crack = r() < pf, telLeft = TEL / TELs, oilMajor = leak.o >= A.gulf_major.v;
-    var oilLvl = closure > 5 || oilMajor ? 2 : closure > 1 ? 1 : 0;
-    var usDays = p.days + (wait ? 0 : 0), usInt = Math.min(1.5, Math.max(0.35, (p.carriers + p.ddg / 5 + p.b1 / 4 + (p.land ? 1 : 0)) / 4.6));
-    var goals = {
-      missiles: rateEnd < 0.1,
-      bomb: dmg.nuke >= 0.8 && (pickShut || halls) && !heu,
-      hormuz: closure <= 5 && !oilMajor,
-      free: crack
-    };
-    var res = {
-      ok: goals[p.goal], goals: goals, telLeft: telLeft, bmLeft: BM, fired: fired, leak: leak, closure: closure, oilMajor: oilMajor, oilLvl: oilLvl,
-      heu: heu, deal: deal, crack: crack, pick: pickShut, halls: halls, raid: raidOK, raidDead: raidDead,
-      dead: { il: leak.il * A.dead_il.v, g: leak.g * draw(A.dead_gulf, r), ir: deadIR },
-      usd: Math.max(costOf('us_day') * usDays * usInt, ((tlamAll - tlamLeft) * costOf('tlam_cost') + p.b1 * F.b1_load.v * tl.length * costOf('jassm_cost') + usUsd) * 1.15), rateEnd: rateEnd, intc: used, ilLeft: sum(pools.il) / Math.max(1, start.il), gLeft: sum(pools.g) / Math.max(1, start.g),
-      tlam: tlamAll - tlamLeft, jassm: p.b1 * F.b1_load.v * tl.length, mop: p.nuke ? mop : 0
-    };
-    if (rec) res.turns = turns;
-    return res;
-  }
-  function sto(sets) { var o = []; sets.forEach(function (s) { (D.sets[s] || []).slice(0, s === 'launch' ? 4 : 3).forEach(function (x) { if (o.indexOf(x) < 0) o.push(x); }); }); return o; }
-
-  /* 500 runs. Each plan has its own seeds (its code), so the same plan always gives the same numbers, and a shared link
-     shows the reader what the sharer saw. Runs in slices so the page never stalls (no long task). */
-  var N = 500;
-  function many(p, done, n) {
-    n = n || N;
-    var base = hash(code(p)), out = [], i = 0;
-    function slice() {
-      var t0 = performance.now();
-      while (i < n && performance.now() - t0 < 12) { out.push(run(p, base + i * 7919, false)); i++; }
-      if (i < n) setTimeout(slice, 0); else done(stats(out, p, base));
-    }
-    slice();
-  }
-  function q(a, f) { var s = a.slice().sort(function (x, y) { return x - y; }); return s[Math.min(s.length - 1, Math.floor(f * s.length))]; }
-  function stats(rs, p, base) {
-    var k = rs.length, S = { n: k, p: p };
-    function share(f) { return rs.filter(f).length / k; }
-    S.ok = share(function (x) { return x.ok; });
-    S.crack = share(function (x) { return x.crack; }); S.deal = share(function (x) { return x.deal; });
-    S.hz = share(function (x) { return x.closure > 5; }); S.oil = share(function (x) { return x.oilMajor; });
-    S.heu = share(function (x) { return x.heu; }); S.pick = share(function (x) { return x.pick || x.halls; });
-    ['il', 'g', 'ir'].forEach(function (z) { var v = rs.map(function (x) { return x.dead[z]; }); S['d_' + z] = [q(v, 0.1), q(v, 0.5), q(v, 0.9)]; });
-    var u = rs.map(function (x) { return x.usd; }); S.usd = [q(u, 0.1), q(u, 0.5), q(u, 0.9)];
-    var ic = rs.map(function (x) { return x.intc.n; }); S.intc = [q(ic, 0.1), q(ic, 0.5), q(ic, 0.9)];
-    var iu = rs.map(function (x) { return x.intc.usd; }); S.intcUsd = q(iu, 0.5);
-    S.raidDead = q(rs.map(function (x) { return x.raidDead; }), 0.5);
-    S.oilLvl = q(rs.map(function (x) { return x.oilLvl; }), 0.5);
-    S.tel = q(rs.map(function (x) { return x.telLeft; }), 0.5);
-    /* the most typical run: its outcome is the majority's, and its numbers sit closest to the medians */
-    var maj = S.ok >= 0.5, mt = S.tel, ml = q(rs.map(function (x) { return x.leak.il + x.leak.g; }), 0.5), best = -1, bd = 1e9;
-    var pickMaj = S.pick >= 0.5, wantPick = p.nuke && p.b2;
-    rs.forEach(function (x, i) { if (x.ok !== maj || (wantPick && (x.pick || x.halls) !== pickMaj)) return; var dd = Math.abs(x.telLeft - mt) * 4 + Math.abs(x.leak.il + x.leak.g - ml) / Math.max(1, ml); if (dd < bd) { bd = dd; best = i; } });
-    if (best < 0) best = 0;
-    S.typical = run(p, base + best * 7919, true);
-    return S;
-  }
-
-  /* ------------------------------------------------------------------ the plan in a link */
-  var KEYS = Object.keys(D.choices);
-  function code(p) { return KEYS.map(function (k) { var c = D.choices[k], v = p[k]; return c.opts ? c.opts.indexOf(v) : Math.round((v - (c.min || 0)) / (c.step || 1)); }).map(function (x) { return Math.max(0, x).toString(36); }).join('.'); }
-  function decode(s) {
-    var a = String(s || '').split('.'); if (a.length !== KEYS.length) return null;
-    var p = {};
-    for (var i = 0; i < KEYS.length; i++) {
-      var c = D.choices[KEYS[i]], x = parseInt(a[i], 36); if (isNaN(x)) return null;
-      if (c.opts) { if (x >= c.opts.length) return null; p[KEYS[i]] = c.opts[x]; }
-      else { var v = (c.min || 0) + x * (c.step || 1); if (v > c.max + 1e-9) return null; p[KEYS[i]] = Math.round(v * 100) / 100; }
-    }
-    return p;
-  }
-  var LIKELY = D.presets[0].p;
-
-  /* ------------------------------------------------------------------ what each step says */
-  var SETW = {
-    ad: ['air defence and radars', 'پدافند هوایی و رادارها'], launch: ['missile launchers and bases', 'سکوها و پایگاه‌های موشکی'],
-    nuke: ['nuclear sites', 'سایت‌های هسته‌ای'], navy: ['the IRGC navy and coastal missiles', 'نیروی دریایی سپاه و موشک‌های ساحلی'],
-    jets: ['airbases and the jets left', 'پایگاه‌های هوایی و جت‌های باقی‌مونده'], rep: ['the Basij, the IRGC Tehran command and the police', 'بسیج، قرارگاه ثارالله و پلیس'],
-    oil: ['the Kharg oil terminal', 'پایانه‌ی نفتی خارک'], ref: ['refineries and fuel depots', 'پالایشگاه‌ها و انبارهای سوخت'], power: ['power plants', 'نیروگاه‌ها']
-  };
-  function sets(a) { var x = a.map(function (s) { return SETW[s] ? SETW[s][FA ? 1 : 0] : s; }); return x.length > 1 ? x.slice(0, -1).join(FA ? '، ' : ', ') + (FA ? ' و ' : ' and ') + x[x.length - 1] : x[0] || ''; }
-  var TIER = { irgc: ['IRGC commanders', 'فرمانده‌های سپاه'], irgc_artesh: ['IRGC and Artesh commanders', 'فرمانده‌های سپاه و ارتش'], all: ['IRGC and Artesh commanders and senior politicians', 'فرمانده‌های سپاه و ارتش و سیاستمدارهای ارشد'] };
-  function say(s) {
-    var t = '', u = '', E = !FA;
-    switch (s.k) {
-      case 'tlam': t = E ? 'US destroyers' + (s.sub ? ' and a submarine' : '') + ' fire ' + n0(s.n) + ' Tomahawks at ' + sets(s.sets) + '.' : 'ناوشکن‌های آمریکا' + (s.sub ? ' و یه زیردریایی' : '') + ' ' + n0(s.n) + ' تا تاماهاوک به ' + sets(s.sets) + ' شلیک می‌کنن.';
-        u = E ? 'From the Gulf of Oman. Range 1,600 km.' : 'از دریای عمان. برد ۱٬۶۰۰ کیلومتر.'; break;
-      case 'mop': t = E ? fd(Math.ceil(s.n / 2)) + ' B-2s fly from Diego Garcia and drop ' + n0(s.n) + ' GBU-57 bunker busters on Pickaxe Mountain.' : fd(Math.ceil(s.n / 2)) + ' تا بی-۲ از دیه‌گو گارسیا میان و ' + n0(s.n) + ' تا بمب سنگرشکن جی‌بی‌یو-۵۷ روی کوه کلنگ گزلا می‌ندازن.';
-        u = s.halls ? (E ? 'One reaches the halls, 80 to 100 m down. Rare.' : 'یکیش به تالارهای ۸۰ تا ۱۰۰ متری می‌رسه. کم پیش میاد.') : s.ok ? (E ? 'Its entrances are shut. The halls, 80 to 100 m down, survive.' : 'ورودی‌هاش بسته می‌شه. تالارهای ۸۰ تا ۱۰۰ متری سالم می‌مونن.') : (E ? 'Its entrances stay open this time.' : 'این بار ورودی‌هاش باز می‌مونه.'); break;
-      case 'jassm': t = E ? fd(s.b) + ' B-1Bs fire ' + n0(s.n) + ' JASSM-ER cruise missiles at ' + sets(s.sets) + '.' : fd(s.b) + ' تا بی-۱، ' + n0(s.n) + ' تا موشک کروز جَسم به ' + sets(s.sets) + ' شلیک می‌کنن.';
-        u = E ? 'Fired from outside its air defence, 800+ km away.' : 'از بیرون برد پدافندش، از بیشتر از ۸۰۰ کیلومتری.'; break;
-      case 'air': var who = [], fwho = [];
-        if (s.c) { who.push('jets from ' + fd(s.c) + ' carrier' + (s.c > 1 ? 's' : '')); fwho.push('جت‌های ' + fd(s.c) + ' ناو'); }
-        if (s.land) { who.push('jets from Persian Gulf bases'); fwho.push('جت‌های پایگاه‌های خلیج فارس'); }
-        if (s.b1) { who.push(fd(s.b1) + ' B-1B bombers'); fwho.push(fd(s.b1) + ' تا بی-۱'); }
-        t = E ? who.join(', ').replace(/^./, function (c) { return c.toUpperCase(); }) + ' hit about ' + n0(s.n) + ' targets: ' + sets(s.sets) + '.' : fwho.join('، ') + ' حدود ' + n0(s.n) + ' هدف رو می‌زنن: ' + sets(s.sets) + '.';
-        if (s.b1) u = E ? 'The B-1Bs fire ' + n0(s.jassm) + ' JASSM-ER cruise missiles from 800+ km, outside its air defence.' : 'بی-۱ها ' + n0(s.jassm) + ' تا موشک کروز جَسم از بیشتر از ۸۰۰ کیلومتری، بیرون از برد پدافندش، شلیک می‌کنن.'; break;
-      case 'il': t = E ? 'Israeli jets hit about ' + n0(s.n) + ' targets: ' + sets(s.sets) + '.' : 'جت‌های اسرائیل حدود ' + n0(s.n) + ' هدف رو می‌زنن: ' + sets(s.sets) + '.'; break;
-      case 'lead': t = E ? 'Strikes on ' + TIER[s.tier][0] + ' in Tehran.' : 'حمله به ' + TIER[s.tier][1] + ' تو تهران.';
-        u = E ? 'In 2026 every post was refilled and a new Supreme Leader was chosen in 9 days.' : 'تو ۲۰۲۶ همه‌ی جاها دوباره پر شد و تو ۹ روز رهبر جدید انتخاب شد.'; break;
-      case 'rep': t = E ? 'Strikes on the Basij, the IRGC\'s Tehran command and police headquarters.' : 'حمله به بسیج، قرارگاه ثارالله سپاه و ستاد پلیس.';
-        u = E ? 'The forces that put down protests.' : 'نیروهایی که اعتراض‌ها رو سرکوب می‌کنن.'; break;
-      case 'raid': t = E ? 'US commandos raid the Isfahan tunnels for the enriched uranium.' : 'کماندوهای آمریکا برای اورانیوم غنی‌شده به تونل‌های اصفهان حمله می‌کنن.';
-        u = s.ok ? (E ? 'They find it and take it out. ' : 'پیداش می‌کنن و می‌برنش. ') + (E ? n0(s.dead) + ' killed.' : n0(s.dead) + ' کشته.') : (E ? 'They do not find it. ' + n0(s.dead) + ' killed.' : 'پیداش نمی‌کنن. ' + n0(s.dead) + ' کشته.'); break;
-      case 'mil': t = E ? 'The Islamic Republic fires ' + n0(s.n) + ' ballistic missiles at Israel.' : 'جمهوری اسلامی ' + n0(s.n) + ' تا موشک بالستیک به اسرائیل شلیک می‌کنه.';
-        u = E ? n0(s.stop) + ' stopped, ' + n0(s.thr) + ' get through. Interceptors over Israel left: ' + pc(s.left) + '.' : n0(s.stop) + ' تا زده می‌شه، ' + n0(s.thr) + ' تا رد می‌شه. رهگیرهای باقی‌مونده بالای اسرائیل: ' + pc(s.left) + '.'; break;
-      case 'mg': t = E ? 'It fires ' + n0(s.n) + ' missiles and ' + n0(s.dr) + ' drones at US bases around the Persian Gulf.' : n0(s.n) + ' تا موشک و ' + n0(s.dr) + ' تا پهپاد به پایگاه‌های آمریکا دور خلیج فارس شلیک می‌کنه.';
-        u = E ? n0(s.stop) + ' missiles stopped, ' + n0(s.thr) + ' get through; most drones are shot down. Interceptors left: ' + pc(s.left) + '.' : n0(s.stop) + ' تا موشک زده می‌شه، ' + n0(s.thr) + ' تا رد می‌شه؛ بیشتر پهپادها زده می‌شن. رهگیرهای باقی‌مونده: ' + pc(s.left) + '.'; break;
-      case 'mo': t = E ? 'It fires ' + n0(s.n) + ' missiles at Saudi and Qatari oil and gas.' : n0(s.n) + ' تا موشک به نفت و گاز عربستان و قطر شلیک می‌کنه.';
-        u = (s.def ? '' : (E ? 'Undefended. ' : 'بی‌دفاع. ')) + (E ? n0(s.thr) + ' get through.' : n0(s.thr) + ' تا رد می‌شه.'); break;
-      case 'quiet': t = E ? 'It fires almost nothing: its launchers are hit or watched from the air.' : 'تقریباً هیچی شلیک نمی‌کنه: سکوهاش یا زده شدن یا از هوا زیر نظرن.'; break;
-      case 'hz': t = E ? 'The IRGC navy lays mines and attacks ships: the Strait of Hormuz closes.' : 'نیروی دریایی سپاه مین می‌ریزه و به کشتی‌ها حمله می‌کنه: تنگه‌ی هرمز بسته می‌شه.';
-        u = E ? 'It did the same in March, June and July 2026.' : 'مارس، ژوئن و ژوئیه ۲۰۲۶ هم همین کارو کرد.'; break;
-      case 'hz2': t = E ? 'Hormuz stays closed for about ' + n0(Math.max(1, s.d)) + ' more days.' : 'هرمز حدود ' + n0(Math.max(1, s.d)) + ' روز دیگه بسته می‌مونه.'; break;
-      case 'hzb': t = E ? 'Hezbollah fires rockets at northern Israel. Iron Dome stops most of them.' : 'حزب‌الله به شمال اسرائیل راکت می‌زنه. گنبد آهنین بیشترشو می‌زنه.'; break;
-      case 'ht': t = E ? 'The Houthis fire at ships and at Saudi oil.' : 'حوثی‌ها به کشتی‌ها و نفت عربستان شلیک می‌کنن.'; break;
-    }
-    return { t: t, u: u };
-  }
-
-  /* ------------------------------------------------------------------ THE MAP */
-  var NS = 'http://www.w3.org/2000/svg';
-  var ICON = {      // 24-unit glyphs, one style: white on the side's frame
-    jet: 'M12 2.5l1.6 6.2 6.9 4.1v1.9l-6.9-2-.8 5 2.6 1.9v1.6L12 20.4l-3.4.8v-1.6l2.6-1.9-.8-5-6.9 2v-1.9l6.9-4.1z',
-    ship: 'M2.5 14h19l-3 5h-13zM6 13V9.5h12V13zM10.5 9.5V6h3v3.5z', carrier: 'M2 12.5h20l-3.2 5.5H5.2zM14.5 8h3.2v4.5h-3.2z',
-    oil: 'M12 3.2c3.6 4.6 5.6 7.6 5.6 10.5a5.6 5.6 0 0 1-11.2 0c0-2.9 2-5.9 5.6-10.5z', gas: 'M12 3c1.5 3 4.5 4.6 4.5 9a4.5 4.5 0 0 1-9 0c0-2.5 1.3-3.6 2.1-5.4.6 1.6 1.5 2.4 2.4 2.6C11.5 7.4 11.3 5.3 12 3zM6 19h12v2H6z',
-    refinery: 'M3.5 20.5v-9l4.5 2.8v-2.8l4.5 2.8V5h3v15.5zM17.5 20.5V8h3v12.5z', power: 'M13.5 2.5L5 13.5h5.5l-1.2 8 8.7-11.5h-5.6z',
-    nuclear: 'M12 10.2a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6zM10.5 8.6L7.8 3.9A9 9 0 0 1 16.2 3.9L13.5 8.6a3.3 3.3 0 0 0-3 0zM15.3 13.5h5.5a9 9 0 0 1-4.2 7.3l-2.8-4.8a3.3 3.3 0 0 0 1.5-2.5zM8.7 13.5a3.3 3.3 0 0 0 1.5 2.5l-2.8 4.8a9 9 0 0 1-4.2-7.3z',
-    mountain: 'M2 19.5l7-12 4 6.2 2.6-3.7L22 19.5zM8.2 13.5l1.6-1 1.3 1.2z', missile: 'M12 2c1.9 1.9 2.9 4.6 2.9 8.3v5.4l2.3 3.3h-3.1L12 17.3 9.9 19h-3.1l2.3-3.3v-5.4C9.1 6.6 10.1 3.9 12 2z',
-    rocket: 'M5 19l3-7 9-9 2 2-9 9zM4 20l2.5-1M16.5 5.5l2 2', radar: 'M5 5.5a9.5 9.5 0 0 0 13.4 13.4zM11.7 12.3l5.8-5.8M17.5 4.5l2 2M8 20.5h8',
-    hq: 'M12 2.8l2.7 5.6 6.1.8-4.4 4.3 1.1 6.1L12 16.7 6.5 19.6l1.1-6.1-4.4-4.3 6.1-.8z', city: 'M12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9z',
-    army: 'M3.5 7.5l8.5 5 8.5-5v4l-8.5 5-8.5-5z', mine: 'M12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zM12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1'
-  };
-  var STROKE = { rocket: 1, radar: 1, mine: 1 };
-  var ICONW = {
-    jet: ['airbase', 'پایگاه هوایی'], ship: ['ships, naval base', 'کشتی، پایگاه دریایی'], carrier: ['aircraft carriers', 'ناو هواپیمابر'], oil: ['oil', 'نفت'],
-    gas: ['gas', 'گاز'], refinery: ['refinery', 'پالایشگاه'], power: ['power plant', 'نیروگاه'], nuclear: ['nuclear site', 'سایت هسته‌ای'],
-    mountain: ['tunnels under a mountain', 'تونل زیر کوه'], missile: ['missile base', 'پایگاه موشکی'], rocket: ['rockets, militia', 'راکت، شبه‌نظامی'],
-    radar: ['air defence', 'پدافند هوایی'], hq: ['leaders, command', 'رهبران، فرماندهی'], city: ['city', 'شهر'], army: ['militia, army', 'شبه‌نظامی، ارتش'], mine: ['mines', 'مین']
-  };
   function sv(tag, at, parent) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (parent) parent.appendChild(e); return e; }
-  function frame(g, side, s) {
-    var h = s / 2;
-    if (side === 'r') sv('path', { d: 'M0 ' + (-h) + 'L' + h + ' 0L0 ' + h + 'L' + (-h) + ' 0Z', 'class': 'cf-fr cf-r' }, g);
-    else if (side === 'n') sv('circle', { r: h * 0.9, 'class': 'cf-fr cf-n' }, g);
-    else sv('rect', { x: -h * 0.86, y: -h * 0.86, width: s * 0.86, height: s * 0.86, rx: s * 0.12, 'class': 'cf-fr cf-b' }, g);
-  }
-  function glyph(g, icon, side, s) {
-    var k = (side === 'r' ? 0.46 : 0.6) * s / 24;
-    var p = sv('path', { d: ICON[icon] || ICON.city, transform: 'scale(' + k + ') translate(-12 -12)', 'class': STROKE[icon] ? 'cf-gl cf-gls' : 'cf-gl' }, g);
-    return p;
-  }
-  var MAP = { view: 'region', size: 'lg' };
-  function viewOf(id) { for (var i = 0; i < D.views.length; i++) if (D.views[i].id === id) return D.views[i]; }
-  function lay(view) { return D.L[view + '|' + MAP.size]; }
-  function mPos(view, pid) {      // a place's marker in this view, or null
-    var mid = D.VM[view][pid]; if (!mid) return null;
-    var L = lay(view); for (var i = 0; i < L.m.length; i++) if (L.m[i].id === mid) return { id: mid, x: L.m[i].x, y: L.m[i].y };
-    var f = viewOf(view).mk[mid].f;      // a computer-only marker: on a phone its places are drawn by the one it folds into
-    if (f) for (var j = 0; j < L.m.length; j++) if (L.m[j].id === f) return { id: f, x: L.m[j].x, y: L.m[j].y };
-    return null;
-  }
-  function project(view, ll) {
-    var V = viewOf(view), b = V.bbox, k = 1000 / ((b[2] - b[0]) * Math.PI / 180);
-    function m(l) { return Math.log(Math.tan(Math.PI / 4 + l * Math.PI / 360)); }
-    return { x: (ll[1] - b[0]) * Math.PI / 180 * k, y: (m(b[3]) - m(ll[0])) * k };
-  }
-  function pt(view, ref) {      // a from/to reference: a place id, a set of points (b_ships ...), or a lat/lon
-    if (typeof ref === 'string' && D.sets[ref]) ref = D.sets[ref][0];
-    if (typeof ref === 'string') { var q = mPos(view, ref); if (q) return q; if (D.P[ref]) ref = D.P[ref].ll; else return null; }
-    return { x: NaN, y: NaN, ll: project(view, ref) };      // off this view: placed on the frame's edge once the target is known
-  }
-  function edgeFrom(to, p, L) {      // where the straight line from the target toward an off-map origin leaves the frame
-    var m = 6, dx = p.x - to.x, dy = p.y - to.y, t = 1;
-    if (p.x < m) t = Math.min(t, (m - to.x) / dx); if (p.x > L.w - m) t = Math.min(t, (L.w - m - to.x) / dx);
-    if (p.y < m) t = Math.min(t, (m - to.y) / dy); if (p.y > L.h - m) t = Math.min(t, (L.h - m - to.y) / dy);
-    return { x: to.x + dx * t, y: to.y + dy * t, edge: t < 1 };
-  }
-  function pickView(to) {
-    var order = ['hormuz', 'israel', 'center', 'gulf'];
-    for (var i = 0; i < order.length; i++) {
-      var v = order[i], ok = to.length && to.every(function (x) { return typeof x === 'string' && !!mPos(v, x); });
-      if (ok) return v;
-    }
-    return 'region';
+  function h(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  var REDUCE = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Counts only, never who: Liberty Politics through its own counter (window.lpTrack), Iran Uncensored through its tag,
+  // which already refuses the cookie for readers in Iran. Nothing typed is ever sent (a search sends that it happened).
+  var sent = {};
+  function track(ev, p, once) {
+    if (once) { if (sent[ev]) return; sent[ev] = 1; }
+    try { p = p || {}; p.tool_lang = D.lang; if (window.lpTrack) window.lpTrack(ev, p); else if (IU && typeof window.gtag === 'function') window.gtag('event', ev, p); } catch (x) { }
   }
 
-  var svg, layers = {};
-  function drawMap(view, hl) {
-    MAP.view = view;
-    var L = lay(view), V = viewOf(view), u = L.u;
-    var box = $('.cf-map', app);
-    box.innerHTML = '';
-    svg = sv('svg', { viewBox: '0 0 ' + L.w + ' ' + L.h, 'class': 'cf-svg', role: 'img', 'aria-label': V.n }, box);
-    svg.style.setProperty('--u', u);
-    var defs = sv('defs', {}, svg);
-    ['b', 'r'].forEach(function (s) { var mk = sv('marker', { id: 'cf-ah-' + s, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' }, defs); sv('path', { d: 'M0 0L10 5L0 10z', 'class': 'cf-ah-' + s }, mk); });
-    sv('rect', { x: 0, y: 0, width: L.w, height: L.h, 'class': 'cf-sea' }, svg);
-    var land = sv('g', { 'class': 'cf-land' }, svg);
-    (D.geo[view] || []).forEach(function (c) { sv('path', { d: c.d, 'class': c.n === 'Iran' ? 'cf-iran' : '' }, land); });
-    var gl = sv('g', { 'class': 'cf-geo' }, svg);
-    L.g.forEach(function (g) {
-      var t = sv('text', { x: g.x + g.w / 2, y: g.y + g.h * (FA ? 0.66 : 0.78), 'font-size': g.fs, 'stroke-width': 2.6 * u, 'class': g.k === 'sea' ? 'cf-sea-t' : 'cf-land-t', 'text-anchor': 'middle' }, gl);
-      t.textContent = g.t;
-    });
-    layers.arcs = sv('g', { 'class': 'cf-arcs' }, svg);
-    var mg = sv('g', { 'class': 'cf-mks' }, svg);
-    L.m.forEach(function (m) {
-      var meta = V.mk[m.id];
-      if (m.x !== m.tx || m.y !== m.ty) { sv('line', { x1: m.tx, y1: m.ty, x2: m.x, y2: m.y, 'class': 'cf-lead' }, mg); sv('circle', { cx: m.tx, cy: m.ty, r: 2.2 * u, 'class': 'cf-dot' }, mg); }
-      var g = sv('g', { transform: 'translate(' + m.x + ' ' + m.y + ')', 'class': 'cf-mk', 'data-id': m.id, tabindex: 0, role: 'button', 'aria-label': meta.n }, mg);
-      frame(g, meta.s, L.mk); glyph(g, meta.i, meta.s, L.mk);
-      sv('path', { d: 'M' + (-L.mk * 0.42) + ' ' + (L.mk * 0.42) + 'L' + (L.mk * 0.42) + ' ' + (-L.mk * 0.42), 'class': 'cf-slash' }, g);
-    });
-    var lg = sv('g', { 'class': 'cf-lbls' }, svg);
-    L.l.forEach(function (l) {
-      if (l.lead) sv('line', { x1: l.lead[0], y1: l.lead[1], x2: l.lead[2], y2: l.lead[3], 'class': 'cf-lead' }, lg);
-      var t = sv('text', { x: l.x + l.w / 2, y: l.y + l.h * (FA ? 0.66 : 0.78), 'font-size': L.fs, 'stroke-width': 3.2 * u, 'class': 'cf-lbl', 'data-id': l.id, 'text-anchor': 'middle' }, lg);      // the middle of the measured box: right in both directions
-      t.textContent = l.t;
-    });
-    layers.badges = sv('g', { 'class': 'cf-bds' }, svg);
-    legend(view);
-    $$('.cf-vt button', app).forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === view ? 'true' : 'false'); });
-    if (hl) hl();
-  }
-  function markHit(dm) {      // a marker whose places were wrecked carries a slash
-    if (!svg || !dm) return;
-    var hitSets = Object.keys(dm).filter(function (s) { return dm[s] > 0.55; });
-    var ids = {};
-    hitSets.forEach(function (s) { (D.sets[s] || []).forEach(function (pid) { var q = mPos(MAP.view, pid); if (q) ids[q.id] = 1; }); });
-    $$('.cf-mk', svg).forEach(function (g) { g.classList[ids[g.dataset.id] ? 'add' : 'remove']('cf-hit'); });
-  }
-  function drawStep(s, num, dm) {
-    var view = pickView(s.to);
-    if (view !== MAP.view || !svg) drawMap(view);
-    layers.arcs.innerHTML = ''; layers.badges.innerHTML = '';
-    $$('.cf-mk', svg).forEach(function (g) { g.classList.remove('cf-on', 'cf-from'); });
-    markHit(dm);
-    var L = lay(view), tos = [], seen = {};
-    s.to.forEach(function (x) { var q = pt(view, x); if (q && q.id && !seen[q.id]) { seen[q.id] = 1; tos.push(q); } });
-    var froms = [], fs = {};
-    s.from.forEach(function (x) { var q = pt(view, x); var key = q ? (q.id || (Math.round(q.ll.x) + ',' + Math.round(q.ll.y))) : ''; if (q && !fs[key]) { fs[key] = 1; froms.push(q); } });
-    froms = froms.slice(0, 2); tos = tos.slice(0, 5);
-    tos.forEach(function (to, i) {
-      var fr = froms[i % Math.max(1, froms.length)]; if (!fr) return;
-      if (fr.ll) fr = edgeFrom(to, fr.ll, L);
-      var dx = to.x - fr.x, dy = to.y - fr.y, len = Math.hypot(dx, dy); if (len < 2) return;
-      var cx = (fr.x + to.x) / 2 - dy * 0.18, cy = (fr.y + to.y) / 2 + dx * 0.18;
-      var end = { x: to.x - dx / len * L.mk * 0.62, y: to.y - dy / len * L.mk * 0.62 };
-      var path = sv('path', { d: 'M' + fr.x + ' ' + fr.y + 'Q' + cx + ' ' + cy + ' ' + end.x + ' ' + end.y, 'stroke-width': 2.4 * L.u, 'class': 'cf-arc cf-arc-' + s.sd, 'marker-end': 'url(#cf-ah-' + s.sd + ')' }, layers.arcs);
-      path.style.setProperty('--len', Math.ceil(len * 1.2));
-    });
-    froms.forEach(function (f) { if (f.id) { var g = $('.cf-mk[data-id="' + f.id + '"]', svg); if (g) g.classList.add('cf-from'); } });
-    tos.forEach(function (to) {
-      var g = $('.cf-mk[data-id="' + to.id + '"]', svg); if (g) g.classList.add('cf-on');
-      var c = sv('g', { transform: 'translate(' + (to.x + L.mk / 2) + ' ' + (to.y - L.mk / 2) + ')', 'class': 'cf-bd cf-bd-' + s.sd }, layers.badges);
-      sv('circle', { r: L.bd }, c); var tx = sv('text', { 'font-size': L.bd * 1.3, dy: L.bd * 0.45, 'text-anchor': 'middle' }, c); tx.textContent = fd(num);
-    });
-  }
-  function legend(view) {
-    var V = viewOf(view), icons = {};
-    Object.keys(V.mk).forEach(function (k) { icons[V.mk[k].i] = 1; });
-    var h = '<span class="cf-lg-k"><svg viewBox="-12 -12 24 24" aria-hidden="true"><rect x="-9" y="-9" width="18" height="18" rx="2.5" class="cf-fr cf-b"/></svg>' + w('kb') + '</span>'
-      + '<span class="cf-lg-k"><svg viewBox="-12 -12 24 24" aria-hidden="true"><path d="M0 -11L11 0L0 11L-11 0Z" class="cf-fr cf-r"/></svg>' + w('kr') + '</span>'
-      + '<span class="cf-lg-k"><svg viewBox="-12 -12 24 24" aria-hidden="true"><circle r="10" class="cf-fr cf-n"/></svg>' + w('kn') + '</span>'
-      + '<span class="cf-lg-k"><svg viewBox="-12 -12 24 24" aria-hidden="true"><circle r="7" class="cf-lg-bd"/></svg>' + w('kmove') + '</span>';
-    Object.keys(icons).forEach(function (i) {
-      h += '<span class="cf-lg-i"><svg viewBox="-12 -12 24 24" aria-hidden="true"><path d="' + ICON[i] + '" transform="translate(-12 -12)" class="' + (STROKE[i] ? 'cf-lgs' : 'cf-lgf') + '"/></svg>' + (ICONW[i] ? ICONW[i][FA ? 1 : 0] : i) + '</span>';
-    });
-    $('.cf-legend', app).innerHTML = '<b>' + w('legend') + '</b>' + h;
-  }
-
-  /* ------------------------------------------------------------------ THE PANELS */
-  var plan = null, tab = 'plan', result = null, likely = null, cur = { t: 0, s: 0 }, timer = null;
-  function initPlan() {
-    var q = /[?&]p=([0-9a-z.]+)/.exec(location.search), p = q && decode(q[1]);
-    plan = p || JSON.parse(JSON.stringify(LIKELY));
-    return !!p;
-  }
-  var HINT = {
-    carriers: function () { return FA ? '۲ تا الان تو منطقه‌ان؛ سومی حدود ۱۴ تا ۲۱ روز دیگه می‌رسه.' : 'Two are in the region now; a third can arrive in about 14 to 21 days.'; },
-    ddg: function () { return FA ? 'بیشتر از ۱۰ تا تو منطقه؛ هر کدوم ' + n0(F.ddg_cells.v) + ' خونه‌ی موشک.' : 'More than 10 in the region; ' + n0(F.ddg_cells.v) + ' missile cells each.'; },
-    tlam: function (p) { var n = Math.round(p.ddg * F.ddg_cells.v * p.tlam) + (p.ssgn ? F.ssgn.v : 0), sm = Math.round(p.ddg * F.ddg_cells.v * (1 - p.tlam)); return FA ? n0(n) + ' تا تاماهاوک، ' + n0(sm) + ' تا رهگیر. تا اوت ۲۰۲۶ حدود ' + pc(F.tlam_used.v) + ' ذخیره‌ی تاماهاوک آمریکا مصرف شده بود.' : n0(n) + ' Tomahawks, ' + n0(sm) + ' interceptors. About ' + pc(F.tlam_used.v) + ' of the US Tomahawk stock was used by August 2026.'; },
-    ssgn: function () { return FA ? n0(F.ssgn.v) + ' تا تاماهاوک دیگه، اگه یکیش اونجا باشه (هیچ‌وقت اعلام نمی‌کنن).' : n0(F.ssgn.v) + ' more Tomahawks, if one is there (boats are never announced).'; },
-    b2: function (p) { return FA ? fd(Math.ceil(p.b2 / 2)) + ' تا بی-۲. ژوئن ۲۰۲۵، ۱۴ تا انداخته شد؛ ذخیره‌ی الان محرمانه‌ست.' : fd(Math.ceil(p.b2 / 2)) + ' B-2s. 14 were dropped in June 2025; the stock now is secret.'; },
-    b1: function (p) { return FA ? n0(p.b1 * F.b1_load.v) + ' تا جَسم در هر موج، برد بیشتر از ۸۰۰ کیلومتر.' : n0(p.b1 * F.b1_load.v) + ' JASSM-ERs a wave, range 800+ km.'; },
-    land: function () { return FA ? 'حدود ۳۰ اف-۳۵ تو منطقه. کشورهای میزبان باید اجازه بدن.' : 'About 30 F-35As in the region. The host countries must allow it.'; },
-    israel: function () { return FA ? 'با همه‌ی توان حدود ' + n0(F.il_sorties.v) + ' پرواز حمله در روز.' : 'All in: about ' + n0(F.il_sorties.v) + ' strike sorties a day.'; },
-    thaad: function () { return FA ? 'هر آتشبار ' + n0(F.thaad_batt.v) + ' رهگیر. آمریکا تو کل دنیا حدود ' + F.thaad_left.t + ' تا داره.' : F.thaad_batt.t + ' interceptors a battery. The US has about ' + F.thaad_left.t + ' left worldwide.'; },
-    pac: function () { return FA ? 'آمریکا تو کل دنیا ' + F.pac3_left.t + ' تا داره. به هر موشک ۲ تا شلیک می‌شه.' : 'The US has ' + F.pac3_left.t + ' left worldwide. Two are fired at each missile.'; },
-    shipdef: function (p) { var sm = Math.round(p.ddg * F.ddg_cells.v * (1 - p.tlam) * (1 - A.ship_share.v)); return FA ? n0(sm) + ' تا اس‌ام-۳ و اس‌ام-۶ (بقیه برای دفاع از خود کشتی).' : n0(sm) + ' SM-3s and SM-6s (the rest defend the ship itself).'; },
-    oildef: function () { return FA ? 'بدونش، کشورهای خلیج فارس ممکنه حمله از خاکشون رو محدود کنن.' : 'Without it, the host countries may limit strikes from their soil.'; },
-    nuke: function () { return FA ? 'کوه کلنگ گزلا فقط با جی‌بی‌یو-۵۷ زده می‌شه.' : 'Pickaxe Mountain is only reached with GBU-57s.'; },
-    launch: function () { return FA ? '۲۰۲۶: پرتاب‌ها تو ۱۱ روز ۹۲ درصد کم شد.' : '2026: launches fell 92% in 11 days.'; },
-    rep: function () { return FA ? 'بیشترین کمک به مردمِ تو خیابون.' : 'Helps people in the street most.'; },
-    leaders: function () { return FA ? 'تو ۲۰۲۶ تو ' + fd(F.leader_days.v) + ' روز رهبر جدید انتخاب شد.' : 'In 2026 a new leader was chosen in ' + fd(F.leader_days.v) + ' days.'; },
-    power: function () { return FA ? 'خاموشی سرِ مردم عادی خراب می‌شه و اون‌ها رو از شما دور می‌کنه (تخمین).' : 'Blackouts land on ordinary Iranians and turn them against you (estimate).'; },
-    raid: function () { return FA ? 'شانس موفقیت حدود ' + pc(A.raid.v) + ' (تخمین).' : 'About a ' + pc(A.raid.v) + ' chance it works (estimate).'; },
-    net: function () { return FA ? 'به مردم کمک می‌کنه خبر رو ببینن و هماهنگ بشن.' : 'Helps people see the news and organise.'; }
+  /* ------------------------------------------------------------------ the drawings (240 x 120). One flat style: a dark
+     ground, a horizon, the thing in light ink, its side's colour as one accent. Shapes follow each type's real profile. */
+  var COL = { us: '#5B95F5', il: '#4CC3E0', ir: '#F06A58', px: '#F0A04B', gulf: '#A9A69B', geo: '#E2C25B' };
+  var INK = '#E9E6DC', DIM = '#8C887E';
+  function sea(y) { return '<rect x="0" y="' + y + '" width="240" height="' + (120 - y) + '" fill="#0E1A26"/><path d="M0 ' + (y + 6) + 'h240M20 ' + (y + 14) + 'h60M140 ' + (y + 12) + 'h70" stroke="#1E3346" stroke-width="2"/>'; }
+  function ground(y) { return '<rect x="0" y="' + y + '" width="240" height="' + (120 - y) + '" fill="#1F1D1A"/><path d="M0 ' + y + 'h240" stroke="#3A3732" stroke-width="2"/>'; }
+  function sky() { return '<rect width="240" height="120" fill="#141A20"/>'; }
+  function plane(body, wing, tail, a) { return '<g fill="' + INK + '">' + body + '</g><g fill="' + DIM + '">' + wing + '</g>' + (tail || '') + (a ? '<path d="' + a + '" stroke="ACC" stroke-width="3" fill="none"/>' : ''); }
+  var ART = {
+    carrier: function () { return sky() + sea(78) + '<path d="M18 70h198l-10 12H34z" fill="' + INK + '"/><path d="M30 66h176l6 4H22z" fill="' + DIM + '"/><path d="M150 50h14v16h-14z" fill="' + INK + '"/><path d="M154 40h6v10h-6z" fill="' + DIM + '"/><path d="M60 60l14-3 14 3-14 2z M100 61l12-3 12 3-12 2z M180 61l10-2 10 2-10 2z" fill="' + DIM + '"/><path d="M34 82h172" stroke="ACC" stroke-width="3"/>'; },
+    cruiser: function () { return sky() + sea(78) + '<path d="M20 72h196l-12 10H36z" fill="' + INK + '"/><path d="M70 72v-12h22v-8h16v-10h10v10h12v8h22v12z" fill="' + INK + '"/><path d="M108 42v-12M114 30h-12" stroke="' + DIM + '" stroke-width="2"/><rect x="40" y="66" width="18" height="6" fill="' + DIM + '"/><rect x="170" y="66" width="18" height="6" fill="' + DIM + '"/><path d="M36 82h168" stroke="ACC" stroke-width="3"/>'; },
+    destroyer: function () { return sky() + sea(78) + '<path d="M22 72h194l-14 10H38z" fill="' + INK + '"/><path d="M80 72v-12h18v-10h22v10h20v12z" fill="' + INK + '"/><path d="M110 50v-16M104 38h12" stroke="' + DIM + '" stroke-width="2"/><rect x="44" y="66" width="20" height="6" fill="' + DIM + '"/><rect x="160" y="66" width="22" height="6" fill="' + DIM + '"/><path d="M38 82h164" stroke="ACC" stroke-width="3"/>'; },
+    frigate: function () { return sky() + sea(78) + '<path d="M40 72h160l-12 10H54z" fill="' + INK + '"/><path d="M90 72v-10h14v-10h18v10h16v10z" fill="' + INK + '"/><path d="M114 52v-14" stroke="' + DIM + '" stroke-width="2"/><path d="M54 82h134" stroke="ACC" stroke-width="3"/>'; },
+    amphib: function () { return sky() + sea(78) + '<path d="M16 68h204l-6 14H28z" fill="' + INK + '"/><path d="M150 68V48h18v20z" fill="' + INK + '"/><path d="M40 62l10-4 10 4M80 62l10-4 10 4" stroke="' + DIM + '" stroke-width="3" fill="none"/><circle cx="118" cy="58" r="5" fill="' + DIM + '"/><path d="M106 58h24" stroke="' + DIM + '" stroke-width="2"/><path d="M28 82h186" stroke="ACC" stroke-width="3"/>'; },
+    submarine: function () { return sky() + sea(52) + '<path d="M30 80c0-8 10-12 24-12h130c14 0 26 5 26 12s-12 12-26 12H54c-14 0-24-4-24-12z" fill="' + INK + '"/><path d="M96 68l6-18h24l4 18z" fill="' + INK + '"/><path d="M210 80l14-8v16z" fill="' + DIM + '"/><path d="M54 92h130" stroke="ACC" stroke-width="3"/>'; },
+    kilo: function () { return ART.submarine(); },
+    fastboat: function () { return sky() + sea(80) + '<path d="M60 74h120l-20 10H72z" fill="' + INK + '"/><path d="M110 74v-10h22l6 10z" fill="' + DIM + '"/><path d="M90 74v-6h10" stroke="' + DIM + '" stroke-width="3"/><path d="M40 86c20-4 40-4 60 0" stroke="#355" stroke-width="2" fill="none"/><path d="M72 84h88" stroke="ACC" stroke-width="3"/>'; },
+    minelayer: function () { return sky() + sea(50) + '<circle cx="120" cy="86" r="18" fill="' + INK + '"/><path d="M120 62v-6M120 110v6M96 86h-6M144 86h6M103 69l-4-4M137 69l4-4M103 103l-4 4M137 103l4 4" stroke="' + INK + '" stroke-width="4"/><path d="M120 104v16" stroke="' + DIM + '" stroke-width="2"/><circle cx="120" cy="86" r="18" fill="none" stroke="ACC" stroke-width="3"/>'; },
+    fighter: function () { return sky() + plane('<path d="M30 62l150-6c14 0 26 3 30 6-4 3-16 6-30 6z"/>', '<path d="M92 60l-30-30h14l46 30zM92 64l-30 30h14l46-30zM176 58l18-16h8l-10 18zM176 66l18 16h8l-10-18z"/>', '', 'M60 62h80'); },
+    stealth: function () { return sky() + plane('<path d="M24 62l120-10 70 10-70 10z"/>', '<path d="M86 56l-24-28h22l54 26zM86 68l-24 28h22l54-26zM170 56l26-14h8l-14 16zM170 68l26 14h8l-14-16z"/>', '', 'M54 62h90'); },
+    bomber: function () { return sky() + plane('<path d="M20 62l170-7c14 0 26 3 30 7-4 4-16 7-30 7z"/>', '<path d="M100 58l-60-36h16l76 34zM100 66l-60 36h16l76-34zM186 56l16-18h8l-8 20zM186 68l16 18h8l-8-20z"/>', '<g fill="' + DIM + '"><rect x="70" y="40" width="16" height="5"/><rect x="70" y="79" width="16" height="5"/></g>', 'M60 62h110'); },
+    stealthbomber: function () { return sky() + '<path d="M120 38l100 40-20 6-16-8-16 8-16-8-16 8-16-8-16 8-16-8-16 8-16-8-16 8-20-6z" fill="' + INK + '"/><path d="M70 66l50-20 50 20" stroke="ACC" stroke-width="3" fill="none"/>'; },
+    tanker: function () { return sky() + plane('<path d="M24 60l172-5c14 0 24 3 26 6-2 3-12 6-26 6z"/>', '<path d="M104 58l-36-30h14l50 28zM104 64l-36 30h14l50-28zM190 56l14-16h8l-6 18z"/>', '<path d="M40 64l-26 22" stroke="' + DIM + '" stroke-width="3"/>', 'M60 61h120'); },
+    awacs: function () { return ART.tanker() + '<ellipse cx="130" cy="44" rx="30" ry="6" fill="' + INK + '"/><path d="M130 50v8" stroke="' + DIM + '" stroke-width="3"/>'; },
+    drone: function () { return sky() + plane('<path d="M50 62l120-4c12 0 20 2 22 4-2 2-10 4-22 4z"/>', '<path d="M110 60l-24-36h10l34 34zM110 64l-24 36h10l34-34zM44 60l-12-12h8l10 12zM44 64l-12 12h8l10-12z"/>', '<circle cx="182" cy="66" r="4" fill="' + DIM + '"/>', 'M70 62h70'); },
+    owa: function () { return sky() + '<path d="M60 62l100-36v72z" fill="' + INK + '"/><path d="M150 60h40v4h-40z" fill="' + DIM + '"/><circle cx="196" cy="62" r="6" fill="' + DIM + '"/><path d="M84 62l60-22" stroke="ACC" stroke-width="3"/>'; },
+    helo: function () { return sky() + '<path d="M70 66c0-10 14-16 34-16h20c16 0 24 8 24 16s-8 14-24 14h-20c-20 0-34-4-34-14z" fill="' + INK + '"/><path d="M148 64h56l8-10" stroke="' + INK + '" stroke-width="5" fill="none"/><path d="M40 44h150M114 44v8" stroke="' + DIM + '" stroke-width="4"/><path d="M84 82h50" stroke="ACC" stroke-width="3"/>'; },
+    bm: function () { return sky() + '<path d="M30 60c0-7 6-10 14-10h140l26 10-26 10H44c-8 0-14-3-14-10z" fill="' + INK + '"/><path d="M40 50l-14-10h14zM40 70l-14 10h14z" fill="' + DIM + '"/><path d="M14 60h12" stroke="#E2C25B" stroke-width="5"/><path d="M110 50v20" stroke="ACC" stroke-width="3"/>'; },
+    cm: function () { return sky() + '<path d="M40 60c0-5 4-7 10-7h140l20 7-20 7H50c-6 0-10-2-10-7z" fill="' + INK + '"/><path d="M110 54l-16-20h8l18 20zM110 66l-16 20h8l18-20zM48 54l-10-10h6l10 10z" fill="' + DIM + '"/><path d="M140 53v14" stroke="ACC" stroke-width="3"/>'; },
+    tel: function () { return sky() + ground(88) + '<rect x="40" y="70" width="150" height="14" fill="' + INK + '"/><path d="M190 70h26l6 14h-32z" fill="' + INK + '"/><g fill="' + DIM + '"><circle cx="60" cy="88" r="7"/><circle cx="84" cy="88" r="7"/><circle cx="150" cy="88" r="7"/><circle cx="174" cy="88" r="7"/><circle cx="206" cy="88" r="7"/></g><path d="M50 68l120-34 6 6L56 72z" fill="' + INK + '"/><path d="M60 66l100-28" stroke="ACC" stroke-width="3"/>'; },
+    tunnel: function () { return sky() + '<path d="M0 54l50-22 40 12 50-26 50 18 50-6v90H0z" fill="#2B2823"/><path d="M78 120V92c0-18 14-30 30-30s30 12 30 30v28z" fill="#0A0A0A"/><path d="M78 92c0-18 14-30 30-30s30 12 30 30" stroke="ACC" stroke-width="4" fill="none"/><path d="M96 120l6-26h12l6 26" stroke="' + DIM + '" stroke-width="2" fill="none"/>'; },
+    patriot: function () { return sky() + ground(90) + '<rect x="36" y="78" width="130" height="10" fill="' + INK + '"/><g fill="' + DIM + '"><circle cx="56" cy="92" r="6"/><circle cx="140" cy="92" r="6"/></g><path d="M60 78l90-40 10 14-90 34z" fill="' + INK + '"/><g stroke="#141A20" stroke-width="2"><path d="M84 66l52-24M88 74l52-24"/></g><path d="M176 88V58h28v30z" fill="' + DIM + '"/><path d="M180 58l10-12 10 12" stroke="ACC" stroke-width="3" fill="none"/>'; },
+    thaad: function () { return sky() + ground(90) + '<rect x="30" y="76" width="150" height="12" fill="' + INK + '"/><path d="M180 76h22l8 12h-30z" fill="' + INK + '"/><g fill="' + DIM + '"><circle cx="50" cy="92" r="6"/><circle cx="70" cy="92" r="6"/><circle cx="150" cy="92" r="6"/><circle cx="190" cy="92" r="6"/></g><path d="M44 74l110-44 8 12L52 84z" fill="' + INK + '"/><g fill="#141A20"><circle cx="76" cy="68" r="3"/><circle cx="92" cy="62" r="3"/><circle cx="108" cy="55" r="3"/><circle cx="124" cy="49" r="3"/></g><path d="M58 78l100-40" stroke="ACC" stroke-width="3"/>'; },
+    shipsam: function () { return ART.destroyer() + '<path d="M58 66c10-30 30-50 60-58" stroke="#E2C25B" stroke-width="3" fill="none" stroke-dasharray="4 4"/>'; },
+    irondome: function () { return sky() + ground(92) + '<rect x="70" y="84" width="100" height="8" fill="' + INK + '"/><path d="M80 84l60-44 14 10-60 42z" fill="' + INK + '"/><g fill="#141A20"><rect x="98" y="66" width="8" height="8"/><rect x="110" y="58" width="8" height="8"/><rect x="122" y="50" width="8" height="8"/></g><path d="M150 34c10-14 30-20 50-18" stroke="ACC" stroke-width="3" fill="none" stroke-dasharray="4 4"/>'; },
+    sling: function () { return ART.patriot(); },
+    arrow: function () { return sky() + ground(92) + '<rect x="40" y="82" width="140" height="10" fill="' + INK + '"/><path d="M60 80l100-56 10 12L70 90z" fill="' + INK + '"/><path d="M70 80l90-50" stroke="ACC" stroke-width="3"/><path d="M186 92V60h24v32z" fill="' + DIM + '"/><circle cx="198" cy="54" r="8" fill="none" stroke="' + DIM + '" stroke-width="3"/>'; },
+    ironbeam: function () { return sky() + ground(92) + '<rect x="80" y="70" width="70" height="22" fill="' + INK + '"/><circle cx="130" cy="62" r="12" fill="' + DIM + '"/><path d="M138 54L220 14" stroke="ACC" stroke-width="3"/>'; },
+    sam: function () { return sky() + ground(90) + '<rect x="40" y="76" width="120" height="12" fill="' + INK + '"/><g fill="' + DIM + '"><circle cx="58" cy="92" r="6"/><circle cx="80" cy="92" r="6"/><circle cx="138" cy="92" r="6"/></g><path d="M70 76V28h18v48zM96 76V28h18v48z" fill="' + INK + '"/><path d="M176 88l14-40 14 40" stroke="' + DIM + '" stroke-width="4" fill="none"/><path d="M168 46h44" stroke="ACC" stroke-width="3"/>'; },
+    airbase: function () { return sky() + ground(60) + '<path d="M20 98L170 64l20 6L44 108z" fill="#3A3732"/><path d="M60 92l20-4M100 83l20-4M140 74l20-4" stroke="' + INK + '" stroke-width="3"/><path d="M190 60V40h20v20z" fill="' + INK + '"/><path d="M186 40h28" stroke="ACC" stroke-width="3"/><path d="M110 44l30-6c4 0 8 1 9 2-1 1-5 2-9 2zM124 40l-8-8h4l10 8z" fill="' + INK + '"/>'; },
+    navalbase: function () { return sky() + sea(80) + '<path d="M0 80h240v-14H140v-10H0z" fill="#2B2823"/><path d="M30 56V36h14v20zM56 56V44h30v12z" fill="' + DIM + '"/><path d="M150 78h70l-6 8h-58z" fill="' + INK + '"/><path d="M178 78v-8h12v8z" fill="' + INK + '"/><path d="M40 36l20-12" stroke="ACC" stroke-width="3"/>'; },
+    armybase: function () { return sky() + ground(80) + '<g fill="' + INK + '"><rect x="40" y="62" width="40" height="18"/><rect x="90" y="56" width="50" height="24"/><rect x="150" y="66" width="40" height="14"/></g><path d="M200 80V40" stroke="' + DIM + '" stroke-width="2"/><path d="M200 40h22v12h-22" fill="ACC"/>'; },
+    militia: function () { return sky() + ground(90) + '<path d="M70 90V24" stroke="' + INK + '" stroke-width="4"/><path d="M72 26h80l-12 16 12 16H72z" fill="ACC"/><path d="M130 90l20-30 20 30z" fill="' + INK + '"/><path d="M180 90l12-18 12 18z" fill="' + DIM + '"/>'; },
+    strait: function () { return '<rect width="240" height="120" fill="#0E1A26"/><path d="M0 0h240v36c-40 10-70 2-100 14S60 56 0 44z" fill="#2B2823"/><path d="M0 120h240V92c-30-10-80 6-110-8S40 84 0 96z" fill="#2B2823"/><path d="M10 74c60-10 120-12 220-10" stroke="ACC" stroke-width="3" stroke-dasharray="8 6" fill="none"/><path d="M150 66l14 0-4-4M150 66l10 4" stroke="' + INK + '" stroke-width="2" fill="none"/>'; },
+    reactor: function () { return sky() + ground(90) + '<path d="M60 90c0-20 6-40 10-60h40c4 20 10 40 10 60z" fill="' + INK + '"/><path d="M140 90V56c0-16 40-16 40 0v34z" fill="' + DIM + '"/><path d="M76 20c10-10 20-10 30 0" stroke="' + DIM + '" stroke-width="3" fill="none"/><circle cx="160" cy="70" r="7" fill="none" stroke="ACC" stroke-width="3"/>'; },
+    enrich: function () { return sky() + '<path d="M0 60l60-30 50 18 60-30 70 26v76H0z" fill="#2B2823"/><path d="M40 120v-24h160v24" fill="#0A0A0A"/><g fill="' + INK + '"><rect x="56" y="100" width="8" height="20"/><rect x="72" y="100" width="8" height="20"/><rect x="88" y="100" width="8" height="20"/><rect x="104" y="100" width="8" height="20"/><rect x="120" y="100" width="8" height="20"/><rect x="136" y="100" width="8" height="20"/><rect x="152" y="100" width="8" height="20"/><rect x="168" y="100" width="8" height="20"/></g><path d="M40 96h160" stroke="ACC" stroke-width="3"/>'; },
+    refinery: function () { return sky() + ground(90) + '<g fill="' + INK + '"><rect x="40" y="40" width="10" height="50"/><rect x="60" y="54" width="10" height="36"/><rect x="100" y="66" width="40" height="24" rx="4"/><rect x="150" y="62" width="44" height="28" rx="4"/></g><path d="M45 40v-14" stroke="#E2C25B" stroke-width="4"/><path d="M80 70h20M140 76h10" stroke="' + DIM + '" stroke-width="3"/><path d="M100 66h40" stroke="ACC" stroke-width="3"/>'; },
+    terminal: function () { return sky() + sea(80) + '<path d="M0 80h90V60H0z" fill="#2B2823"/><path d="M90 76h80" stroke="' + DIM + '" stroke-width="4"/><path d="M150 82h80l-8 10h-64z" fill="' + INK + '"/><g fill="' + INK + '"><rect x="14" y="44" width="26" height="16" rx="3"/><rect x="48" y="40" width="30" height="20" rx="3"/></g><path d="M158 82h64" stroke="ACC" stroke-width="3"/>'; },
+    gasfield: function () { return sky() + sea(84) + '<path d="M90 84V50h60v34" stroke="' + INK + '" stroke-width="4" fill="none"/><rect x="84" y="40" width="72" height="12" fill="' + INK + '"/><path d="M150 40l20-24" stroke="' + DIM + '" stroke-width="3"/><path d="M172 14c4-6 8-6 6 2-2 6-8 4-6-2z" fill="#E2C25B"/><path d="M84 52h72" stroke="ACC" stroke-width="3"/>'; },
+    hq: function () { return sky() + ground(92) + '<path d="M50 92V50l70-22 70 22v42z" fill="' + INK + '"/><g fill="#141A20"><rect x="70" y="60" width="14" height="14"/><rect x="113" y="60" width="14" height="14"/><rect x="156" y="60" width="14" height="14"/></g><path d="M120 28v-14" stroke="' + DIM + '" stroke-width="2"/><path d="M50 50l70-22 70 22" stroke="ACC" stroke-width="3" fill="none"/>'; }
   };
-  var LINK = { carriers: 'f-carriers', tlam: 'a-tlam_share', ssgn: 'f-ssgn', b2: 'f-mop_stock', b1: 'f-b1_load', land: 'a-host', israel: 'f-il_sorties', thaad: 'f-thaad_left', pac: 'f-pac3_left', shipdef: 'a-ship_share', oildef: 'a-host', launch: 'a-watch', rep: 'a-regime', leaders: 'f-leader_days', power: 'a-regime', raid: 'a-raid', net: 'a-regime', nuke: 'a-pickaxe', ddg: 'f-ddg_cells' };
-  var SECT = [
-    ['forces', ['carriers', 'ddg', 'tlam', 'ssgn', 'b2', 'b1', 'land', 'israel']],
-    ['defence', ['thaad', 'pac', 'shipdef', 'oildef']],
-    ['targets', ['ad', 'launch', 'nuke', 'navy', 'jets', 'rep', 'leaders', 'oil', 'ref', 'power', 'raid']],
-    ['rules', ['days', 'net']]
-  ];
-  function optLabel(k, v) {
-    if (['ad', 'launch', 'nuke', 'navy', 'jets', 'rep'].indexOf(k) >= 0) return w(['off', 'on', 'first'][v]);
-    if (k === 'days') return w('d' + v);
-    if (k === 'b2') return fd(v);
-    if (k === 'israel' || k === 'thaad' || k === 'shipdef' || k === 'leaders') return w(v);
-    return v ? w('on') : w('off');
+  function art(u) {
+    var f = ART[u.a] || ART.hq, c = COL[u.s] || COL.geo;
+    return '<svg viewBox="0 0 240 120" role="img" aria-label="' + esc(u.n) + '" preserveAspectRatio="xMidYMid slice">' + f().replace(/ACC/g, c) + '</svg>';
   }
-  function control(k) {
-    var c = D.choices[k], v = plan[k], h = '';
-    var lab = k === 'thaad' ? w('thaad') : k === 'shipdef' ? w('shipdef') : w(k);
-    if (c.opts) {
-      h = '<div class="cf-seg" role="group" aria-label="' + esc(lab) + '">' + c.opts.map(function (o) {
-        var t = k === 'thaad' && o === 'gulf' ? w('gulf') : optLabel(k, o);
-        return '<button type="button" data-k="' + k + '" data-v="' + esc(JSON.stringify(o)) + '" aria-pressed="' + (o === v) + '">' + esc(t) + '</button>';
-      }).join('') + '</div>';
-    } else if (c.step && c.step < 1) {
-      h = '<div class="cf-sl"><input type="range" data-k="' + k + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(lab) + '"><output>' + pc(v) + '</output></div>';
-    } else if (c.step) {
-      h = '<div class="cf-sl"><input type="range" data-k="' + k + '" min="' + c.min + '" max="' + c.max + '" step="' + c.step + '" value="' + v + '" aria-label="' + esc(lab) + '"><output>' + n0(v) + '</output></div>';
-    } else {
-      h = '<div class="cf-step"><button type="button" data-k="' + k + '" data-d="-1" aria-label="−">−</button><output>' + fd(v) + '</output><button type="button" data-k="' + k + '" data-d="1" aria-label="+">+</button></div>';
-    }
-    var hint = HINT[k] ? '<p class="cf-hint">' + esc(HINT[k](plan)) + (LINK[k] ? ' <a href="#' + LINK[k] + '" class="cf-i" data-to="' + LINK[k] + '">' + (FA ? 'منبع' : 'source') + '</a>' : '') + '</p>' : '';
-    return '<div class="cf-row" data-row="' + k + '"><span class="cf-lab">' + esc(lab) + '</span>' + h + hint + '</div>';
-  }
-  function planPanel() {
-    var g = '<div class="cf-goals" role="group" aria-label="' + w('goal') + '">' + Object.keys(D.goals).map(function (k) {
-      return '<button type="button" data-goal="' + k + '" aria-pressed="' + (plan.goal === k) + '"><b>' + esc(D.goals[k].n) + '</b><span>' + esc(D.goals[k].win) + '</span></button>';
-    }).join('') + '</div>';
-    var pr = '<div class="cf-presets">' + D.presets.map(function (p, i) {
-      return '<button type="button" data-preset="' + i + '" aria-pressed="' + (code(p.p) === code(plan)) + '"><b>' + esc(p.n) + '</b><span>' + esc(firstSentences(p.why, 1)) + '</span></button>';
-    }).join('') + '</div>';
-    var on = D.presets.filter(function (p) { return code(p.p) === code(plan); })[0];
-    if (on && firstSentences(on.why, 1) !== on.why) pr += '<p class="cf-hint">' + esc(on.why.slice(firstSentences(on.why, 1).length).trim()) + '</p>';
-    var secs = SECT.map(function (s) { return '<details class="cf-sec"' + (s[0] === 'targets' ? ' open' : '') + '><summary>' + w(s[0]) + '</summary>' + s[1].map(control).join('') + '</details>'; }).join('');
-    var wn = plan.carriers >= 3 ? '<p class="cf-warn">' + w('wait3') + '</p>' : '';
-    return '<h2 class="cf-h">' + w('start') + '</h2>' + pr + '<h2 class="cf-h">' + w('goal') + '</h2>' + g + secs + wn
-      + '<div class="cf-go"><button type="button" class="cf-play" id="cf-go">' + w('go') + (FA ? ' ◂' : ' ▸') + '</button></div>';
-  }
-  function setTab(t) {
-    tab = t; app.setAttribute('data-tab', t);
-    $$('.cf-tabs button', app).forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === t ? 'true' : 'false'); });
-    var P = $('.cf-panel', app);
-    if (t === 'plan') { P.innerHTML = planPanel(); stopAuto(); nowMap(); }
-    if (t === 'play') { P.innerHTML = playPanel(); showStep(); }
-    if (t === 'debrief') { P.innerHTML = debriefPanel(); stopAuto(); }
-    P.scrollTop = 0;
-  }
-  function nowMap() {
-    drawMap('region');
-    var ids = ['carriers', 'us-ships', 'israel', 'gulf-bases', 'tehran', 'nuclear', 'mb-west', 'hormuz'];
-    $$('.cf-mk', svg).forEach(function (g) { if (ids.indexOf(g.dataset.id) >= 0) g.classList.add('cf-from'); });
-    $('.cf-cap', app).innerHTML = '<b>' + w('rnow') + '</b> <span class="num">' + esc(dateOf(D.now.asOf)) + '</span><p>' + esc(firstSentences(D.now.state, 2)) + '</p><p class="cf-cap-u">' + w(innerWidth < 900 ? 'rnowSubM' : 'rnowSub') + '</p>';
-  }
-  function dateOf(iso) { try { return new Date(iso + 'T12:00:00Z').toLocaleDateString(FA ? 'fa-IR' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); } catch (e) { return iso; } }
-  function firstSentences(s, n) { var a = s.split(/(?<=[.!?؟])\s+/); return a.slice(0, n).join(' '); }
 
-  function go() {
-    var any = ['ad', 'launch', 'nuke', 'navy', 'jets', 'rep', 'oil', 'ref', 'power'].some(function (k) { return +plan[k] > 0; }) || plan.leaders !== 'none';
-    if (!any) { alertLine(w('noTargets')); return; }
-    try { history.replaceState(null, '', location.pathname + '?p=' + code(plan) + location.hash); } catch (e) { }
-    var P = $('.cf-panel', app);
-    P.innerHTML = '<p class="cf-busy" role="status">' + w('running') + '…</p>';
-    many(plan, function (S) {
-      result = S;
-      var lc = code(LIKELY) === code(plan);
-      var fin = function () { cur = { t: 0, s: 0 }; setTab('play'); startAuto(); };
-      if (lc) { likely = S; fin(); } else if (likely) fin(); else many(LIKELY, function (L) { likely = L; fin(); });
+  // The marker glyphs (24 x 24), one per family of drawings.
+  var GLY = {
+    ship: '<path d="M3 14h18l-3 4H6zM9 14V9h6v5M12 9V5"/>', sub: '<path d="M3 14c0-2 3-3 6-3h8c3 0 4 1 4 3s-1 3-4 3H9c-3 0-6-1-6-3zM10 11l1-4h4l1 4"/>',
+    plane: '<path d="M12 3l2 7 7 3v2l-7-1-1 5 2 2v1l-3-1-3 1v-1l2-2-1-5-7 1v-2l7-3z"/>', drone: '<path d="M4 12h16M12 5v14M7 9l-3-3M17 9l3-3"/>',
+    missile: '<path d="M5 19L17 7l2-2v4l-2 2L5 19zM5 19l2-5M5 19l5-2"/>', launcher: '<path d="M3 17h14v-3H3zM5 14l10-8 2 2-10 8M18 17h3v-2l-2-1"/>',
+    tunnel: '<path d="M3 19V12a9 9 0 0118 0v7M8 19v-5a4 4 0 018 0v5"/>', shield: '<path d="M12 3l8 3v5c0 5-3 8-8 10-5-2-8-5-8-10V6z"/>',
+    sam: '<path d="M6 18V8h3v10M11 18V8h3v10M4 18h16"/>', base: '<path d="M3 18L18 8l3 1L6 20zM15 6h4v3"/>', anchor: '<path d="M12 4v15M7 9h10M5 14c1 4 4 5 7 5s6-1 7-5"/>',
+    atom: '<circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="9" ry="4"/><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(-60 12 12)"/>',
+    oil: '<path d="M12 3c3 5 6 8 6 11a6 6 0 01-12 0c0-3 3-6 6-11z"/>', strait: '<path d="M3 9c3-2 6 2 9 0s6-2 9 0M3 15c3-2 6 2 9 0s6-2 9 0"/>',
+    flag: '<path d="M6 21V4M6 4h12l-3 4 3 4H6"/>', boat: '<path d="M4 14h16l-3 4H7zM10 14l2-5h3l2 5"/>', mine: '<circle cx="12" cy="12" r="5"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>', hq: '<path d="M12 4l2.5 5 5.5.8-4 3.9 1 5.5-5-2.7-5 2.7 1-5.5-4-3.9 5.5-.8z"/>'
+  };
+  var FAM = { carrier: 'ship', cruiser: 'ship', destroyer: 'ship', frigate: 'ship', amphib: 'ship', shipsam: 'shield', submarine: 'sub', kilo: 'sub', fastboat: 'boat', minelayer: 'mine',
+    fighter: 'plane', stealth: 'plane', bomber: 'plane', stealthbomber: 'plane', tanker: 'plane', awacs: 'plane', helo: 'plane', drone: 'drone', owa: 'drone',
+    bm: 'missile', cm: 'missile', tel: 'launcher', tunnel: 'tunnel', patriot: 'shield', thaad: 'shield', irondome: 'shield', sling: 'shield', arrow: 'shield', ironbeam: 'shield',
+    sam: 'sam', airbase: 'base', navalbase: 'anchor', armybase: 'flag', militia: 'flag', strait: 'strait', reactor: 'atom', enrich: 'atom', refinery: 'oil', terminal: 'oil', gasfield: 'oil', hq: 'hq' };
+  function glyph(a) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (GLY[FAM[a] || 'hq']) + '</svg>'; }
+
+  /* ------------------------------------------------------------------ the data */
+  var U = D.units, BY = {};
+  U.forEach(function (u) { BY[u.id] = u; });
+  var PARENT = {};
+  U.forEach(function (u) { (u.mem || []).forEach(function (m) { (PARENT[m] = PARENT[m] || []).push(u.id); }); });
+  var CATN = {}; D.cats.forEach(function (c) { CATN[c.id] = c.n; });
+  var PRI = ['csg', 'amphib', 'base', 'missilecity', 'nuclear', 'choke', 'oil', 'proxy', 'navy', 'airdef', 'launcher', 'ship', 'sub', 'defence', 'aircraft', 'missile'];
+  function pri(u) { var i = PRI.indexOf(u.c); return (i < 0 ? 99 : i) * 1000 + (u.cnt ? 0 : 1); }
+  var placed = U.filter(function (u) { return u.xy; }).sort(function (a, b) { return pri(a) - pri(b); });
+
+  /* ------------------------------------------------------------------ state */
+  var S = app.__cf = { cats: {}, sides: { us: 1, il: 1, ir: 1, px: 1, gulf: 1, geo: 1 }, tab: 'map', sel: null, k: 1, x: 0, y: 0, k0: 1, rings: [], q: '' };
+  D.cats.forEach(function (c) { S.cats[c.id] = 1; });
+  try { var h0 = /[#&]u=([\w-]+)/.exec(location.hash); if (h0 && BY[h0[1]]) S.sel = h0[1]; } catch (x) { }
+
+  /* ------------------------------------------------------------------ the frame */
+  app.innerHTML = '';
+  var bar = h('div', 'cf-bar');
+  bar.innerHTML = '<div class="cf-tabs" role="tablist">' + ['map', 'list', 'sim'].map(function (t) { return '<button type="button" role="tab" data-tab="' + t + '" aria-selected="' + (t === 'map') + '"><span class="cf-em" aria-hidden="true">' + (t === 'map' ? '🗺️ ' : t === 'list' ? '📋 ' : '🎲 ') + '</span>' + w(t) + '</button>'; }).join('') + '</div>' +
+    '<div class="cf-search"><input type="search" enterkeyhint="search" autocomplete="off" aria-label="' + esc(w('search')) + '" placeholder="' + esc(w('search')) + '"><div class="cf-hits" hidden></div></div>';
+  app.appendChild(bar);
+  var board = h('div', 'cf-board'); app.appendChild(board);
+  var left = h('div', 'cf-left'), side = h('div', 'cf-side');
+  board.appendChild(left); board.appendChild(side);
+  var mapEl = h('div', 'cf-map'); left.appendChild(mapEl);
+  var svg = sv('svg', { 'class': 'cf-svg', 'aria-hidden': 'true' }, mapEl);
+  var world = sv('g', { 'class': 'cf-world' }, svg);
+  sv('rect', { x: -4000, y: -4000, width: 9000, height: 9000, 'class': 'cf-sea' }, world);
+  var land = sv('g', { 'class': 'cf-land' }, world);
+  G.c.forEach(function (d, i) { sv('path', { d: d, 'class': i === G.ir ? 'cf-iran' : i === G.il ? 'cf-isr' : '' }, land); });
+  var gRings = sv('g', { 'class': 'cf-rings' }, world), gFly = sv('g', { 'class': 'cf-flys' }, world);
+  var pins = h('div', 'cf-pins'); mapEl.appendChild(pins);
+  // focus on a marker outside the frame would scroll the map box itself (overflow hidden still scrolls): never let it
+  [mapEl, pins].forEach(function (b) { b.addEventListener('scroll', function () { if (b.scrollLeft || b.scrollTop) { b.scrollLeft = 0; b.scrollTop = 0; } }); });
+  var ctl = h('div', 'cf-zoom');
+  ctl.innerHTML = '<button type="button" data-act="zin" aria-label="' + esc(w('zin')) + '" title="' + esc(w('zin')) + '">+</button><button type="button" data-act="zout" aria-label="' + esc(w('zout')) + '" title="' + esc(w('zout')) + '">−</button>' +
+    '<button type="button" data-act="reset" aria-label="' + esc(w('reset')) + '" title="' + esc(w('reset')) + '">⤢</button><button type="button" data-act="full" aria-label="' + esc(w('full')) + '" title="' + esc(w('full')) + '">⛶</button>';
+  mapEl.appendChild(ctl);
+  var ringClear = h('button', 'cf-ringclear'); ringClear.type = 'button'; ringClear.setAttribute('data-act', 'rings'); ringClear.hidden = true; ringClear.textContent = '◌ ' + w('rings'); mapEl.appendChild(ringClear);
+  var simBar = h('div', 'cf-simbar'); simBar.hidden = true; left.appendChild(simBar);
+  var below = h('div', 'cf-under');
+  var card = h('div', 'cf-cardwrap'); card.hidden = true; app.appendChild(card);
+
+  // seas and lands as names under the markers (HTML, so they stay one size)
+  var names = [];
+  D.seas.forEach(function (s) { var e = h('span', 'cf-nm cf-nm-sea', esc(s.n)); pins.appendChild(e); names.push({ e: e, xy: s.xy, z: s.z }); });
+  D.lands.forEach(function (s) { var e = h('span', 'cf-nm cf-nm-land', esc(s.n)); pins.appendChild(e); names.push({ e: e, xy: s.xy, z: s.z }); });
+
+  // one marker and one name per placed unit, made once
+  placed.forEach(function (u) {
+    var b = h('button', 'cf-mk s-' + u.s + (u.old ? ' cf-old' : '')); b.type = 'button'; b.dataset.id = u.id;
+    b.setAttribute('aria-label', u.n);
+    b.innerHTML = '<span class="cf-dot">' + glyph(u.a) + '</span>';
+    pins.appendChild(b); u.el = b;
+    var l = h('span', 'cf-lb', esc(u.n.replace(/ \(.*?\)/g, '').replace(/ carrier strike group$/, ''))); l.hidden = true; pins.appendChild(l); u.lb = l;
+  });
+  var clusters = [];
+
+  /* ------------------------------------------------------------------ the camera */
+  var MW = 0, MH = 0;
+  function size() {
+    MW = mapEl.clientWidth || MW; MH = mapEl.clientHeight || MH;
+    S.k0 = Math.max(MW / G.w, MH / G.h);
+  }
+  function home() {      // fill the map with the region, centred on the Persian Gulf, never an empty edge
+    size(); S.k = Math.max(MW / G.w, MH / G.h) * (MW < 600 ? 1.1 : 1);
+    var c = proj([29.5, MW < 600 ? 50 : 46]); S.x = MW / 2 - c[0] * S.k; S.y = MH / 2 - c[1] * S.k; clamp();
+  }
+  function clamp() {
+    var kmin = Math.max(MW / G.w, MH / G.h);
+    S.k = Math.max(kmin, Math.min(kmin * 14, S.k));
+    S.x = Math.min(0, Math.max(MW - G.w * S.k, S.x)); S.y = Math.min(0, Math.max(MH - G.h * S.k, S.y));
+  }
+  function sx(p) { return p[0] * S.k + S.x; }
+  function sy(p) { return p[1] * S.k + S.y; }
+  var raf = 0, lastK = 0, lastLay = 0;
+  function draw(full) {
+    world.setAttribute('transform', 'translate(' + S.x.toFixed(1) + ',' + S.y.toFixed(1) + ') scale(' + S.k.toFixed(4) + ')');
+    $$('.cf-kr', gFly).concat($$('.cf-kr', gRings)).forEach(function (c) { c.setAttribute('r', (+c.dataset.r / S.k).toFixed(2)); });
+    if (full || Math.abs(S.k - lastK) > 1e-6 || Date.now() - lastLay > 150) { lastK = S.k; layout(); } else move();
+  }
+  function soon(full) { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; draw(full); }); }
+
+  /* ------------------------------------------------------------------ markers, clusters and names: placed so none touches */
+  function vis(u) {
+    if (!S.cats[u.c] || !S.sides[u.s]) return false;
+    if (S.tab === 'sim' && S.simOn) return ['base', 'missilecity', 'nuclear', 'csg', 'choke', 'oil'].indexOf(u.c) >= 0;
+    return true;
+  }
+  var MK = 30, R2 = 30 * 30;      // a marker is 30 px across; two closer than 30 px join one cluster
+  function layout() {
+    lastLay = Date.now();
+    if (mapEl.clientWidth && (mapEl.clientWidth !== MW || mapEl.clientHeight !== MH)) { size(); clamp(); world.setAttribute('transform', 'translate(' + S.x.toFixed(1) + ',' + S.y.toFixed(1) + ') scale(' + S.k.toFixed(4) + ')'); }
+    clusters.forEach(function (c) { c.e.remove(); }); clusters = [];
+    var anchors = [];
+    placed.forEach(function (u) {
+      u.cl = null;
+      if (!vis(u)) { u.el.hidden = true; u.lb.hidden = true; return; }
+      var x = sx(u.xy), y = sy(u.xy), a = null;
+      if (x < -16 || y < -16 || x > MW + 16 || y > MH + 16) { u.el.hidden = true; u.lb.hidden = true; return; }      // outside the frame: not drawn, not focusable
+      for (var i = 0; i < anchors.length; i++) { var dx = anchors[i].x - x, dy = anchors[i].y - y; if (dx * dx + dy * dy < R2) { a = anchors[i]; break; } }
+      if (a) { a.m.push(u); u.cl = a; } else anchors.push({ x: x, y: y, m: [u], u: u });
     });
+    var boxes = [];
+    anchors.forEach(function (a) {
+      if (a.m.length === 1) { a.u.el.hidden = false; a.u.el.classList.toggle('cf-sel', S.sel === a.u.id); boxes.push(box(a.x, a.y, 15)); return; }
+      a.m.forEach(function (u) { u.el.hidden = true; u.lb.hidden = true; });
+      var c = h('button', 'cf-mk cf-cl'); c.type = 'button'; c.dataset.cl = a.m.length;
+      var sides = {}; a.m.forEach(function (u) { sides[u.s] = 1; });
+      c.innerHTML = '<span class="cf-dot">' + fd(a.m.length) + '</span>' + '<span class="cf-clr">' + Object.keys(sides).map(function (s) { return '<i class="s-' + s + '"></i>'; }).join('') + '</span>';
+      c.setAttribute('aria-label', fd(a.m.length) + ' ' + w('units') + ': ' + a.m.slice(0, 4).map(function (u) { return u.n; }).join(', '));
+      c.onclick = function () { zoomTo(a.m); };
+      pins.appendChild(c); clusters.push({ e: c, a: a }); boxes.push(box(a.x, a.y, 15));
+    });
+    // names: the strongest first, right of the marker, else left, below, above; never over a marker or another name
+    var shownN = 0, maxN = MW < 600 ? 14 : 34;
+    LF = placed.length ? parseFloat(getComputedStyle(placed[0].lb).fontSize) || 13 : 13; LH = Math.max(16, Math.ceil(LF * 1.34));      // the stream view sets bigger names
+    anchors.forEach(function (a) {
+      var u = a.u;
+      if (a.m.length > 1 || shownN >= maxN) { u.lb.hidden = true; return; }
+      if (u.lbF !== LF) { u.lbF = LF; u.lbW = 0; }
+      var tw = u.lbW || (u.lbW = textW(u.lb.textContent, 0, LF)), th = LH, x = a.x, y = a.y, ok = null;
+      var tries = FA ? [[-19 - tw, -th / 2], [19, -th / 2], [-tw / 2, 17], [-tw / 2, -17 - th]] : [[19, -th / 2], [-19 - tw, -th / 2], [-tw / 2, 17], [-tw / 2, -17 - th]];
+      for (var i = 0; i < tries.length && !ok; i++) {
+        var b = [x + tries[i][0], y + tries[i][1], x + tries[i][0] + tw, y + tries[i][1] + th];
+        if (b[0] < 4 || b[2] > MW - 4 || b[1] < 4 || b[3] > MH - 4) continue;
+        if (!boxes.some(function (o) { return hit(o, b); })) ok = b;
+      }
+      if (!ok) { u.lb.hidden = true; return; }
+      boxes.push(ok); shownN++;
+      u.lb.hidden = false; u.lbOff = [ok[0] - x, ok[1] - y];
+    });
+    var z = S.k / S.k0;
+    names.forEach(function (n) {
+      if (z < n.z * 0.9 && !(n.z === 1)) { n.e.hidden = true; return; }
+      if (n.f !== LF) { n.f = LF; n.w = 0; }
+      var tw = n.w || (n.w = textW(n.e.textContent, LF <= 13, LF)), x = sx(n.xy) - tw / 2, y = sy(n.xy) - LH / 2, b = [x, y, x + tw, y + LH];
+      n.e.hidden = b[0] < 0 || b[2] > MW || b[1] < 0 || b[3] > MH || boxes.some(function (o) { return hit(o, b); });
+      if (!n.e.hidden) { boxes.push(b); n.off = [-tw / 2, -LH / 2]; }
+    });
+    move();
   }
-  function alertLine(t) { var x = $('.cf-go', app); if (x && !$('.cf-err', x)) { var p = document.createElement('p'); p.className = 'cf-err'; p.setAttribute('role', 'alert'); p.textContent = t; x.appendChild(p); } }
+  function box(x, y, r) { return [x - r, y - r, x + r, y + r]; }
+  function hit(a, b) { return a[0] < b[2] + 2 && a[2] + 2 > b[0] && a[1] < b[3] + 2 && a[3] + 2 > b[1]; }
+  var cv = document.createElement('canvas').getContext('2d');
+  var LF = 13, LH = 16;
+  function textW(t, small, px) { cv.font = (small ? '600 12px ' : '600 ' + (px || 13) + 'px ') + (FA ? 'Vazirmatn, Tahoma, sans-serif' : '"Public Sans", system-ui, sans-serif'); return Math.ceil(cv.measureText(t).width * 1.08) + 10; }
+  function move() {
+    placed.forEach(function (u) {
+      if (u.el.hidden && u.lb.hidden) return;
+      var x = sx(u.xy), y = sy(u.xy);
+      u.el.style.transform = 'translate(' + (x - 22).toFixed(1) + 'px,' + (y - 22).toFixed(1) + 'px)';
+      if (!u.lb.hidden) u.lb.style.transform = 'translate(' + (x + u.lbOff[0]).toFixed(1) + 'px,' + (y + u.lbOff[1]).toFixed(1) + 'px)';
+    });
+    clusters.forEach(function (c) { c.e.style.transform = 'translate(' + (c.a.x - 22 + (sx(c.a.u.xy) - c.a.x)).toFixed(1) + 'px,' + (c.a.y - 22 + (sy(c.a.u.xy) - c.a.y)).toFixed(1) + 'px)'; });
+    names.forEach(function (n) { if (!n.e.hidden) n.e.style.transform = 'translate(' + (sx(n.xy) + n.off[0]).toFixed(1) + 'px,' + (sy(n.xy) + n.off[1]).toFixed(1) + 'px)'; });
+  }
+  function zoomTo(list, kmax) {
+    var xs = list.map(function (u) { return u.xy[0]; }), ys = list.map(function (u) { return u.xy[1]; });
+    var x0 = Math.min.apply(0, xs), x1 = Math.max.apply(0, xs), y0 = Math.min.apply(0, ys), y1 = Math.max.apply(0, ys);
+    var k = Math.min(MW / Math.max(30, (x1 - x0) * 2.2), MH / Math.max(30, (y1 - y0) * 2.2), S.k0 * (kmax || 12));
+    if (k <= S.k * 1.05 && list.length > 1) k = S.k * 2.2;
+    S.k = k; S.x = MW / 2 - (x0 + x1) / 2 * k; S.y = MH / 2 - (y0 + y1) / 2 * k; clamp(); draw(true);
+    track('sim_map', {}, true);
+  }
 
-  /* Play: the typical run, a turn at a time, a step at a time */
-  function playPanel() {
-    var T = result.typical.turns;
-    var tabs = '<div class="cf-turns" role="tablist">' + T.map(function (t, i) { return '<button type="button" role="tab" data-turn="' + i + '" aria-selected="' + (i === cur.t) + '">' + esc(t.lbl) + '</button>'; }).join('') + '</div>';
-    var tt = T[cur.t], k = 0;
-    var steps = '<ol class="cf-steps">' + tt.steps.map(function (s, i) { var x = say(s); return '<li data-step="' + i + '" class="cf-st-' + s.sd + '"><span class="cf-n">' + fd(i + 1) + '</span><div><p>' + esc(x.t) + '</p>' + (x.u ? '<p class="cf-u">' + esc(x.u) + '</p>' : '') + '</div></li>'; }).join('') + '</ol>';
-    var st = tt.st;
-    var bars = '<div class="cf-bars">' + bar(w('mleft'), st.bm / Math.max(1, F.ir_bm.v), n0(st.bm), 'r') + bar(w('tleft'), st.tel, pc(st.tel), 'r')
-      + bar(w('iIL'), st.il, pc(st.il), 'b') + bar(w('iG'), st.g, pc(st.g), 'b')
-      + '<div class="cf-bar"><span>' + w('hz') + '</span><b class="' + (st.hz ? 'cf-bad' : 'cf-good') + '">' + (st.hz ? w('closed') : w('open')) + '</b></div></div>';
-    var ctl = '<div class="cf-ctl"><button type="button" data-act="prev">' + (FA ? '▸ ' : '◂ ') + w('prev') + '</button><button type="button" data-act="auto" aria-pressed="' + (!!timer) + '">' + (timer ? w('pause') : w('auto')) + '</button><button type="button" data-act="next">' + w('next') + (FA ? ' ◂' : ' ▸') + '</button></div>';
-    var fin = '<div class="cf-go"><button type="button" class="cf-play" data-act="debrief">' + w('toDebrief') + '</button></div>';
-    return '<p class="cf-typ">' + w('typical') + '</p>' + tabs + ctl + steps + bars + fin;
+  /* ------------------------------------------------------------------ gestures: drag, pinch, wheel, double tap */
+  var pts = {}, g0 = null, moved = 0;
+  mapEl.addEventListener('pointerdown', function (ev) {
+    if (ev.target.closest('.cf-zoom,.cf-ringclear')) return;
+    pts[ev.pointerId] = [ev.clientX, ev.clientY]; moved = 0;
+    var ids = Object.keys(pts);
+    g0 = { x: S.x, y: S.y, k: S.k, p: ids.map(function (i) { return pts[i].slice(); }) };
+  });
+  window.addEventListener('pointermove', function (ev) {
+    if (!pts[ev.pointerId] || !g0) return;
+    pts[ev.pointerId] = [ev.clientX, ev.clientY];
+    var ids = Object.keys(pts), r = mapEl.getBoundingClientRect();
+    if (ids.length === 1 && g0.p.length === 1) {
+      var dx = ev.clientX - g0.p[0][0], dy = ev.clientY - g0.p[0][1];
+      if (Math.abs(dx) + Math.abs(dy) > 6) moved = 1;
+      if (!moved) return;
+      S.x = g0.x + dx; S.y = g0.y + dy;
+    } else if (ids.length >= 2 && g0.p.length >= 2) {
+      moved = 1;
+      var a = pts[ids[0]], b = pts[ids[1]], d1 = Math.hypot(a[0] - b[0], a[1] - b[1]), d0 = Math.hypot(g0.p[0][0] - g0.p[1][0], g0.p[0][1] - g0.p[1][1]) || 1;
+      var cx = (g0.p[0][0] + g0.p[1][0]) / 2 - r.left, cy = (g0.p[0][1] + g0.p[1][1]) / 2 - r.top, nx = (a[0] + b[0]) / 2 - r.left, ny = (a[1] + b[1]) / 2 - r.top;
+      var k = g0.k * d1 / d0; S.k = k; S.x = nx - (cx - g0.x) * k / g0.k; S.y = ny - (cy - g0.y) * k / g0.k;
+    }
+    clamp(); soon(false);
+  });
+  function up(ev) {
+    if (!pts[ev.pointerId]) return;
+    delete pts[ev.pointerId];
+    var ids = Object.keys(pts);
+    g0 = ids.length ? { x: S.x, y: S.y, k: S.k, p: ids.map(function (i) { return pts[i].slice(); }) } : null;
+    if (moved) { draw(true); track('sim_map', {}, true); }
   }
-  function bar(l, f, t, s) { f = Math.max(0, Math.min(1, f)); return '<div class="cf-bar"><span>' + esc(l) + '</span><i class="cf-bar-' + s + '"><i style="width:' + Math.round(f * 100) + '%"></i></i><b>' + esc(t) + '</b></div>'; }
-  function showStep() {
-    var T = result.typical.turns, tt = T[cur.t], s = tt.steps[cur.s];
-    $$('.cf-steps li', app).forEach(function (li, i) { li.classList.toggle('cf-cur', i === cur.s); li.classList.toggle('cf-done', i < cur.s); });
-    var prevDmg = cur.t > 0 ? T[cur.t - 1].st.dmg : null;
-    drawStep(s, cur.s + 1, s.sd === 'r' ? tt.st.dmg : prevDmg);
-    var x = say(s);
-    $('.cf-cap', app).innerHTML = '<b>' + esc(tt.lbl) + ' · ' + fd(cur.s + 1) + '/' + fd(tt.steps.length) + '</b><p>' + esc(x.t) + '</p>' + (x.u ? '<p class="cf-cap-u">' + esc(x.u) + '</p>' : '');
-    var li = $('.cf-steps li.cf-cur', app), P = $('.cf-panel', app);
-    if (li && P && P.scrollHeight > P.clientHeight) { var top = li.offsetTop - P.offsetTop; if (top < P.scrollTop || top > P.scrollTop + P.clientHeight - 80) P.scrollTop = Math.max(0, top - 60); }
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  mapEl.addEventListener('click', function (ev) { if (moved) { ev.stopPropagation(); ev.preventDefault(); moved = 0; } }, true);
+  mapEl.addEventListener('wheel', function (ev) {
+    ev.preventDefault();
+    var r = mapEl.getBoundingClientRect(), cx = ev.clientX - r.left, cy = ev.clientY - r.top, k = S.k * Math.exp(-ev.deltaY * 0.0018);
+    k = Math.max(S.k0, Math.min(S.k0 * 14, k));
+    S.x = cx - (cx - S.x) * k / S.k; S.y = cy - (cy - S.y) * k / S.k; S.k = k; clamp(); soon(true);
+    track('sim_map', {}, true);
+  }, { passive: false });
+  mapEl.addEventListener('dblclick', function (ev) { if (ev.target.closest('button')) return; var r = mapEl.getBoundingClientRect(); zoomAt(ev.clientX - r.left, ev.clientY - r.top, 2); });
+  function zoomAt(cx, cy, f) { var k = Math.max(S.k0, Math.min(S.k0 * 14, S.k * f)); S.x = cx - (cx - S.x) * k / S.k; S.y = cy - (cy - S.y) * k / S.k; S.k = k; clamp(); draw(true); track('sim_map', {}, true); }
+  ctl.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    var a = b.dataset.act;
+    if (a === 'zin') zoomAt(MW / 2, MH / 2, 1.6); else if (a === 'zout') zoomAt(MW / 2, MH / 2, 1 / 1.6); else if (a === 'reset') { home(); draw(true); } else if (a === 'full') full();
+  });
+  function full() {
+    var on = !app.classList.contains('cf-full');
+    app.classList.toggle('cf-full', on); document.documentElement.classList.toggle('cf-noscroll', on);
+    try { if (on && app.requestFullscreen && !document.fullscreenElement) app.requestFullscreen().catch(function () { }); else if (!on && document.fullscreenElement) document.exitFullscreen(); } catch (x) { }
+    var b = $('[data-act=full]', ctl); b.setAttribute('aria-label', w(on ? 'exitfull' : 'full')); b.title = w(on ? 'exitfull' : 'full'); b.textContent = on ? '✕' : '⛶';
+    setTimeout(function () { size(); clamp(); draw(true); }, 60);
+    if (on) track('sim_full', {}, true);
   }
-  function step(d) {
-    var T = result.typical.turns, s = cur.s + d, t = cur.t;
-    if (s >= T[t].steps.length) { if (t + 1 >= T.length) { stopAuto(); setTab('debrief'); return; } t++; s = 0; }
-    else if (s < 0) { if (t === 0) s = 0; else { t--; s = T[t].steps.length - 1; } }
-    var changed = t !== cur.t; cur = { t: t, s: s };
-    if (changed) $('.cf-panel', app).innerHTML = playPanel();
-    showStep();
-  }
-  var SPEED = 3200;
-  function startAuto() { stopAuto(); if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; timer = setInterval(function () { if (document.hidden) return; step(1); }, SPEED); syncAuto(); }
-  function stopAuto() { if (timer) clearInterval(timer); timer = null; syncAuto(); }
-  function syncAuto() { var b = $('[data-act="auto"]', app); if (b) { b.setAttribute('aria-pressed', !!timer); b.textContent = timer ? w('pause') : w('auto'); } }
+  document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && app.classList.contains('cf-full')) full(); });
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { if (!card.hidden) closeCard(); else if (app.classList.contains('cf-full')) full(); } });
+  pins.addEventListener('click', function (ev) { var b = ev.target.closest('.cf-mk[data-id]'); if (b) openCard(b.dataset.id, 'map'); });
 
-  /* Debrief: the grade, the odds, the cost, against the likely real plan */
-  function grade(x) { return x >= 0.7 ? 'A' : x >= 0.55 ? 'B' : x >= 0.4 ? 'C' : x >= 0.25 ? 'D' : 'F'; }
-  function debriefPanel() {
-    var S = result, L = likely, g = grade(S.ok), win = S.ok >= 0.5, same = code(plan) === code(LIKELY);
-    var d = Math.round((S.ok - L.ok) * 100);
-    var head = '<div class="cf-grade cf-g-' + g + '"><span class="cf-gl-big">' + g + '</span><div><b class="' + (win ? 'cf-good' : 'cf-bad') + '">' + (win ? w('win') : w('lose')) + ' · ' + esc(D.goals[plan.goal].n) + '</b><p>' + w('met') + ' <b>' + pc(S.ok) + '</b> ' + w('ofRuns') + '.</p>'
-      + (same ? '' : '<p>' + w('likely') + ': <b>' + pc(L.ok) + '</b>. ' + (FA ? 'شما ' + fd(Math.abs(d)) + ' امتیاز ' + (d > 0 ? w('better') : d < 0 ? w('worse') : w('same')) + ' اون.' : 'You are ' + (d === 0 ? 'level with it' : Math.abs(d) + ' points ' + (d > 0 ? 'better' : 'worse'))) + '.</p>') + '</div></div>';
-    function row(k, a, b, bad) { return '<tr><th>' + w(k) + '</th><td>' + oddsBar(a, bad) + '</td>' + (same ? '' : '<td>' + oddsBar(b, bad) + '</td>') + '</tr>'; }
-    var odds = '<h3 class="cf-h">' + w('odds') + '</h3><p class="cf-note">' + w('uncertain') + '</p><table class="cf-odds"><thead><tr><th></th><th>' + w('you') + '</th>' + (same ? '' : '<th>' + w('likely') + '</th>') + '</tr></thead><tbody>'
-      + row('o_goal', S.ok, L.ok, 0) + row('o_crack', S.crack, L.crack, 0) + row('o_deal', S.deal, L.deal, 0) + row('o_pick', S.pick, L.pick, 0)
-      + row('o_heu', S.heu, L.heu, 1) + row('o_hz', S.hz, L.hz, 1) + row('o_oil', S.oil, L.oil, 1) + '</tbody></table>';
-    function rg(a) { return n0(a[1]) + ' <span class="cf-rg">(' + n0(a[0]) + '–' + n0(a[2]) + ')</span>'; }
-    var cost = '<h3 class="cf-h">' + w('cost') + '</h3><table class="cf-cost"><tbody>'
-      + '<tr><th>' + w('k_il') + '</th><td>' + rg(S.d_il) + '</td></tr><tr><th>' + w('k_g') + '</th><td>' + rg(S.d_g) + '</td></tr>'
-      + '<tr><th>' + w('k_ir') + '</th><td>' + rg(S.d_ir) + ' <span class="cf-rg">' + w('civ') + '</span></td></tr>'
-      + (plan.raid ? '<tr><th>' + w('k_raid') + '</th><td>' + n0(S.raidDead) + '</td></tr>' : '')
-      + '<tr><th>' + w('usd') + '</th><td>' + money(S.usd[1]) + '</td></tr><tr><th>' + w('intc') + '</th><td>' + n0(S.intc[1]) + ' · ' + w('worth') + ' ' + money(S.intcUsd) + '</td></tr>'
-      + '<tr><th>' + w('oilp') + '</th><td>' + w(['calm', 'up', 'spike'][S.oilLvl]) + '</td></tr></tbody></table><p class="cf-note">' + w('range') + ' · ' + w('est') + '</p>';
-    var diff = (same ? '' : '<h3 class="cf-h">' + w('diff') + '</h3><ul class="cf-diff" id="cf-diff"><li class="cf-busy">' + w('running') + '…</li></ul>')
-      + '<h3 class="cf-h">' + w('best1') + '</h3><ul class="cf-diff" id="cf-best"><li class="cf-busy">' + w('running') + '…</li></ul>';
-    var share = '<div class="cf-go"><button type="button" class="cf-play" data-act="share">' + w('share') + '</button><button type="button" class="cf-ghost" data-act="watch">' + w('watch') + '</button><button type="button" class="cf-ghost" data-act="plan">' + w('again') + '</button></div><p class="cf-shared" role="status" aria-live="polite"></p>';
-    setTimeout(function () { if (same) bestChange(); else difference(bestChange); }, 30);
-    return head + share + odds + cost + diff;
-  }
-  function oddsBar(x, bad) { return '<span class="cf-ob' + (bad ? ' cf-ob-bad' : '') + '"><i style="width:' + Math.round(x * 100) + '%"></i></span><b>' + pc(x) + '</b>'; }
-  /* What made the difference: each choice where you differ from the likely real plan, set back to its value alone */
-  function difference(then) {
-    var keys = KEYS.filter(function (k) { return k !== 'goal' && plan[k] !== LIKELY[k]; }), out = [], i = 0;
-    var ul = $('#cf-diff', app); if (!ul) return;
-    if (!keys.length) { ul.innerHTML = ''; if (then) then(); return; }
-    function nextOne() {
-      if (i >= keys.length || !$('#cf-diff', app)) { finish(); if (then) then(); return; }
-      var k = keys[i++], p2 = JSON.parse(JSON.stringify(plan)); p2[k] = LIKELY[k];
-      many(p2, function (S2) { out.push({ k: k, d: result.ok - S2.ok }); nextOne(); }, 160);
+  /* ------------------------------------------------------------------ range rings: a circle on the globe, drawn on the map */
+  var R_E = 6371;
+  function circle(ll, km) {
+    var la = ll[0] * Math.PI / 180, lo = ll[1] * Math.PI / 180, d = km / R_E, out = [];
+    for (var i = 0; i <= 120; i++) {
+      var b = i / 120 * 2 * Math.PI, la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b));
+      var lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2));
+      out.push(proj([la2 * 180 / Math.PI, lo2 * 180 / Math.PI]));
     }
-    function finish() {
-      var u = $('#cf-diff', app); if (!u) return;
-      out.sort(function (a, b) { return Math.abs(b.d) - Math.abs(a.d); });
-      u.innerHTML = out.slice(0, 4).map(function (o) {
-        var lab = o.k === 'thaad' ? w('thaad') : o.k === 'shipdef' ? w('shipdef') : w(o.k);
-        var yours = D.choices[o.k].opts ? optLabel(o.k, plan[o.k]) : fd(plan[o.k]), theirs = D.choices[o.k].opts ? optLabel(o.k, LIKELY[o.k]) : fd(LIKELY[o.k]);
-        if (o.k === 'tlam') { yours = pc(plan[o.k]); theirs = pc(LIKELY[o.k]); }
-        return '<li><b>' + esc(lab) + '</b>: ' + esc(yours) + ' (' + w('likely').toLowerCase() + ': ' + esc(theirs) + ') <span class="' + (o.d >= 0 ? 'cf-good' : 'cf-bad') + '">' + (o.d >= 0 ? '+' : '−') + fd(Math.abs(Math.round(o.d * 100))) + ' ' + w('pts') + '</span></li>';
-      }).join('');
-    }
-    nextOne();
-  }
-  /* The one change that helps most: every other value of every lever, tried alone (120 runs each), best three shown */
-  function alts(k) {
-    var c = D.choices[k], v = plan[k];
-    if (c.opts) return c.opts.filter(function (o) { return o !== v; });
-    var st = c.step || 1, out = [];
-    [v - 2 * st, v + 2 * st, c.min, c.max].forEach(function (x) { x = Math.round(Math.max(c.min, Math.min(c.max, x)) * 100) / 100; if (x !== v && out.indexOf(x) < 0) out.push(x); });
     return out;
   }
-  function bestChange() {
-    var tries = [];
-    KEYS.forEach(function (k) { if (k !== 'goal') alts(k).forEach(function (x) { tries.push([k, x]); }); });
-    var out = [], i = 0, base = result.ok;
-    function nextOne() {
-      if (!$('#cf-best', app)) return;
-      if (i >= tries.length) return finish();
-      var k = tries[i][0], x = tries[i][1]; i++;
-      var p2 = JSON.parse(JSON.stringify(plan)); p2[k] = x;
-      many(p2, function (S2) { out.push({ k: k, x: x, d: S2.ok - base, p: p2 }); setTimeout(nextOne, 0); }, 120);
+  var bb = D.bbox, mN = merc(bb[3]), kx = G.w / ((bb[2] - bb[0]) * Math.PI / 180);
+  function merc(l) { return Math.log(Math.tan(Math.PI / 4 + Math.max(-85, Math.min(85, l)) * Math.PI / 360)); }
+  function proj(ll) { return [(ll[1] - bb[0]) * Math.PI / 180 * kx, (mN - merc(ll[0])) * kx]; }
+  // a missile type has no place of its own: its range is drawn from the missile city nearest Israel that is reported to
+  // hold that class, else the westernmost one (the reach that matters most to a viewer)
+  function ringFrom(u) {
+    if (u.ll) return [{ ll: u.ll, n: u.n }];
+    if (u.c === 'missile') {
+      var mc = U.filter(function (x) { return x.c === 'missilecity' && x.ll; }).sort(function (a, b) { return a.ll[1] - b.ll[1]; });
+      return mc.slice(0, 1).map(function (x) { return { ll: x.ll, n: x.n }; });
     }
-    function finish() {
-      var u = $('#cf-best', app); if (!u) return;
-      var seen = {}, top = out.filter(function (o) { return o.d >= 0.05; }).sort(function (a, b) { return b.d - a.d; }).filter(function (o) { if (seen[o.k]) return false; seen[o.k] = 1; return true; }).slice(0, 3);
-      if (!top.length) { u.innerHTML = '<li>' + w('nobetter') + '</li>'; return; }
-      u.innerHTML = top.map(function (o, j) {
-        var lab = o.k === 'thaad' ? w('thaad') : o.k === 'shipdef' ? w('shipdef') : w(o.k);
-        var val = o.k === 'tlam' ? pc(o.x) : D.choices[o.k].opts ? optLabel(o.k, o.x) : fd(o.x);
-        return '<li><b>' + esc(lab) + '</b> → ' + esc(val) + ' <span class="cf-good">+' + fd(Math.round(o.d * 100)) + ' ' + w('pts') + '</span> <button type="button" class="cf-mini" data-try="' + j + '">' + w('tryit2') + '</button></li>';
-      }).join('');
-      BEST = top;
-    }
-    nextOne();
+    if (u.s === 'il') return [{ ll: [31.21, 35.01], n: 'Nevatim' }];
+    if (u.s === 'us' && u.c === 'aircraft') { var cs = U.filter(function (x) { return x.c === 'csg' && x.ll; }); if (cs.length) return [{ ll: cs[0].ll, n: cs[0].n }]; }
+    return [];
   }
-  var BEST = [];
-  function shareIt() {
-    var url = location.origin + location.pathname + '?p=' + code(plan);
-    var text = w('shareT') + ': ' + D.goals[plan.goal].n + ', ' + w('gradeOf') + ' ' + grade(result.ok) + ' (' + pc(result.ok) + ')';
-    var msg = $('.cf-shared', app);
-    if (navigator.share) { navigator.share({ title: document.title, text: text, url: url }).catch(function () { }); return; }
-    var done = function () { if (msg) msg.textContent = w('copied'); };
-    if (navigator.clipboard) navigator.clipboard.writeText(text + ' ' + url).then(done, function () { if (msg) msg.textContent = url; });
-    else if (msg) msg.textContent = url;
+  function toggleRing(u) {
+    var i = S.rings.indexOf(u.id);
+    if (i >= 0) S.rings.splice(i, 1); else { S.rings.push(u.id); track('sim_ring', { unit: u.id }); }
+    drawRings();
+  }
+  function drawRings() {
+    gRings.innerHTML = '';
+    S.rings.forEach(function (id) {
+      var u = BY[id]; ringFrom(u).forEach(function (o) {
+        var p = circle(o.ll, u.rk), c = COL[u.s];
+        sv('path', { d: 'M' + p.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join('L') + 'Z', 'class': 'cf-ring', stroke: c }, gRings);
+        var o2 = proj(o.ll); sv('circle', { cx: o2[0], cy: o2[1], r: 4 / S.k, 'data-r': 4, 'class': 'cf-kr', fill: c }, gRings);
+        var top = p.reduce(function (a, q) { return q[1] < a[1] ? q : a; }, [0, 1e9]);
+        var t = sv('text', { x: top[0], y: top[1], 'class': 'cf-ringt', fill: c, 'font-size': 12 / S.k, 'data-fs': 12 }, gRings); t.textContent = u.n.replace(/ \(.*?\)/, '') + ' · ' + fd(u.rk.toLocaleString('en-US')) + ' ' + w('km');
+      });
+    });
+    ringClear.hidden = !S.rings.length;
+    $$('.cf-ringt', gRings).forEach(function (t) { t.setAttribute('font-size', (12 / S.k).toFixed(2)); });
+  }
+  ringClear.onclick = function () { S.rings = []; drawRings(); if (S.sel) openCard(S.sel); };
+  var _draw = draw; draw = function (f) { _draw(f); $$('.cf-ringt', gRings).forEach(function (t) { t.setAttribute('font-size', (12 / S.k).toFixed(2)); }); };
+
+  /* ------------------------------------------------------------------ the card */
+  function chip(id) { var u = BY[id]; return u ? '<button type="button" class="cf-chip s-' + u.s + '" data-u="' + esc(id) + '"><span class="cf-dot">' + glyph(u.a) + '</span>' + esc(u.n.replace(/ \(.*?\)/, '')) + '</button>' : ''; }
+  function openCard(id, via) {
+    var u = BY[id]; if (!u) return;
+    S.sel = id;
+    var sp = (u.sp || []).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(fd(kv[1])) + '</dd>'; }).join('');
+    if (u.sim && u.sim.pk) sp += '<dt>' + w('pk') + '</dt><dd>' + pc(u.sim.pk) + (u.sim.pkNote && !FA ? '<small class="cf-pkn">' + esc(u.sim.pkNote) + '</small>' : '') + '</dd>';
+    var mem = (u.mem || []).filter(function (m) { return BY[m]; });
+    var par = (PARENT[id] || []).filter(function (m) { return BY[m]; });
+    var on = S.rings.indexOf(id) >= 0, canRing = u.rk && ringFrom(u).length;
+    card.innerHTML = '<div class="cf-card s-' + u.s + '" data-u="' + esc(id) + '" role="dialog" aria-label="' + esc(u.n) + '">' +
+      '<div class="cf-art">' + art(u) + '<button type="button" class="cf-x" data-act="close" aria-label="' + esc(w('close')) + '">✕</button></div>' +
+      '<div class="cf-cb">' +
+      '<div class="cf-tags"><span class="cf-pill s-' + u.s + '">' + esc(D.sides[u.s]) + '</span><span class="cf-pill">' + esc(CATN[u.c]) + '</span><span class="cf-pill ' + (u.cf === 'estimate' ? 'cf-est' : 'cf-rep') + '">' + w(u.cf === 'estimate' ? 'est' : 'rep') + '</span>' + (u.cnt != null ? '<span class="cf-pill">' + w('count') + ': ' + n0(u.cnt) + '</span>' : '') + '</div>' +
+      '<h2>' + esc(u.n) + '</h2>' +
+      (u.p ? '<p class="cf-pos">📍 ' + esc(u.p) + '</p>' : '<p class="cf-pos cf-np">' + w('notplaced') + '</p>') +
+      (u.old ? '<p class="cf-oldn">⏳ ' + w('old') + '</p>' : '') + (u.mv && ageDays(u.as) > 7 ? '<p class="cf-oldn">⏳ ' + w('aged').replace('{n}', fd(ageDays(u.as))) + '</p>' : '') +
+      '<h3>' + w('means') + '</h3><p class="cf-means">' + esc(u.m) + '</p>' +
+      '<h3>' + w('specs') + '</h3><dl class="cf-specs">' + sp + '</dl>' +
+      (mem.length ? '<h3>' + w('mem') + '</h3><div class="cf-mem">' + mem.map(chip).join('') + '</div>' : '') +
+      (par.length ? '<h3>' + w('partof') + '</h3><div class="cf-mem">' + par.map(chip).join('') + '</div>' : '') +
+      '<div class="cf-acts">' + (u.xy ? '<button type="button" class="cf-btn" data-act="show">📍 ' + w('onmap') + '</button>' : '') +
+      (canRing ? '<button type="button" class="cf-btn" data-act="ring" aria-pressed="' + on + '">◌ ' + w(on ? 'ringoff' : 'ring') + '</button>' : '') + '</div>' +
+      '<div class="cf-cardsrc"><b>' + w('src') + '</b> <span class="num">' + w('asof') + ' ' + esc(fd(u.as)) + '</span><ul>' + (u.src || []).map(function (s) { return '<li><a href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a></li>'; }).join('') + '</ul></div>' +
+      '</div></div>';
+    card.hidden = false; app.classList.add('cf-carded');
+    placed.forEach(function (x) { x.el.classList.toggle('cf-sel', x.id === id); });
+    try { history.replaceState(null, '', location.pathname + location.search + '#u=' + id); } catch (x) { }
+    track('sim_card', { unit: id, kind: u.c }); track('sim_card_' + u.c, { unit: id });
+    if (via === 'list' || via === 'search') { if (u.xy && S.tab === 'map' && MW >= 900) zoomTo([u], 5); }
+    var f = $('[data-act=close]', card); if (f && via !== 'map') f.focus({ preventScroll: true });
+  }
+  function ageDays(d) { var t = Date.parse(d); return isNaN(t) ? 0 : Math.floor((Date.now() - t) / 864e5); }
+  function closeCard() {
+    card.hidden = true; app.classList.remove('cf-carded'); S.sel = null;
+    placed.forEach(function (x) { x.el.classList.remove('cf-sel'); });
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (x) { }
+  }
+  card.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.u) return openCard(b.dataset.u, 'list');
+    var a = b.dataset.act, u = BY[S.sel];
+    if (a === 'close') closeCard();
+    else if (a === 'ring') { toggleRing(u); openCard(u.id); }
+    else if (a === 'show') { if (S.tab !== 'map') setTab('map'); zoomTo([u], 6); if (MW < 900) closeCard(); }
+  });
+
+  /* ------------------------------------------------------------------ layers, sides, key (under the map) */
+  function count(c) { return U.filter(function (u) { return u.c === c; }).length; }
+  function underMap() {
+    below.innerHTML = '<div class="cf-sect"><b>' + w('layers') + '</b><span class="cf-ab"><button type="button" class="cf-tight" data-all="1">' + w('all') + '</button><button type="button" class="cf-tight" data-all="0">' + w('none') + '</button></span></div>' +
+      '<div class="cf-layers">' + D.cats.map(function (c) {
+        var any = U.filter(function (u) { return u.c === c.id; })[0]; if (!any) return '';
+        return '<button type="button" data-cat="' + c.id + '" aria-pressed="' + !!S.cats[c.id] + '"><span class="cf-dot s-' + any.s + '">' + glyph(any.a) + '</span>' + esc(c.n) + ' <span class="num">' + fd(count(c.id)) + '</span></button>';
+      }).join('') + '</div>' +
+      '<div class="cf-sect"><b>' + w('sides') + '</b></div><div class="cf-layers cf-sides">' + ['us', 'il', 'ir', 'px', 'gulf', 'geo'].map(function (s) {
+        return U.some(function (u) { return u.s === s; }) ? '<button type="button" data-side="' + s + '" aria-pressed="' + !!S.sides[s] + '"><i class="cf-sw s-' + s + '"></i>' + esc(D.sides[s]) + '</button>' : '';
+      }).join('') + '</div>' +
+      '<details class="cf-key" open><summary>' + w('legend') + '</summary><ul>' +
+      '<li><i class="cf-sw s-us"></i>' + w('lgUS') + ' <i class="cf-sw s-il"></i>' + w('lgIL') + ' <i class="cf-sw s-ir"></i>' + w('lgIR') + ' <i class="cf-sw s-px"></i>' + w('lgPX') + ' <i class="cf-sw s-gulf"></i>' + w('lgG') + '</li>' +
+      '<li><span class="cf-dot cf-kc">3</span>' + w('lgCl') + '</li><li><svg viewBox="0 0 24 24" class="cf-kg"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 3"/></svg>' + w('lgRing') + '</li>' +
+      '<li>📍 ' + w('lgPos') + ' <span class="num">(' + esc(fd(D.readUtc)) + ')</span></li></ul></details>';
+  }
+  below.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.cat) { var c = b.dataset.cat; S.cats[c] = S.cats[c] ? 0 : 1; b.setAttribute('aria-pressed', !!S.cats[c]); track('sim_layer_' + c, {}); }
+    else if (b.dataset.side) { var s = b.dataset.side; S.sides[s] = S.sides[s] ? 0 : 1; b.setAttribute('aria-pressed', !!S.sides[s]); track('sim_side', { side: s }); }
+    else if (b.dataset.all) { var on = b.dataset.all === '1'; D.cats.forEach(function (c) { S.cats[c.id] = on ? 1 : 0; }); underMap(); }
+    draw(true); if (S.tab === 'list') list();
+  });
+
+  /* ------------------------------------------------------------------ the list: every unit, the ones with no place too */
+  function list() {
+    var q = S.q.trim().toLowerCase(), html = '';
+    D.cats.forEach(function (c) {
+      var rows = U.filter(function (u) { return u.c === c.id && S.sides[u.s] && (!q || match(u, q)); });
+      if (!rows.length) return;
+      html += '<h3>' + esc(c.n) + ' <span class="num">' + fd(rows.length) + '</span></h3><div class="cf-grid">' + rows.map(function (u) {
+        return '<button type="button" class="cf-li s-' + u.s + '" data-u="' + esc(u.id) + '" data-c="' + u.c + '"><span class="cf-lart">' + art(u) + '</span><span class="cf-ln">' + esc(u.n) + '</span><span class="cf-lm">' + esc((u.sp && u.sp[0] ? u.sp[0][1] : '')) + '</span></button>';
+      }).join('') + '</div>';
+    });
+    side.innerHTML = '<div class="cf-list">' + (html || '<p>' + w('nohit') + '</p>') + '</div>';
+  }
+  function match(u, q) { return (u.n + ' ' + (u.en || '') + ' ' + (u.sp || []).map(function (x) { return x.join(' '); }).join(' ') + ' ' + CATN[u.c]).toLowerCase().indexOf(q) >= 0; }
+  side.addEventListener('click', function (ev) { var b = ev.target.closest('[data-u]'); if (b && b.closest('.cf-list')) openCard(b.dataset.u, 'list'); });
+
+  /* ------------------------------------------------------------------ search */
+  var sIn = $('.cf-search input', bar), sHits = $('.cf-hits', bar), searched = 0;
+  sIn.addEventListener('input', function () {
+    S.q = sIn.value; var q = S.q.trim().toLowerCase();
+    if (!q) { sHits.hidden = true; if (S.tab === 'list') list(); return; }
+    if (!searched) { searched = 1; track('sim_search', {}); }
+    var r = U.filter(function (u) { return match(u, q); }).sort(function (a, b) { return (a.n.toLowerCase().indexOf(q) < 0) - (b.n.toLowerCase().indexOf(q) < 0) || pri(a) - pri(b); }).slice(0, 8);
+    sHits.innerHTML = r.length ? r.map(function (u) { return '<button type="button" data-u="' + esc(u.id) + '" class="s-' + u.s + '"><span class="cf-dot">' + glyph(u.a) + '</span><span>' + esc(u.n) + '<small>' + esc(CATN[u.c]) + '</small></span></button>'; }).join('') : '<p>' + w('nohit') + '</p>';
+    sHits.hidden = false;
+    if (S.tab === 'list') list();
+  });
+  sIn.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { var f = $('[data-u]', sHits); if (f) f.click(); } if (ev.key === 'Escape') { sIn.value = ''; sIn.dispatchEvent(new Event('input')); } });
+  sHits.addEventListener('click', function (ev) { var b = ev.target.closest('[data-u]'); if (!b) return; sHits.hidden = true; openCard(b.dataset.u, 'search'); });
+  document.addEventListener('click', function (ev) { if (!ev.target.closest('.cf-search')) sHits.hidden = true; });
+
+  /* ------------------------------------------------------------------ tabs */
+  function setTab(t) {
+    S.tab = t; app.setAttribute('data-tab', t);
+    $$('.cf-tabs [data-tab]', bar).forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === t); });
+    if (t === 'list') list(); else if (t === 'sim') { if (RES) result(); else simForm(); track('sim_tab_sim', {}, true); } else { side.innerHTML = ''; side.appendChild(below); }
+    simBar.hidden = !(t === 'sim' && RES);
+    gFly.style.display = t === 'sim' ? '' : 'none';
+    S.simOn = t === 'sim' && !!RES;
+    setTimeout(function () { size(); clamp(); draw(true); }, 0);
+  }
+  $('.cf-tabs', bar).addEventListener('click', function (ev) { var b = ev.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+
+  /* ================================================================== THE SIMULATOR
+     The model, in full (How it works under the tool says the same in words):
+     - Each day the Islamic Republic fires a salvo: the chosen size on day 1, then launch_rate of it, times the share of its
+       launchers still working. Each missile flies at one area (Israel, the US bases, Persian Gulf oil, the ships) by the aim.
+     - In each area the missile meets the shield in layer order. A share `cover` is never engaged. Otherwise each layer with
+       interceptors left fires `shots` at it, each with the kill chance pk; it is stopped at the first layer that kills it.
+       What no layer stops gets through. Drones are stopped at drone_kill.
+     - US and Israeli strikes are aim points a day (carriers x cv_aim, Israel's sorties x il_aim, Tomahawks, the B-2s on day
+       1), shared over the chosen target sets; a set's damage is 1 - exp(-points / need). Launcher damage cuts the next
+       salvo (the share of launchers working, and `watch`: crews that will not risk launching under jets overhead).
+     - The IRGC navy tries to close Hormuz with the chance `hormuz`; damage to the navy shortens it.
+     Every uncertain number is drawn from its published range on each of 400 runs. */
+  var F = D.facts, A = D.A, SC = D.sc;
+  function rng(seed) { var a = seed >>> 0; return function () { a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function tri(r, lo, m, hi) { var u = r(), c = (m - lo) / ((hi - lo) || 1); return u < c ? lo + Math.sqrt(u * (hi - lo) * (m - lo)) : hi - Math.sqrt((1 - u) * (hi - lo) * (hi - m)); }
+  function dr(f, r) { if (!f) return 0; if (f.lo == null || f.hi == null || f.lo === f.hi) return f.v != null ? f.v : (f.lo || 0); var m = f.v != null ? f.v : (f.lo + f.hi) / 2; return tri(r, Math.min(f.lo, f.hi), Math.min(Math.max(m, Math.min(f.lo, f.hi)), Math.max(f.lo, f.hi)), Math.max(f.lo, f.hi)); }
+  function val(k) { var f = F[k] || A[k]; return f ? (f.v != null ? f.v : (f.lo + f.hi) / 2) : 0; }
+  function costOf(k) { var v = val(k); return v < 1000 ? v * 1e6 : v; }
+  var SH = SC.shield.map(function (d) {
+    var u = d.unit && BY[d.unit], pk = u && u.sim && u.sim.pk ? { v: u.sim.pk, lo: Math.max(0.3, u.sim.pk - 0.1), hi: Math.min(0.95, u.sim.pk + 0.08) } : A.pk;
+    return { id: d.id, n: d.n, area: d.area, layer: d.layer, stock: d.stock, split: d.split, shots: d.shots, cost: costOf(d.cost), pk: pk, unit: d.unit, def: Math.round(val(d.stock) * (d.split ? 0.5 : 1)) };
+  });
+  var AREAS = ['il', 'us', 'oil', 'sea'];
+  var P = null, RES = null, VIEW = 0, timer = 0;
+  var DEF = { days: 3, salvo: 200, dr: 1.5, aIl: 3, aUs: 2, aOil: 1, aSea: 0, cv: 2, b2: 6, tlam: 300, il: 1, tLaunch: 1, tAd: 1, tNuke: 1, tNavy: 0, tOil: 0, thIL: 0.5 };
+  function stockKey(d) { return 's_' + d.id; }
+  function base(pre) {
+    var p = {}; for (var k in DEF) p[k] = DEF[k];
+    var src = (SC.presets.filter(function (x) { return x.id === pre; })[0] || SC.presets[0] || { p: {} }).p;
+    for (k in src) p[k] = src[k];
+    SH.forEach(function (d) { p[stockKey(d)] = d.split ? Math.round(val(d.stock)) : d.def; });
+    p.preset = pre; return p;
+  }
+  try { var q0 = /[?&]s=([^&#]+)/.exec(location.search); if (q0) { P = JSON.parse(decodeURIComponent(q0[1])); } } catch (x) { P = null; }
+
+  function run(p, seed, rec) {
+    var r = rng(seed), days = [];
+    var BM = dr(F.ir_bm, r), TEL0 = dr(F.ir_tel, r), cover = dr(A.cover, r), dk = dr(A.drone_kill, r), lr = dr(A.launch_rate, r), watch = val('watch');
+    var need = A.need.v, dmg = { launch: 0, ad: 0, nuke: 0, navy: 0, oil: 0 }, tlamLeft = p.tlam;
+    var pools = {}, start = {}, used = { n: 0, usd: 0, by: {} }, out = {};
+    AREAS.forEach(function (a) { pools[a] = []; out[a] = { f: 0, s: 0, t: 0 }; });
+    SH.forEach(function (d) {
+      var n = +p[stockKey(d)] || 0;
+      if (d.split === 'thIL') n = n * p.thIL; else if (d.split === 'thG') n = n * (1 - p.thIL);
+      var o = { id: d.id, n: Math.round(n), s: d.shots, pk: dr(d.pk, r), c: d.cost, layer: d.layer, out: -1 };
+      pools[d.area].push(o); start[d.id] = o.n;
+    });
+    pools.sea = pools.us.filter(function (o) { return o.id === 'sm6'; });      // ships defend themselves with their own SM-6
+    AREAS.forEach(function (a) { pools[a].sort(function (x, y) { return x.layer - y.layer; }); });
+    var aim = { il: p.aIl, us: p.aUs, oil: p.aOil, sea: p.aSea }, aimT = p.aIl + p.aUs + p.aOil + p.aSea || 1;
+    var fullRef = 2 * A.cv_aim.v + F.il_sorties.v * A.il_aim.v;
+    var hzTry = r() < F.hormuz.v, closure = 0, totF = 0, totS = 0, drones = 0, dStop = 0, firstSalvo = 0, lastSalvo = 0, mops = 0;
+    for (var day = 1; day <= p.days; day++) {
+      /* the strike */
+      var ad = dmg.ad, eff = 0.6 + 0.4 * ad;
+      var air = (p.cv * dr(A.cv_aim, r) + (p.il ? F.il_sorties.v * A.il_aim.v : 0)) * eff;
+      var tl = Math.min(tlamLeft, Math.round(day === 1 ? p.tlam * 0.5 : p.tlam * 0.5 / Math.max(1, p.days - 1))); tlamLeft -= tl;
+      var cap = air + tl, sets = [], wsum = 0;
+      if (p.tLaunch) sets.push(['launch', 3]); if (p.tAd) sets.push(['ad', day === 1 ? 3 : 1]); if (p.tNuke) sets.push(['nuke', 1]); if (p.tNavy) sets.push(['navy', 1]); if (p.tOil) sets.push(['oil', 1]);
+      sets.forEach(function (s) { wsum += s[1]; });
+      if (!sets.length) { air = 0; tlamLeft += tl; tl = 0; cap = 0; }      // nothing chosen to hit: no strike, no Tomahawk spent
+      var hits = {};
+      sets.forEach(function (s) { var al = cap * s[1] / (wsum || 1); hits[s[0]] = al; dmg[s[0]] = 1 - (1 - dmg[s[0]]) * Math.exp(-al / need[s[0]]); });
+      if (day === 1 && p.b2 && p.tNuke) { mops = Math.min(p.b2 * 2, 2 * F.b2_fleet.v); dmg.nuke = 1 - (1 - dmg.nuke) * Math.exp(-mops / 12); }
+      /* the answer */
+      var working = 1 - 0.6 * dmg.launch, sup = 1 - watch * dmg.launch;
+      var m = Math.max(0, Math.round(Math.min(BM, p.salvo * (day === 1 ? 1 : lr) * working * sup)));
+      BM -= m; totF += m; if (day === 1) firstSalvo = m; lastSalvo = m;
+      var dd = Math.round(m * p.dr), dS = Math.round(dd * dk); drones += dd; dStop += dS;
+      var dayOut = {};
+      AREAS.forEach(function (a) {
+        var n = Math.round(m * aim[a] / aimT), st = 0;
+        for (var i = 0; i < n; i++) {
+          if (r() >= cover) continue;
+          var ps = pools[a];
+          for (var j = 0; j < ps.length; j++) {
+            var o = ps[j]; if (o.n < 1) continue;
+            var sh = Math.min(o.n, o.s >= 2 ? 2 : (r() < o.s - 1 ? 2 : 1));
+            o.n -= sh; used.n += sh; used.usd += sh * o.c; used.by[o.id] = (used.by[o.id] || 0) + sh;
+            if (o.n < 1 && o.out < 0) o.out = day;
+            var kill = 1 - Math.pow(1 - o.pk, sh);
+            if (r() < kill) { st++; break; }
+          }
+        }
+        out[a].f += n; out[a].s += st; out[a].t += n - st; totS += st;
+        dayOut[a] = { f: n, s: st, t: n - st };
+      });
+      var hzD = hzTry ? Math.max(0, 1 - 0.9 * dmg.navy) : 0; closure += hzD;
+      if (rec) days.push({ m: m, dr: dd, ds: dS, a: dayOut, hits: hits, tl: tl, air: Math.round(air), mops: day === 1 ? mops : 0, dmg: JSON.parse(JSON.stringify(dmg)), hz: hzD > 0.5,
+        left: SH.map(function (d) { var o = (pools[d.area].filter(function (x) { return x.id === d.id; })[0]); return o ? o.n / Math.max(1, start[d.id]) : 1; }) });
+    }
+    var res = { f: totF, s: totS, stop: totF ? totS / totF : 1, out: out, used: used, rateEnd: (1 - 0.6 * dmg.launch) * (1 - watch * dmg.launch), first: firstSalvo, last: lastSalvo,
+      dmg: dmg, closure: closure, hz: hzTry, drones: drones, dStop: dStop, mops: mops,
+      outDay: {}, left: {} };
+    SH.forEach(function (d) { var o = pools[d.area].filter(function (x) { return x.id === d.id; })[0]; res.outDay[d.id] = o ? o.out : -1; res.left[d.id] = o ? o.n / Math.max(1, start[d.id]) : 1; });
+    if (rec) res.days = days;
+    return res;
+  }
+  function q(a, f) { var s = a.slice().sort(function (x, y) { return x - y; }); return s[Math.min(s.length - 1, Math.floor(f * s.length))]; }
+  var N = 400;
+  S.model = { run: run, base: base };      // for the tests (conflict.py --measure, the calibration check)
+  function many(p, done) {
+    var rs = [], i = 0, seed = hash(JSON.stringify(p));
+    (function slice() { var t = performance.now(); while (i < N && performance.now() - t < 12) { rs.push(run(p, seed + i * 7919)); i++; } if (i < N) setTimeout(slice, 0); else done(rs, seed); })();
+  }
+  function hash(s) { var x = 2166136261; for (var i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; }
+  function stats(rs, p, seed) {
+    var st = rs.map(function (x) { return x.stop; }), re = rs.map(function (x) { return x.rateEnd; });
+    var S2 = { stop: [q(st, 0.1), q(st, 0.5), q(st, 0.9)], rate: [q(re, 0.1), q(re, 0.5), q(re, 0.9)], usd: q(rs.map(function (x) { return x.used.usd; }), 0.5),
+      hz: rs.filter(function (x) { return x.hz; }).length / rs.length, closure: q(rs.map(function (x) { return x.closure; }), 0.5) };
+    S2.area = {}; AREAS.forEach(function (a) { S2.area[a] = { f: q(rs.map(function (x) { return x.out[a].f; }), 0.5), t: q(rs.map(function (x) { return x.out[a].t; }), 0.5) }; });
+    S2.out = {}; S2.left = {};
+    SH.forEach(function (d) { var od = rs.map(function (x) { return x.outDay[d.id]; }); S2.out[d.id] = { share: od.filter(function (x) { return x > 0; }).length / rs.length, day: q(od.filter(function (x) { return x > 0; }).concat([99]), 0.5) }; S2.left[d.id] = q(rs.map(function (x) { return x.left[d.id]; }), 0.5); });
+    var ms = S2.stop[1], mr = S2.rate[1], best = 0, bd = 1e9;
+    rs.forEach(function (x, i) { var d = Math.abs(x.stop - ms) * 4 + Math.abs(x.rateEnd - mr); if (d < bd) { bd = d; best = i; } });
+    S2.typ = run(p, seed + best * 7919, true);
+    S2.score = Math.round(100 * (0.6 * ms + 0.4 * (1 - mr)) - Math.min(15, (S2.area.oil.t || 0) * 1.5) - Math.min(10, S2.hz * S2.closure * 2));
+    S2.score = Math.max(0, Math.min(100, S2.score));
+    return S2;
   }
 
-  /* ------------------------------------------------------------------ the shell */
-  function shell() {
-    var vt = '<div class="cf-vt" role="group" aria-label="' + w('map') + '">' + D.views.map(function (v) { return '<button type="button" data-v="' + v.id + '" aria-pressed="false">' + esc(v.n) + '</button>'; }).join('') + '</div>';
-    app.innerHTML = '<div class="cf-board"><div class="cf-left"><div class="cf-mapwrap">' + vt + '<div class="cf-map"></div></div><div class="cf-cap" aria-live="polite"></div><div class="cf-legend"></div></div>'
-      + '<div class="cf-side"><div class="cf-tabs" role="tablist">' + ['plan', 'play', 'debrief'].map(function (t, i) { return '<button type="button" role="tab" data-tab="' + t + '" aria-selected="' + (t === 'plan') + '"' + (t !== 'plan' ? ' disabled' : '') + '><span class="cf-n">' + fd(i + 1) + '</span>' + w(t) + '</button>'; }).join('') + '</div><div class="cf-panel"></div></div></div>';
+  /* ------------------------------------------------------------------ the form */
+  function rangeRow(k, label, min, max, step, note) {
+    var v = P[k];
+    return '<label class="cf-rr"><span class="cf-rl">' + label + '<b class="num" data-v="' + k + '">' + fmt(k, v) + '</b></span><input type="range" data-k="' + k + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + v + '" aria-label="' + esc(label) + '">' + (note ? '<small>' + note + '</small>' : '') + '</label>';
   }
-  function size() { var m = $('.cf-map', app); var s = m && m.clientWidth >= 520 ? 'lg' : 'sm'; if (s !== MAP.size) { MAP.size = s; return true; } return false; }
-  function onClick(ev) {
-    var b = ev.target.closest('button, a.cf-i'); if (!b || !app.contains(b)) return;
-    if (b.dataset.to) { var t = document.getElementById(b.dataset.to); if (t) { var d = t.closest('details'); if (d) d.open = true; } return; }
-    if (b.dataset.tab) { if (!b.disabled) setTab(b.dataset.tab); return; }
-    if (b.dataset.v && !b.dataset.k) { stopAuto(); drawMap(b.dataset.v); return; }
-    if (b.dataset.preset != null) { plan = JSON.parse(JSON.stringify(D.presets[+b.dataset.preset].p)); refreshPlan(); return; }
-    if (b.dataset.goal) { plan.goal = b.dataset.goal; refreshPlan(); return; }
-    if (b.dataset.k && b.dataset.d) { var c = D.choices[b.dataset.k]; plan[b.dataset.k] = Math.max(c.min, Math.min(c.max, plan[b.dataset.k] + +b.dataset.d)); refreshPlan(); return; }
-    if (b.dataset.k && b.dataset.v != null) { plan[b.dataset.k] = JSON.parse(b.dataset.v); refreshPlan(); return; }
-    if (b.id === 'cf-go') { go(); return; }
-    if (b.dataset.turn) { stopAuto(); cur = { t: +b.dataset.turn, s: 0 }; $('.cf-panel', app).innerHTML = playPanel(); showStep(); return; }
-    if (b.dataset.act === 'next') { stopAuto(); step(1); return; }
-    if (b.dataset.act === 'prev') { stopAuto(); step(-1); return; }
-    if (b.dataset.act === 'auto') { if (timer) stopAuto(); else startAuto(); return; }
-    if (b.dataset.act === 'debrief') { setTab('debrief'); return; }
-    if (b.dataset.act === 'share') { shareIt(); return; }
-    if (b.dataset.act === 'watch') { cur = { t: 0, s: 0 }; setTab('play'); startAuto(); return; }
-    if (b.dataset.act === 'plan') { setTab('plan'); return; }
-    if (b.dataset.try != null && BEST[+b.dataset.try]) { plan = JSON.parse(JSON.stringify(BEST[+b.dataset.try].p)); result = null; go(); return; }
+  function fmt(k, v) { return k === 'thIL' ? pc(v) : k === 'dr' ? fd((+v).toFixed(1)) : n0(v); }
+  function srcNote(key) { var f = F[key], a = A[key]; if (f) return (f.est ? w('guess') : w('sourced')) + ': ' + esc(f.t) + (f.u ? ' · <a href="' + esc(f.u) + '" target="_blank" rel="noopener">' + w('src').toLowerCase() + '</a>' : ''); if (a) return w('guess') + ': ' + n0(a.v) + (a.lo != null ? ' (' + n0(a.lo) + '–' + n0(a.hi) + ')' : '') + ' · <a href="#a-' + key + '">' + (FA ? 'چرا' : 'why') + '</a>'; return ''; }
+  function tog(k, label) { return '<button type="button" class="cf-tog" data-t="' + k + '" aria-pressed="' + !!P[k] + '">' + label + '</button>'; }
+  function simForm() {
+    if (!P) P = base('likely');
+    var aims = [['aIl', SC.targets.il], ['aUs', SC.targets.us], ['aOil', SC.targets.oil], ['aSea', SC.targets.sea]];
+    side.innerHTML = '<div class="cf-simform">' +
+      '<h3>⭐ ' + w('preset') + '</h3><div class="cf-presets">' + SC.presets.map(function (x) { return '<button type="button" data-preset="' + x.id + '" aria-pressed="' + (P.preset === x.id) + '"><b>' + esc(x.n) + '</b><span>' + esc(x.why) + '</span></button>'; }).join('') + '</div>' +
+      '<h3>🔴 ' + w('who') + '</h3>' + rangeRow('salvo', w('salvo'), 0, 600, 10, srcNote('ir_salvo')) + rangeRow('dr', w('dr'), 0, 4, 0.5, srcNote('drone_ratio')) + rangeRow('days', w('days'), 1, 7, 1) +
+      '<div class="cf-rl">' + w('aim') + '</div>' + aims.map(function (a) { return rangeRow(a[0], (a[1] ? a[1].n : a[0]), 0, 3, 1); }).join('') +
+      '<h3>🔵 ' + w('strike') + '</h3>' + rangeRow('cv', w('cv'), 0, 3, 1, srcNote('cv_aim')) + rangeRow('b2', w('b2'), 0, 19, 1, srcNote('b2_fleet')) + rangeRow('tlam', w('tlam'), 0, 1000, 25, srcNote('tlam_2026')) +
+      '<div class="cf-togs">' + tog('il', w('ilj')) + '</div><div class="cf-rl">' + w('targets') + '</div><div class="cf-togs">' +
+      tog('tLaunch', SC.strike.launch.n) + tog('tAd', SC.strike.ad.n) + tog('tNuke', SC.strike.nuke.n) + tog('tNavy', SC.strike.navy.n) + tog('tOil', SC.strike.oil.n) + '</div>' +
+      '<h3>🛡️ ' + w('shield') + '</h3>' + SH.filter(function (d) { return d.split !== 'thG'; }).map(function (d) { var mx = Math.max(50, Math.round(d.def * (d.split ? 2 : 1) * 2.5 / 10) * 10); return rangeRow(stockKey(d), d.split ? (FA ? 'تاد آمریکا، کل' : 'US THAAD, all batteries') : d.n, 0, mx, d.def > 200 ? 10 : 5, srcNote(d.stock)); }).join('') +
+      rangeRow('thIL', w('thIL'), 0, 1, 0.1) +
+      '<button type="button" class="cf-go" id="cf-go">🎲 ' + w('go') + '</button></div>';
   }
-  function refreshPlan() {
-    var P = $('.cf-panel', app), open = $$('details.cf-sec', P).map(function (d) { return d.open; }), st = P.scrollTop;
-    P.innerHTML = planPanel();
-    $$('details.cf-sec', P).forEach(function (d, i) { if (open[i] != null) d.open = open[i]; });
-    P.scrollTop = st;
-    result = null;      // a changed plan has not been run yet
-    ['play', 'debrief'].forEach(function (t) { var b = $('.cf-tabs [data-tab="' + t + '"]', app); if (b) b.disabled = true; });
+  side.addEventListener('input', function (ev) {
+    var t = ev.target; if (!t.dataset.k) return;
+    P[t.dataset.k] = +t.value; P.preset = '';
+    var b = $('[data-v="' + t.dataset.k + '"]', side); if (b) b.textContent = fmt(t.dataset.k, +t.value);
+    $$('.cf-presets [data-preset]', side).forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+  });
+  side.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b || !b.closest('.cf-simform,.cf-result')) return;
+    if (b.dataset.preset) { P = base(b.dataset.preset); simForm(); track('sim_preset', { preset: b.dataset.preset }); }
+    else if (b.dataset.t) { P[b.dataset.t] = P[b.dataset.t] ? 0 : 1; b.setAttribute('aria-pressed', !!P[b.dataset.t]); P.preset = ''; }
+    else if (b.id === 'cf-go') go();
+    else if (b.dataset.act === 'again') { RES = null; S.simOn = false; simBar.hidden = true; gFly.innerHTML = ''; simForm(); draw(true); }
+    else if (b.dataset.act === 'share') share();
+  });
+  function go() {
+    var g = $('#cf-go'); g.disabled = true; g.textContent = w('running');
+    track('sim_run', { preset: P.preset || 'custom' });
+    many(P, function (rs, seed) {
+      RES = stats(rs, P, seed); VIEW = 0; S.simOn = true;
+      result(); simBar.hidden = false; showDay(0); draw(true);
+      try { history.replaceState(null, '', location.pathname + '?s=' + encodeURIComponent(JSON.stringify(P)) + location.hash); } catch (x) { }
+    });
   }
-  function onInput(ev) {
-    var i = ev.target; if (!i.dataset || !i.dataset.k) return;
-    plan[i.dataset.k] = +i.value; result = null;
-    ['play', 'debrief'].forEach(function (t) { var b = $('.cf-tabs [data-tab="' + t + '"]', app); if (b) b.disabled = true; });
-    var o = i.parentNode.querySelector('output'); if (o) o.textContent = D.choices[i.dataset.k].step < 1 ? pc(+i.value) : n0(+i.value);
-    var row = i.closest('.cf-row'), h = row && row.querySelector('.cf-hint');
-    if (h && HINT[i.dataset.k]) h.firstChild.textContent = HINT[i.dataset.k](plan) + ' ';
-    ['tlam', 'shipdef'].forEach(function (k) { var r = $('.cf-row[data-row="' + k + '"] .cf-hint', app); if (r && HINT[k]) r.firstChild.textContent = HINT[k](plan) + ' '; });
+  function share() {
+    var u = location.origin + location.pathname + '?s=' + encodeURIComponent(JSON.stringify(P));
+    track('sim_share', {});
+    try { if (navigator.share) { navigator.share({ url: u, title: document.title }).catch(function () { }); return; } navigator.clipboard.writeText(u); var b = $('[data-act=share]', side); if (b) b.textContent = '✓ ' + w('copied'); } catch (x) { }
   }
-  shell();
-  size();
-  var shared = initPlan();
-  setTab('plan');
-  app.addEventListener('click', onClick);
-  app.addEventListener('input', onInput);
-  var rz = 0;
-  addEventListener('resize', function () { if (rz) return; rz = requestAnimationFrame(function () { rz = 0; if (size()) { if (tab === 'play') showStep(); else if (tab === 'plan') nowMap(); else drawMap(MAP.view); } }); });
-  /* once a run exists, Play and Debrief open */
-  var _setTab = setTab; setTab = function (t) { _setTab(t); if (result) $$('.cf-tabs button', app).forEach(function (b) { b.disabled = false; }); };
-  if (shared) go();
-  if (/[?&]dbg=1/.test(location.search)) window.__cf = { run: run, many: many, D: D, code: code };      // for the calibration in conflict.py --measure
+
+  /* ------------------------------------------------------------------ playing the typical run on the map */
+  function pick(list, n, salt) { var o = []; for (var i = 0; i < n && list.length; i++) o.push(list[(i * 7 + salt) % list.length]); return o; }
+  function arc(a, b, cls, bend, stopAt) {
+    var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    var cx = mx - dy / L * L * bend, cy = my + dx / L * L * bend - L * 0.12;
+    var d = 'M' + a[0].toFixed(1) + ',' + a[1].toFixed(1) + 'Q' + cx.toFixed(1) + ',' + cy.toFixed(1) + ' ' + b[0].toFixed(1) + ',' + b[1].toFixed(1);
+    var p = sv('path', { d: d, 'class': 'cf-fly ' + cls, pathLength: 100 }, gFly);
+    if (stopAt) p.style.strokeDasharray = (stopAt * 100) + ' 200';
+    function at(t) { return [(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * cx + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * cy + t * t * b[1]]; }
+    return at;
+  }
+  function dot(p, r, cls) { return sv('circle', { cx: p[0].toFixed(1), cy: p[1].toFixed(1), r: (r / S.k).toFixed(2), 'data-r': r, 'class': 'cf-kr ' + cls }, gFly); }
+  function showDay(i) {
+    var T = RES.typ, d = T.days[i]; VIEW = i;
+    gFly.innerHTML = ''; gFly.classList.toggle('cf-anim', !REDUCE);
+    var csg = U.filter(function (u) { return u.c === 'csg' && u.xy; }).map(function (u) { return u.xy; });
+    var ilp = SC.targets.il.at.map(function (x) { return x.xy; });
+    var from = [];
+    if (P.cv && csg.length) from = from.concat(csg.slice(0, Math.max(1, Math.min(csg.length, P.cv))));
+    if (P.il) from = from.concat(ilp.slice(0, 2));
+    var bl = Object.keys(d.hits);
+    if (from.length && bl.length) {
+      bl.forEach(function (s, si) {
+        var tg = (SC.strike[s] || { at: [] }).at; pick(tg, Math.min(tg.length, 4), si + i).forEach(function (t, k) {
+          arc(from[(k + si) % from.length], t.xy, 'cf-fly-b', 0.08 * ((k % 2) ? 1 : -1));
+          dot(t.xy, 5 + 6 * Math.min(1, d.dmg[s] || 0), 'cf-hitb');
+        });
+      });
+    }
+    var orig = { il: SC.origins.w, us: SC.origins.s, oil: SC.origins.s, sea: SC.origins.s.concat(SC.origins.navy || []) };
+    AREAS.forEach(function (a, ai) {
+      var o = d.a[a]; if (!o || !o.f) return;
+      var tg = a === 'sea' ? csg.map(function (x) { return { xy: x }; }) : SC.targets[a].at; if (!tg.length) return;
+      var nArc = Math.max(1, Math.min(14, Math.round(o.f / 12))), nThr = Math.round(nArc * o.t / o.f);
+      for (var k = 0; k < nArc; k++) {
+        var f0 = orig[a][(k + ai + i) % orig[a].length].xy, t0 = tg[(k * 3 + i) % tg.length].xy, thr = k < nThr;
+        var at = arc(f0, t0, thr ? 'cf-fly-r' : 'cf-fly-r cf-fly-x', 0.06 * ((k % 3) - 1), thr ? 0 : 0.82);
+        if (thr) dot(t0, 6, 'cf-imp'); else dot(at(0.82), 4, 'cf-int');
+      }
+    });
+    if (d.hz) { var hz = U.filter(function (u) { return u.c === 'choke' && /hormuz/i.test(u.id); })[0]; if (hz && hz.xy) dot(hz.xy, 12, 'cf-hz'); }
+    draw(false);
+    // the day bar
+    var tot = AREAS.reduce(function (s, a) { return s + (d.a[a] ? d.a[a].t : 0); }, 0), st = AREAS.reduce(function (s, a) { return s + (d.a[a] ? d.a[a].s : 0); }, 0);
+    simBar.innerHTML = '<div class="cf-days">' + T.days.map(function (x, j) { return '<button type="button" data-day="' + j + '" aria-pressed="' + (j === i) + '">' + w('day') + ' ' + fd(j + 1) + '</button>'; }).join('') + '</div>' +
+      '<p class="cf-cap"><b>' + w('day') + ' ' + fd(i + 1) + '</b> ' + say(d) + '</p>' +
+      '<div class="cf-ctl"><button type="button" data-act="prev"' + (i ? '' : ' disabled') + '>‹ ' + w('prev') + '</button><button type="button" data-act="auto">' + (timer ? '⏸ ' + w('pause') : '▶ ' + w('play')) + '</button><button type="button" data-act="next"' + (i < T.days.length - 1 ? '' : ' disabled') + '>' + w('next') + ' ›</button></div>' +
+      '<div class="cf-meters">' + SH.map(function (x, j) { var v = d.left[j]; return v < 1 || true ? '<span class="cf-meter" title="' + esc(x.n) + '"><i style="width:' + Math.round(100 * v) + '%" class="' + (v < 0.15 ? 'cf-low' : '') + '"></i><em>' + esc(x.n) + ' ' + pc(v) + '</em></span>' : ''; }).join('') + '</div>';
+    if (i === T.days.length - 1) track('sim_done', {}, false);
+  }
+  function lst(d) { var x = AREAS.filter(function (a) { return d.a[a].t; }).map(function (a) { return SC.targets[a].n + ' ' + n0(d.a[a].t); }); return x.length ? ' (' + x.join(FA ? '، ' : ', ') + ')' : ''; }
+  function say(d) {
+    var parts = [], tl = d.tl, air = d.air;
+    if (air || tl || d.mops) parts.push(FA ? 'آمریکا و اسرائیل حدود ' + n0(air + tl) + ' هدف رو می‌زنن' + (tl ? ' (' + n0(tl) + ' تاماهاک)' : '') + (d.mops ? '، با ' + n0(d.mops) + ' بمب سنگرشکن روی سایت‌های هسته‌ای' : '') + '.'
+      : 'The US and Israel hit about ' + n0(air + tl) + ' aim points' + (tl ? ' (' + n0(tl) + ' Tomahawks)' : '') + (d.mops ? ', with ' + n0(d.mops) + ' GBU-57 bunker busters on the nuclear sites' : '') + '.');
+    var th = AREAS.reduce(function (s, a) { return s + d.a[a].t; }, 0);
+    parts.push(FA ? 'جمهوری اسلامی ' + n0(d.m) + ' موشک بالستیک و ' + n0(d.dr) + ' پهپاد شلیک می‌کنه؛ ' + n0(d.m - th) + ' موشک متوقف می‌شه و ' + n0(th) + ' تا رد می‌شه' + lst(d) + '.'
+      : 'The Islamic Republic fires ' + n0(d.m) + ' ballistic missiles and ' + n0(d.dr) + ' drones; ' + n0(d.m - th) + ' missiles are stopped and ' + n0(th) + ' get through' + lst(d) + '.');
+    if (d.hz) parts.push(FA ? 'نیروی دریایی سپاه هرمز رو مختل می‌کنه.' : 'The IRGC navy is disrupting Hormuz.');
+    return esc(parts.join(' '));
+  }
+  simBar.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    if (b.dataset.day) { stop(); showDay(+b.dataset.day); }
+    else if (b.dataset.act === 'prev') { stop(); showDay(Math.max(0, VIEW - 1)); }
+    else if (b.dataset.act === 'next') { stop(); showDay(Math.min(RES.typ.days.length - 1, VIEW + 1)); }
+    else if (b.dataset.act === 'auto') { if (timer) { stop(); showDay(VIEW); } else { if (VIEW >= RES.typ.days.length - 1) VIEW = -1; timer = setInterval(function () { if (VIEW >= RES.typ.days.length - 1) { stop(); showDay(VIEW); return; } showDay(VIEW + 1); }, 1800); showDay(VIEW + 1); } }
+  });
+  function stop() { if (timer) { clearInterval(timer); timer = 0; } }
+
+  /* ------------------------------------------------------------------ the score and the explanation */
+  function grade(s) { return s >= 85 ? 'A' : s >= 70 ? 'B' : s >= 55 ? 'C' : s >= 40 ? 'D' : 'F'; }
+  function result() {
+    var R = RES, T = R.typ, why = [];
+    var fired = AREAS.reduce(function (s, a) { return s + R.area[a].f; }, 0), thr = AREAS.reduce(function (s, a) { return s + R.area[a].t; }, 0);
+    var cal = F[SC.calib.il_fired] && F[SC.calib.il_through] ? (FA ? ' برای مقایسه: تو جنگ ۲۰۲۶ حدود ' + n0(F[SC.calib.il_fired].v) + ' موشک به اسرائیل شلیک شد و ' + n0(F[SC.calib.il_through].v) + ' تا رد شد.' : ' For scale: in the 2026 war about ' + n0(F[SC.calib.il_fired].v) + ' missiles were fired at Israel and ' + n0(F[SC.calib.il_through].v) + ' got through.') : '';
+    why.push(FA ? 'تو معمولی‌ترین اجرا جمهوری اسلامی تو ' + fd(P.days) + ' روز حدود ' + n0(T.f) + ' موشک بالستیک شلیک می‌کنه و پدافند ' + pc(R.stop[1]) + ' رو متوقف می‌کنه (' + w('range') + ' ' + pc(R.stop[0]) + ' ' + w('and') + ' ' + pc(R.stop[2]) + ').' + cal
+      : 'In the typical run the Islamic Republic fires about ' + n0(T.f) + ' ballistic missiles over ' + fd(P.days) + ' days and the shield stops ' + pc(R.stop[1]) + ' (' + w('range') + ' ' + pc(R.stop[0]) + ' ' + w('and') + ' ' + pc(R.stop[2]) + ').' + cal);
+    var outs = SH.filter(function (d) { return R.out[d.id].share >= 0.5 && (+P[stockKey(d)] > 0); });
+    if (outs.length) outs.slice(0, 3).forEach(function (d) { why.push(FA ? d.n + ' تو بیشتر اجراها تموم می‌شه (معمولاً روز ' + fd(R.out[d.id].day) + '). بعد از اون، موشک‌هایی که به اون منطقه می‌رن فقط با لایه‌های دیگه روبه‌رو می‌شن، برای همین نشت بالا می‌ره.' : d.n + ' runs out in most runs (typically on day ' + fd(R.out[d.id].day) + '). After that, missiles at that area meet only the other layers, so more get through.'); });
+    else why.push(FA ? 'هیچ‌کدوم از رهگیرها تو بیشتر اجراها تموم نمی‌شه: موجودی‌ها برای این دور کافیه. یه دور طولانی‌تر یا شلیک بزرگ‌تر رو امتحان کنید تا ببینید کجا کم میاره.' : 'No interceptor stock runs out in most runs: the stocks are enough for this round. Try a longer round or a bigger salvo to see where it breaks.');
+    if (P.tLaunch && (P.cv || P.il || P.tlam)) why.push(FA ? 'حمله به سکوهای پرتاب شلیک روزانه رو از ' + n0(T.first) + ' تو روز اول به ' + n0(T.last) + ' تو روز آخر می‌رسونه؛ ' + pc(1 - R.rate[1]) + ' از قدرت شلیکش از بین می‌ره. سکوهای متحرک قایم می‌شن، برای همین هیچ‌وقت به صفر نمی‌رسه.' : 'Strikes on the launchers cut the daily salvo from ' + n0(T.first) + ' on day 1 to ' + n0(T.last) + ' on the last day; ' + pc(1 - R.rate[1]) + ' of its launch power is gone. Mobile launchers hide, which is why it never reaches zero.');
+    else why.push(FA ? 'هیچ‌کس سکوهای پرتاب رو نمی‌زنه، برای همین جمهوری اسلامی تا وقتی موشک داره می‌تونه با همین سرعت شلیک کنه. سپر فقط وقت می‌خره.' : 'Nobody hits the launchers, so the Islamic Republic can keep firing at this rate while its missiles last. The shield only buys time.');
+    var dear = SH.slice().sort(function (a, b) { return b.cost - a.cost; })[0];
+    why.push(FA ? 'هزینهٔ رهگیرهای شلیک‌شده حدود ' + money(R.usd) + 'ه. گرون‌ترینش ' + dear.n + 'ه، حدود ' + money(dear.cost) + ' برای هر رهگیر.' : 'The interceptors fired cost about ' + money(R.usd) + '. The dearest is ' + dear.n + ', about ' + money(dear.cost) + ' each.');
+    if (R.area.oil.t > 0) why.push(FA ? 'حدود ' + n0(R.area.oil.t) + ' موشک به تأسیسات نفت و گاز خلیج فارس می‌خوره. تو ۲۰۲۶ همین حمله‌ها قیمت نفت رو بالا بردن.' : 'About ' + n0(R.area.oil.t) + ' missiles hit Persian Gulf oil and gas. In 2026 strikes like these pushed oil prices up.');
+    if (R.hz > 0.3) why.push(FA ? 'تو ' + pc(R.hz) + ' از اجراها سپاه سعی می‌کنه هرمز رو ببنده؛ ' + (P.tNavy ? 'زدن نیروی دریایی‌ش این رو کوتاه‌تر می‌کنه.' : 'چون نیروی دریایی‌ش زده نمی‌شه، این کار تا آخر دور ادامه داره.') : 'In ' + pc(R.hz) + ' of runs the IRGC tries to close Hormuz; ' + (P.tNavy ? 'hitting its navy shortens that.' : 'its navy is not hit, so it keeps that up through the round.'));
+    if (P.b2 && P.tNuke) why.push(FA ? 'B-2ها ' + n0(T.mops) + ' بمب GBU-57 روی سایت‌های هسته‌ای می‌ندازن. مدل نمی‌گه برنامهٔ هسته‌ای تموم می‌شه یا نه: گزارش‌ها می‌گن تونل‌های کوه کلنگ گزلا حدود ' + n0(F.pickaxe_depth.v) + ' متر عمق دارن، و GBU-57 حدود ' + n0(F.mop_pen.v) + ' متر نفوذ می‌کنه.' : 'B-2s drop ' + n0(T.mops) + ' GBU-57s on the nuclear sites. The model does not claim that ends the programme: Pickaxe Mountain\'s halls are reported about ' + n0(F.pickaxe_depth.v) + ' m deep, and a GBU-57 is reported to reach about ' + n0(F.mop_pen.v) + ' m.');
+    var sc = R.score;
+    side.innerHTML = '<div class="cf-result"><div class="cf-score"><span class="cf-grade cf-g' + grade(sc) + '">' + grade(sc) + '</span><span><b class="num">' + fd(sc) + '/' + fd(100) + '</b><small>' + w('score') + '</small></span></div>' +
+      '<div class="cf-nums"><div><b class="num">' + pc(R.stop[1]) + '</b><small>' + w('shieldHeld') + '</small></div><div><b class="num">' + pc(1 - R.rate[1]) + '</b><small>' + w('launchCut') + '</small></div><div><b class="num">' + n0(thr) + '</b><small>' + (FA ? 'موشک رد شد' : 'missiles through') + '</small></div><div><b class="num">' + money(R.usd) + '</b><small>' + w('cost') + '</small></div></div>' +
+      '<div class="cf-areas">' + AREAS.filter(function (a) { return R.area[a].f; }).map(function (a) { return '<div><b>' + esc(SC.targets[a].n) + '</b><span class="num">' + n0(R.area[a].f) + ' ' + w('fired') + ' · ' + n0(R.area[a].t) + ' ' + w('through') + '</span></div>'; }).join('') + '</div>' +
+      '<h3>💡 ' + w('why') + '</h3><ol class="cf-why">' + why.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol>' +
+      '<p class="cf-note">' + (FA ? 'نمره: ۶۰٪ سهم موشک‌های متوقف‌شده، ۴۰٪ قدرت شلیکِ از بین‌رفته، منهای ضربه به نفت و بسته شدن هرمز. یه مدل برای فکر کردنه، نه پیش‌بینی.' : 'Score: 60% the share of missiles stopped, 40% the launch power removed, less hits on oil and days Hormuz is shut. A model to think with, not a forecast.') + '</p>' +
+      '<div class="cf-ra"><button type="button" class="cf-btn" data-act="again">⚙️ ' + w('again') + '</button><button type="button" class="cf-btn" data-act="share">🔗 ' + w('share') + '</button></div></div>';
+  }
+
+  /* ------------------------------------------------------------------ start */
+  underMap(); side.appendChild(below);
+  home(); draw(true);
+  track('sim_view', {}, true);
+  if (S.sel) openCard(S.sel, 'list');
+  if (P) setTab('sim');
+  var ro = window.ResizeObserver ? new ResizeObserver(function () { var k = S.k / S.k0; size(); S.k = S.k0 * k; clamp(); draw(true); }) : null;
+  if (ro) ro.observe(mapEl); else window.addEventListener('resize', function () { size(); clamp(); draw(true); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { placed.forEach(function (u) { u.lbW = 0; }); names.forEach(function (n) { n.w = 0; }); draw(true); });
 })();

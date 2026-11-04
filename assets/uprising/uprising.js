@@ -172,7 +172,9 @@ async function run(opts) {
   function addr() {
     return location.pathname + '?city=' + cityId + '&s=' + b64e(S) + (CMP.length ? '&c=' + b64e(CMP.map(x => ({ name: x.name, S: x.S, adv: x.adv }))) : '') + (mode === 'cmd' ? '&mode=cmd' : '') + (D.documentElement.classList.contains('lp-stream') ? '&stream=1' : '');
   }
-  function saveAddr() { if (!SIMV()) return; try { history.replaceState(null, '', addr()); } catch (_) { } }
+  // Iran Uncensored keeps the scenario out of the address (4 Nov 2026): the page's visitor counter reads the address on every
+  // change, and the page promises nothing a reader does leaves the device. Share still builds the link from addr() when asked.
+  function saveAddr() { if (!SIMV() || IU) return; try { history.replaceState(null, '', addr()); } catch (_) { } }
   let dirty = 0;
   function changed() { dirty++; saveAddr(); oddsSoon(); drawPlanMarks(); if (RUN) markRunStale(); }
   function cityOf(id) { return cities.find(c => c.id === id) || cities[0]; }
@@ -2351,6 +2353,31 @@ async function run(opts) {
       if (LOD2 && FPS < (opt.fpsFloor || 5)) bad.push('the phone level of detail runs at ' + Math.round(FPS) + ' frames a second (floor ' + (opt.fpsFloor || 5) + ')');
       stopPlay();
       return { bad, audit: a, fps: Math.round(FPS), lod: LOD2 ? 'phone' : LOWP ? 'low' : 'full' };
+    },
+    // THE 3D PLAYTHROUGH (4 November 2026; the plan room's is UPPLAN.playthrough in uprising-plan.js). Plays the typical run on
+    // the 3D streets for o.secs real seconds and samples twice a second: the people the run has on the streets, the protesters
+    // drawn, the frame. Fails on a crowd drop-out (the drawn protesters fall under 40% of the last sample while the run's
+    // people stay over 70% of theirs and the hour moved one step at most), on frames that stop coming while the board is in
+    // view (no frame for 1.5 s), and on errors. Called by build/uprising_street_check.mjs --play3d.
+    playthrough: async (o) => {
+      o = o || {}; const bad = [], wait = ms => new Promise(r => setTimeout(r, ms)), secs = [];
+      if (!ST || !ST.A) return { bad: ['the street movement did not start'], secs };
+      play(o.seed || 104729); speed = o.speed || 4; playing = true; setPP();
+      let prev = null, drops = 0, still = 0, raf0 = rafN; const t0 = performance.now();
+      while (performance.now() - t0 < (o.secs || 20) * 1000 && RUN) {
+        await wait(500);
+        const A = ST.A; let vis = 0; for (let i = 0; i < A.n; i++) if ((A.kind[i] === 0 || A.kind[i] === 4) && A.st[i] && A.al[i] > 0.05) vis++;
+        const fi = clamp(lastFrameShown, 0, RUN.rec.c.length - 1), ppl = RUN.rec.c[fi].reduce((a, b) => a + b, 0);
+        const s = { t: Math.round(performance.now() - t0), frame: fi, people: Math.round(ppl), drawn: vis, fps: Math.round(FPS) };
+        secs.push(s);
+        if (prev && prev.drawn >= 30 && vis < prev.drawn * 0.4 && ppl > prev.people * 0.7 && fi - prev.frame <= 1) { drops++; if (drops <= 5) bad.push(`3D: the drawn crowd fell from ${prev.drawn} to ${vis} figures while the run still had ${s.people} of ${prev.people} people out (frame ${fi})`); }
+        if (rafN === raf0 && !D.hidden && visible) { still++; if (still >= 3) bad.push('3D: no frame drawn for 1.5 s while the board was in view'); } else still = 0;
+        raf0 = rafN; prev = s;
+        if (tPos >= RUN.rec.c.length - 1) break;
+      }
+      stopPlay();
+      if (frameErr || pageErr) bad.push((frameErr + pageErr) + ' errors on the page');
+      return { bad: [...new Set(bad)], drops, secs };
     },
     // the street audit (2 November 2026): what build/phone-test.html and build/uprising_street_check.mjs fail on
     get ST() { return ST; }, get speed() { return speed; }, speedDefault: 1, get pace() { return pace; }, resume: () => { if (RUN) { playing = true; setPP(); } }, setSpeed: v => { const b = $$('.up-spd button', bar).find(x => +x.dataset.spd === v); if (b) b.click(); },

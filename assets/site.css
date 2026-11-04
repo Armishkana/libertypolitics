@@ -1395,6 +1395,51 @@ html[lang="fa"] .hi-q{quotes:"\00AB" "\00BB"}
 
 /* the link to the terms beside every box that takes something (build/consent.py, 26 October 2026): a 40px tap target */
 .consent-note a{display:inline-flex;align-items:center;min-height:40px}
+
+/* People first (4 November 2026): every comment says what it answers, the site's own answers sit folded under the comment
+   they answer, and the side of All discussions offers comments worth answering (community.js, row, groupCard, drawJump). */
+.said-to{display:flex;flex-direction:column;gap:2px;margin:8px 0 2px;padding:6px 10px;min-height:40px;justify-content:center;border-inline-start:3px solid var(--field);background:var(--raise);border-radius:6px;color:var(--dim);font-size:.85rem;line-height:1.35;text-decoration:none}
+.said-to:hover{color:var(--ink)}
+.said-to-w{font-weight:700;color:var(--ink)}
+.said-to q{quotes:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.said-to q::before{content:'\201C'}.said-to q::after{content:'\201D'}
+.said.fold{padding:0;background:transparent;border-style:dashed}
+.said.fold>:not(.said-fold){display:none}
+.said-fold{display:flex;align-items:center;gap:10px;inline-size:100%;min-height:44px;padding:8px 12px;border:0;background:transparent;color:var(--dim);font:600 .88rem/1.3 var(--body);text-align:start;cursor:pointer}
+.said-fold-w{flex:1 1 auto;min-width:0}
+.said-fold-w::before{content:'';display:inline-block;inline-size:8px;block-size:8px;margin-inline-end:8px;border-radius:50%;background:var(--field);vertical-align:middle}
+.said-fold-when{flex:none;font-weight:500}
+.said-fold-go{flex:none;color:var(--field);font-weight:700}
+.said-fold:hover .said-fold-go{text-decoration:underline}
+.said-lit{outline:2px solid var(--field);outline-offset:2px}
+.said .meta .tag.xp{color:var(--field);font-weight:700}
+.said .meta .tag.newbie{color:var(--ga);font-weight:700}
+.reply-here{display:grid;gap:4px;padding:8px 10px;background:var(--raise);border-radius:6px;font-size:.88rem;color:var(--dim)}
+.reply-here-w{margin:0}
+.reply-here-w b{color:var(--ink)}
+.reply-here q{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.dg-k{flex:1 0 100%;margin-top:2px;font:700 .75rem/1.2 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.dg-wait{display:inline-block;margin-inline-start:4px;padding:2px 8px;border-radius:999px;background:var(--raise);color:var(--ink);font-weight:700;font-size:.82rem}
+.dg-c{display:grid;gap:2px}
+.dg-c+.dg-c{padding-top:8px;border-top:1px solid var(--line)}
+.dg-who{font-size:.86rem;color:var(--dim)}
+.dg-who b{color:var(--ink)}
+.dg-to{font-weight:600}
+.dg-c .dg-q{color:var(--ink);-webkit-line-clamp:2}
+.jump-best{display:grid;gap:4px;margin:0 0 14px;padding:12px;border:1px solid var(--field);border-radius:8px;color:var(--ink);text-decoration:none}
+.jump-best:hover{background:var(--raise)}
+.jump-best-k{font:700 .75rem/1.3 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--field)}
+.jump-best-k::before{content:'';display:inline-block;inline-size:10px;block-size:10px;margin-inline-end:6px;background:var(--field);clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);vertical-align:-1px}
+.jump-best-who{font-size:.82rem;color:var(--dim)}
+.jump-best-t{font-size:.95rem;line-height:1.45;overflow-wrap:anywhere}
+.jump-to{margin:2px 0 0;font-size:.82rem;color:var(--dim)}
+.jump-why{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+.jump-why span{padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--dim);font-size:.78rem;font-weight:700}
+.replies>.said.reply{position:relative}
+.said .meta>.who{flex-shrink:0;max-width:100%}
+html[lang="fa"] .said-to q::before{content:"\00AB"}html[lang="fa"] .said-to q::after{content:"\00BB"}
+.said .who>.said-sub{flex-shrink:0}
+.replies .said .meta>.who{flex-basis:100%}
 /* THE LOOK OF 14 OCTOBER 2026. This file is added after site.css by the build (render.py, extras): the site still
    loads one stylesheet. Where both files speak, this one decides.
 
@@ -1963,6 +2008,12 @@ select option,select optgroup{color:var(--ink);background-color:var(--panel)}
 /* 31 October 2026: a third group, Tools (../TOOLS.md), ran the bar 25px past its end at 1220px. Every link stays; between 1220
    and 1365px each one gives up 2px of its side padding (9 to 7), which measured 36px back. */
 @media(min-width:1220px) and (max-width:1365px){.top nav>a:not(.navgo):not(.acct):not(.yt),.top nav .nav-more>summary{padding-inline:7px}.top nav a.navgo{padding:0 11px}}
+/* 4 November 2026: the War Room became the Strategy Room (render.py nav), 44px longer. Measured in headless Chrome on the built
+   strategy/ page: the bar ran 18px past its end at 1220px (page scrolled sideways to 1238) and the strip under it cut Intel Room
+   by 26px at 760px. Every link stays: from 1220 to 1259px the bar's links give up 2px more a side (7 to 5, 36px back), and from
+   760 to 819px the strip's give up 3px a side (11 to 8, 30px back). */
+@media(min-width:1220px) and (max-width:1259px){.top nav>a:not(.navgo):not(.acct):not(.yt),.top nav .nav-more>summary{padding-inline:5px}}
+@media(min-width:760px) and (max-width:819px){.subnav .subnav-s>a{padding-inline:8px}}
 /* THE PHONE MENU (31 October 2026, render.py more_s; Armin: "it's really hard to maneuver the menu at the very top"). Under
    760px the five links no longer slide in a window one link wide: the strip is the pill and one Menu button, and Menu
    opens every page at once, the five places as tiles first. From 760px they fit beside the pill and the button says More.
@@ -2724,7 +2775,7 @@ html.lp-stream .coal-out{grid-column:3;grid-row:1;margin:0 8px 0 0;padding:0 10p
 .mt-vs-edge{display:block;padding:6px 8px;border-radius:8px;background:var(--sunk);color:var(--dim);font-weight:600}
 .mt-vs-edge b{color:var(--field)}
 .mt-vs-edge.is-big{color:var(--ink);box-shadow:inset 0 0 0 1px var(--field-edge)}
-.mt-vs-src a{min-height:auto}
+.mt-vs-src a{display:inline-flex;align-items:center;min-height:40px}      /* 4 Nov 2026: with one market link left there is no text beside it, so it is a control and needs 40px (phone-test) */
 /* a phone: each chamber gets the whole width, its seats on the left and the count and who controls it on the right, the
    chances under both; side by side at 360px the words broke on every line ("Chance to win it" on two) */
 @media(max-width:559px){
@@ -3220,7 +3271,7 @@ html.lp-stream .lps-bar{display:flex;position:fixed;top:calc(10px * var(--lps-z,
 .lps-x{min-height:max(40px,calc(30px * var(--lps-z,1)));padding:0 calc(12px * var(--lps-z,1));border:1px solid #3a3936;border-radius:999px;background:var(--panel);color:var(--dim);font:700 max(13px,calc(13.5px * var(--lps-z,1)))/1 var(--body);cursor:pointer}
 .lps-x:hover{color:var(--ink);border-color:var(--dim)}
 /* THE CONFLICT SIMULATOR (build/wargame.py, wargame.js). Added to the end of site.css by render.py; Iran Uncensored loads it as
-   assets/scenarios.css?v=6efa069cd2. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
+   assets/scenarios.css?v=42d7cf3462. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
    1 November 2026 (Armin: "a very high-end strategic video game look ... real video game visualizations"): THE BOARD IS THE
    PAGE. The theatre fills the first screen under the site's header, a WebGL board (wargame.js) with the command interface
    drawn over it on dark glass: the top bar, the order of battle (left), the panel (right; on a phone a bottom sheet), the

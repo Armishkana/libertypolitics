@@ -92,7 +92,7 @@
       "tier" is any word now (join, intel, gather, lead): only "main" still gets its small lead in fit()
       a mission's "auto": "account" | "questions" | "profile" | "post" | "reply" | "warroom"      (14 October 2026, evening;
                                  post and reply 15 October; warroom 15 October: a live post or reply of the reader's own in
-                                 the War Room's discussion, page:build) it ticks itself from the reader's
+                                 the Strategy Room's discussion, page:build) it ticks itself from the reader's
                                  own account (build/members.js tells this file through window.LPMembers and "lp:members"):
                                  no Start, no report, one button to do it, and [data-q-tick] inside the card gets
                                  data-q-tick-on once done. Its XP is never claimed here: build/quests.py grants it.
@@ -260,7 +260,7 @@ function run() {
      no XP claimed from this page: build/quests.py grants its XP from what build/people.py reads. With members.js missing,
      the account is still known (signed in) and the other two simply wait. */
   /* post and reply (15 October 2026): a live post of the reader's own that starts a thread, and one that answers somebody */
-  /* warroom (15 October 2026): a live post or reply of the reader's own in the War Room's discussion (members.js reads it) */
+  /* warroom (15 October 2026): a live post or reply of the reader's own in the Strategy Room's discussion (members.js reads it) */
   const AUTO_KINDS = ['account', 'questions', 'profile', 'post', 'reply', 'warroom'];
   let AUTO = { account: false, questions: false, profile: false, post: false, reply: false, warroom: false };
   /* the card says it too (data-q-auto, printed by missions.py): either one is enough */
@@ -392,7 +392,7 @@ function run() {
     profile: () => tt('Add a picture and one line about you on your profile, and this ticks itself.'),
     post: () => tt('Post your take in any discussion, and this ticks itself.'),
     reply: () => tt('Reply to another member in any discussion, and this ticks itself.'),
-    warroom: () => tt('Post one idea in the War Room, or answer one, and this ticks itself.')
+    warroom: () => tt('Post one idea in the Strategy Room, or answer one, and this ticks itself.')
   };
   function paintAuto(card, m, B, done) {
     B.start.hidden = B.report.hidden = B.drop.hidden = true;
@@ -401,9 +401,10 @@ function run() {
       const me = () => who();
       const L = window.LP && window.LP.open ? window.LP : null;
       const talk = m.auto === 'post' || m.auto === 'reply';
-      /* the War Room is Liberty Politics' warroom/ (build/room.py); its discussion is page:build */
+      /* the Strategy Room is Liberty Politics' strategy/ (build/room.py; the War Room at warroom/ until 4 November 2026, which
+         forwards); its discussion is page:build */
       const go = m.auto === 'warroom'
-        ? el('a', 'btn btn-key', tt('Open the War Room'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + 'warroom/#discussion', 'data-q-auto-go': '' })
+        ? el('a', 'btn btn-key', tt('Open the Strategy Room'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + 'strategy/#discussion', 'data-q-auto-go': '' })
         : talk
         ? el('a', 'btn btn-key', tt('Open the discussion'), { href: (H.getAttribute('data-root') || './') + (typeof SITE.base === 'string' ? SITE.base : '') + '#discussion', 'data-q-auto-go': '' })
         : m.auto === 'profile'

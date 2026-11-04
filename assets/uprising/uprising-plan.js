@@ -182,6 +182,11 @@ export async function start(opt) {
     const P = [];
     P.push({ id: 'march', n: tr('One big march'), why: tr('2009: one column on the main avenue to the biggest square, hundreds of thousands strong.'), src: 'https://iranhumanrights.org/?p=2523',
       hour: 16, net: 'regime', foreign: false, hold: [main], avoid: [], groups: mid.slice(0, 3).map(s => G_(s, main, 15000, 0)) });
+    // 1978 (4 Nov 2026: the five plans began in 2009). Tasua and Ashura, 10-11 December 1978: millions marched by day, the
+    // bazaar shut, the columns met at the great square. Source: research.json iranUprisings[0] peakTurnout. The regime here still
+    // answers the way it did from 2009 to 2026, which the line says.
+    if (baz.length) P.push({ id: 'ashura', n: tr('Ashura 1978: the whole city by day'), why: tr('December 1978: on Tasua and Ashura millions marched by day, the bazaar shut, and the columns met in one square. Here the regime answers as it does today.'), src: 'https://en.wikipedia.org/wiki/Iranian_revolution',
+      hour: 10, net: 'regime', foreign: false, hold: [main], avoid: [], groups: [siteXY(baz[0]), ...mid.slice(0, 3)].slice(0, 4).map((s, i) => G_(s, main, i ? 20000 : 30000, 0)) });
     P.push({ id: 'many', n: tr('Every neighbourhood at once'), why: tr('2022: small crowds in many districts at once, each holding its own corner, hard to crush everywhere.'), src: 'https://al-monitor.com/originals/2022/10/bold-tactics-have-kept-iran-protests-going',
       hour: 20, net: 'regime', foreign: false, hold: [], avoid: [], groups: ring.slice(0, 6).map(s => { const t = nearestSite(s, ['sq2', 'square', 'uni', 'bazaar']); return G_(s, t, 3000, 0); }) });
     if (baz.length || uni.length) {
@@ -205,7 +210,9 @@ export async function start(opt) {
   // the plan in the address (?pl=): the city, then the plan, base64url. A link a reader chooses to send; nothing is saved anywhere.
   const enc = o => btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const dec = s => JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))));
-  function toAddr() { try { const u = new URL(location.href); u.searchParams.set('city', city.id); u.searchParams.set('pl', enc(slim(plan))); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (_) { } }
+  // Iran Uncensored keeps the plan out of the address (4 Nov 2026): its visitor counter reads the address on every change, and
+  // the page promises that nothing a reader does leaves the device. The Share button builds the link only when tapped.
+  function toAddr() { if (IU) return; try { const u = new URL(location.href); u.searchParams.set('city', city.id); u.searchParams.set('pl', enc(slim(plan))); history.replaceState(null, '', u.pathname + u.search + u.hash); } catch (_) { } }
   const slim = p => ({ h: p.hour, i: p.net === 'off' ? 1 : 0, f: p.foreign ? 1 : 0, o: p.hold, a: p.avoid.map(v => v.map(Math.round)), g: p.groups.map(g => [g.s.map(Math.round), g.to, g.n, g.wave, g.via.map(v => v.map(Math.round))]) });
   const fat = s => ({ id: 'mine', hour: s.h, net: s.i ? 'off' : 'regime', foreign: !!s.f, hold: s.o || [], avoid: s.a || [], groups: (s.g || []).slice(0, MAXG).map(g => ({ s: g[0], to: g[1], n: g[2], wave: g[3] || 0, via: g[4] || [] })) });
 
@@ -239,7 +246,7 @@ export async function start(opt) {
     const crowds = P.groups.map((g, i) => ({ i, ids: [i], name: GL[i], st: 'wait', x: g.s[0], y: g.s[1], d: 0, n: 0, n0: g.n * turnout * rr(0.6, 1.3), res: rr(0.65, 0.85),
       formAt: g.wave + rr(0, 10), form: null, r: 0, rAt: 0, holdT: 0, f: {}, seen: {}, regroup: 0, to: g.to, route: RT[i], edge: isEdge(g.s[0], g.s[1]) }));
     const ev = [], frames = [], held = {}; for (const h of P.hold) held[h] = 0;
-    let dead = 0, hurt = 0, jailed = 0, peak = 0, topR = 0, merges = 0, firstArr = {}, lastArr = {};
+    let dead = 0, hurt = 0, jailed = 0, peak = 0, topR = 0, merges = 0, firstArr = {}, lastArr = {}, early = -1;
     const clock = m => { const t = (P.hour * 60 + m) % 1440; return N_(String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(Math.floor(t % 60)).padStart(2, '0')); };
     const say = keep ? (m, k, txt, x, y, key) => ev.push({ m, k, t: clock(m), txt: txt(), x, y, key: !!key }) : () => 0;
     const live = () => crowds.filter(c => c.st === 'walk' || c.st === 'hold');
@@ -258,8 +265,8 @@ export async function start(opt) {
           if (c.route.len > 50) say(m, 'go', () => tf('Group {g} sets off for {p}, {k} km on the streets.', { g: c.name, p: siteName(B.sites[c.to]), k: N_((c.route.len / 1000).toFixed(1)) }), c.x, c.y);
         }
         if (c.st === 'gone' && c.regroup && m >= c.regroup) {      // 2022: scattered crowds re-form nearby a while later
-          c.regroup = 0; c.st = 'hold'; c.n = Math.max(300, c.nLost * rr(0.2, 0.4)); c.res = rr(0.45, 0.6); c.r = Math.max(0, c.r - 2); c.holdT = 0; c.x += rr(-500, 500); c.y += rr(-500, 500); c.seen = {}; c.form = m;
-          say(m, 'regroup', () => tf('Part of Group {g} regroups {p}: about {n} people.', { g: c.name, p: placeAt(c.x, c.y), n: big(c.n) }), c.x, c.y);
+          c.regroup = 0; c.st = 'hold'; c.n = Math.max(300, c.nLost * rr(0.2, 0.4)); c.res = rr(0.45, 0.6); c.r = Math.max(0, c.r - 2); c.holdT = 0; c.x += rr(-500, 500); c.y += rr(-500, 500); c.seen = {}; c.form = m; c.lostAt = -1; c.rgAt = m;
+          say(m, 'regroup', () => tf('Part of Group {g} regroups {p}: about {n} people.', { g: c.name, p: placeAt(c.x, c.y), n: big(c.n) }), c.x, c.y, true);
         }
         if (c.st !== 'walk' && c.st !== 'hold') continue;
         // move
@@ -318,7 +325,7 @@ export async function start(opt) {
           c.res -= Lr.scatter * 0.3 * Math.min(2.5, q) * rr(0.7, 1.3) - (c.n > 50000 ? 0.022 : c.n > 15000 ? 0.014 : 0.008);
         } else c.res = Math.min(0.95, c.res + 0.004);
         if (c.res < C.breakAt || c.n < 250) {
-          c.st = 'gone'; c.nLost = Math.max(c.n, c.n0 * 0.5);
+          c.st = 'gone'; c.nLost = Math.max(c.n, c.n0 * 0.5); c.lostAt = m;
           say(m, 'scatter', () => tf('Group {g} breaks into the side streets {p}.', { g: c.name, p: placeAt(c.x, c.y) }), c.x, c.y, true);
           if (r() < (net === 'off' ? 0.28 : 0.42) && hNow > 6 || r() < 0.2) c.regroup = m + rr(35, 80);
         }
@@ -326,14 +333,25 @@ export async function start(opt) {
       }
       // holding the squares
       for (const h of P.hold) { const [hx, hy] = siteXY(h); if (crowds.some(c => c.st === 'hold' && c.n >= 2000 && Math.hypot(c.x - hx, c.y - hy) < 350)) held[h] += TICK; }
-      if (keep) frames.push({ m, net, dead, jailed, cs: crowds.map(c => ({ x: c.x, y: c.y, n: c.n, st: c.st, r: c.r, ids: c.ids.slice(), f: Object.assign({}, c.f), fs: c.seen })) });
-      if (s > 24 && crowds.every(c => c.st === 'gone' && !c.regroup || c.st === 'merged' || c.st === 'wait' && c.formAt > m + 600)) { if (keep) say(m, 'end', () => tr('The streets are empty. The night is over for this plan.'), CX, CY, true); break; }
+      if (keep) frames.push({ m, net, dead, jailed, hd: Math.max(0, ...Object.values(held)), cs: crowds.map(c => ({ x: c.x, y: c.y, n: c.n, st: c.st, r: c.r, ids: c.ids.slice(), f: Object.assign({}, c.f), fs: c.seen, la: c.st === 'gone' ? c.lostAt : -1, nl: c.nLost || 0, rg: c.st === 'gone' ? c.regroup || 0 : 0, fa: c.formAt })) });
+      if (s > 24 && crowds.every(c => c.st === 'gone' && !c.regroup || c.st === 'merged' || c.st === 'wait' && c.formAt > m + 600)) {
+        early = m;
+        if (keep) {
+          say(m, 'end', () => tr('The streets are empty. The night is over for this plan.'), CX, CY, true);
+          // THE END IS SHOWN, NOT CUT (4 Nov 2026, Armin: "certain things just stop all of a sudden"): three more steps of the
+          // same empty streets, so the last crowd's scatter is seen fading before the debrief opens. Only the watched run
+          // (keep) gets them; the odds (keep false) never do, so no number changes.
+          const last = frames[frames.length - 1];
+          for (let k = 1; k <= 3; k++) frames.push(Object.assign({}, last, { m: m + k * TICK, cs: last.cs.map(c => Object.assign({}, c)) }));
+        }
+        break;
+      }
     }
     const endM = frames.length ? frames[frames.length - 1].m : T * TICK;
     const dawnHeld = P.hold.filter(h => { const [hx, hy] = siteXY(h); return crowds.some(c => c.st === 'hold' && c.n >= 2000 && Math.hypot(c.x - hx, c.y - hy) < 350); });
     if (keep) for (const h of dawnHeld) say(endM, 'dawn', () => tf('Morning: {p} is still held.', { p: siteName(B.sites[h]) }), ...siteXY(h), true);
     const heldMax = Math.max(0, ...Object.values(held));
-    return { ev, frames, dead, hurt, jailed, peak, topR, net: netAt, merges, held, heldMax, dawn: dawnHeld.length > 0, firstArr, lastArr, endM, last: crowds.filter(c => c.st === 'hold').length };
+    return { ev, frames, dead, hurt, jailed, peak, topR, net: netAt, merges, held, heldMax, dawn: dawnHeld.length > 0, firstArr, lastArr, endM, early, horizon: T * TICK, last: crowds.filter(c => c.st === 'hold').length };
   }
   // many runs: the odds. Returns the run closest to the middle as the one to watch.
   function evaluate(P, runs) {
@@ -372,10 +390,11 @@ export async function start(opt) {
   <button type="button" class="upp-ib upp-keyb" id="upp-keyb" aria-expanded="false">${esc(tr('Key'))}</button>
   <div class="upp-legend" id="upp-legend" hidden></div>
   <div class="upp-play" id="upp-play" hidden>
+    <div class="upp-goal" id="upp-goal"><span id="upp-goal-t"></span><i class="upp-gbar"><b id="upp-gfill"></b></i><em id="upp-pace" hidden></em></div>
     <div class="upp-clock"><b id="upp-clk">--:--</b><span id="upp-stat"></span></div>
     <div class="upp-ctl"><button type="button" class="upp-ib" id="upp-pp" aria-label="${esc(tr('Pause'))}"></button><button type="button" class="upp-ib" id="upp-step" aria-label="${esc(tr('Next event'))}">&#9197;</button>
       <input type="range" id="upp-scrub" min="0" max="100" value="0" aria-label="${esc(tr('Time'))}"><span class="upp-spd" role="group" aria-label="${esc(tr('Speed'))}"><button type="button" data-s="1" class="on">1×</button><button type="button" data-s="2">2×</button><button type="button" data-s="4">4×</button></span>
-      <button type="button" class="upp-ib" id="upp-stop">${esc(tr('Back to the plan'))}</button></div>
+      <button type="button" class="upp-ib" id="upp-snd" aria-pressed="false"></button><button type="button" class="upp-ib" id="upp-stop">${esc(tr('Back to the plan'))}</button></div>
     <ol class="upp-feed" id="upp-feed" aria-live="polite"></ol>
   </div>
 </div>
@@ -388,6 +407,7 @@ export async function start(opt) {
 </aside>`;
   stage.appendChild(room);
   box.dataset.plan = 'on';
+  let PT = null;      // the playthrough recorder while UPPLAN.playthrough() runs (below), else null
   const cv = $('#upp-cv'), ctx = cv.getContext('2d'), mapEl = $('#upp-map');
   const base = D.createElement('canvas'), bctx = base.getContext('2d', { willReadFrequently: true });      // the streets are drawn on the CPU: stroking tens of thousands of lines is fast there, and slow on some graphics chips
   let Wd = 0, Ht = 0, DPR = 1, V = { x: 0, y: 0, k: 0.02 }, BV = null, dirty = true, baseDirty = true;
@@ -418,13 +438,39 @@ export async function start(opt) {
     }
     BV = { x: V.x, y: V.y, k: V.k }; baseDirty = false;
   }
-  let raf = 0, settle = 0;
+  let raf = 0, settle = 0, frameErr = 0, lastFrameT = 0;
   function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+  // ONE BAD FRAME NEVER STOPS THE NIGHT (4 Nov 2026, "certain things just stop all of a sudden"): before, an error anywhere in
+  // a frame ended the loop, because the next frame was asked for only after the drawing finished. Now the next frame is
+  // always asked for while anything moves, the error is reported (the playthrough fails on it), and play carries on.
   function frame(t) {
-    raf = 0;
-    if (playing) advance(t);
-    if (dirty || playing) draw();
-    if (playing) kick();
+    raf = 0; const dtR = lastFrameT ? Math.min(0.1, (t - lastFrameT) / 1000) : 0.016; lastFrameT = t; const w0 = performance.now();
+    try {
+      if (playing) advance(t);
+      if (VT) glide(dtR);
+      if (dirty || playing) draw();
+      if (PT) PT.onFrame(t, performance.now() - w0);
+    } catch (e) { if (frameErr++ < 3) console.error('Uprising Simulator plan room frame:', e && e.stack || e); }
+    if (playing || VT) kick(); else lastFrameT = 0;
+  }
+  // THE VIEW FOLLOWS THE NIGHT (4 Nov 2026): during play, when a crowd walks, regroups or scatters outside the open part of
+  // the map, the view glides (never jumps) to take it in again, unless the reader moved the map in the last few seconds.
+  let VT = null, userAt = 0, followAt = 0;
+  const touched = () => { userAt = performance.now(); VT = null; };
+  function glide(dt) {
+    const a = Math.min(1, dt * 3.2);
+    V.x += (VT.x - V.x) * a; V.y += (VT.y - V.y) * a; V.k *= Math.pow(VT.k / V.k, a); dirty = true;
+    if (Math.abs(VT.k / V.k - 1) < 0.004 && Math.hypot(VT.x - V.x, VT.y - V.y) * V.k < 0.6) { V = { x: VT.x, y: VT.y, k: VT.k }; VT = null; baseDirty = true; }
+  }
+  function follow(now) {
+    if (now - followAt < 450 || now - userAt < 5000 || !shown || !Wd) return; followAt = now;
+    const F = freeArea(), m = 24, fr = shown.frames[Math.floor(fpos)], pts = [];
+    for (const c of fr.cs) if (c.st === 'walk' || c.st === 'hold' || (c.st === 'gone' && c.rg)) pts.push([c.x, c.y]);
+    if (!pts.length) return;
+    const out = pts.some(([x, y]) => { const X = sx(x), Y = sy(y); return X < F.l + m || X > F.r - m || Y < F.t + m || Y > F.b - m; });
+    if (!out) return;
+    for (const h of plan.hold) pts.push(siteXY(h));
+    VT = fitView(pts);
   }
   function draw() {
     dirty = false; if (!Wd || !B) return;
@@ -457,14 +503,32 @@ export async function start(opt) {
     for (const [s, i] of order) { if (it.some(o => o.k === 'dest' && o.lab === siteName(s))) continue; it.push({ k: 'name', x: s.x, y: s.y, lab: siteName(s), pri: pri - n * 0.01, i, red: !!REDK[s.k] }); if (++n >= want) break; }
   }
   let shown = null, fpos = 0;      // the run being shown and where in it (frame index, fractional)
+  const GHOST_MIN = 40;      // minutes a scattered crowd's ring stays on the map (it fades over them; kept dim while a regroup is due)
+  const clockAt = m => { const t = ((plan.hour * 60 + m) % 1440 + 1440) % 1440; return N_(String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(Math.floor(t % 60)).padStart(2, '0')); };
   function playItems() {
     const it = [], F = shown.frames, i0 = Math.min(F.length - 1, Math.floor(fpos)), f = fpos - i0, a = F[i0], b = F[Math.min(F.length - 1, i0 + 1)];
     const RT = shown.RT;
     plan.groups.forEach((g, i) => it.push({ k: 'route', p: RT[i] ? RT[i].p : null, pri: 0, i, faint: true }));
     for (const h of plan.hold) { const s = B.sites[h]; it.push({ k: 'dest', x: s.x, y: s.y, w: 26, h: 26, pri: 8, hold: true, lab: siteName(s), ids: [], held: a.cs.some(c => c.st === 'hold' && c.n >= 2000 && Math.hypot(c.x - s.x, c.y - s.y) < 350) }); }
+    const mNow = a.m + TICK * f;
     a.cs.forEach((c, j) => {
-      const c2 = b.cs[j]; if (c.st !== 'walk' && c.st !== 'hold') return;
-      const x = c.x + (c2.x - c.x) * f, y = c.y + (c2.y - c.y) * f, n = c.n + (c2.n - c.n) * f;
+      const c2 = b.cs[j] || c;
+      // NOTHING VANISHES WITHOUT A TRACE (4 Nov 2026, Armin: "the crowd disappears and then maybe reappears again after a
+      // while"). The model scatters a crowd and, often, regroups part of it later (2022). The map used to delete it the moment
+      // it scattered and conjure it back at the regroup, so it read as a glitch. Now a group that has not left yet waits at
+      // its start (with the hour it leaves), a scattered crowd leaves a fading dashed ring where it broke (kept, dim, while
+      // part of it may regroup), and the regroup rings like every key moment.
+      if (c.st === 'wait') { if (c.fa - mNow < 120) it.push({ k: 'pend', x: c.x, y: c.y, w: 24, h: 24, pri: 9.5, i: c.ids[0], lab: tf('leaves {t}', { t: clockAt(c.fa) }) }); return; }
+      if (c.st === 'gone') {
+        const age = mNow - c.la; if (c.la < 0 || age < 0 || (!c.rg && age > GHOST_MIN)) return;
+        const fade = c.rg ? 0.55 : Math.max(0.18, 1 - age / GHOST_MIN), rad = Math.max(11, Math.min(26, 6 + Math.sqrt(c.nl) / 8));
+        it.push({ k: 'ghost', x: c.x, y: c.y, w: rad * 2, h: rad * 2, pri: 9 + c.nl / 1e6, ids: c.ids, al: fade, rg: !!c.rg, age });
+        if (age < 15) { const kinds = Object.keys(c.f).filter(u => c.f[u] >= 1).sort((p, q) => U[p].maxRung - U[q].maxRung).slice(-2); for (const u of kinds) it.push({ k: 'force', x: c.x, y: c.y, w: 26, h: 22, pri: 6.5 + U[u].maxRung / 10, u, n: c.f[u], side: sideOf(c.x, c.y, AFF[u]), host: c.ids[0], rad }); }
+        return;
+      }
+      if (c.st !== 'walk' && c.st !== 'hold') return;
+      const live2 = c2.st === 'walk' || c2.st === 'hold' || c2.st === 'gone';      // the next step's place only when this crowd is still there in it
+      const x = live2 ? c.x + (c2.x - c.x) * f : c.x, y = live2 ? c.y + (c2.y - c.y) * f : c.y, n = live2 && c2.st !== 'gone' ? c.n + (c2.n - c.n) * f : c.n;
       const rad = Math.max(13, Math.min(30, 6 + Math.sqrt(n) / 7));
       it.push({ k: 'crowd', x, y, w: rad * 2, h: rad * 2, pri: 10 + n / 1e5, n, ids: c.ids, r: c.r });
       const kinds = Object.keys(c.f).filter(u => c.f[u] >= 1).sort((p, q) => U[p].maxRung - U[q].maxRung);
@@ -483,7 +547,7 @@ export async function start(opt) {
   let EXC = [];
   function measure() {
     const mr = mapEl.getBoundingClientRect(); EXC = [];
-    for (const el of [$('.upp-zoom', room), keyb, legend, $('#upp-play'), hint, $('#upp-debrief')]) {
+    for (const el of [$('.upp-zoom', room), keyb, legend, $('#upp-play'), hint, $('#upp-debrief'), $('#upp-coach')]) {
       if (!el || el.hidden || !el.offsetParent) continue; const r = el.getBoundingClientRect(); if (r.width) EXC.push([r.left - mr.left - 4, r.top - mr.top - 4, r.width + 8, r.height + 8]);
     }
     dirty = true; kick();
@@ -516,7 +580,7 @@ export async function start(opt) {
         continue;
       }
       if (o.k === 'force') {      // beside its crowd, on the side it came from; if no room, its count joins the force already drawn
-        const d = SIDE[o.side] || [1, 0], host = out.find(c => c.k === 'crowd' && c.ids[0] === o.host);
+        const d = SIDE[o.side] || [1, 0], host = out.find(c => (c.k === 'crowd' || c.k === 'ghost') && c.ids[0] === o.host);
         const hx = host ? host.px : ax, hy = host ? host.py : ay, rad = (host ? host.w / 2 : o.rad) + 16;
         let put = null;
         for (let step = 0; step < 4 && !put; step++) for (const turn of [0, 0.5, -0.5, 1, -1]) {
@@ -527,19 +591,44 @@ export async function start(opt) {
         else { const k = o.host + ':' + o.side; const f = out.find(x => x.k === 'force' && x.host === o.host); if (f) { f.more = (f.more || 0) + o.n; merged[k] = 1; } }
         continue;
       }
-      // crowds, starts, stops
+      // crowds, starts, stops, scattered crowds, groups not yet out
       const b = [ax - o.w / 2, ay - o.h / 2, o.w, o.h];
       if (inside(b) && !hit(b)) { o.px = ax; o.py = ay; boxes.push(b); out.push(o); continue; }
-      const s = slide(o, ax, ay, hit, inside);
-      if (s) { o.px = s[0]; o.py = s[1]; o.lx = ax; o.ly = ay; boxes.push(s[2]); out.push(o); }
-      else if (o.k === 'crowd') { const near = out.find(x => x.k === 'crowd' && Math.hypot(x.px - ax, x.py - ay) < 60); if (near) { near.n += o.n; near.ids = near.ids.concat(o.ids); } }
+      let s = slide(o, ax, ay, hit, inside);
+      // A CROWD IS NEVER DROPPED (4 Nov 2026). Before, a crowd with no free spot within a few steps of where it stood, or one
+      // under the play controls, or one off the edge of the view, was simply not drawn, and came back when it walked into
+      // the open: the "disappears and reappears" Armin saw. Now, in order: look further out; a crowd off the view or under a
+      // control is drawn at the nearest open edge with a pointer line to where it really is; a smaller marker; and only then
+      // its count joins the nearest crowd on the map (shown as more people there, never lost). out.dropped counts any crowd
+      // that still could not be shown: UPPLAN.playthrough() fails on one.
+      if (!s && (o.k === 'crowd' || o.k === 'ghost')) s = slide(o, ax, ay, hit, inside, OFF2);
+      if (!s && (o.k === 'crowd' || o.k === 'ghost' || o.k === 'pend')) {
+        const F = freeArea(), cx = Math.max(F.l + o.w / 2 + 2, Math.min(F.r - o.w / 2 - 2, ax)), cy = Math.max(F.t + o.h / 2 + 2, Math.min(F.b - o.h / 2 - 2, ay));
+        const bb = [cx - o.w / 2, cy - o.h / 2, o.w, o.h];
+        s = inside(bb) && !hit(bb) ? [cx, cy, bb] : slide(o, cx, cy, hit, inside, OFF2);
+        if (s) o.edge = true;
+      }
+      if (!s && (o.k === 'crowd' || o.k === 'ghost')) { const m = o.k === 'crowd' ? 22 : 18, o2 = Object.assign({}, o, { w: m, h: m }); s = slide(o2, ax, ay, hit, inside, OFF2); if (s) { o.w = o.h = m; } }
+      if (s) { o.px = s[0]; o.py = s[1]; if (Math.hypot(s[0] - ax, s[1] - ay) > 1) { o.lx = ax; o.ly = ay; } boxes.push(s[2]); out.push(o); }
+      else if (o.k === 'crowd' || o.k === 'ghost') {
+        // a scattered crowd's ring with no room at all is folded into the nearest ring or crowd drawn (its letter is kept there);
+        // a crowd's people join the nearest crowd drawn
+        let near = null, nd = 1e18; for (const x of out) if (x.k === 'crowd' || (o.k === 'ghost' && x.k === 'ghost')) { const d = Math.hypot(x.px - ax, x.py - ay); if (d < nd) { nd = d; near = x; } }
+        if (near) { if (o.k === 'crowd') near.n += o.n; near.ids = near.ids.concat(o.ids); near.joined = (near.joined || 0) + 1; }
+        // the reader opened the Key, a tip or the debrief over the map and no open spot is left: the crowd is behind that panel,
+        // counted as covered (it shows again the moment the panel closes); with no such panel open it is a drop, and fails
+        else if (READER_PANEL()) (out.covered = out.covered || []).push(...o.ids);
+        else out.dropped = (out.dropped || 0) + 1;
+      }
     }
     out.boxes = boxes;
     return out;
   }
-  function slide(o, ax, ay, hit, inside) {
+  const READER_PANEL = () => !legend.hidden || !!$('#upp-debrief') || !$('#upp-coach').hidden;
+  const OFF2 = []; for (let r = 4; r <= 9; r++) for (let a = 0; a < 16; a++) OFF2.push([Math.round(Math.cos(a * Math.PI / 8) * r * 10) / 10, Math.round(Math.sin(a * Math.PI / 8) * r * 10) / 10]);
+  function slide(o, ax, ay, hit, inside, offs) {
     const st = Math.max(o.w, o.h) * 0.75;
-    for (const [i, j] of OFF) { if (!i && !j) continue; const cx = ax + i * st, cy = ay + j * st, b = [cx - o.w / 2, cy - o.h / 2, o.w, o.h]; if (inside(b) && !hit(b)) return [cx, cy, b]; }
+    for (const [i, j] of offs || OFF) { if (!i && !j) continue; const cx = ax + i * st, cy = ay + j * st, b = [cx - o.w / 2, cy - o.h / 2, o.w, o.h]; if (inside(b) && !hit(b)) return [cx, cy, b]; }
     return null;
   }
   // ---------------------------------------------------------------- paint
@@ -554,7 +643,11 @@ export async function start(opt) {
     for (const o of L) if (o.k === 'ring') { c.beginPath(); c.arc(sx(o.x), sy(o.y), 34, 0, 7); c.strokeStyle = COL.now; c.lineWidth = 2.5; c.globalAlpha = 0.9; c.stroke(); c.globalAlpha = 1; }
     for (const o of L) {      // leader lines from a slid item to where it really is
       if (o.lx == null || o.k === 'route') continue;
-      c.beginPath(); c.moveTo(o.lx, o.ly); c.lineTo(o.px, o.py); c.strokeStyle = o.k === 'force' ? 'rgba(235,69,73,.7)' : 'rgba(245,184,66,.6)'; c.lineWidth = 1.2; c.stroke();
+      c.beginPath(); c.moveTo(o.lx, o.ly); c.lineTo(o.px, o.py); c.strokeStyle = o.k === 'force' ? 'rgba(235,69,73,.7)' : o.k === 'ghost' ? 'rgba(245,184,66,.3)' : 'rgba(245,184,66,.6)'; c.lineWidth = 1.2; c.stroke();
+      if (o.edge) {      // drawn at the edge of the view: an arrowhead on its rim points to where it really is
+        const a = Math.atan2(o.ly - o.py, o.lx - o.px), r = o.w / 2 + 3, hx = o.px + Math.cos(a) * r, hy = o.py + Math.sin(a) * r;
+        c.beginPath(); c.moveTo(hx + Math.cos(a) * 9, hy + Math.sin(a) * 9); c.lineTo(hx + Math.cos(a + 2.4) * 6, hy + Math.sin(a + 2.4) * 6); c.lineTo(hx + Math.cos(a - 2.4) * 6, hy + Math.sin(a - 2.4) * 6); c.closePath(); c.fillStyle = COL.crowd; c.fill();
+      }
     }
     for (const o of L) {
       if (o.k === 'dest') {
@@ -573,7 +666,15 @@ export async function start(opt) {
         c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = COL.crowd; c.fill(); c.lineWidth = 2.5; c.strokeStyle = RUNGC[o.r] || RUNGC[0]; c.stroke();
         c.fillStyle = COL.crowdInk; c.textAlign = 'center'; c.textBaseline = 'middle';
         c.font = '800 ' + (r > 18 ? 12 : 11) + 'px system-ui,sans-serif'; c.fillText(FA ? N_(big(o.n)) : big(o.n), x, y - (r > 16 ? 5 : 0));
-        if (r > 16) { c.font = '700 10px system-ui,sans-serif'; c.fillText(o.ids.map(i => GL[i]).join(''), x, y + 7); }
+        if (r > 16) { c.font = '700 10px system-ui,sans-serif'; c.fillText([...new Set(o.ids)].map(i => GL[i]).join(''), x, y + 7); }
+      } else if (o.k === 'ghost') {      // a crowd that scattered: a dashed ring that fades where it broke; ↺ while part of it may regroup
+        const x = o.px, y = o.py, r = o.w / 2; c.globalAlpha = o.al;
+        c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = 'rgba(245,184,66,.10)'; c.fill(); c.setLineDash([4, 4]); c.lineWidth = 2; c.strokeStyle = COL.crowd; c.stroke(); c.setLineDash([]);
+        c.fillStyle = COL.crowd; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '800 11px system-ui,sans-serif'; c.fillText([...new Set(o.ids)].map(i => GL[i]).join('') + (o.rg ? ' ↺' : ''), x, y + 0.5);
+        c.globalAlpha = 1;
+      } else if (o.k === 'pend') {      // a group that has not left yet: a hollow start with its letter
+        const x = o.px, y = o.py; c.beginPath(); c.arc(x, y, 11, 0, 7); c.fillStyle = 'rgba(16,19,23,.9)'; c.fill(); c.setLineDash([3, 3]); c.lineWidth = 2; c.strokeStyle = COL.crowd; c.stroke(); c.setLineDash([]);
+        c.fillStyle = COL.crowd; c.font = '800 12px system-ui,sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(GL[o.i], x, y + 0.5);
       } else if (o.k === 'force') {
         const x = o.px, y = o.py, w = o.w, h = o.h;
         c.beginPath(); rrect(c, x - w / 2, y - h / 2, w, h, 5); c.fillStyle = COL.force; c.fill(); c.lineWidth = 1.5; c.strokeStyle = '#2a0b0d'; c.stroke();
@@ -590,19 +691,20 @@ export async function start(opt) {
   let LAST = [];
 
   // ================================================================== the view: pan, zoom, fit
-  function fit(pts) {
+  function fit(pts) { V = fitView(pts); VT = null; baseDirty = true; dirty = true; kick(); }
+  function fitView(pts) {
     let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
     for (const [x, y] of pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
     if (x1 - x0 < 2000) { const m = (x0 + x1) / 2; x0 = m - 1000; x1 = m + 1000; } if (y1 - y0 < 2000) { const m = (y0 + y1) / 2; y0 = m - 1000; y1 = m + 1000; }
     const pad = PHONE() ? 30 : 60, F = freeArea(), fw = Math.max(80, F.r - F.l - pad * 2), fh = Math.max(80, F.b - F.t - pad * 2);
-    V = { k: Math.min(fw / (x1 - x0), fh / (y1 - y0)) };
-    V.x = (x0 + x1) / 2 - ((F.l + F.r) / 2 - Wd / 2) / V.k; V.y = (y0 + y1) / 2 + ((F.t + F.b) / 2 - Ht / 2) / V.k;
-    V.k = Math.max(0.004, Math.min(0.25, V.k)); baseDirty = true; dirty = true; kick();
+    const v = { k: Math.max(0.004, Math.min(0.25, Math.min(fw / (x1 - x0), fh / (y1 - y0)))) };
+    v.x = (x0 + x1) / 2 - ((F.l + F.r) / 2 - Wd / 2) / v.k; v.y = (y0 + y1) / 2 + ((F.t + F.b) / 2 - Ht / 2) / v.k;
+    return v;
   }
   const planPts = () => { const p = []; for (const g of plan.groups) { p.push(g.s, siteXY(g.to)); for (const v of g.via) p.push(v); } for (const h of plan.hold) p.push(siteXY(h)); return p; };
-  function zoomAt(f, px, py) { const x = wx(px), y = wy(py); V.k = Math.max(0.004, Math.min(0.25, V.k * f)); V.x = x - (px - Wd / 2) / V.k; V.y = y + (py - Ht / 2) / V.k; dirty = true; kick(); }
+  function zoomAt(f, px, py) { touched(); const x = wx(px), y = wy(py); V.k = Math.max(0.004, Math.min(0.25, V.k * f)); V.x = x - (px - Wd / 2) / V.k; V.y = y + (py - Ht / 2) / V.k; dirty = true; kick(); }
   let dragging = false, ptrs = new Map(), down = null, pinch = null;
-  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.offsetX, e.offsetY]); if (ptrs.size === 1) down = { x: e.offsetX, y: e.offsetY, vx: V.x, vy: V.y, t: Date.now(), moved: false }; else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: V.k }; } });
+  cv.addEventListener('pointerdown', e => { touched(); cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.offsetX, e.offsetY]); if (ptrs.size === 1) down = { x: e.offsetX, y: e.offsetY, vx: V.x, vy: V.y, t: Date.now(), moved: false }; else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: V.k }; } });
   cv.addEventListener('pointermove', e => {
     if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, [e.offsetX, e.offsetY]);
     if (ptrs.size === 2 && pinch) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); zoomAt(pinch.k * d / pinch.d / V.k, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); dragging = true; down && (down.moved = true); return; }
@@ -723,18 +825,25 @@ ${mates.length ? `<p class="upp-small upp-merge">${esc(tf('Merges with {g} there
   }
 
   // ================================================================== compare
+  let cmpTok = 0;
   function drawCompare() {
     const el = $('#upp-p-cmp');
     const P = presets(); const mine = plan.id === 'mine' ? [Object.assign(clone(plan), { n: tr('Your plan') })] : [];
     const all = mine.concat(P);
     el.innerHTML = `<p class="upp-lede">${esc(tf('The same night in {c}, run {n} times for each plan. The site\'s own plans each follow a real night in Iran.', { c: cname(city), n: N_(120) }))}</p><div class="upp-cmp" id="upp-cmpt"><p class="upp-small">${esc(tr('Working out the odds...'))}</p></div>`;
-    setTimeout(() => {
-      const ev = all.map(p => [p, evaluate(p, 120)]);
+    // one plan at a time with a pause between (4 Nov 2026): all six at once held the page still for a quarter of a second on a
+    // laptop, longer on a phone, and a tap in that time did nothing
+    const tok = ++cmpTok, ev = [];
+    const nextPlan = () => {
+      if (tok !== cmpTok) return;
+      if (ev.length < all.length) { ev.push([all[ev.length], evaluate(all[ev.length], 120)]); const t = $('#upp-cmpt p'); if (t) t.textContent = tf('Working out the odds... {a} of {b}', { a: N_(ev.length), b: N_(all.length) }); setTimeout(nextPlan, 16); return; }
       const best = ev.reduce((b, x) => (x[1].score > b[1].score ? x : b), ev[0]);
       $('#upp-cmpt').innerHTML = `<div class="upp-ct"><table><thead><tr><th>${esc(tr('Plan'))}</th><th>${esc(tr('Score'))}</th><th>${esc(tr('Holds 2h+'))}</th><th>${esc(tr('Biggest crowd'))}</th><th>${esc(tr('Lives lost'))}</th><th>${esc(tr('Goes as far as'))}</th></tr></thead><tbody>${ev.map(([p, E]) => `<tr${p === best[0] ? ' class="best"' : ''}><th><b>${esc(p.n)}</b>${p.why ? `<small>${esc(p.why)} ${ext(p.src, esc(tr('Source')))}</small>` : ''}</th><td><b class="upp-grade g-${grade(E.score)}">${grade(E.score)}</b> ${N_(E.score)}</td><td>${E.hasHold ? pct(E.hold2) : '<span class="upp-small">' + esc(tr('no square')) + '</span>'}</td><td>${big(E.peak)}</td><td>${N_(fmt(E.dead[1]))}</td><td>${esc(lname(LAD[E.topR]))}</td></tr>`).join('')}</tbody></table></div>
 <p class="upp-small">${esc(tr('Tap a plan to load it and change it.'))}</p><div class="upp-chips">${ev.map(([p]) => p.id === 'mine' ? '' : `<button type="button" class="upp-chip" data-load="${p.id}">${esc(p.n)}</button>`).join('')}</div>`;
       $$('[data-load]', el).forEach(b => b.onclick = () => { plan = clone(P.find(p => p.id === b.dataset.load)); selG = 0; tab('plan'); toAddr(); drawPanel(); fit(planPts()); changed(); plan.id = b.dataset.load; drawPanel(); });
-    }, 30);
+      if (PT) PT.state('compared');
+    };
+    setTimeout(nextPlan, 30);
   }
   // ================================================================== how the regime responds
   function drawRegime() {
@@ -751,25 +860,46 @@ ${mates.length ? `<p class="upp-small upp-merge">${esc(tf('Merges with {g} there
   $$('.upp-tabs [data-t]').forEach(b => b.onclick = () => tab(b.dataset.t));
 
   // ================================================================== playback
-  let playing = false, speed = 1, lastT = 0, evShown = 0, run = null;
+  let playing = false, speed = 1, lastT = 0, evShown = 0, run = null, pace = 1, ended = false, plays = 0, TESTX = 1;
   const pp = $('#upp-pp'), feed = $('#upp-feed'), scrub = $('#upp-scrub'), clk = $('#upp-clk'), stat = $('#upp-stat');
   const SEC_PER_TICK = 0.5;      // 1x: five simulated minutes every half second, an hour every six seconds
+  // THE PLAY NUMBERS (4 Nov 2026, the loop in data/uprising/play-loop.json): named events through the site's own counter
+  // (window.lpTrack, which exists only on the live address with the visitor tag), read weekly by projects/hub/site-analytics.py.
+  // The quit point rides in the event's name (uprising_quit_q1..q4, uprising_quit_plan) so the weekly read needs no custom
+  // dimension. Iran Uncensored sends no city and no plan: only that a night was played, ended, left, replayed or shared.
+  const track = (name, p) => { try { if (W.lpTrack) W.lpTrack(name, Object.assign(IU ? {} : { city: city ? city.id : '' }, IU ? {} : (p || {}))); } catch (_) { } };
+  const quarter = () => 'q' + Math.max(1, Math.min(4, Math.ceil(((fpos + 1) / Math.max(1, run ? run.frames.length : 1)) * 4)));
+  function quitRun(how) { if (run && !ended && fpos > 0) track('uprising_quit_' + quarter(), { how }); }
+  const planTag = () => (plan.id === 'mine' ? 'mine' : plan.id);
   function play() {
-    setMode(null);
+    setMode(null); closeDebrief(); quitRun('replay'); if (!coachEl.hidden) { coachEl.hidden = true; clearTimeout(coachT); }
     lastEval = lastEval || evaluate(plan, 120);
     const RT = planRoutes();
-    run = simulate(plan, RT, lastEval.seed, true); run.RT = RT; shown = run; fpos = 0; evShown = 0;
+    run = simulate(plan, RT, lastEval.seed, true); run.RT = RT; shown = run; fpos = 0; evShown = 0; ended = false; userAt = 0; VT = null;
     feed.innerHTML = ''; scrub.max = String(run.frames.length - 1); scrub.value = '0';
     $('#upp-play').hidden = false; tog(room, 'playing', true); $('#upp-run').textContent = tr('Play it again');
+    plays++; track(plays > 1 ? 'uprising_replay' : 'uprising_play', { plan: planTag() });
     setPlaying(true); syncUI(); resize(); measure(); fit(planPts());
+    if (PT) PT.state('playing');
+    coach('play');
   }
   function setPlaying(on) { playing = on; pp.innerHTML = on ? '&#10074;&#10074;' : '&#9654;'; pp.setAttribute('aria-label', on ? tr('Pause') : tr('Play')); lastT = 0; if (on) kick(); }
+  // the pace: an empty stretch (nobody out yet, or everyone scattered with a regroup still to come) runs four times as fast and
+  // the clock says so; a crowd that has just scattered, or a group about to leave, is never hurried past
+  function quietAt(F) { return !F.cs.some(c => c.st === 'walk' || c.st === 'hold' || (c.st === 'gone' && c.la >= 0 && F.m - c.la < 15) || (c.st === 'wait' && c.fa - F.m < 10)); }
   function advance(t) {
     if (!lastT) lastT = t; const dt = Math.min(0.1, (t - lastT) / 1000); lastT = t;
-    fpos = Math.min(run.frames.length - 1, fpos + dt * speed / SEC_PER_TICK);
-    syncUI();
-    if (fpos >= run.frames.length - 1) { setPlaying(false); debrief(); }
+    pace = quietAt(run.frames[Math.floor(fpos)]) ? 4 : 1;
+    fpos = Math.min(run.frames.length - 1, fpos + dt * speed * pace * TESTX / SEC_PER_TICK);
+    syncUI(); follow(t);
+    if (fpos >= run.frames.length - 1) { setPlaying(false); finish(); }
   }
+  function finish() {
+    if (!ended) { ended = true; track('uprising_end', { grade: grade(lastEval.score), plan: planTag() }); }
+    syncUI(); debrief(); if (PT) PT.state('debrief');
+  }
+  const goalT = $('#upp-goal-t'), goalF = $('#upp-gfill'), paceEl = $('#upp-pace');
+  const hm = m => N_(Math.floor(m / 60) + ':' + String(Math.floor(m % 60)).padStart(2, '0'));
   function syncUI() {
     const F = run.frames[Math.floor(fpos)];
     const tm = (plan.hour * 60 + F.m) % 1440;
@@ -777,20 +907,50 @@ ${mates.length ? `<p class="upp-small upp-merge">${esc(tf('Merges with {g} there
     const onst = F.cs.filter(c => c.st === 'walk' || c.st === 'hold').reduce((a, c) => a + c.n, 0);
     stat.innerHTML = `<span>${esc(tr('On the streets'))} <b>${big(onst)}</b></span><span>${esc(tr('Lives lost'))} <b>${fmt(F.dead)}</b></span><span>${esc(tr('Arrested'))} <b>${fmt(F.jailed)}</b></span><span class="${F.net === 'off' ? 'off' : ''}">${esc(F.net === 'off' ? tr('Internet cut') : tr('Internet on'))}</span>`;
     scrub.value = String(Math.floor(fpos));
+    // THE GOAL, ALWAYS ON SCREEN (4 Nov 2026): what this plan is trying to do, and how far it has got tonight
+    const hasHold = plan.hold.length > 0, need = 120, atEnd = fpos >= run.frames.length - 1;
+    const prog = hasHold ? Math.min(1, (F.hd || 0) / need) : run.early >= 0 && atEnd ? 0 : Math.min(1, F.m / Math.max(60, run.horizon));
+    const done = hasHold ? (F.hd || 0) >= need : atEnd && run.early < 0 && onst > 0;
+    goalT.textContent = hasHold ? (done ? tf('Goal reached: {p} held for two hours', { p: siteName(B.sites[plan.hold[0]]) }) : tf('Goal: hold {p} for two hours ({n} so far)', { p: siteName(B.sites[plan.hold[0]]), n: hm(F.hd || 0) }))
+      : (done ? tr('Goal reached: still on the streets in the morning') : tr('Goal: still on the streets in the morning'));
+    goalF.style.width = Math.round(prog * 100) + '%'; tog(goalF.parentNode, 'done', done);
+    const pt = playing && pace > 1 ? tr('Quiet streets: moving faster') : '';
+    if (paceEl.textContent !== pt) { paceEl.textContent = pt; paceEl.hidden = !pt; }
     // the feed: every event up to now, newest on top
     const list = run.ev.filter(e => e.m <= F.m);
     if (list.length !== evShown) {
-      evShown = list.length;
+      const before = evShown; evShown = list.length;
       feed.innerHTML = list.slice(-40).reverse().map((e, i) => `<li class="k-${e.k}${e.key ? ' key' : ''}${i === 0 ? ' new' : ''}"><time>${e.t}</time><span>${esc(e.txt)}</span></li>`).join('');
+      if (playing && before >= 0) for (const e of list.slice(before)) { sound(e.k); if (e.k === 'force' || e.k === 'scatter' || e.k === 'regroup') coach(e.k); }
     }
   }
-  pp.onclick = () => { if (!run) return; if (fpos >= run.frames.length - 1) { fpos = 0; evShown = -1; } setPlaying(!playing); };
-  $('#upp-step').onclick = () => { if (!run) return; setPlaying(false); const m = run.frames[Math.floor(fpos)].m; const nx = run.ev.find(e => e.m > m); const target = nx ? run.frames.findIndex(f => f.m >= nx.m) : run.frames.length - 1; fpos = target < 0 ? run.frames.length - 1 : target; syncUI(); dirty = true; kick(); if (fpos >= run.frames.length - 1) debrief(); };
-  scrub.oninput = () => { if (!run) return; setPlaying(false); fpos = +scrub.value; syncUI(); dirty = true; kick(); };
-  $$('.upp-spd button').forEach(b => b.onclick = () => { speed = +b.dataset.s; $$('.upp-spd button').forEach(x => tog(x, 'on', x === b)); });
-  $('#upp-stop').onclick = () => shownOff();
-  function shownOff() { setPlaying(false); shown = null; run = null; $('#upp-play').hidden = true; tog(room, 'playing', false); $('#upp-run').textContent = tr('Play the night'); const d = $('#upp-debrief'); if (d) d.remove(); measure(); }
+  pp.onclick = () => { if (!run) return; if (fpos >= run.frames.length - 1) { closeDebrief(); fpos = 0; evShown = -1; ended = false; plays++; track('uprising_replay', { plan: planTag() }); } setPlaying(!playing); if (PT) PT.state(playing ? 'playing' : 'paused'); };
+  $('#upp-step').onclick = () => { if (!run) return; setPlaying(false); const m = run.frames[Math.floor(fpos)].m; const nx = run.ev.find(e => e.m > m); const target = nx ? run.frames.findIndex(f => f.m >= nx.m) : run.frames.length - 1; fpos = target < 0 ? run.frames.length - 1 : target; syncUI(); dirty = true; kick(); if (fpos >= run.frames.length - 1) finish(); else if (PT) PT.state('paused'); };
+  scrub.oninput = () => { if (!run) return; setPlaying(false); fpos = +scrub.value; evShown = -1; syncUI(); dirty = true; kick(); if (PT) PT.state('paused'); };
+  $$('.upp-spd button').forEach(b => b.onclick = () => { speed = +b.dataset.s; $$('.upp-spd button').forEach(x => { tog(x, 'on', x === b); x.setAttribute('aria-pressed', String(x === b)); }); });
+  $('#upp-stop').onclick = () => { quitRun('back'); shownOff(); };
+  function closeDebrief() { const d = $('#upp-debrief'); if (d) { d.remove(); measure(); } }
+  function shownOff() { setPlaying(false); shown = null; run = null; ended = false; VT = null; $('#upp-play').hidden = true; tog(room, 'playing', false); $('#upp-run').textContent = tr('Play the night'); closeDebrief(); measure(); if (PT) PT.state('plan'); }
   $('#upp-run').onclick = () => play();
+  addEventListener('pagehide', () => { if (run && !ended) quitRun('leave'); else if (!plays && !W.__uppLeft) { W.__uppLeft = 1; track('uprising_quit_plan', {}); } });
+
+  // ================================================================== sound: off until the reader switches it on
+  // A few soft tones made in the page (no files): a crowd gathers, the forces arrive, a crowd scatters, a square is held.
+  // Off by default on both sites; the choice is remembered on Liberty Politics only (Iran Uncensored keeps nothing).
+  let snd = false, AC = null;
+  try { snd = !IU && localStorage.getItem('upp-sound') === '1'; } catch (_) { }
+  const sndB = $('#upp-snd');
+  function sndUI() { sndB.textContent = snd ? '🔊' : '🔇'; sndB.setAttribute('aria-pressed', String(snd)); sndB.setAttribute('aria-label', snd ? tr('Sound on') : tr('Sound off')); }
+  sndB.onclick = () => { snd = !snd; sndUI(); try { if (!IU) localStorage.setItem('upp-sound', snd ? '1' : '0'); } catch (_) { } if (snd) sound('gather'); };
+  sndUI();
+  const TONES = { gather: [[523, 0.07], [659, 0.09]], arrive: [[392, 0.08], [523, 0.1]], merge: [[523, 0.06], [784, 0.1]], force: [[147, 0.16]], rung: [[123, 0.18]], scatter: [[220, 0.08], [165, 0.14]], regroup: [[330, 0.06], [440, 0.1]], net: [[98, 0.25]], dawn: [[523, 0.08], [659, 0.08], [784, 0.14]] };
+  function sound(k) {
+    if (!snd || !TONES[k]) return;
+    try {
+      AC = AC || new (W.AudioContext || W.webkitAudioContext)(); let t = AC.currentTime;
+      for (const [f, d] of TONES[k]) { const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + 0.02); t += d * 0.9; }
+    } catch (_) { }
+  }
 
   // ================================================================== the debrief: why it worked or failed
   function debrief() {
@@ -821,16 +981,84 @@ ${mates.length ? `<p class="upp-small upp-merge">${esc(tf('Merges with {g} there
     // the size of the crowd at its goal
     if (E.hasHold) why.push([E.hold2 >= 0.3 ? '+' : '-', E.hold2 >= 0.3 ? tf('About {n} people held on long enough to hold the square in {p} of runs.', { n: big(E.peak), p: pct(E.hold2) }) : tf('At about {n} people, the crowd was too small to hold the square against the special units in most runs.', { n: big(E.peak) })]);
     if (E.topR >= 4) why.push(['-', tf('The regime went as far as {r}: in the record it does, once a crowd will not leave.', { r: lname(LAD[E.topR]).toLowerCase() }) + ' ' + ext(LAD[4].src[1], esc(tr('Source')))]);
+    // THE RESULT OF THIS NIGHT, said first (4 Nov 2026): how the night ended, the score, what it earned, a best to beat, Share
+    const endF = Rn.frames[Rn.frames.length - 1], onEnd = endF.cs.filter(c => c.st === 'walk' || c.st === 'hold').reduce((a, c) => a + c.n, 0);
+    const heldNow = plan.hold.filter(h => { const [hx, hy] = siteXY(h); return endF.cs.some(c => c.st === 'hold' && c.n >= 2000 && Math.hypot(c.x - hx, c.y - hy) < 350); });
+    const head = Rn.early >= 0 ? tf('The streets emptied at {t}. The night is over for this plan.', { t: clockAt(Rn.early) })
+      : heldNow.length ? tf('Morning: {p} is still held.', { p: siteName(B.sites[heldNow[0]]) })
+      : onEnd > 0 ? tf('Morning comes with about {n} people still on the streets.', { n: big(onEnd) }) : tr('The streets are empty. The night is over for this plan.');
+    const BADGES = [
+      ['held', tr('Held a square for two hours'), plan.hold.length > 0 && Rn.heldMax >= 120],
+      ['dawn', tr('Still there at dawn'), Rn.early < 0 && onEnd > 0],
+      ['merge', tr('Groups met and stood together'), Rn.merges >= 1],
+      ['big', tr('50,000 people out'), Rn.peak >= 50000],
+      ['safe', tr('No lives lost tonight'), Rn.dead < 0.5],
+      ['grade', tr('A plan graded A'), E.score >= 70],
+    ];
+    const got = new Set(BADGES.filter(b => b[2]).map(b => b[0]));
+    for (const k of got) BADGE_GOT.add(k);
+    const prev = BEST[city.id], isBest = prev == null || E.score > prev;
+    if (isBest) BEST[city.id] = E.score;
+    saveProgress();
+    const bestLine = prev == null ? '' : isBest && E.score > prev ? tf('New best for {c}: {s}, up from {p}.', { c: cname(city), s: N_(E.score), p: N_(prev) }) : tf('Your best for {c}: {s}.', { c: cname(city), s: N_(BEST[city.id]) });
     const el = D.createElement('div'); el.className = 'upp-debrief'; el.id = 'upp-debrief';
-    el.innerHTML = `<div class="upp-dh"><h3>${esc(tr('Why it went this way'))}</h3><button type="button" class="upp-ib" id="upp-dx" aria-label="${esc(tr('Close'))}">✕</button></div>${oddsHTML(E, false)}<ul class="upp-why">${why.map(([s, t]) => `<li class="${s === '+' ? 'up' : 'down'}"><i aria-hidden="true">${s === '+' ? '▲' : '▼'}</i><span>${t.replace(/<a /g, '<a ').split(/(<a [^>]*>[^<]*<\/a>)/).map((p, i) => i % 2 ? p : esc(p)).join('')}</span></li>`).join('')}</ul>
-<p class="upp-small">${esc(tr('Try another plan, or compare it with the site\'s own plans.'))}</p><div class="upp-chips"><button type="button" class="upp-chip" id="upp-dplan">${esc(tr('Change the plan'))}</button><button type="button" class="upp-chip" id="upp-dcmp">${esc(tr('Compare plans'))}</button></div>`;
+    el.innerHTML = `<div class="upp-dh"><h3>${esc(head)}</h3><button type="button" class="upp-ib" id="upp-dx" aria-label="${esc(tr('Close'))}">✕</button></div>${oddsHTML(E, false).replace('<dl class="upp-dl">', `<div class="upp-badges" aria-label="${esc(tr('What this night earned'))}">${BADGES.map(([k, t, on]) => `<span class="upp-badge${on ? ' on' : ''}${!on && BADGE_GOT.has(k) ? ' had' : ''}">${on ? '★' : '☆'} ${esc(t)}</span>`).join('')}</div>${bestLine ? `<p class="upp-best">${esc(bestLine)}</p>` : ''}<dl class="upp-dl">`)}
+<h4 class="upp-dh4">${esc(tr('Why it went this way'))}</h4><ul class="upp-why">${why.map(([s, t]) => `<li class="${s === '+' ? 'up' : 'down'}"><i aria-hidden="true">${s === '+' ? '▲' : '▼'}</i><span>${t.replace(/<a /g, '<a ').split(/(<a [^>]*>[^<]*<\/a>)/).map((p, i) => i % 2 ? p : esc(p)).join('')}</span></li>`).join('')}</ul>
+<p class="upp-small">${esc(tr('Change one thing, the hour, a group or a square, and play again to beat your score.'))}</p><div class="upp-chips"><button type="button" class="upp-chip on" id="upp-dagain">${esc(tr('Play it again'))}</button><button type="button" class="upp-chip" id="upp-dplan">${esc(tr('Change the plan'))}</button><button type="button" class="upp-chip" id="upp-dcmp">${esc(tr('Compare plans'))}</button><button type="button" class="upp-chip" id="upp-dshare">${esc(tr('Share this plan'))}</button></div>`;
     const old = $('#upp-debrief'); if (old) old.remove();
     mapEl.appendChild(el);
     { const pr = $('#upp-play').getBoundingClientRect(), mr = mapEl.getBoundingClientRect(), top = el.getBoundingClientRect().top - mr.top; el.style.maxHeight = Math.max(160, pr.top - mr.top - top - 10) + 'px'; }      // never over the controls
     $('#upp-dx').onclick = () => { el.remove(); measure(); };
     measure();
+    $('#upp-dagain').onclick = () => play();
     $('#upp-dplan').onclick = () => { shownOff(); tab('plan'); };
-    $('#upp-dcmp').onclick = () => { el.remove(); tab('cmp'); };
+    $('#upp-dcmp').onclick = () => { el.remove(); measure(); tab('cmp'); };
+    $('#upp-dshare').onclick = e => share(e.currentTarget, E);
+    coach('debrief');
+  }
+  // what a reader has earned: kept on this device on Liberty Politics; on Iran Uncensored only while the page is open
+  let BEST = {}; const BADGE_GOT = new Set();
+  try { if (!IU) { const v = JSON.parse(localStorage.getItem('upp-progress') || '{}'); BEST = v.best || {}; for (const k of v.badges || []) BADGE_GOT.add(k); } } catch (_) { }
+  function saveProgress() { try { if (!IU) localStorage.setItem('upp-progress', JSON.stringify({ best: BEST, badges: [...BADGE_GOT] })); } catch (_) { } }
+  // SHARE: a link that opens this plan in this city; built only when tapped (Iran Uncensored keeps nothing in the address)
+  async function share(btn, E) {
+    const u = new URL(location.origin + location.pathname); u.searchParams.set('city', city.id); u.searchParams.set('pl', enc(slim(plan)));
+    const txt = IU ? tr('A plan in the Uprising Simulator. Can you find a better one?') : tf('My plan for {c} scored {g} ({s}/100) in the Uprising Simulator. Can you beat it?', { c: cname(city), g: grade(E.score), s: N_(E.score) });
+    let how = 'copy';
+    try {
+      if (navigator.share && PHONE()) { await navigator.share({ title: tr('The Uprising Simulator'), text: txt, url: u.href }); how = 'share'; }
+      else await navigator.clipboard.writeText(txt + ' ' + u.href);
+    } catch (_) { if (how === 'share') return; btn.textContent = u.href; return; }
+    track('uprising_share', { how });
+    btn.textContent = how === 'copy' ? tr('Link copied') : tr('Shared');
+  }
+
+  // ================================================================== the first night teaches by playing
+  // Five short tips, each at the moment it is needed, once: before the first play, when the night starts, when the forces
+  // first arrive (the night pauses so it can be read), when a crowd first scatters, and at the first debrief. Skip ends them.
+  // Remembered on this device on Liberty Politics; on Iran Uncensored only for this visit (sessionStorage).
+  let COACH = {}; const coachStore = () => (IU ? W.sessionStorage : W.localStorage);
+  try { COACH = JSON.parse(coachStore().getItem('upp-coach') || '{}'); } catch (_) { }
+  const coachEl = D.createElement('div'); coachEl.className = 'upp-coach'; coachEl.id = 'upp-coach'; coachEl.hidden = true; coachEl.setAttribute('role', 'status'); mapEl.appendChild(coachEl);
+  let coachT = 0;
+  const TIPS = {
+    plan: () => tr('Your goal: keep people on the streets and hold the square. This plan is ready to go: press Play the night.'),
+    play: () => tr('Yellow circles are your crowds, with how many people. The bar at the top shows the goal.'),
+    force: () => tr('Red tags are the regime\'s forces. The ring round a crowd turns redder as they go further against it.'),
+    scatter: () => tr('A crowd that breaks leaves a dashed ring. ↺ means part of it may regroup, as crowds did in 2022.'),
+    debrief: () => tr('Change one thing and play again. The site\'s own plans are under Compare plans.'),
+  };
+  function coach(step) {
+    if (COACH.off || COACH[step] || !TIPS[step] || (PT && !PT.coach)) return;
+    COACH[step] = 1; try { coachStore().setItem('upp-coach', JSON.stringify(COACH)); } catch (_) { }
+    const pauses = step === 'force' && playing;
+    if (pauses) { setPlaying(false); if (PT) PT.state('paused'); }
+    coachEl.innerHTML = `<p>${esc(TIPS[step]())}</p><div><button type="button" class="upp-chip on" id="upp-cok">${esc(pauses ? tr('Carry on') : tr('Got it'))}</button><button type="button" class="upp-chip" id="upp-coff">${esc(tr('No more tips'))}</button></div>`;
+    coachEl.hidden = false; measure();
+    const close = () => { coachEl.hidden = true; clearTimeout(coachT); measure(); };
+    $('#upp-cok').onclick = () => { close(); if (pauses && run && !playing) { setPlaying(true); if (PT) PT.state('playing'); } };
+    $('#upp-coff').onclick = () => { COACH.off = 1; try { coachStore().setItem('upp-coach', JSON.stringify(COACH)); } catch (_) { } track('uprising_coach_off', {}); close(); if (pauses && run && !playing) setPlaying(true); };
+    clearTimeout(coachT); if (!pauses && step !== 'plan') coachT = setTimeout(close, 9000);
   }
 
   // ================================================================== the key
@@ -838,7 +1066,7 @@ ${mates.length ? `<p class="upp-small upp-merge">${esc(tf('Merges with {g} there
   legend.innerHTML = `<h4>${esc(tr('Key'))}</h4><ul>
 <li><i class="lg-start">A</i>${esc(tr('Where a group starts'))}</li><li><i class="lg-route"></i>${esc(tr('Its route on the streets'))}</li><li><i class="lg-via"></i>${esc(tr('A street it passes'))}</li>
 <li><i class="lg-dest"></i>${esc(tr('Where groups meet'))}</li><li><i class="lg-hold">⚑</i>${esc(tr('A square to hold'))}</li><li><i class="lg-avoid"></i>${esc(tr('A place to avoid'))}</li>
-<li><i class="lg-crowd">5k</i>${esc(tr('A crowd and how many people'))}</li>
+<li><i class="lg-crowd">5k</i>${esc(tr('A crowd and how many people'))}</li><li><i class="lg-ghost">A</i>${esc(tr('A crowd that scattered (↺: part of it may regroup)'))}</li><li><i class="lg-pend">B</i>${esc(tr('A group that has not left yet'))}</li>
 ${UNITS.map(u => `<li><i class="lg-force">${uicon(u)}</i>${esc(FA ? u.fa : u.n)}</li>`).join('')}
 <li><i class="lg-ring"></i>${esc(tr('What just happened'))}</li></ul><p class="upp-small">${esc(tr('The ring round a crowd shows how far the regime has gone against it:'))}</p><ol class="lg-lad">${LAD.map(l => `<li><i style="background:${RUNGC[l.r]}"></i>${esc(lname(l))}</li>`).join('')}</ol>`;
   keyb.onclick = () => { const on = legend.hidden; legend.hidden = !on; keyb.setAttribute('aria-expanded', String(on)); measure(); };
@@ -847,7 +1075,7 @@ ${UNITS.map(u => `<li><i class="lg-force">${uicon(u)}</i>${esc(FA ? u.fa : u.n)}
   async function switchCity(id) {
     if (!byId[id]) return;
     if (bootEl) { tog(bootEl, 'off', false); if (bootT) bootT.textContent = tf('Loading the streets of {c}...', { c: cname(byId[id]) }); }
-    shownOff(); setMode(null);
+    quitRun('city'); shownOff(); setMode(null);
     B = await loadCity(id); city = byId[id]; G = graph(B);
     CX = 0; CY = 0; R = B.r || 15000;
     const H = B.hex; let sx_ = 0, sy_ = 0, sp = 0; for (let i = 0; i < H.x.length; i++) { sx_ += H.x[i] * H.p[i]; sy_ += H.y[i] * H.p[i]; sp += H.p[i]; } if (sp) { CX = sx_ / sp; CY = sy_ / sp; }
@@ -862,6 +1090,9 @@ ${UNITS.map(u => `<li><i class="lg-force">${uicon(u)}</i>${esc(FA ? u.fa : u.n)}
     dispatchEvent(new CustomEvent('upp:city', { detail: id }));
   }
   new ResizeObserver(() => resize()).observe(mapEl);
+  // the controls over the map change size as they fill (the feed grows, the goal line wraps, a tip opens): measured again then,
+  // so a name is never drawn under them (4 Nov 2026: a street name sat under the playback bar after the feed grew)
+  { const ro = new ResizeObserver(() => measure()); ro.observe($('#upp-play')); ro.observe(coachEl); ro.observe(legend); }
 
   // ================================================================== the check (deploy path): nothing overlaps, no errors, light enough
   // Plays the typical run of every preset at three zooms and fails on any two screen boxes that meet, any item outside the map,
@@ -875,6 +1106,9 @@ ${UNITS.map(u => `<li><i class="lg-force">${uicon(u)}</i>${esc(FA ? u.fa : u.n)}
       run = simulate(plan, RT, lastEval.seed, true); run.RT = RT; shown = run; $('#upp-play').hidden = false; tog(room, 'playing', true); resize(); measure();
       for (const z of zooms) {
         fit(planPts()); V.k *= z; baseDirty = true; const tb = performance.now(); drawBase(); bctx.getImageData(0, 0, 1, 1); baseMs = Math.max(baseMs, performance.now() - tb);
+        // one untimed frame first (4 Nov 2026): the first frame a page ever draws pays for compiling the drawing code and the
+        // fonts once (measured: 180 ms on the first run, 7 ms on the second, same code), which is not what a reader sees each frame
+        fpos = 0; draw(); ctx.getImageData(0, 0, 1, 1);
         for (let f = 0; f < run.frames.length; f += 2) {
           // ctx.getImageData makes the canvas paint this frame now, inside its own timing: without it the browser holds the drawing of
           // every frame in this loop and paints hundreds at once inside one later frame (3 Nov 2026: a 250 ms "frame" on the Persian
@@ -898,8 +1132,133 @@ ${UNITS.map(u => `<li><i class="lg-force">${uicon(u)}</i>${esc(FA ? u.fa : u.n)}
     if (baseMs > (o.baseMs || 150)) bad.push(`${city.id}: redrawing the streets took ${Math.round(baseMs)} ms (budget ${o.baseMs || 150} ms)`);
     return { bad: [...new Set(bad)], frames, worstMs: Math.round(worst), p95Ms: Math.round(p95 * 10) / 10, baseMs: Math.round(baseMs) };
   }
-  W.UPPLAN = { check, switchCity, get plan() { return plan; }, evaluate: p => evaluate(p || plan, 120), presets, get city() { return city && city.id; }, play };
+  // ================================================================== THE PLAYTHROUGH (4 November 2026), the one home
+  // Armin, 4 November 2026: "a lot of bugs and glitches ... certain things just stop all of a sudden ... the crowd disappears and
+  // then maybe reappears again after a while ... Fix everything!" This plays whole nights the way a reader does, through the
+  // real controls, with choices drawn from a seeded random stream (the same seed plays the same games), and watches every
+  // drawn frame. It fails on:
+  //   a crowd drop-out: a crowd the night has on the streets (or one that has just scattered, or that is about to regroup)
+  //     that the map does not show in that frame, and any crowd place() could not show at all;
+  //   a frame stall: two frames further apart than o.stallMs (400 ms) while the night plays; a stuck night: the clock not
+  //     moving for 1.5 s while it plays; a night that never ends (no debrief within twice its length);
+  //   an error on the page or in a frame;
+  //   a control that is missing or does nothing when pressed (play, pause, step, the slider, the speeds, back).
+  // It records each second the clock, the crowds the night has, the crowds drawn and their people, and every state the room
+  // enters (plan, playing, paused, debrief, compared, regime, city). Callers: build/uprising_street_check.mjs --play (the
+  // cloud, 360 and 1280, many seeds; also drives the canvas with a real mouse), build/phone-test.html and
+  // ../site-iu/build/phone-test.html (the deploy gate on both sites). Never restate what it checks: read this.
+  async function playthrough(o) {
+    o = o || {};
+    const games = o.games || 4, bad = [], secs = [], wait = ms => new Promise(r => setTimeout(r, ms));
+    const R = rng(((o.seed || 1) * 2654435761) >>> 0), pick = a => a[Math.floor(R() * a.length)], chance = p => R() < p;
+    const R2 = rng(((o.seed || 1) * 40503 + 7) >>> 0), pick2 = a => a[Math.floor(R2() * a.length)], chance2 = p => R2() < p;      // the clicks during a night: their own stream, so a slower machine never changes the plans a seed builds
+    const errs = [], onErr = e => errs.push(String(e.message || e).slice(0, 200)); W.addEventListener('error', onErr);
+    const ce = console.error; console.error = function () { errs.push(Array.from(arguments).map(String).join(' ').slice(0, 200)); return ce.apply(console, arguments); };
+    const stallMs = o.stallMs || 400, x0 = TESTX, sp0 = speed;
+    if (!o.coach) { coachEl.hidden = true; clearTimeout(coachT); }
+    let drop = 0, stalls = 0, stuck = 0, worstGap = 0, ended0 = 0, quits = 0, frames0 = 0, dropEx = [], states = {}, covered = 0;
+    PT = {
+      coach: !!o.coach, states: {}, cur: 'plan', lastT: 0, progT: 0, progF: -1, secT: 0, game: 0,
+      state(s) { this.cur = s; this.states[s] = (this.states[s] || 0) + 1; },
+      onFrame(t, work) {
+        if (playing) {
+          if (this.lastT && t - this.lastT > stallMs) { stalls++; if (stalls <= 5) bad.push(`game ${this.game} ${city.id}: a frame stall of ${Math.round(t - this.lastT)} ms while the night played (the frame before took ${Math.round(this.work)} ms; last action ${this.act || 'none'})`); }
+          this.work = work;
+          if (this.lastT) worstGap = Math.max(worstGap, t - this.lastT);
+          if (fpos !== this.progF) { this.progF = fpos; this.progT = t; } else if (this.progT && t - this.progT > 1500 && fpos < run.frames.length - 1) { stuck++; this.progT = t; if (stuck <= 5) bad.push(`game ${this.game} ${city.id}: the clock stood still for 1.5 s while the night played`); }
+          this.lastT = t;
+        } else { this.lastT = 0; this.progT = 0; }
+        if (!shown || !run) return;
+        frames0++;
+        // what must be on the map in this frame, and what is
+        const F = run.frames[Math.floor(fpos)], mNow = F.m, want = [], have = new Set();
+        for (const c of F.cs) if (c.st === 'walk' || c.st === 'hold' || (c.st === 'gone' && c.la >= 0 && (c.rg || mNow - c.la < GHOST_MIN - TICK))) want.push(c);
+        for (const it of LAST) if (it.k === 'crowd' || it.k === 'ghost') for (const i of it.ids) have.add(i);
+        for (const i of LAST.covered || []) { have.add(i); covered++; }
+        const miss = want.filter(c => !have.has(c.ids[0]));
+        if (miss.length || LAST.dropped) { drop++; if (dropEx.length < 8) { const made = playItems(); dropEx.push(`game ${this.game} ${city.id} ${clockAt(mNow)}: ${miss.map(c => GL[c.ids[0]] + ' (' + c.st + ', ' + big(c.n) + (made.some(i => (i.k === 'crowd' || i.k === 'ghost') && i.ids.includes(c.ids[0])) ? ', made but not placed' : ', never made') + ')').join(', ') || LAST.dropped + ' could not be placed'}`); } }
+        if (!this.secT || t - this.secT >= 1000) {
+          this.secT = t;
+          const drawn = LAST.filter(i => i.k === 'crowd'), live = F.cs.filter(c => c.st === 'walk' || c.st === 'hold');
+          secs.push({ g: this.game, city: city.id, clock: clockAt(mNow), state: this.cur, crowds: live.length, drawn: drawn.length, ghosts: LAST.filter(i => i.k === 'ghost').length, people: Math.round(live.reduce((a, c) => a + c.n, 0)), peopleDrawn: Math.round(drawn.reduce((a, c) => a + c.n, 0)), miss: miss.length });
+        }
+      },
+      tap: (px, py) => onTap(px, py),
+    };
+    const click = sel => { const el = typeof sel === 'string' ? $(sel) : sel; if (!el || el.disabled || el.hidden || !el.offsetParent) return false; el.click(); return true; };
+    const setVal = (el, v, evs) => { if (!el) return; el.value = String(v); for (const e of evs) el.dispatchEvent(new Event(e, { bubbles: true })); };
+    const evalReady = async () => { for (let i = 0; i < 60 && !lastEval; i++) await wait(50); };
+    try {
+      for (let g = 1; g <= games; g++) {
+        PT.game = g;
+        const cid = o.cities ? o.cities[(g - 1) % o.cities.length] : g === 1 && o.first ? o.first : pick(CITIES).id;
+        if (cid !== city.id) { await switchCity(cid); PT.state('city'); }
+        await evalReady();
+        // THE PLAN, through its controls
+        click(pick($$('[data-pre]'))); await wait(80);
+        if (chance(0.5)) click(pick($$('[data-hour]')));
+        if (chance(0.3)) click(pick($$('[data-net]')));
+        if (chance(0.15)) click('#upp-foreign');
+        if (chance(0.4)) click('#upp-addg');
+        if (chance(0.25)) { const rm = $$('.upp-g [data-act=rm]'); if (rm.length) click(pick(rm)); }
+        if (chance(0.5)) { const r = pick($$('.upp-g [data-act=size]')); if (r) setVal(r, Math.floor(R() * 11), ['input', 'change']); }
+        if (chance(0.3)) { const s = pick($$('.upp-g [data-act=wave]')); if (s) setVal(s, pick([0, 15, 30, 60, 120]), ['change']); }
+        if (chance(0.3)) { const s = pick($$('.upp-g [data-act=to]')); if (s && s.options.length) setVal(s, pick(Array.from(s.options)).value, ['change']); }
+        if (chance(0.35)) click(pick($$('[data-hold]')));
+        if (chance(0.25) && click('#upp-avoid')) PT.tap(Wd * (0.25 + R() * 0.5), Ht * (0.25 + R() * 0.5));
+        if (chance(0.25)) { const v = pick($$('.upp-g [data-act=via]')); if (v && click(v)) { PT.tap(Wd * (0.2 + R() * 0.6), Ht * (0.2 + R() * 0.6)); setMode(null); } }
+        if (chance(0.15)) { const v = pick($$('.upp-g [data-act=start]')); if (v && click(v)) PT.tap(Wd * (0.2 + R() * 0.6), Ht * (0.2 + R() * 0.6)); }
+        if (chance(0.15)) { click('#upp-keyb'); await wait(30); click('#upp-keyb'); }
+        if (chance(0.2)) { click(pick(['#upp-zin', '#upp-zout'])); click('#upp-zfit'); }
+        lastEval = null; clearTimeout(evalT); lastEval = evaluate(plan, 120); drawOdds();
+        click(pick($$('.upp-spd button')));
+        TESTX = o.x || 8;
+        // THE NIGHT
+        if (!click('#upp-run')) { bad.push(`game ${g} ${city.id}: the Play the night button could not be pressed`); continue; }
+        if (!run || !playing) { bad.push(`game ${g} ${city.id}: Play the night did not start the night`); continue; }
+        const len = run.frames.length, budget = Date.now() + Math.max(8000, 2 * len * SEC_PER_TICK * 1000 / (TESTX * speed)) + 6000;
+        const quitAt = chance(0.12) ? 0.2 + R() * 0.6 : 2;
+        let acted = 0;
+        while (!ended && Date.now() < budget) {
+          await wait(120);
+          if (!run) break;
+          const at = fpos / Math.max(1, len - 1);
+          if (at > quitAt) { click('#upp-stop'); quits++; if (run || !$('#upp-play').hidden) bad.push(`game ${g} ${city.id}: Back to the plan did not end the night`); break; }
+          if (acted > 6 || !playing || !chance2(0.05)) continue;
+          acted++;
+          const a = pick2(['pause', 'step', 'scrub', 'speed', 'zoom', 'key']); PT.act = a + ' at ' + Math.round(performance.now());
+          if (a === 'pause') { const f0 = fpos; click('#upp-pp'); await wait(250); if (playing) bad.push(`game ${g} ${city.id}: Pause did not pause`); if (Math.abs(fpos - f0) > 2.5) bad.push(`game ${g} ${city.id}: the night moved on while paused`); click('#upp-pp'); if (!playing && !ended) bad.push(`game ${g} ${city.id}: Play did not resume`); }
+          else if (a === 'step') { const f0 = fpos; click('#upp-step'); if (fpos < f0) bad.push(`game ${g} ${city.id}: Next event went backwards`); if (!ended) click('#upp-pp'); }
+          else if (a === 'scrub') { setVal(scrub, Math.floor(R2() * fpos), ['input']); await wait(60); click('#upp-pp'); }
+          else if (a === 'speed') click(pick2($$('.upp-spd button')));
+          else if (a === 'zoom') { click(pick2(['#upp-zin', '#upp-zout'])); }
+          else { click('#upp-keyb'); await wait(60); click('#upp-keyb'); }
+        }
+        if (quitAt <= 1 && !ended) { await wait(100); continue; }
+        if (!ended) { bad.push(`game ${g} ${city.id}: the night never reached its end (frame ${Math.floor(fpos)} of ${len})`); shownOff(); continue; }
+        ended0++;
+        if (!$('#upp-debrief')) bad.push(`game ${g} ${city.id}: the night ended with no debrief`);
+        if (+scrub.value !== len - 1) bad.push(`game ${g} ${city.id}: the slider did not reach the end`);
+        // after the night: sometimes play it again from the debrief, compare, read the regime, close
+        if (chance(0.2)) { click('#upp-dagain'); await wait(200); if (!playing) bad.push(`game ${g} ${city.id}: Play it again did not start`); click('#upp-stop'); }
+        else if (chance(0.25)) { click('#upp-dcmp'); for (let i = 0; i < 80 && !$('#upp-cmpt table'); i++) await wait(50); if (!$('#upp-cmpt table')) bad.push(`game ${g} ${city.id}: Compare plans never finished`); click($('.upp-tabs [data-t=plan]')); }
+        else if (chance(0.2)) { click($('.upp-tabs [data-t=reg]')); PT.state('regime'); await wait(50); click($('.upp-tabs [data-t=plan]')); }
+        click('#upp-dx') || click('#upp-stop');
+        await wait(60);
+      }
+    } finally {
+      TESTX = x0; speed = sp0; $$('.upp-spd button').forEach(x => tog(x, 'on', +x.dataset.s === sp0)); shownOff();
+      W.removeEventListener('error', onErr); console.error = ce; states = PT.states; PT = null;
+    }
+    if (drop) bad.push(`${drop} drawn frames left out a crowd the night had (crowd drop-outs, must be 0): ${dropEx.join('; ')}`);
+    if (frameErr) bad.push(frameErr + ' frames threw an error');
+    for (const e of [...new Set(errs)].slice(0, 8)) bad.push('page error: ' + e);
+    return { bad: [...new Set(bad)], games, ended: ended0, quits, frames: frames0, dropouts: drop, covered, stalls, stuck, worstGapMs: Math.round(worstGap), states, secs };
+  }
+  W.UPPLAN = { check, playthrough, switchCity, get plan() { return plan; }, evaluate: p => evaluate(p || plan, 120), presets, get city() { return city && city.id; }, play };
 
   await switchCity(opt && opt.city && byId[opt.city] ? opt.city : (byId.tehran ? 'tehran' : CITIES[0].id));
+  track('uprising_open', {});
+  coach('plan');
   return W.UPPLAN;
 }

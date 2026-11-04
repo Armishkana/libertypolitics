@@ -25,7 +25,7 @@ const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, 
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=6efa069cd2 and assets/community-fa.js?v=6efa069cd2, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=42d7cf3462 and assets/community-fa.js?v=42d7cf3462, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -73,6 +73,8 @@ const OFF = !CFG || (!EMU && (LOCAL || /^demo-/.test(String(CFG.fb && CFG.fb.pro
    render.py). Off, the panel is email and password only and nothing here mentions Google sign-in. */
 const GOOGLE = !!(CFG && CFG.google === true);
 const MAX = (CFG && CFG.max) || 600;
+/* The reply picker's weights, from the site's data/discussion-rules.json by way of the build (render.py puts "pick" in lp-cfg). */
+const PICK_RULES = (CFG && CFG.pick && typeof CFG.pick === 'object') ? CFG.pick : null;
 /* The name rule. A site may allow more letters (Persian on iranuncensored.com); the rules of its own
    Firebase project must then allow exactly the same, so one file feeds both (site-iu/firebase/shared.json).
    LETTER: what counts as a letter of a name, for the face beside a post and for where a name ends in a reply. */
@@ -421,6 +423,67 @@ const looksLikeAddress = s => { const l = String(s || '').toLowerCase(); return 
    in the box when it is more than an opinion (KINDS in render.py), and those also reach us through the form. */
 const TAGS = { wrong: tt('Correction'), source: tt('Something missing'), bug: tt('Bug'), idea: tt('Idea'), report: tt('Mission report') };
 const PLAIN = { opinion: tt('Opinion'), video: tt('Video'), link: tt('Link') };
+/* The site's own account. Only the people who run the site can hold such a name (reservedName, and the rules), so the
+   Host tag, the fold and the picker all ask the same question. */
+const HOST_IDS = ['liberty-politics-site', 'iran-uncensored-site'];
+const isHost = p => !!p && (HOST_IDS.indexOf(p.uid) >= 0 || reservedName(p.name));
+
+/* PICK:START ------------------------------------------------------- which comments are worth answering (4 November 2026)
+   Armin, that day: the "respond to this" suggestions beside All discussions "picked bad targets", a bare link someone
+   posted among them. The old rule took any post of 30 characters with no reply. Now every reader comment (a post or a
+   reply) is scored by what it holds and what has happened to it, and only a comment worth a stranger's answer is offered:
+   a real question, an argument with a reason in it, a disagreement, a newcomer nobody has answered. Never a bare link,
+   a comment of a few words, something shouted or repeated, a note to the site (a bug, a correction), a mission report,
+   the site's own words, or a comment the site has already answered. The weights live in data/discussion-rules.json
+   ("pick"), which the site's own loop adjusts (LIVING.md, "The number"); W below is only what a page with no file uses.
+   This block uses nothing from the page: build/pick-cases.json is judged with it in node by render.py (pick_check). */
+const PICK_W = { question: 3, argument: 2, disagree: 2, newcomer: 2, unanswered: 3, likes: 1, recencyHalfLifeH: 24, minWords: 6 };
+const PICK_URL = /\bhttps?:\/\/\S+|\bwww\.\S+|\b[a-z0-9-]+\.(?:com|org|net|ir|io|tv|be|ly|co|me|news)\/\S*/gi;
+const PICK_Q = /[?؟]|^\s*(who|what|why|how|when|where|which|is|are|does|do|did|can|could|should|would|will|has|have)\b|(^|\s)(چرا|چطور|چطوری|چگونه|کی|کجا|چی|چه|آیا|مگه|چند)(?=[\s،.,!?؟]|$)/i;
+const PICK_ARG = /\b(because|since|so that|therefore|which means|for example|for instance|evidence|the record|voted|votes? (for|against)|according to|in fact|the data|percent)\b|\d+\s?%|\b\d{2,}\b|(^|\s)(چون|زیرا|برای همین|مثلا|مثلاً|یعنی|درصد|رای داد|سند)(?=[\s،.,!?؟]|$)/i;
+const PICK_DIS = /\b(disagree|wrong|not true|isn't true|but|however|actually|misleading|nonsense|i doubt|that's false|you forget)\b|(^|\s)no,|(^|\s)(مخالفم|اشتباه|غلط|ولی|اما|نه،|درست نیست|اینطور نیست)(?=[\s،.,!?؟]|$)/i;
+function pickFeatures(text) {
+  const t = String(text || ''), urls = (t.match(PICK_URL) || []).length, bare = t.replace(PICK_URL, ' ').replace(/[@#]\S+/g, ' ');
+  const words = bare.split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w));
+  const letters = bare.replace(/[^\p{L}]/gu, ''), upper = bare.replace(/[^\p{Lu}]/gu, '');
+  const counts = {};
+  words.forEach(w => { const k = w.toLowerCase(); counts[k] = (counts[k] || 0) + 1; });
+  const most = Math.max(0, ...Object.values(counts));
+  return {
+    words: words.length, urls,
+    question: PICK_Q.test(bare) ? 1 : 0, argument: PICK_ARG.test(bare) ? 1 : 0, disagree: PICK_DIS.test(bare) ? 1 : 0,
+    shout: letters.length >= 20 && upper.length / letters.length > 0.7 ? 1 : 0,
+    repeat: (/(\p{L})\1{5,}/u.test(t) && words.length < 25) || (words.length >= 6 && (most / words.length > 0.5 || Object.keys(counts).length / words.length <= 0.3)) ? 1 : 0
+  };
+}
+/* f: pickFeatures of the words. c: what happened to the comment: host (written by the site), mine (by this reader),
+   tag, kind (opinion, video, link), toSite (a reply that answers the site: the site owes it the answer), siteAnswered (the
+   site spoke after it in its thread), answered (anyone answered it), newcomer (the author's first comment anywhere on the
+   site), dupe (the same author posted the same words before), ups, downs, ageH. Answers { keep, score, why } where why names the rule that decided. */
+function pickJudge(f, c, w) {
+  w = Object.assign({}, PICK_W, w || {});
+  const drop = why => ({ keep: false, score: 0, why });
+  if (c.host) return drop('the site');
+  if (c.mine) return drop('your own');
+  if (c.tag === 'report') return drop('mission report');
+  if (c.tag === 'bug' || c.tag === 'wrong' || c.tag === 'source' || c.tag === 'idea') return drop('a note to the site');
+  if (c.toSite) return drop('talking to the site');
+  if ((f.urls || c.kind === 'link' || c.kind === 'video') && f.words < 12) return drop('a bare link');
+  if (f.urls > 2) return drop('a list of links');
+  if (f.shout || f.repeat || c.dupe) return drop('shouted or repeated');
+  if (f.words < (w.minWords || 6)) return drop('too short');
+  if ((c.downs || 0) - (c.ups || 0) >= 2) return drop('readers turned it down');
+  if (c.siteAnswered) return drop('the site answered it');
+  if (c.answered) return drop('already answered');
+  let s = w.unanswered;
+  s += f.question * w.question + f.argument * w.argument + f.disagree * w.disagree + (c.newcomer ? w.newcomer : 0);
+  s += Math.min(5, c.ups || 0) * w.likes + (f.words >= 15 && f.words <= 150 ? 1 : 0);
+  if (!f.question && !f.argument && !f.disagree && !c.newcomer && f.words < 15) return drop('nothing to answer');
+  const half = w.recencyHalfLifeH || 24;
+  s *= Math.pow(0.5, Math.max(0, c.ageH || 0) / half);
+  return { keep: true, score: Math.round(s * 1000) / 1000, why: [f.question && 'question', f.argument && 'argument', f.disagree && 'disagreement', c.newcomer && 'newcomer'].filter(Boolean).join(', ') || 'unanswered' };
+}
+/* PICK:END */
 
 /* ------------------------------------------------------------------ what went wrong, in plain words */
 /* When the database's daily allowance starts again: the next midnight in California, said on the reader's own clock. */
@@ -1974,7 +2037,7 @@ function initTalk() {
   const full = sec.hasAttribute('data-full'), page = sec.classList.contains('talk-all');
   T = { el: sec, feed: sec.hasAttribute('data-feed'), all: page || full, full, key: sec.getAttribute('data-on') || '', name: sec.getAttribute('data-name') || '',
     what: sec.getAttribute('data-what') || tt('this page'), empty: sec.getAttribute('data-empty') || '', sort: 'top', only: '', posts: [], state: 'idle', seq: 0, rev: 0, v2: false, replying: null, open: new Set(),
-    gs: 'act', gopen: new Set(), gshut: new Set(), gall: false };      // the list of all discussions: its order, the cards opened and closed, all of them shown (groupCard)
+    gs: 'act', gopen: new Set(), gshut: new Set(), gall: false, unfold: new Set() };      // the list of all discussions: its order, the cards opened and closed, all of them shown (groupCard)
   T.list = el('ul', 'votes talk-list');
   const go = sec.querySelector('.talk-go');
   if (go) sec.insertBefore(T.list, go); else sec.append(T.list);
@@ -2060,7 +2123,7 @@ function shape(id, d) {
   const ups = num(d.ups), downs = num(d.downs);
   return { id, about: str(d.about), subject: str(d.subject), kind: ['opinion', 'video', 'link'].includes(d.kind) ? d.kind : 'opinion', text: str(d.text).slice(0, MAX), url: str(d.url),
     tag: Object.prototype.hasOwnProperty.call(TAGS, d.tag) ? d.tag : '', parent: /^[A-Za-z0-9]{1,40}$/.test(str(d.parent)) ? d.parent : '',
-    mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : tt('A reader'), status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), my: 0, reported: false,
+    mine: d.mine === true, uid: str(d.uid), name: NAME_OK.test(str(d.name)) ? d.name : tt('A reader'), status: str(d.status), ups, downs, score: ups - downs, nrep: num(d.nrep), xp: num(d.xp), my: 0, reported: false,
     ms: d.createdAt && d.createdAt.toMillis ? d.createdAt.toMillis() : Date.now() };
 }
 /* ------------------------------------------------------------------ the saved copy of every live post
@@ -2249,11 +2312,16 @@ function talkAdd(post) {
 function hasPost(id) { return !!id && T.posts.some(q => q.id === id && !q.gone); }
 function ordered() {
   const mineFirst = p => (p.fresh || (me && p.uid === me.uid && p.status !== 'live')) ? 1 : 0;
+  /* 4 November 2026 (Armin: the front page's discussion showed "mostly comments FROM Liberty Politics itself"): the site
+     answers every post, so its answer was always the newest word in a thread and lifted the thread on its own clock. Only a
+     reader's word places a thread now, and on the site-wide list a thread nobody but the site has spoken in is left on its
+     own page (a plan the site opened in the Strategy Room, say): the list is what people say. */
   const last = new Map();
-  if (T.feed) T.posts.forEach(r => { if (!r.gone && r.parent && r.ms > (last.get(r.parent) || 0)) last.set(r.parent, r.ms); });
-  const act = p => Math.max(p.ms, (!p.parent && last.get(p.id)) || 0);
+  if (T.feed) T.posts.forEach(r => { if (!r.gone && r.parent && !isHost(r) && r.ms > (last.get(r.parent) || 0)) last.set(r.parent, r.ms); });
+  const act = p => Math.max(isHost(p) ? 0 : p.ms, (!p.parent && last.get(p.id)) || 0);
   const by = T.sort === 'new' ? (a, b) => act(b) - act(a) : (a, b) => (b.score - a.score) || (b.ms - a.ms);
-  return T.posts.filter(p => !p.gone && (!p.parent || (T.feed && !hasPost(p.parent)))).sort((a, b) => (mineFirst(b) - mineFirst(a)) || by(a, b));
+  const people = p => !T.feed || !isHost(p) || (!p.parent && repliesTo(p.id).some(r => !isHost(r)));
+  return T.posts.filter(p => !p.gone && (!p.parent || (T.feed && !hasPost(p.parent))) && people(p)).sort((a, b) => (mineFirst(b) - mineFirst(a)) || by(a, b));
 }
 /* The replies to one post, oldest first, the way a conversation reads. */
 function repliesTo(id) { return T.posts.filter(p => !p.gone && p.parent === id).sort((a, b) => a.ms - b.ms); }
@@ -2310,11 +2378,14 @@ function drawTalk() {
 const GROUPS_FIRST = 12;
 function threadOf(p) { return p.parent ? [p] : [p].concat(repliesTo(p.id)); }
 function groupsOf(every, rows) {
+  /* 4 November 2026: a card counts and shows what PEOPLE said. Until then its count, its people and its preview took in
+     the site's own answers, and because the site answers every post, every card on the list (37 of 37 on
+     libertypolitics.com, 11 of 11 on iranuncensored.com, measured that day) opened on the site's words. */
   const by = new Map();
   every.forEach(p => {
     let g = by.get(p.about);
-    if (!g) by.set(p.about, g = { about: p.about, n: 0, who: new Set(), last: 0, subject: '', shown: [], newest: null, mine: false, ry: false });
-    threadOf(p).forEach(x => { g.n++; if (x.uid) g.who.add(x.uid); if (x.ms > g.last) g.last = x.ms; });
+    if (!g) by.set(p.about, g = { about: p.about, n: 0, site: 0, who: new Set(), last: 0, subject: '', shown: [], recent: [], waiting: 0, mine: false, ry: false });
+    threadOf(p).forEach(x => { if (isHost(x)) { g.site++; return; } g.n++; if (x.uid) g.who.add(x.uid); if (x.ms > g.last) g.last = x.ms; });
     if (!g.subject && !p.parent && p.subject) g.subject = p.subject;
   });
   rows.forEach(p => {
@@ -2322,13 +2393,16 @@ function groupsOf(every, rows) {
     if (!g) return;
     g.shown.push(p);
     threadOf(p).forEach(x => {
-      if (x.status === 'live' && (x.text || x.url) && (!g.newest || x.ms > g.newest.ms)) g.newest = x;
+      if (x.status === 'live' && !isHost(x) && (x.text || x.url)) g.recent.push(x);
       if (x.fresh || (me && x.uid === me.uid && x.status !== 'live')) g.mine = true;
       if (x.status === 'live' && ryHere(x)) g.ry = true;
     });
+    if (!p.parent && !isHost(p) && p.status === 'live' && !repliesTo(p.id).length) g.waiting++;
   });
+  /* The newest two that say something: a "thanks" or a bare link is skipped while there is a comment of substance to show. */
+  by.forEach(g => { const say = x => x.text && pickFeatures(x.text).words >= 6 && !pickFeatures(x.text).urls ? 1 : 0; g.recent = g.recent.sort((a, b) => (say(b) - say(a)) || (b.ms - a.ms)).slice(0, 2).sort((a, b) => b.ms - a.ms); });
   const act = (a, b) => b.last - a.last;
-  return [...by.values()].filter(g => g.shown.length)
+  return [...by.values()].filter(g => g.shown.length && g.n)
     .sort((a, b) => (Number(b.mine) - Number(a.mine)) || (T.gs === 'busy' ? (b.n - a.n) || act(a, b) : act(a, b)));
 }
 function groupOpen(g) { return !T.gshut.has(g.about) && (T.gopen.has(g.about) || g.mine || g.ry); }
@@ -2358,6 +2432,7 @@ function groupCard(g) {
   const head = el('div', 'dg-h');
   /* The name leads to the page the discussion is on: the page itself for a mission (its card on the board), the page's
      discussion for the rest. The front page's own discussion is the page the reader is on, so its name leads nowhere. */
+  head.append(el('span', 'dg-k', WHERE[keyKind(g.about)] || tt('The site')));
   head.append(path != null && g.about !== 'page:home'
     ? el('a', 'dg-t', name, { href: keyKind(g.about) === 'quest' ? hrefOf(g.about, '') : root + path + '#discussion' })
     : el('span', 'dg-t', name));
@@ -2366,8 +2441,10 @@ function groupCard(g) {
     x.setAttribute('aria-expanded', 'true');
     head.append(x);
   }
-  const n = g.n === 1 ? tt('1 post') : tt('{n} posts', { n: g.n }), ppl = g.who.size === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: g.who.size });
-  head.append(el('p', 'dg-m', n + ' · ' + ppl + ' · ' + ago(g.last)));
+  const n = g.n === 1 ? tt('1 comment') : tt('{n} comments', { n: g.n }), ppl = g.who.size === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: g.who.size });
+  const m = el('p', 'dg-m', n + ' · ' + ppl + ' · ' + ago(g.last));
+  if (g.waiting) m.append(' ', el('span', 'dg-wait', g.waiting === 1 ? tt('1 waiting for an answer') : tt('{n} waiting for an answer', { n: g.waiting })));
+  head.append(m);
   li.append(head);
   if (open) {
     const ul = el('ul', 'votes dg-l');
@@ -2375,14 +2452,21 @@ function groupCard(g) {
     li.append(ul);
     return li;
   }
-  const go = btn('dg-p', null, () => groupFlip(g.about, true)), p = g.newest;
+  /* Closed, the card shows the two newest things people said in it, each with who it answers, so a reader can tell
+     at a glance what the discussion is about and whether it is worth opening. */
+  const go = btn('dg-p', null, () => groupFlip(g.about, true));
   go.setAttribute('aria-expanded', 'false');
-  if (p) {
-    const cut = (t, k) => t.length > k ? t.slice(0, k - 3).replace(/\s+\S*$/, '') + '...' : t;
-    const q = el('span', 'dg-q', null, ML ? { dir: dirOf(lgOf(p)) } : null);
-    q.append(el('b', null, p.name + ': '), p.text ? cut(p.text.replace(/\s+/g, ' '), 160) : tt('Video shared by {name}', { name: p.name }));
-    go.append(q);
-  }
+  const cut = (t, k) => t.length > k ? t.slice(0, k - 3).replace(/\s+\S*$/, '') + '...' : t;
+  g.recent.forEach(p => {
+    const c = el('span', 'dg-c');
+    const who = el('span', 'dg-who'); who.append(el('b', null, null)); who.firstChild.append(el('bdi', null, p.name));
+    const to = targetOf(p);
+    if (to) who.append(' ', el('span', 'dg-to', tt('to {name}', { name: to.name })));
+    who.append(el('span', 'dg-when', ' · ' + ago(p.ms)));
+    c.append(who);
+    c.append(el('span', 'dg-q', p.text ? cut(p.text.replace(/\s+/g, ' '), 150) : tt('Video shared by {name}', { name: p.name }), ML ? { dir: dirOf(lgOf(p)) } : { dir: 'auto' }));
+    go.append(c);
+  });
   go.append(el('span', 'dg-go', tt('Open the discussion') + ' (' + dig(g.n) + ')'));
   li.append(go);
   return li;
@@ -2433,8 +2517,9 @@ function drawCtl(every) {
       kinds.forEach(k => chip(WHERE[k], T.where === k, () => { T.where = T.where === k ? '' : k; }));
     }
     /* How big it is, in one line over the cards: every post, every discussion, every person. */
-    const all = every.flatMap(threadOf), n = all.length, ds = new Set(every.map(p => p.about)).size, ppl = new Set(all.map(p => p.uid).filter(Boolean)).size;
-    C.append(el('p', 'dg-sum', [n === 1 ? tt('1 post') : tt('{n} posts', { n }), ds === 1 ? tt('1 discussion') : tt('{n} discussions', { n: ds }), ppl === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: ppl })].join(' · ')));
+    /* What people said: the site's own answers are not counted as comments, and the site is not one of the people. */
+    const all = every.flatMap(threadOf).filter(p => !isHost(p)), n = all.length, ds = new Set(all.map(p => p.about)).size, ppl = new Set(all.map(p => p.uid).filter(Boolean)).size;
+    C.append(el('p', 'dg-sum', [n === 1 ? tt('1 comment') : tt('{n} comments', { n }), ds === 1 ? tt('1 discussion') : tt('{n} discussions', { n: ds }), ppl === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: ppl })].join(' · ')));
   }
   C.append(chips);
   if (both) C.append(langRow());
@@ -2720,6 +2805,30 @@ function trCtl(p) {
 
 /* The reader a reply answers, when it starts with their name ("@Dana K the 2019 vote..."): the longest name
    in that thread the words start with. Empty when it starts with no name from the thread. */
+/* The comment a reply answers: the earlier reply in the same thread by the reader it names with @, else the post the
+   thread hangs from. A thread is a list, never a tree (row), so this is how its turns are joined back up. */
+function targetOf(p) {
+  if (!p || !p.parent) return null;
+  const to = mention(p);
+  if (to) {
+    const rs = repliesTo(p.parent).filter(r => r.id !== p.id && r.ms <= p.ms && r.name === to);
+    if (rs.length) return rs[rs.length - 1];
+  }
+  return find(p.parent) || null;
+}
+/* A reader's first comment anywhere on the site, from the posts this page holds (on the list of all discussions that is
+   every live post). Asked once per drawing. */
+let firstSeen = null, firstAt = -1;
+function isFirst(p) {
+  if (!p.uid) return false;
+  if (firstAt !== T.rev + T.posts.length * 7) {
+    firstSeen = new Map();
+    T.posts.forEach(x => { if (!x.gone && x.uid && !isHost(x) && (!firstSeen.has(x.uid) || x.ms < firstSeen.get(x.uid).ms)) firstSeen.set(x.uid, x); });
+    firstAt = T.rev + T.posts.length * 7;
+  }
+  const f = firstSeen.get(p.uid);
+  return !!f && f.id === p.id && T.posts.filter(x => x.uid === p.uid && !x.gone).length === 1;
+}
 function mention(p) {
   if (!p.parent || p.text.charAt(0) !== '@') return '';
   const par = find(p.parent), names = (par ? [par.name] : []).concat(repliesTo(p.parent).map(r => r.name)).sort((a, b) => b.length - a.length);
@@ -2760,8 +2869,36 @@ function row(p, best) {
     meta.append(el('span', 'tag new', tt('New')));
     ryWatch(li, p.id);
   }
+  /* Reputation that already exists, shown where people argue: the reader's points from the mission board (build/quests.py
+     writes them; build/listen.py carries them in the saved copy of the posts, so this costs no read), and a mark on a
+     reader's first comment anywhere on the site, so the first word of a newcomer is the one people answer. */
+  if (!isHost(p) && typeof p.xp === 'number' && p.xp > 0) meta.append(el('span', 'tag xp', tt('{n} XP', { n: p.xp }), { title: tt('Points from the missions') }));
+  if (!isHost(p) && p.status === 'live' && T.feed && isFirst(p)) meta.append(el('span', 'tag newbie', tt('First comment')));
   head.append(faceLink(p.name, p.uid), meta);
   li.append(head);
+  /* What a reply answers, in one line with the words it answers, so nobody has to scroll up to follow a thread
+     (Armin, 4 November 2026: "I couldn't tell what each comment was about or what it responded to"). */
+  const to = p.parent ? targetOf(p) : null;
+  /* Shown when it is not plain from where the reply sits: it answers another reply, or other replies stand between it and
+     the post. The first reply under a post is right under what it answers, and a line saying so would be noise. */
+  if (to && T.all && (to.parent || repliesTo(p.parent).filter(r => r.ms < p.ms).length > 0 || !hasPost(p.parent))) {
+    const ctx = el('a', 'said-to', null, { href: '#p-' + to.id });
+    ctx.append(el('span', 'said-to-w', null)); ctx.firstChild.append(...ttParts('Replying to {name}', 'name', el('bdi', null, to.name)));
+    const cut = (t, k) => t.length > k ? t.slice(0, k - 3).replace(/\s+\S*$/, '') + '...' : t;
+    if (to.text) ctx.append(el('q', null, cut(to.text.replace(/\s+/g, ' '), 90), ML ? { dir: dirOf(lgOf(to)) } : { dir: 'auto' }));
+    ctx.addEventListener('click', ev => { const t = $('p-' + to.id); if (t) { ev.preventDefault(); t.scrollIntoView({ block: 'center' }); t.classList.add('said-lit'); setTimeout(() => t.classList.remove('said-lit'), 1600); } });
+    li.append(ctx);
+  }
+  /* The site's own words sit folded under the comment they answer: one line that says it answered, opened with a tap. They
+     are never the thing a reader sees first. They stay open for the reader they answer (a reply to them), for a link that
+     points at them, and once opened. */
+  if (isHost(p) && (p.parent || T.feed) && T.all && !T.unfold.has(p.id) && !ryHere(p) && location.hash !== '#p-' + p.id) {
+    li.classList.add('fold');
+    const f = btn('said-fold', null, () => { T.unfold.add(p.id); redraw(p); const r = $('p-' + p.id); if (r) { const q = r.querySelector('blockquote'); if (q) { q.setAttribute('tabindex', '-1'); try { q.focus({ preventScroll: true }); } catch (x) { } } } });
+    f.append(el('span', 'said-fold-w', p.parent ? tt('{name} answered', { name: p.name }) : tt('{name} started this', { name: p.name })), el('span', 'said-fold-when', ago(p.ms)), el('span', 'said-fold-go', tt('Show')));
+    f.setAttribute('aria-expanded', 'false');
+    li.append(f);
+  }
   /* The page a post is on. On the list of all discussions the card it sits in names it (groupCard), so only a short
      list of the newest posts from every page says it on each post. */
   if (T.feed && !T.all && pathOf(p.about) != null && !(p.parent && hasPost(p.parent))) li.append(el('a', 'said-on', tt('In: {page}', { page: nameOf(p.about, p.subject) }), { href: hrefOf(p.about, p.id) }));
@@ -2933,7 +3070,15 @@ function replyBox(p, to) {
   ta.addEventListener('input', () => { if (T.replying && T.replying.id === p.id) T.replying.text = ta.value; });
   /* Ctrl and Enter (Command and Enter on a Mac) sends, the way it does everywhere people argue. */
   ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); go.click(); } });
-  f.append(el('label', 'vh', tt('Your reply to {name}', { name }), { for: id }), ta, acts, line, termsNote());
+  /* Where the reader is and what they answer, over the box (4 November 2026): the name, the page on a list of every
+     discussion, and the first words of what they answer. */
+  const tgt = to || p, here = el('div', 'reply-here');
+  const hw = el('p', 'reply-here-w'); hw.append(...ttParts('Replying to {name}', 'name', el('b', null, null)));
+  hw.querySelector('b').append(el('bdi', null, name));
+  if (T.feed && pathOf(p.about) != null) hw.append(' · ' + nameOf(p.about, p.subject));
+  here.append(hw);
+  if (tgt.text) here.append(el('q', null, tgt.text.length > 120 ? tgt.text.slice(0, 117).replace(/\s+\S*$/, '') + '...' : tgt.text, ML ? { dir: dirOf(lgOf(tgt)) } : { dir: 'auto' }));
+  f.append(here, el('label', 'vh', tt('Your reply to {name}', { name }), { for: id }), ta, acts, line, termsNote());
   if (T.replying.msg) { line.textContent = T.replying.msg; line.className = 'said-msg' + (T.replying.bad ? ' bad' : ''); }
   f.addEventListener('submit', async ev => {
     ev.preventDefault();
@@ -3001,39 +3146,88 @@ function drawJump() {
     J.append(go);
   }
   if (T.state !== 'ok') { J.hidden = !J.firstChild; return; }
-  const me = user && user.uid, top = T.posts.filter(p => !p.gone && !p.parent && p.status === 'live' && p.text && p.uid !== me && !p.tag && p.text.length >= 30 && p.score >= 0);      // what a reader says or shares: a note to the site (a tag) is mine to answer
-  let picks = top.filter(p => !repliesTo(p.id).length).sort((a, b) => b.ms - a.ms).slice(0, 3), head = tt('Waiting for an answer');
-  if (!picks.length) {
-    const week = Date.now() - 7 * 86400000;
-    picks = top.filter(p => p.ms > week && repliesTo(p.id).length).sort((a, b) => repliesTo(b.id).length - repliesTo(a.id).length).slice(0, 3);
-    head = tt('Where the argument is');
+  /* 4 November 2026: the comments offered here are the ones pickJudge (above) finds worth a stranger's answer, best
+     first, never the old "any 30 characters with no reply" (Armin that day: it offered a bare link). Each says who wrote it,
+     where, what it answers when it is a reply, and why it is worth answering, so the reader knows what they walk into. */
+  const picks = pickRows().slice(0, 3);
+  const best = bestArgument();
+  if (best) {
+    const b = el('a', 'jump-best', null, { href: '#p-' + best.id });
+    b.append(el('span', 'jump-best-k', tt('Best argument this week')));
+    const w = el('span', 'jump-best-who'); w.append(el('bdi', null, best.name), ' · ' + nameOf(best.about, best.subject) + ' · ' + (best.ups === 1 ? tt('1 like') : tt('{n} likes', { n: best.ups })));
+    const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
+    b.append(w, el('span', 'jump-best-t', cut(best.text.replace(/\s+/g, ' '), 160), ML ? { dir: dirOf(lgOf(best)) } : { dir: 'auto' }));
+    b.addEventListener('click', ev => { ev.preventDefault(); openAt(best); });
+    J.append(b);
   }
   if (picks.length) {
-    J.append(el('h3', 'jump-h', head, { id: 'jump-h' }));
+    J.append(el('h3', 'jump-h', tt('Waiting for an answer'), { id: 'jump-h' }));
     const ul = el('ul', 'jump-list');
     const cut = (t, n) => t.length > n ? t.slice(0, n - 3).replace(/\s+\S*$/, '') + '...' : t;
-    picks.forEach(p => {
+    const WHY = { question: tt('Asks a question'), argument: tt('Makes an argument'), disagreement: tt('Disagrees'), newcomer: tt('First comment here'), unanswered: tt('Nobody has answered') };
+    picks.forEach(({ p, j }) => {
       const li = el('li');
-      const nr = repliesTo(p.id).length;
       const jw = el('p', 'jump-who');
-      jw.append(linkOr('span', 'who-link', p.name, profileHref(p.uid)), ' · ' + niceDate(p.ms) + (nr ? ' · ' + (nr === 1 ? tt('1 reply') : tt('{n} replies', { n: dig(nr) })) : ''));
-      li.append(jw, el('p', 'jump-t', cut(p.text, 140), ML ? { dir: 'auto' } : null));
-      li.append(btn('btn btn-line jump-b', tt('Answer {name}', { name: p.name }), () => {
-        /* A filter that hides the post would leave the reply box nowhere: show everything first. */
-        if (T.only || T.where || T.lang) { T.only = ''; T.where = ''; T.lang = ''; drawTalk(); }
-        if (T.v2 && hasPost(p.id)) {
-          T.replying = { id: p.id, at: '', pre: '', text: '' };
-          /* On the list of all discussions the post may sit in a card that is closed: the card opens with the box under it. */
-          if (T.feed && T.all && !$('p-' + p.id)) { groupFlip(p.about, true); const r = $('p-' + p.id), i = r && r.querySelector('.reply-in'); if (r) r.scrollIntoView({ block: 'center' }); if (i) try { i.focus({ preventScroll: true }); } catch (x) { } }
-          else redraw(p, 'reply-in');
-        }
-        else location.href = hrefOf(p.about, p.id);
-      }));
+      jw.append(linkOr('span', 'who-link', p.name, profileHref(p.uid)), ' · ' + nameOf(p.about, p.subject) + ' · ' + ago(p.ms));
+      li.append(jw);
+      const to = targetOf(p);
+      if (to) { const c = el('p', 'jump-to'); c.append(...ttParts('Replying to {name}', 'name', el('bdi', null, to.name))); li.append(c); }
+      li.append(el('p', 'jump-t', cut(p.text.replace(/\s+/g, ' '), 140), ML ? { dir: dirOf(lgOf(p)) } : { dir: 'auto' }));
+      const why = el('p', 'jump-why');
+      j.why.split(', ').filter(k => WHY[k]).slice(0, 2).forEach(k => why.append(el('span', null, WHY[k])));
+      if (why.firstChild) li.append(why);
+      li.append(btn('btn btn-line jump-b', tt('Answer {name}', { name: p.name }), () => answerAt(p)));
       ul.append(li);
     });
     J.append(ul);
   }
   J.hidden = !J.firstChild;
+}
+/* Every reader comment this page holds, judged by pickJudge, best first. */
+function pickRows() {
+  const now = Date.now(), uid = user && user.uid, out = [];
+  T.posts.forEach(p => {
+    if (p.gone || p.status !== 'live' || !String(p.text || '').trim()) return;
+    const top = p.parent ? find(p.parent) : p;
+    if (!top || top.gone || top.status !== 'live') return;
+    const later = (p.parent ? repliesTo(top.id) : repliesTo(p.id)).filter(r => r.id !== p.id && r.ms >= p.ms);
+    /* A later word answers this comment when it names its author, or, for the post itself, when it names nobody. */
+    const answers = r => (mention(r) ? mention(r) === p.name : !p.parent);
+    const tg = p.parent ? targetOf(p) : null;
+    const c = { host: isHost(p), mine: !!uid && p.uid === uid, tag: p.tag || '', kind: p.kind, toSite: !!tg && isHost(tg), dupe: T.posts.some(q => q !== p && !q.gone && q.uid === p.uid && q.ms < p.ms && q.text && q.text.trim() === p.text.trim()), siteAnswered: later.some(r => isHost(r) && answers(r)),
+      answered: later.some(r => !isHost(r) && r.uid !== p.uid && answers(r)), newcomer: T.feed && isFirst(p), ups: p.ups, downs: p.downs, ageH: (now - p.ms) / 3600000 };
+    const j = pickJudge(pickFeatures(p.text), c, PICK_RULES);
+    if (j.keep) out.push({ p, j });
+  });
+  return out.sort((a, b) => b.j.score - a.j.score);
+}
+/* The best argument of the last seven days: the reader post with the most likes (two at least), a real length, and more
+   likes than unlikes. Featured over the list, so the thing the site holds up is something a reader wrote. */
+function bestArgument() {
+  const week = Date.now() - 7 * 86400000;
+  return T.posts.filter(p => !p.gone && p.status === 'live' && !p.parent && !isHost(p) && p.ms > week && p.ups >= 2 && p.ups > p.downs && !p.tag && pickFeatures(p.text).words >= 15)
+    .sort((a, b) => (b.ups - b.downs) - (a.ups - a.downs) || b.ms - a.ms)[0] || null;
+}
+/* Show one comment where it stands: filters that would hide it are cleared, the card it is in opens, and it comes into view. */
+function openAt(p) {
+  if (T.only || T.where || T.lang) { T.only = ''; T.where = ''; T.lang = ''; }
+  if (p.parent) T.open.add(p.parent);      // a long thread shows two replies until asked: this one may be past them
+  if (T.feed && T.all) groupFlip(p.about, true); else drawTalk();
+  const r = $('p-' + p.id);
+  if (r) { r.scrollIntoView({ block: 'center' }); r.classList.add('said-lit'); setTimeout(() => r.classList.remove('said-lit'), 1600); }
+  return r;
+}
+/* Answer one comment: the reply box opens under it, with its author's name in it when it is a reply in a thread. */
+function answerAt(p) {
+  const top = p.parent || p.id;
+  if (!(T.v2 && hasPost(top))) { location.href = hrefOf(p.about, p.id); return; }
+  const pre = p.parent ? atName(p.name) + ' ' : '';
+  T.replying = { id: top, at: p.parent ? p.id : '', pre, text: pre };
+  const r = openAt(p);
+  const q = find(p.parent ? p.id : top);
+  if (q && !(T.feed && T.all)) redraw(q, 'reply-in');
+  const box = r && (r.querySelector('.reply-in') || (r.closest('.said:not(.reply)') || r).querySelector('.reply-in'));
+  if (box) { try { box.focus({ preventScroll: true }); box.setSelectionRange(box.value.length, box.value.length); } catch (x) { } }
 }
 window.addEventListener('lp:onnow', () => { if (T && T.feed && T.full) drawJump(); });
 function redraw(p, keep) {
@@ -3422,12 +3616,14 @@ function initLatest() {
 async function latest(sec) {
   if (hook('lpbreak')) return;
   const all = await snapOnce();
-  const newest = all ? all.filter(r => r.status === 'live').sort((a, b) => (b.ms || 0) - (a.ms || 0)).slice(0, 30).map(shapeRow) : await latestAsk();
+  const newest = all ? all.filter(r => r.status === 'live').sort((a, b) => (b.ms || 0) - (a.ms || 0)).slice(0, 150).map(shapeRow) : await latestAsk();
   if (!newest) return;
   /* One post a subject (13 October 2026: the three newest were three answers to the same question, so the front page
      printed one title three times). The newest post on each page, or on each question of the day, and then the three
      newest of those. The discussions themselves list every post, as before. */
-  const seen = new Set(), top = newest.filter(p => p.status === 'live' && !p.parent && pathOf(p.about) != null)
+  /* 4 November 2026: "Latest from readers" is readers. The site opens a thread for each plan in the Strategy Room and each
+     idea on the Tools page, and those were the newest top posts most days, so the front page's three were the site's own. */
+  const seen = new Set(), top = newest.filter(p => p.status === 'live' && !p.parent && !isHost(p) && pathOf(p.about) != null)
     .filter(p => { const k = p.about + '|' + p.subject; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 3);
   latestDraw(sec, top);
 }
