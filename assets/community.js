@@ -25,7 +25,7 @@ const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, 
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=42d7cf3462 and assets/community-fa.js?v=42d7cf3462, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=a5a5fe8386 and assets/community-fa.js?v=a5a5fe8386, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -2400,7 +2400,8 @@ function groupsOf(every, rows) {
     if (!p.parent && !isHost(p) && p.status === 'live' && !repliesTo(p.id).length) g.waiting++;
   });
   /* The newest two that say something: a "thanks" or a bare link is skipped while there is a comment of substance to show. */
-  by.forEach(g => { const say = x => x.text && pickFeatures(x.text).words >= 6 && !pickFeatures(x.text).urls ? 1 : 0; g.recent = g.recent.sort((a, b) => (say(b) - say(a)) || (b.ms - a.ms)).slice(0, 2).sort((a, b) => b.ms - a.ms); });
+  /* The newest ONE that says something (4 November 2026: two made every card a screen tall on a phone). */
+  by.forEach(g => { const say = x => x.text && pickFeatures(x.text).words >= 6 && !pickFeatures(x.text).urls ? 1 : 0; g.recent = g.recent.sort((a, b) => (say(b) - say(a)) || (b.ms - a.ms)).slice(0, 1); });
   const act = (a, b) => b.last - a.last;
   return [...by.values()].filter(g => g.shown.length && g.n)
     .sort((a, b) => (Number(b.mine) - Number(a.mine)) || (T.gs === 'busy' ? (b.n - a.n) || act(a, b) : act(a, b)));
@@ -2431,9 +2432,15 @@ function groupCard(g) {
   const li = el('li', 'dg' + (open ? ' dg-on' : ''), null, { 'data-about': g.about });
   const head = el('div', 'dg-h');
   /* The name leads to the page the discussion is on: the page itself for a mission (its card on the board), the page's
-     discussion for the rest. The front page's own discussion is the page the reader is on, so its name leads nowhere. */
-  head.append(el('span', 'dg-k', WHERE[keyKind(g.about)] || tt('The site')));
-  head.append(path != null && g.about !== 'page:home'
+     discussion for the rest. The front page's own discussion is the page the reader is on, so its name leads nowhere.
+     4 November 2026, Armin on All discussions: "so confusing. I have no idea what's going on". A closed card had two
+     things to tap that did different things (the name went to a page, the words opened the card), and a lede had to
+     explain which was which. Now a closed card is ONE tap that opens it (the button covers the card, site.css .dg-p::after);
+     the name becomes the way to its page once the card is open. A page of the site carries no kind over its name
+     ("THE SITE" over "Strategy Room" said nothing); races, politicians, states, votes and missions still do. */
+  const kind = keyKind(g.about);
+  if (kind !== 'page') head.append(el('span', 'dg-k', WHERE[kind] || tt('The site')));
+  head.append(open && path != null && g.about !== 'page:home'
     ? el('a', 'dg-t', name, { href: keyKind(g.about) === 'quest' ? hrefOf(g.about, '') : root + path + '#discussion' })
     : el('span', 'dg-t', name));
   if (open) {
@@ -2456,6 +2463,7 @@ function groupCard(g) {
      at a glance what the discussion is about and whether it is worth opening. */
   const go = btn('dg-p', null, () => groupFlip(g.about, true));
   go.setAttribute('aria-expanded', 'false');
+  go.setAttribute('aria-label', tt('Open the discussion') + ': ' + name);
   const cut = (t, k) => t.length > k ? t.slice(0, k - 3).replace(/\s+\S*$/, '') + '...' : t;
   g.recent.forEach(p => {
     const c = el('span', 'dg-c');
@@ -2467,7 +2475,8 @@ function groupCard(g) {
     c.append(el('span', 'dg-q', p.text ? cut(p.text.replace(/\s+/g, ' '), 150) : tt('Video shared by {name}', { name: p.name }), ML ? { dir: dirOf(lgOf(p)) } : { dir: 'auto' }));
     go.append(c);
   });
-  go.append(el('span', 'dg-go', tt('Open the discussion') + ' (' + dig(g.n) + ')'));
+  /* The count is on the line above it ("7 comments"); said twice, it read as two different numbers. */
+  go.append(el('span', 'dg-go', tt('Open the discussion')));
   li.append(go);
   return li;
 }
@@ -2504,22 +2513,41 @@ function drawCtl(every) {
   /* All discussions: the order of the cards (groupCard). Busiest took the place of the row of the five busiest
      discussions, which counted only the newest 300 posts. */
   else [['act', tt('Newest')], ['busy', tt('Busiest')]].forEach(([s, w]) => chip(w, T.gs === s, () => { T.gs = s; }));
-  chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
-  chip(tt('Everything'), !T.only && !T.where, () => { T.only = ''; T.where = ''; });
-  Object.keys(ONLY).forEach(k => { if (every.some(ONLY[k][1])) chip(ONLY[k][0], T.only === k, () => { T.only = k; }); });
-  /* All discussions (the front page): every page's posts are in one list, so a reader can also narrow it by
-     WHERE a post was made, and see which discussions are busiest. Armin, 5 October 2026: "all of the
-     discussions happening in all of the other areas brought into one place in a way that makes sense". */
-  if (T.feed) {
+  if (!T.feed) {
+    chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
+    chip(tt('Everything'), !T.only && !T.where, () => { T.only = ''; T.where = ''; });
+    Object.keys(ONLY).forEach(k => { if (every.some(ONLY[k][1])) chip(ONLY[k][0], T.only === k, () => { T.only = k; }); });
+  } else {
+    /* All discussions (the front page): every page's posts are in one list, so a reader can also narrow it by kind or by
+       WHERE a post was made. Armin, 5 October 2026: "all of the discussions happening in all of the other areas brought into
+       one place in a way that makes sense". Until 4 November 2026 that was ten more chips in two unlabelled groups after
+       Newest and Busiest, twelve buttons over the list ("so confusing"). Now it is one labelled picker, Show, beside the order. */
     const kinds = Object.keys(WHERE).filter(k => every.some(p => keyKind(p.about) === k));
-    if (kinds.length > 1) {
-      chips.append(el('span', 'chips-gap', null, { 'aria-hidden': 'true' }));
-      kinds.forEach(k => chip(WHERE[k], T.where === k, () => { T.where = T.where === k ? '' : k; }));
+    const opts = [['', tt('Everything')]]
+      .concat(Object.keys(ONLY).filter(k => every.some(ONLY[k][1])).map(k => ['only:' + k, ONLY[k][0]]))
+      .concat(kinds.length > 1 ? kinds.map(k => ['where:' + k, WHERE[k]]) : []);
+    if (opts.length > 1) {
+      const cur = T.only ? 'only:' + T.only : T.where ? 'where:' + T.where : '';
+      const lab = el('label', 'talk-show'), s = el('select', null, null, { 'aria-label': tt('Show') });
+      lab.append(el('span', null, tt('Show'), { 'aria-hidden': 'true' }));
+      opts.forEach(([v, t]) => { const o = el('option', null, t, { value: v }); if (v === cur) o.selected = true; s.append(o); });
+      s.addEventListener('change', () => {
+        const v = s.value;
+        T.only = v.startsWith('only:') ? v.slice(5) : '';
+        T.where = v.startsWith('where:') ? v.slice(6) : '';
+        drawTalk();
+        const again = T.ctl && T.ctl.querySelector('.talk-show select');
+        if (again) try { again.focus({ preventScroll: true }); } catch (x) { }
+      });
+      lab.append(s);
+      chips.append(lab);
     }
-    /* How big it is, in one line over the cards: every post, every discussion, every person. */
-    /* What people said: the site's own answers are not counted as comments, and the site is not one of the people. */
-    const all = every.flatMap(threadOf).filter(p => !isHost(p)), n = all.length, ds = new Set(all.map(p => p.about)).size, ppl = new Set(all.map(p => p.uid).filter(Boolean)).size;
-    C.append(el('p', 'dg-sum', [n === 1 ? tt('1 comment') : tt('{n} comments', { n }), ds === 1 ? tt('1 discussion') : tt('{n} discussions', { n: ds }), ppl === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: ppl })].join(' · ')));
+    /* How big it is, in one line over the cards: every discussion, every person. The number of comments left this line on
+       4 November 2026: it counts what people said, the switch above counts every post (the site's answers too), and the
+       two numbers side by side ("Discussion 617", "310 comments") read as one of them being wrong. */
+    /* What people said: the site's own answers are not counted, and the site is not one of the people. */
+    const all = every.flatMap(threadOf).filter(p => !isHost(p)), ds = new Set(all.map(p => p.about)).size, ppl = new Set(all.map(p => p.uid).filter(Boolean)).size;
+    C.append(el('p', 'dg-sum', [ds === 1 ? tt('1 discussion') : tt('{n} discussions', { n: ds }), ppl === 1 ? tt('{n} person', { n: 1 }) : tt('{n} people', { n: ppl })].join(' · ')));
   }
   C.append(chips);
   if (both) C.append(langRow());
