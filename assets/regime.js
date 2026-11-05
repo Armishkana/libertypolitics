@@ -1154,11 +1154,28 @@
     var s = Math.min(2.6, Math.max(Z.s * 2, 48 / (r.height / Z.s))), px = (cx - Z.x) / Z.s, py = (cy - Z.y) / Z.s;
     to(s, ov.clientWidth / 2 - px * s, ov.clientHeight / 2 - py * s, true);
   }, true);
+  // 5 Nov 2026, a reader on a Windows 11 laptop: scrolling down the board showed "only coloured lines". A touchpad's
+  // two-finger scroll is a wheel event, and every wheel zoomed: the chart shrank to colour tiles and the page stopped
+  // scrolling. Now a touchpad scroll moves the chart, a pinch (ctrl + wheel) and a mouse wheel still zoom, and once the
+  // chart cannot move or zoom further that way the page scrolls on, unless the chart is full screen.
+  function byPad(ev, dy) {
+    if (ev.deltaMode || ev.ctrlKey) return false;
+    if (ev.deltaX) return true;
+    var w = Math.abs(ev.wheelDeltaY || 0);
+    if (w && w !== Math.abs(dy)) return w % 120 !== 0;      // a real event: one mouse notch is 120
+    return Math.abs(dy) < 50 || dy % 1 !== 0;               // nothing to read: small or fractional steps are a touchpad
+  }
   ov.addEventListener('wheel', function (ev) {
-    ev.preventDefault();
-    var dy = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1), q = rel(ev);
-    if (!ev.ctrlKey && Math.abs(ev.deltaX) > Math.abs(dy)) { Z.x -= ev.deltaX; clampZ(); ask(); settle(); return; }
+    var dy = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1), q = rel(ev), x0 = Z.x, y0 = Z.y, s0 = Z.s;
+    if (byPad(ev, dy)) {
+      Z.x -= ev.deltaX; Z.y -= dy; clampZ();
+      if (Z.x === x0 && Z.y === y0 && !FS) return;          // at the chart's edge: the page has it
+      ev.preventDefault(); ask(); settle(); return;
+    }
+    if (!ev.ctrlKey && Math.abs(ev.deltaX) > Math.abs(dy)) { ev.preventDefault(); Z.x -= ev.deltaX; clampZ(); ask(); settle(); return; }
     zoomAt(Z.s * Math.exp(-dy * (ev.ctrlKey ? .01 : .0018)), q.x, q.y);
+    if (Z.s === s0 && !ev.ctrlKey && !FS) return;           // at the zoom limit: the page scrolls on
+    ev.preventDefault();
   }, { passive: false });
   ov.addEventListener('dblclick', function (ev) { if (ev.target.closest && ev.target.closest('.rg-on, .rg-oz')) return; var q = rel(ev); zoomAt(Z.s * 1.8, q.x, q.y); });
   ov.addEventListener('keydown', function (ev) {
