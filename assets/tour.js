@@ -299,6 +299,29 @@
     },
     // Your Liberty Score (you/; render.py you(), build/you.js, build/you.css). Added 1 November 2026, when Armin asked that
     // every tool have a tour. The result steps show only once a grade is on the page (when): before that they are not.
+    // Unopposed (build/seats.py, 5 November 2026)
+    unopposed: {
+      name: 'Unopposed', root: '#ss', ready: '#ss .ss-c path', v: 1,
+      surf: ['#ss .ss-bar > *', '#ss .ss-kinds > *', '#ss .ss-side > *'],
+      skip: { 'ss-hits': 'the list of matches under the search box (explained with the box)', '.ss-kinds': 'the row that holds the kinds (each kind is a step)' },
+      steps: [
+        { k: 'find', at: ['#ss .ss-find input'], e: '🔎', h: 'Find your county',
+          p: 'Type the first letters of your county or your state, then pick it from the list. The map flies to it and opens every seat that was on your ballot.',
+          covers: ['.ss-find'] },
+        { k: 'map', at: ['#ss .ss-map'], e: '🗺️', h: 'The brighter, the fewer races',
+          p: 'Each county is coloured by the share of its seats that had only one name on the ballot, or none. Gold means nobody ran against them. Striped means not counted yet. Tap a county to open it.',
+          covers: [] },
+        { k: 'kinds', at: ['#ss .ss-kinds'], all: true, e: '🏛️', h: 'Pick a kind of seat',
+          p: 'All seats, or only school boards, judges, county offices, city and town, Congress. The map, the list and the county card all switch to that kind.',
+          covers: ['lv=*'] },
+        { k: 'lead', at: ['#ss .ss-lobby', '#ss .ss-side'], e: '🏆', h: 'Where nobody ran',
+          p: 'The counties where the most seats had no race. Tap one to open it.',
+          covers: ['.ss-lobby'], opt: true, act: { label: 'Open the first one', run: function () { var b = $('#ss .ss-lead button'); if (b) b.click(); } } },
+        { k: 'card', at: ['#ss-card'], opt: true, when: function () { return shown($('#ss-card')); }, e: '🪑', h: 'Every seat, one square each',
+          p: 'Gold squares had one name, red dashed ones were left empty, outlined ones had a race. Below, every office with who ran. Download the list, share it, or open the page on how to run for one next time.',
+          covers: ['ss-card'] }
+      ]
+    },
     you: {
       name: 'Your Liberty Score', root: '#you', ready: '#you.is-live', v: 1,
       surf: ['#you .yq-top > *', '#you .yq-b > *', '#yq-end > *', '#yq-res .wrap > *', '#yq-like > *'],

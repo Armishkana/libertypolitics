@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=4b7d3e5665) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=f3e4ad7880) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -953,11 +953,16 @@
     if (QWQ[q]) return QWQ[q];
     var tq = qTerms(q), ws = tq.map(qWeight), pl = tq.map(function (alts) { return !alts.own && qPlace(alts[0]); }), top = 0;
     ws.forEach(function (x, i) { if (!pl[i] && x > top) top = x; });
-    // A PERSIAN PHRASE NAMES ITS THING FIRST (4 Nov 2026, IU ask gate «زندانیان سیاسی», political prisoners): Persian puts
-    // the noun before the words that describe it (ezafe), so an item about prisoners answers the question and one that is
-    // only political does not. Rarity decides first; only where two words both reach the cap of 3, and rarity can no
-    // longer tell them apart, the earlier word weighs a little more (0.02 a place), instead of the hottest post deciding.
-    ws = ws.map(function (x, i) { return x >= 3 && /[؀-ۿ]/.test(tq[i][0]) ? x + 0.02 * (tq.length - i) : x; });
+    // A PHRASE NAMES ITS THING WHERE ITS LANGUAGE PUTS THE NOUN (4 Nov 2026, IU ask gate «زندانیان سیاسی» and "political
+    // prisoners"): an item about prisoners answers the question and one that is only political does not. Persian puts the
+    // noun before the words that describe it (ezafe), so the earlier word is the thing; English puts it after them
+    // ("political prisoners", "nuclear deal"), so the later word is, unless a joining word (of, for, against...) stands in
+    // the question, where the noun comes first again ("execution of protesters") and no place is favoured. Rarity decides
+    // first; only where words reach the cap of 3, and rarity can no longer tell them apart, the noun's place weighs a
+    // little more (0.02 a place), instead of the hottest post deciding. Until 5 Nov 2026 only Persian had this, and the
+    // English question tied 0.5 to 0.5 and put four "political" posts above the one prison headline (IU publish stopped).
+    var qEnHead = !faNorm(String(q || '').toLowerCase()).split(/[^a-z0-9_\u0590-\u06ff]+/).some(function (w) { return /^(of|for|against|with|from|about|by|on|in|to|over|under|after|before|during|between|without)$/.test(w); });
+    ws = ws.map(function (x, i) { return x < 3 ? x : /[؀-ۿ]/.test(tq[i][0]) ? x + 0.02 * (tq.length - i) : qEnHead && /^[a-z0-9 ]+$/.test(tq[i][0]) ? x + 0.02 * (i + 1) : x; });
     return (QWQ[q] = top ? ws.map(function (x, i) { return pl[i] ? Math.min(x, top / 2) : x; }) : ws);
   }
   // one word's weight inside a question (intel-ask.js weighs each word of a reading with it)
@@ -1426,7 +1431,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=4b7d3e5665): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=f3e4ad7880): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -3138,7 +3143,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=4b7d3e5665,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=f3e4ad7880,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -4221,7 +4226,7 @@
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=4b7d3e5665'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=f3e4ad7880'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();

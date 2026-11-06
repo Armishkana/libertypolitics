@@ -25,7 +25,7 @@ const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, 
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=4b7d3e5665 and assets/community-fa.js?v=4b7d3e5665, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=f3e4ad7880 and assets/community-fa.js?v=f3e4ad7880, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -390,7 +390,7 @@ function faceLink(name, uid) {
    same key, only for a gathering that is on the board, and refuse an address in its words (looksLikeAddress below). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
   ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + ')|(gathering):([A-Za-z0-9]{20}))$')
-  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms|markets|wargame|war-iran|war-ukraine|war-taiwan|tools|uprising)|(gathering):([A-Za-z0-9]{20}))$/;
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms|markets|wargame|war-iran|war-ukraine|war-taiwan|tools|uprising|unopposed)|(gathering):([A-Za-z0-9]{20}))$/;
 const GATHERING_PAGE = typeof SITE.gatheringPage === 'string' ? SITE.gatheringPage : 'gatherings/g/';
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';

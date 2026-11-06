@@ -272,6 +272,10 @@
     else if (has(/\b(article|op-?ed|column|reports?|news reports?)\b/)) { ns.kind = 'article'; kindGuess = true; eat(/\b(article|op-?ed|column)\b/); }
     else if (has(/\b(documents|pdfs|papers)\b/)) { ns.kind = 'doc'; if (asked('(?:documents|pdfs|papers)')) eat(/\b(documents?|pdfs?|papers?)\b/); else kindGuess = true; }
     else if (has(/\b(document|pdf|paper)\b/)) { ns.kind = 'doc'; kindGuess = true; }          // "data" is the bank's subject Data and numbers, not a kind of file
+    // POSTS ON A PLATFORM ARE WHATEVER WAS POSTED THERE (6 Nov 2026, LP ask gate: "most liked posts on X about the protests" read
+    // "posts" as the text-post kind, and the last 24 hours' one X item on the protests was a video, so every reading there was
+    // empty and the bank answered). With a platform named, a video or a link posted on it is one of its posts, as "tweets" is.
+    else if (has(/\bposts\b/) && ns.pf.length) eat(/\bposts\b/);
     else if (has(/\bposts\b/)) { ns.kind = 'post'; if (asked('posts')) eat(/\bposts\b/); else kindGuess = true; }
     eat(/\b(only|just)\b/);
     // a length is a video's: say videos, so the line and the pills read as asked
