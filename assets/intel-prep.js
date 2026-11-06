@@ -271,7 +271,10 @@
       if (e.inTitle) e.share = Math.max(e.share, 0.34);          // the story's own title names its subject
     });
     // the story's own place (show_packs measured it over all of the story's items, not only these 25)
-    if (dom && dom.s && dom.s.p && R.placeOf) { var sc = country({ p: dom.s.p }); if (sc && names[sc]) { names[sc].share = Math.max(names[sc].share, 0.5); names[sc].placed = Math.max(names[sc].placed || 0, 0.5 * n); } }
+    if (dom && dom.s && dom.s.p && R.placeOf) { var sc = country({ p: dom.s.p }); if (sc && names[sc]) { names[sc].share = Math.max(names[sc].share, 0.5); } }
+    // 6 Nov 2026: it also raised .placed to half the items, so fits() let a place no headline here carries into the titles
+    // ("Stand. Fight. Defend the Republic" became "US War, Hour by Hour") and the phone gate, which counts the items,
+    // stopped every publish. The measured place still ranks first; it is never counted as items placed there.
     var ok = Object.keys(names).map(function (k) { return names[k]; }).filter(function (e) { return e.share >= SHARE_MIN; }).sort(function (a, b) { return b.share - a.share; });
     // a person and their own country are one subject (Macron with France, Khamenei with Iran): keep the stronger first
     var E = ok.filter(function (e) { return !(e.kind === 'place' && ok.some(function (p) { return p.of === e.name && p !== e && p.share >= e.share; })); });

@@ -3285,7 +3285,7 @@ html.lp-stream .lps-bar{display:flex;position:fixed;top:calc(10px * var(--lps-z,
 .lps-x{min-height:max(40px,calc(30px * var(--lps-z,1)));padding:0 calc(12px * var(--lps-z,1));border:1px solid #3a3936;border-radius:999px;background:var(--panel);color:var(--dim);font:700 max(13px,calc(13.5px * var(--lps-z,1)))/1 var(--body);cursor:pointer}
 .lps-x:hover{color:var(--ink);border-color:var(--dim)}
 /* THE CONFLICT SIMULATOR (build/wargame.py, wargame.js). Added to the end of site.css by render.py; Iran Uncensored loads it as
-   assets/scenarios.css?v=f3e4ad7880. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
+   assets/scenarios.css?v=fdc9208d8c. Own prefix: wg-, wgi- (never a class a linked stylesheet styles: deploy_guard no_style_clash).
    1 November 2026 (Armin: "a very high-end strategic video game look ... real video game visualizations"): THE BOARD IS THE
    PAGE. The theatre fills the first screen under the site's header, a WebGL board (wargame.js) with the command interface
    drawn over it on dark glass: the top bar, the order of battle (left), the panel (right; on a phone a bottom sheet), the
