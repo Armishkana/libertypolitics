@@ -1174,7 +1174,11 @@
     }
     if (!ev.ctrlKey && Math.abs(ev.deltaX) > Math.abs(dy)) { ev.preventDefault(); Z.x -= ev.deltaX; clampZ(); ask(); settle(); return; }
     zoomAt(Z.s * Math.exp(-dy * (ev.ctrlKey ? .01 : .0018)), q.x, q.y);
-    if (Z.s === s0 && !ev.ctrlKey && !FS) return;           // at the zoom limit: the page scrolls on
+    if (Z.s === s0 && !ev.ctrlKey) {                        // at the zoom limit a mouse wheel moves the chart first (a reader, 7 Nov 2026: with All picked the wheel scrolled the page and only one row showed)
+      Z.y -= dy; clampZ();
+      if (Z.y === y0 && !FS) return;                        // chart at its edge too: the page scrolls on
+      ask(); settle();
+    }
     ev.preventDefault();
   }, { passive: false });
   ov.addEventListener('dblclick', function (ev) { if (ev.target.closest && ev.target.closest('.rg-on, .rg-oz')) return; var q = rel(ev); zoomAt(Z.s * 1.8, q.x, q.y); });
