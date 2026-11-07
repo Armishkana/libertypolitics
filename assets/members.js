@@ -1,7 +1,7 @@
 /* The members engine: the front question, the questions after sign-up, profiles, and the gatherings board.
 
    ONE FILE FOR BOTH SITES (libertypolitics.com, iranuncensored.com). build/members.py prints the parts and copies this
-   file to assets/members.js?v=af37e9fa53; script_tags() loads it on every page. A part that is not on the page costs nothing.
+   file to assets/members.js?v=6bae3a4e76; script_tags() loads it on every page. A part that is not on the page costs nothing.
    How it all works, in one place: ../README.md, "Members: profiles, the front question, the gatherings board".
 
    WHAT IT NEEDS. community.js (window.LP.members): Firebase once it is loaded, who is signed in, the sign-in panel, the
@@ -94,6 +94,11 @@ function data() {
   if (!dataAsk) dataAsk = fetch(ROOT + 'assets/members-data.json').then(r => r.json()).then(d => (DATA = d)).catch(() => (DATA = null));
   return dataAsk;
 }
+/* MOBILIZE (6 November 2026, ../MOBILIZE.md): build/mobilize.js, the same module script_tags() loads on every page, imported
+   here for the parts that live inside these pages (the profile's standing, the form's level and guild, the prefill contract,
+   the marks on a card, the check-in and the vouch). If it cannot load, MZM stays null and every page works as before. */
+let MZM = null, mzAsk = null;
+const mz = () => (mzAsk || (mzAsk = import(new URL('mobilize.js', import.meta.url).href).then(m => (MZM = m)).catch(() => null)));
 const idOk = s => typeof s === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(s);
 /* The same test the database applies to words a reader puts in a public document (noAddress() in firestore.rules). */
 const ADDRESS = [/[0-9]+[a-z]?[ ,.]+([a-z.]+ ){0,3}(street|st|avenue|ave|road|rd|boulevard|blvd|lane|drive|highway|hwy|parkway|pkwy|terrace|crescent)([^a-z]|$)/,
@@ -628,6 +633,7 @@ function card(g) {
   if (g.line) li.append(el('p', 'mb-hook', g.line));
   else { const ab = aboutOf(g.kind); if (ab) li.append(el('p', 'mb-about', ab)); }
   li.append(el('p', 'mb-when', when(g)), whereBlock(g));
+  try { const mk = MZM && MZM.marks ? MZM.marks(g) : null; if (mk) li.append(mk); } catch (x) { }
   const left = Math.max(0, g.size - (g.taken || 0));
   if (past) li.append(el('p', 'mb-seats', pastLine(g)));
   else li.append(el('p', 'mb-seats', g.status === 'cancelled' ? tt('Called off') : goingLine(g) + ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: g.size }) : tt('Full'))));
@@ -722,6 +728,7 @@ function initFrontBoard() {
 
 /* ------------------------------------------------------------------ gatherings/: the board */
 async function initBoard(box) {
+  await mz();
   const body = box.querySelector('[data-mb-body]');
   if (K && !K.off) upcoming().catch(() => { });      // asked at once; the words arrive at the same time
   await data();
@@ -1166,7 +1173,14 @@ async function initNew(box) {
     const KIT = G0 ? null : KITS().find(k => k.id === QS.get('kit')) || null;
     const AREA = G0 ? '' : (QS.get('area') || '');
     if (KIT) kind = KIT.kind;
-    const more = detailFields(G0 ? Object.assign({}, G0, { id: '', art: artOf(G0) }) : KIT ? { about: w(KIT.about), art: KIT.art } : null, line, () => kind);
+    /* THE DOOR FROM ANY TOOL (6 November 2026, ../MOBILIZE.md): ?kind=&from=&ref=&title=&place= fill the kind, the title and the
+       town; from and ref go on the gathering, so its card says where it started. A kit of that kind fills the rest. */
+    await mz();
+    const PF = !G0 && !KIT && MZM && MZM.prefill ? MZM.prefill(QS) : null;
+    const PK = PF && PF.kind ? KITS().find(k => k.kind === PF.kind) || null : null;
+    if (PF && PF.kind) kind = PF.kind;
+    const ORIGIN = G0 ? { from: G0.from || '', ref: G0.ref || '' } : PF ? { from: PF.from, ref: PF.ref } : { from: '', ref: '' };
+    const more = detailFields(G0 ? Object.assign({}, G0, { id: '', art: artOf(G0) }) : KIT ? { about: w(KIT.about), art: KIT.art } : PK ? { about: w(PK.about), art: PK.art } : null, line, () => kind);
     if (G0) {
       title.value = G0.title || ''; city.value = G0.city || ''; lineIn.value = G0.line || ''; link.value = G0.link || '';
       if (G0.size) size.value = String(G0.size);
@@ -1183,13 +1197,21 @@ async function initNew(box) {
       fit();
       form.prepend(el('p', 'mb-lede', tt('Started from "{name}". Change anything you like, then add the place.', { name: w(KIT.name) })));
     }
+    if (PF && PF.any) {
+      title.value = (PF.title || (PK ? w(PK.title) : '')).slice(0, L.title);
+      if (PK) { lineIn.value = w(PK.line).slice(0, L.line); if (PK.size) size.value = String(PK.size); at.value = kitAt(PK); }
+      if (PF.place) city.value = PF.place;
+      fit();
+      const fromTool = PF.from && MZM.fromName ? MZM.fromName(PF.from) : '';
+      form.prepend(el('p', 'mb-lede', fromTool ? tt('Started from {tool}. Change anything you like, then add the place.', { tool: fromTool }) : tt('Change anything you like, then add the place.')));
+    }
     if (AREA_OK(AREA)) {
       if (AREA.startsWith('US:') && [...place.top.options].some(o => o.value === AREA)) place.top.value = AREA;
       else if (place.second && [...place.second.options].some(o => o.value === AREA)) { place.top.value = 'abroad'; place.second.value = AREA; place.second.hidden = false; }
       else if ([...place.top.options].some(o => o.value === AREA)) place.top.value = AREA;
     }
     /* no kit and nothing to post again: the kits are offered at the top, one tap each */
-    if (!G0 && !KIT && KITS().length) {
+    if (!G0 && !KIT && !(PF && PF.any) && KITS().length) {
       const kr = el('div', 'mb-f mb-kit-row'), r = el('div', 'mb-acts');
       KITS().forEach(k => r.append(el('a', 'btn btn-line mb-btn-s', w(k.name), { href: kitHref(k, AREA) })));
       kr.append(el('span', 'mb-l', tt('Start from a ready one')), r);
@@ -1208,6 +1230,8 @@ async function initNew(box) {
       field(tt('One line people see on the card'), lineIn, tt('The hook. Like: Five of us, one question, the best tacos in town.')));
     [...more.node.children].forEach(n => form.append(n));
     form.append(field(tt('Link to its own page'), link, tt('Optional. Your event page somewhere else, if it has one.')));
+    const MX = MZM && MZM.formExtras ? await MZM.formExtras({ g: G0 }).catch(() => null) : null;      // who can join, and the guild that hosts it
+    if (MX) form.append(MX.node);
     form.append(t1.node, t2.node); if (t3) form.append(t3.node);
     const go = el('button', 'btn btn-key', IU ? tt('Post the event') : tt('Post the gathering'), { type: 'submit' });
     form.append(go, line, safety(), termsLine());
@@ -1240,18 +1264,27 @@ async function initNew(box) {
         const ref = F.doc(F.collection(db, 'gatherings'));
         let tz = 'UTC'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (x) { }
         const bigPic = M.big || (G0 && M.doc.thumb && M.doc.thumb === G0.thumb ? big0 : null);      // posted again: the same large cover
-        const commit = withArt => {
-          const doc = Object.assign({}, M.doc); if (!withArt) delete doc.art;
+        const XD = Object.assign({}, MX ? MX.read() : {}, ORIGIN.from ? { from: ORIGIN.from, ref: ORIGIN.ref || '' } : {});
+        const commit = (withArt, withX) => {
+          const doc = Object.assign({}, M.doc, withX ? XD : {}); if (!withArt) delete doc.art;
           const b = F.writeBatch(db);
           b.set(ref, Object.assign({ hostUid: u.uid, hostName: u.name, kind, title: T, line: LN, startAt: F.Timestamp.fromMillis(start), tz, city: C,
             country: P.country, state: P.state || '', size: n, taken: 0, link: LK, status: 'open', adult: true, publicPlace: true,
             createdAt: F.serverTimestamp(), hidden: false, score: null, nightN: 0 }, doc));
           if (M.home) b.set(F.doc(db, 'gatherings', ref.id, 'place', 'p'), { text: M.home, at: F.serverTimestamp() });
           if (bigPic) b.set(F.doc(db, 'gatherings', ref.id, 'cover', 'c'), { pic: bigPic, at: F.serverTimestamp() });
+          if (withX && MZM && MZM.batchRows) MZM.batchRows(F, db, ref.id, XD).forEach(([r, d]) => b.set(r, d));      // its row in the guild that hosts it
           return within(30000, b.commit());
         };
-        /* rules older than this page refuse the drawing's id: posted without it, the card picks the same kind of drawing itself */
-        try { await commit(true); } catch (e) { if (e && e.code === 'permission-denied' && M.doc.art) await commit(false); else throw e; }
+        /* rules older than this page refuse the drawing's id: posted without it, the card picks the same kind of drawing itself.
+           6 November 2026: the same for the ninth version's fields (who can join, the guild, the tool it came from). */
+        const hasX = Object.keys(XD).some(k => XD[k]);
+        try { await commit(true, true); }
+        catch (e) {
+          if (!(e && e.code === 'permission-denied')) throw e;
+          if (hasX) { try { await commit(true, false); } catch (e2) { if (e2 && e2.code === 'permission-denied' && M.doc.art) await commit(false, false); else throw e2; } }
+          else if (M.doc.art) await commit(false, true); else throw e;
+        }
         listAsk = null;
         location.href = page(DATA.paths.one + '?id=' + encodeURIComponent(ref.id));
       } catch (e) { go.disabled = false; say(line, words(e), true); }
@@ -1346,6 +1379,8 @@ async function initOne(box) {
     top.append(el('span', 'mb-kind', fmtName(G.kind)));
     if (G.line) top.append(el('p', 'mb-hook', G.line));
     top.append(el('p', 'mb-when', when(G)), whereBlock(G));
+    await mz();
+    try { const mk = MZM && MZM.marks ? MZM.marks(G) : null; if (mk) top.append(mk); } catch (x) { }
     const left = Math.max(0, G.size - (G.taken || 0)), started = ms(G.startAt) <= Date.now();
     top.append(el('p', 'mb-seats', G.status === 'cancelled' ? tt('Called off') : started && (G.held || over(G)) ? pastLine(G) : goingLine(G) + (started ? '' : ' · ' + (left ? tt('{n} of {size} seats left', { n: left, size: G.size }) : tt('Full')))));
     const host = el('p', 'mb-host mb-row'); host.append(face(G.hostName, G.hostUid), el('span', null, tt('Hosted by')), el('a', null, G.hostName, { href: page(DATA.paths.member + '?u=' + encodeURIComponent(G.hostUid)) }));
@@ -1366,6 +1401,7 @@ async function initOne(box) {
     const { F, db } = await within(25000, fb());
     if (u && u.uid === G.hostUid) await hostPanel(act, line, F, db, started);
     else await guestPanel(act, line, F, db, started, u);
+    if (MZM && MZM.gathering) { try { await MZM.gathering(G, body, { F, db, u, started }); } catch (x) { } }      // why the level, the check-in, the vouch
     if (started && !didNot(G) && G.status !== 'cancelled') await nightWall(F, db, u);
     body.append(safety());
     if (u && u.uid !== G.hostUid) body.append(reportBox('g-' + id, [['address', tt('It shows a home address')], ['abusive', tt('It is abusive')], ['fake', tt('It is not real')], ['advert', tt('It is an advert')]]));
@@ -2008,6 +2044,7 @@ async function initMember(box) {
     prof.append(hero);
     if (own && P && P.hidden) prof.append(el('p', 'mb-say bad', tt('Your profile is hidden from others while I look at a report about it.')));
     if (own && P && P.pic && !same(P.picOk, P.picAt)) prof.append(el('p', 'mb-hint', tt('Only you see this photo until I have looked at it. Usually within a day.')));
+    if (!host) { const slot = el('div', 'mz-slot'); prof.append(slot); mz().then(m => (m && m.profile ? m.profile(slot, { uid, own, host }) : null)).catch(() => { }); }
 
     // ---- three numbers
     const nums = el('ul', 'mb-nums');
@@ -2226,6 +2263,7 @@ function start() {
       } catch (x) { }
       try { const f = await F.getDocs(F.query(F.collection(db, 'users', uid, 'flags'), F.limit(300))); for (const d of f.docs) await del(d.ref); } catch (x) { }
       await del(F.doc(db, 'profiles', uid)); await del(F.doc(db, 'private', uid));
+      try { await mz(); if (MZM && MZM.drop) await MZM.drop(uid, F, db); } catch (x) { }
       PRIV = PROF = null; kept.set(KEY.skip, null);
     });
   }

@@ -3,7 +3,13 @@
    map.json (the county and state shapes) and <st>.json (every contest of every county in one state, loaded when
    a county of that state is opened). Counting rules live in seats.py; this file never recounts a contest, it only
    adds up what seats.py wrote. Looks: build/seats.css.
-   A county is opened by tapping it, by the search, or by the address: #c=<FIPS> (a county), #s=<ST> (a state). */
+   A county is opened by tapping it, by the search, or by the address: #c=<FIPS> (a county), #s=<ST> (a state).
+   The search also takes a 5-digit ZIP code: assets/seats/zip/<first two digits>.json (build/seats_zip.py, from the Census
+   Bureau's ZIP-to-county file) is loaded and looked up here, so nothing typed leaves the page.
+   THE RUN GUIDE (6 November 2026): a seat with no race opens, in place, how to get on the ballot for it in its state
+   (assets/seats/run.json, build/seats_run.py: our steps, the state's own pages and words, free training, finders) and
+   one door to act: our Gatherings tool, ../gatherings/?new=1&kind=candidate&from=unopposed&ref=&title=&place= (the
+   contract with gatherings/; never another organisation's events). */
 (function () {
   'use strict';
   var D = document, W = window;
@@ -14,7 +20,7 @@
   var tip = root.querySelector('.ss-tip'), card = root.querySelector('#ss-card'), lobby = root.querySelector('.ss-lobby');
   var crumb = root.querySelector('.ss-crumb'), crumbSt = root.querySelector('.ss-crumb-st');
   var input = root.querySelector('.ss-find input'), hits = root.querySelector('#ss-hits');
-  var US = null, MAP = null, DET = {}, kind = '', sel = null, selSt = null, onlyNo = false;
+  var US = null, MAP = null, DET = {}, kind = '', sel = null, selSt = null, onlyNo = false, zipCtx = null, cardRows = [];
   var paths = {}, FULL = [-10, 0, 985, 615], view = FULL.slice();
   var RAMP = ['#2A2723', '#4A3F23', '#705B21', '#9E7C1F', '#CB9F22', '#F4C430'];
   var NONE = '#1B1B1A';
@@ -218,9 +224,10 @@
   }
 
   /* ---- the county card ---- */
-  function openCounty(f) {
+  function openCounty(f, z) {
     var c = US.counties[f];
     if (!c) return;
+    zipCtx = z && z.rows && z.rows.length > 1 ? z : null;      // a ZIP that crosses county lines: the card names the others
     sel = f;
     zoomTo(c[1]);
     ring.setAttribute('d', MAP.counties[f][1]);
@@ -271,7 +278,7 @@
     var c = US.counties[f], st = c[1], S = US.states[st] || {};
     var place = placeName(f) + ', ' + S.n;
     if (!S.scope) {
-      card.innerHTML = head(place, f) + '<p class="ss-none-say">' + esc(S.n) + ' is not counted yet. Its official results are being read; this county opens here when they are in.</p>' + foot(S, place);
+      card.innerHTML = head(place, f) + zipNote(f) + '<p class="ss-none-say">' + esc(S.n) + ' is not counted yet. Its official results are being read; this county opens here when they are in.</p>' + foot(S, place, st, f);
       return;
     }
     detail(st).then(function (d) {
@@ -291,22 +298,28 @@
         + '<p class="ss-chk dim"><span><i class="ch-u"></i>One name</span><span><i class="ch-e"></i>Empty</span><span><i class="ch-c"></i>A race</span>' + (o.R ? '<span><i class="ch-r"></i>Keep the judge?</span>' : '') + '</p>';
       var groups = {};
       rows.forEach(function (r) { (groups[r[1]] = groups[r[1]] || []).push(r); });
+      cardRows = [];
+      var open = 0;
       var list = Object.keys(groups).sort(function (a, b) { return US.order.indexOf(a) - US.order.indexOf(b); }).map(function (lv) {
         var g = groups[lv], no = 0, n = 0;
         g.forEach(function (r) { if (!r[4]) { n += r[2]; if (r[3].length <= r[2]) no += r[2]; } });
         var same = lv === 'statewide' || lv === 'federal';
         return '<details class="ss-g"' + (same && !kind ? '' : ' open') + '><summary><b>' + esc(US.long[lv] || lv) + '</b><span class="num">' + (n ? fmt(no) + ' of ' + fmt(n) + ' no race' : '') + '</span></summary><ul>'
           + g.map(function (r) {
-            var s = status(r);
-            return '<li class="ss-r ss-s' + s[0] + '"><span class="ss-o">' + esc(r[0]) + (r[2] > 1 ? ' <small class="num">' + r[2] + ' seats</small>' : '') + '</span><span class="ss-w">' + s[1] + '</span></li>';
+            var s = status(r), o = '<span class="ss-o">' + esc(r[0]) + (r[2] > 1 ? ' <small class="num">' + r[2] + ' seats</small>' : '') + '</span><span class="ss-w">' + s[1] + '</span>';
+            if (s[0] !== 'u' && s[0] !== 'e') return '<li class="ss-r ss-s' + s[0] + '">' + o + '</li>';
+            open++;
+            cardRows.push(r);
+            return '<li class="ss-r ss-s' + s[0] + ' ss-rx"><button type="button" class="ss-ob" aria-expanded="false" data-i="' + (cardRows.length - 1) + '">' + o + '<i class="ss-oc" aria-hidden="true"></i></button><div class="ss-ra" hidden></div></li>';
           }).join('') + '</ul></details>';
       }).join('');
       var miss = S.scope !== 'all' && S.missing ? '<p class="ss-miss"><b>Not counted here:</b> ' + esc(S.missing) + '</p>' : '';
       if (S.note) miss += '<p class="ss-miss">' + esc(S.note) + '</p>';
-      card.innerHTML = head(place, f) + top + (gap ? '<p class="ss-miss">' + esc(gap) + '</p>' : '') + miss
+      card.innerHTML = head(place, f) + zipNote(f) + top + (gap ? '<p class="ss-miss">' + esc(gap) + '</p>' : '') + miss
         + (rows.length ? '<div class="ss-only"><label><input type="checkbox"' + (onlyNo ? ' checked' : '') + '> Only the seats with no race</label>'
           + '<a class="ss-dl" download="' + esc((placeName(f) + ' ' + st).replace(/\s+/g, '-').toLowerCase()) + '-seats-2026.csv" href="' + csv(rows, place) + '">Download the list</a></div>' : '')
-        + '<div class="ss-list' + (onlyNo ? ' ss-onlyno' : '') + '">' + list + '</div>' + foot(S, place);
+        + (open ? '<p class="ss-tap">Tap a seat with no race to run for it.</p>' : '')
+        + '<div class="ss-list' + (onlyNo ? ' ss-onlyno' : '') + '">' + list + '</div>' + foot(S, place, st, f);
       var cb = card.querySelector('.ss-only input');
       if (cb) cb.addEventListener('change', function () { onlyNo = cb.checked; card.querySelector('.ss-list').classList.toggle('ss-onlyno', onlyNo); });
     }).catch(function () {
@@ -317,17 +330,128 @@
     return '<header class="ss-ch"><h2>' + esc(place) + '</h2><button type="button" class="ss-x" aria-label="Close">'
       + '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>';
   }
-  function foot(S, place) {
+  function foot(S, place, st, f) {
     var url = location.origin + location.pathname + location.hash;
-    var run = S.run && S.run.url ? '<a class="ss-run" href="' + esc(S.run.url) + '" rel="noopener" target="_blank"><b>Run for one of these seats</b><span>How to get on the ballot in ' + esc(S.n) + ', from ' + esc(S.run.name) + '</span></a>' : '';
+    var run = st ? '<button type="button" class="ss-run" data-run="' + esc(st) + '" data-rf="' + esc(f || '') + '" aria-expanded="false"><b>Run for one of these seats</b><span>How to get on the ballot in ' + esc(S.n) + ', step by step</span></button><div class="ss-guide" hidden></div>' : '';
     var src = (S.src || []).map(function (s) { return '<a href="' + esc(s.url) + '" rel="noopener" target="_blank">' + esc(s.name) + '</a>'; }).join(', ');
     return run + '<div class="ss-act"><button type="button" class="ss-btn" data-share data-url="' + esc(url) + '" data-title="' + esc('Unopposed: ' + place) + '">Share</button>'
       + '<button type="button" class="ss-btn" data-shot="unopposed">Make a picture</button></div>'
       + (src ? '<p class="ss-from dim">From ' + src + '.</p>' : '');
   }
   card.addEventListener('click', function (ev) {
+    var z = ev.target.closest('button[data-zf]');
+    if (z) { openCounty(z.getAttribute('data-zf'), zipCtx); return; }
+    var ob = ev.target.closest('.ss-ob');
+    if (ob) { seatActions(ob); return; }
+    var rs = ev.target.closest('.ss-rs');
+    if (rs) { var r = cardRows[+rs.getAttribute('data-i')]; if (r && sel) openGuide(US.counties[sel][1], { f: sel, r: r }, rs); return; }
+    var rb = ev.target.closest('.ss-run');
+    if (rb) { toggleGuide(rb); return; }
+    var gx = ev.target.closest('.ss-gx');
+    if (gx) { var gd = gx.closest('.ss-guide'); closeGuide(gd); return; }
     if (ev.target.closest('.ss-x')) { card.hidden = true; lobby.hidden = false; sel = null; ring.removeAttribute('d'); hash(selSt ? 's=' + selSt : ''); }
   });
+
+  /* ---- a ZIP that crosses county lines: the card names the other counties ---- */
+  function zipNote(f) {
+    if (!zipCtx || !zipCtx.rows.some(function (x) { return x[0] === f; })) return '';
+    var others = zipCtx.rows.filter(function (x) { return x[0] !== f && US.counties[x[0]]; });
+    if (!others.length) return '';
+    return '<div class="ss-zipn"><p>ZIP <b class="num">' + esc(zipCtx.zip) + '</b> also reaches:</p>' + others.map(function (x) {
+      return '<button type="button" class="ss-zb" data-zf="' + x[0] + '">' + esc(placeName(x[0]) + ', ' + US.counties[x[0]][1]) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  /* ---- the run guide: one seat, or the whole state; opened in place, never a page away ---- */
+  var RUN = null;
+  function runData() {
+    if (!RUN) {
+      RUN = fetch(API + 'run.json').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+      RUN.catch(function () { RUN = null; });
+    }
+    return RUN;
+  }
+  function slug(s) { return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60); }
+  function gatherUrl(st, seat) {
+    var S = US.states[st] || {}, f = seat && seat.f, place = f ? placeName(f) + ', ' + st : (S.n || st);
+    var ref = seat && seat.r ? f + '-' + slug(seat.r[0]) : (f || st);
+    var title = seat && seat.r ? 'Back a candidate for ' + seat.r[0] + ', ' + placeName(f) : 'Back a candidate in ' + place;
+    return root.getAttribute('data-root') + 'gatherings/?new=1&kind=candidate&from=unopposed&ref=' + encodeURIComponent(ref)
+      + '&title=' + encodeURIComponent(title) + '&place=' + encodeURIComponent(place);
+  }
+  function seatActions(ob) {
+    var li = ob.closest('li'), box = li.querySelector('.ss-ra'), on = ob.getAttribute('aria-expanded') !== 'true';
+    card.querySelectorAll('.ss-ob[aria-expanded="true"]').forEach(function (b) { if (b !== ob) { b.setAttribute('aria-expanded', 'false'); b.closest('li').querySelector('.ss-ra').hidden = true; } });
+    ob.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (!on) { box.hidden = true; return; }
+    var i = ob.getAttribute('data-i'), r = cardRows[+i], st = US.counties[sel][1];
+    box.innerHTML = '<button type="button" class="ss-rs" data-i="' + i + '">How to run for this seat</button>'
+      + '<a class="ss-rg" href="' + esc(gatherUrl(st, { f: sel, r: r })) + '">Gather people for it</a>';
+    box.hidden = false;
+  }
+  function toggleGuide(rb) {
+    var gd = rb.nextElementSibling;
+    if (rb.getAttribute('aria-expanded') === 'true') { closeGuide(gd); return; }
+    var f = rb.getAttribute('data-rf');
+    openGuide(rb.getAttribute('data-run'), f ? { f: f } : null);
+  }
+  function closeGuide(gd) {
+    if (!gd) return;
+    gd.hidden = true; gd.innerHTML = '';
+    var rb = gd.previousElementSibling;
+    if (rb) { rb.setAttribute('aria-expanded', 'false'); rb.hidden = false; }
+  }
+  function dateWords(d) {
+    var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(d || '');
+    return m ? (+m[3]) + ' ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][+m[2] - 1] + ' ' + m[1] : d;
+  }
+  function openGuide(st, seat, from) {
+    var gd = card.querySelector('.ss-guide'), rb = card.querySelector('.ss-run');
+    if (!gd) return;
+    gd.hidden = false;
+    if (rb) { rb.setAttribute('aria-expanded', 'true'); rb.hidden = true; }
+    gd.innerHTML = '<p class="ss-wait">Opening the guide&hellip;</p>';
+    var at = sel;
+    runData().then(function (G) {
+      if (sel !== at) return;
+      gd.innerHTML = guideHtml(G, st, seat);
+      gd.scrollIntoView({ behavior: W.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    }).catch(function () {
+      if (sel === at) gd.innerHTML = '<p class="ss-none-say">The guide did not load. Check your connection and try again.</p><button type="button" class="ss-btn ss-gx">Close</button>';
+    });
+  }
+  function guideHtml(G, st, seat) {
+    var D = G.states[st] || {}, S = US.states[st] || {}, n = S.n || st, today = new Date().toISOString().slice(0, 10);
+    var pick = function (k) { return k === 'guide' ? (D.guide || D.file) : D[k]; };
+    var link = function (x) { return x ? ' <a href="' + esc(x.url) + '" rel="noopener" target="_blank">' + esc(x.name) + '</a>' : ''; };
+    var gather = '<a class="ss-gath" href="' + esc(gatherUrl(st, seat)) + '"><b>' + (seat && seat.r ? 'Start a gathering for this seat' : 'Start a gathering') + '</b><span>On our Gatherings page: set a time and a place, and the people near you who want this seat filled can come.</span></a>';
+    var h = '<div class="ss-gd" role="region" aria-label="How to run for office in ' + esc(n) + '">'
+      + '<header class="ss-gh"><h3>' + (seat && seat.r ? 'Run for ' + esc(seat.r[0]) : 'Run for office in ' + esc(n)) + '</h3><button type="button" class="ss-x ss-gx" aria-label="Close the guide">'
+      + '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>'
+      + (seat && seat.r ? '<p class="ss-gl">' + (seat.r[3].length ? 'Nobody ran against ' + esc(seat.r[3].join(', ')) + ' here.' : 'Nobody ran for this seat at all.') + ' Next time, the second name on the ballot could be yours.</p>' : '');
+    if (D.opened !== 'pc') h += '<p class="ss-miss">' + esc(n) + '\'s election site turns away the computer I check pages with, so I give its official ' + (D.opened === 'root' ? 'office' : 'pages') + ' without restating its rules. Read them there.</p>';
+    var last = '';      // a page the step above already links is not linked again
+    h += '<ol class="ss-steps">' + G.steps.map(function (s) {
+      var to = s.go === 'gather' ? null : pick(s.go), x = to && to.url !== last ? link(to) : '';
+      if (to) last = to.url;
+      return '<li><b>' + esc(s.h) + '</b><p>' + esc(s.p) + '</p>' + (x ? x.slice(1).replace('<a ', '<a class="ss-go" ') : '') + (s.go === 'gather' ? gather : '') + '</li>';
+    }).join('') + '</ol>';
+    var facts = (D.facts || []).filter(function (x) { return !x.until || x.until >= today; });
+    if (facts.length) h += '<div class="ss-own"><h4>In ' + esc(n) + '\'s own words</h4>' + facts.map(function (x) {
+      var src = [D.file, D.guide].filter(function (y) { return y && y.url === x.url; })[0];
+      return '<figure>' + (x.say ? '<p class="ss-say2">' + esc(x.say) + '</p>' : '') + '<blockquote>&ldquo;' + esc(x.q) + '&rdquo;</blockquote><p class="ss-fc">From <a href="' + esc(x.url) + '" rel="noopener" target="_blank">' + esc(x.name || (src ? src.name : n + ' official page')) + '</a>, read on ' + esc(dateWords(x.on)) + '.</p></figure>';
+    }).join('') + '</div>';
+    var item = function (t) {
+      var u = t.url.charAt(0) === '@' ? D[t.url.slice(1)] : null, url = u ? u.url : t.url.replace('@ST', st);
+      if (t.url.charAt(0) === '@' && !u) return '';
+      var nm = u && (t.url === '@league' || t.url === '@counties') ? u.name : t.name.replace('your state', n).replace('in your state', 'in ' + n);
+      return '<li><a class="ss-tl" href="' + esc(url) + '" rel="noopener" target="_blank">' + esc(nm) + '</a><span>' + esc(t.what) + '</span></li>';
+    };
+    h += '<h4>Learn it free</h4><ul class="ss-tr">' + G.training.map(item).join('') + '</ul>'
+      + '<h4>Find your people</h4><ul class="ss-tr">' + G.finders.map(item).join('') + '</ul>'
+      + '<p class="ss-from dim">Every link here was checked on ' + esc(dateWords(D.on)) + '. A state\'s own page always wins over this guide.</p></div>';
+    return h;
+  }
 
   /* ---- the state card (from the table, or #s=ST) ---- */
   function renderState(st) {
@@ -353,7 +477,7 @@
       + (lv ? '<ul class="ss-lv">' + lv + '</ul>' : '')
       + (cs.length ? '<h3>Its counties, most seats with no race first</h3><ol class="ss-lead">' + cs.slice(0, 12).map(function (r) {
         return '<li><button type="button" data-f="' + r[0] + '"><span class="ss-ln">' + esc(placeName(r[0])) + '</span><span class="ss-lp num"><b>' + pct(r[1].sh) + '</b><small>' + fmt(r[1].no) + ' of ' + fmt(r[1].S) + '</small></span></button></li>';
-      }).join('') + '</ol>' : '') + foot(S, S.n);
+      }).join('') + '</ol>' : '') + foot(S, S.n, st);
   }
   card.addEventListener('click', function (ev) {
     var b = ev.target.closest('button[data-f]');
@@ -384,23 +508,57 @@
     return IDX.filter(function (x) { return words.every(function (w) { return (' ' + x.k).indexOf(' ' + w) >= 0; }); })
       .sort(function (a, b) { return (b.first.indexOf(q) === 0) - (a.first.indexOf(q) === 0) || (!!a.f) - (!!b.f) || a.label.localeCompare(b.label); }).slice(0, 8);
   }
-  function showHits(list) {
+  function showHits(list, top) {
     hi = list.length ? 0 : -1;
-    hits.innerHTML = list.map(function (x, i) {
-      return '<li role="option" id="ss-h' + i + '" aria-selected="' + (i === 0) + '" data-f="' + (x.f || '') + '" data-s="' + (x.s || '') + '"><b>' + esc(x.label) + '</b><small>' + esc(x.sub) + '</small></li>';
-    }).join('') || (input.value.trim() ? '<li class="ss-nohit">No county by that name. Try the first few letters.</li>' : '');
+    hits.innerHTML = (top ? '<li class="ss-hith" role="presentation">' + esc(top) + '</li>' : '') + list.map(function (x, i) {
+      return '<li role="option" id="ss-h' + i + '" aria-selected="' + (i === 0) + '" data-f="' + (x.f || '') + '" data-s="' + (x.s || '') + '"' + (x.zip ? ' data-zip="' + x.zip + '"' : '') + '><b>' + esc(x.label) + '</b><small>' + esc(x.sub) + '</small></li>';
+    }).join('') || (input.value.trim() ? '<li class="ss-nohit">No county by that name. Try the first few letters, or a ZIP code.</li>' : '');
     hits.hidden = !hits.innerHTML;
     input.setAttribute('aria-expanded', hits.hidden ? 'false' : 'true');
   }
+  function showMsg(t) {
+    hi = -1;
+    hits.innerHTML = '<li class="ss-nohit">' + esc(t) + '</li>';
+    hits.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+  var ZIPS = {}, zipAt = '';
+  function zipShard(z) {
+    var k = z.slice(0, 2);
+    if (!ZIPS[k]) {
+      ZIPS[k] = fetch(API + 'zip/' + k + '.json').then(function (r) { if (r.status === 404) return {}; if (!r.ok) throw new Error(r.status); return r.json(); });
+      ZIPS[k].catch(function () { delete ZIPS[k]; });
+    }
+    return ZIPS[k];
+  }
+  function zipFind(v) {
+    zipAt = v;
+    if (v.length < 5) { showMsg('Keep typing: a ZIP code has 5 digits.'); return; }
+    zipShard(v).then(function (sh) {
+      if (zipAt !== v || input.value.trim() !== v) return;
+      var rows = (sh[v] || []).filter(function (r) { return US.counties[r[0]]; });
+      if (!rows.length) { showMsg('ZIP ' + v + ' is not on the Census Bureau\'s map of ZIP areas (a ZIP for P.O. boxes only has none). Type your county instead.'); return; }
+      showHits(rows.map(function (r) {
+        return { f: r[0], zip: v, label: placeName(r[0]) + ', ' + US.counties[r[0]][1], sub: rows.length < 2 ? 'ZIP ' + v : (r[1] >= 50 ? 'Most of ' + v : 'Part of ' + v) };
+      }), rows.length > 1 ? 'ZIP ' + v + ' crosses ' + rows.length + ' counties. Pick yours:' : '');
+      ZIPROWS[v] = rows;
+    }).catch(function () { if (zipAt === v) showMsg('The ZIP codes did not load. Check your connection, or type your county.'); });
+  }
+  var ZIPROWS = {};
   function pick(li) {
     if (!li) return;
-    var f = li.getAttribute('data-f'), s = li.getAttribute('data-s');
+    var f = li.getAttribute('data-f'), s = li.getAttribute('data-s'), z = li.getAttribute('data-zip');
     hits.hidden = true; input.setAttribute('aria-expanded', 'false');
     input.value = li.querySelector('b') ? li.querySelector('b').textContent : input.value;
-    if (f) openCounty(f); else if (s) renderState(s);
+    if (f) openCounty(f, z ? { zip: z, rows: ZIPROWS[z] || [] } : null); else if (s) renderState(s);
     input.blur();
   }
-  input.addEventListener('input', function () { showHits(find(input.value)); });
+  input.addEventListener('input', function () {
+    var v = input.value.trim();
+    if (/^\d{1,5}$/.test(v)) { zipFind(v); return; }
+    zipAt = '';
+    showHits(find(input.value));
+  });
   input.addEventListener('keydown', function (ev) {
     var li = hits.querySelectorAll('li[role=option]');
     if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {

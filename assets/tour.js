@@ -301,12 +301,12 @@
     // every tool have a tour. The result steps show only once a grade is on the page (when): before that they are not.
     // Unopposed (build/seats.py, 5 November 2026)
     unopposed: {
-      name: 'Unopposed', root: '#ss', ready: '#ss .ss-c path', v: 1,
+      name: 'Unopposed', root: '#ss', ready: '#ss .ss-c path', v: 2,      // v2, 6 Nov 2026: ZIP search and the run guide
       surf: ['#ss .ss-bar > *', '#ss .ss-kinds > *', '#ss .ss-side > *'],
       skip: { 'ss-hits': 'the list of matches under the search box (explained with the box)', '.ss-kinds': 'the row that holds the kinds (each kind is a step)' },
       steps: [
         { k: 'find', at: ['#ss .ss-find input'], e: '🔎', h: 'Find your county',
-          p: 'Type the first letters of your county or your state, then pick it from the list. The map flies to it and opens every seat that was on your ballot.',
+          p: 'Type your ZIP code, or the first letters of your county or your state, then pick it from the list. A ZIP that crosses county lines lists each county. The map flies there and opens every seat that was on your ballot.',
           covers: ['.ss-find'] },
         { k: 'map', at: ['#ss .ss-map'], e: '🗺️', h: 'The brighter, the fewer races',
           p: 'Each county is coloured by the share of its seats that had only one name on the ballot, or none. Gold means nobody ran against them. Striped means not counted yet. Tap a county to open it.',
@@ -318,7 +318,7 @@
           p: 'The counties where the most seats had no race. Tap one to open it.',
           covers: ['.ss-lobby'], opt: true, act: { label: 'Open the first one', run: function () { var b = $('#ss .ss-lead button'); if (b) b.click(); } } },
         { k: 'card', at: ['#ss-card'], opt: true, when: function () { return shown($('#ss-card')); }, e: '🪑', h: 'Every seat, one square each',
-          p: 'Gold squares had one name, red dashed ones were left empty, outlined ones had a race. Below, every office with who ran. Download the list, share it, or open the page on how to run for one next time.',
+          p: 'Gold squares had one name, red dashed ones were left empty, outlined ones had a race. Below, every office with who ran. Tap a seat with no race to see how to run for it in your state, step by step, or to gather people to back a candidate.',
           covers: ['ss-card'] }
       ]
     },
@@ -629,6 +629,100 @@
   };
   var WG_3D = TOOLS.wargame;
   Object.defineProperty(TOOLS, 'wargame', { enumerable: true, configurable: true, get: function () { return D.getElementById('cf-app') ? CF : WG_3D; } });
+
+  // Iran Uncensored's election tools (6 November 2026; ../site-iu/build/elections.py and markets_iu.py). Their doors carry the
+  // ids of the tools register (data-lpt="midterms", "israel", "markets"), so on a page that carries #ue-cfg, #il-data or #mk-iu
+  // that name is this site's own tour; everywhere else it is Liberty Politics' one above. Every step has its spoken Persian.
+  var UE_IU = {
+    name: 'The US election and the regime', fa: 'انتخابات آمریکا و رژیم', root: '#ue', ready: '#ue.is-live', v: 1,
+    surf: ['#ue-f > *', '#ue-top > *'],
+    skip: { '.vh': 'the name of the box beside it' },
+    steps: [
+      { k: 'top', at: ['#ue-top'], e: '🧭', h: 'The answer first',
+        p: 'Who of the members of Congress I score is behind in the count, how many newcomers lead their race and where they stand on the regime, and who is leaving Congress.',
+        fa: { h: 'اول جواب', p: 'کدوم عضوهای کنگره که بهشون نمره می‌دم تو شمارش عقبن، چند تا تازه‌وارد تو رقابتشون جلوترن و دربارهٔ رژیم کجا وایسادن، و کیا از کنگره می‌رن.' },
+        covers: ['.ue-box'] },
+      { k: 'chamber', at: ['#ue-chs'], e: '🏛️', h: 'Senate or House',
+        p: 'Tap Senate or House to see only those races, or All for both.',
+        fa: { h: 'سنا یا مجلس نمایندگان', p: 'روی «سنا» یا «مجلس نمایندگان» بزنید تا فقط اون رقابت‌ها رو ببینید، یا «همه» برای هر دو.' },
+        covers: ['ue-chs'] },
+      { k: 'state', at: ['#ue-st'], e: '📍', h: 'Your state',
+        p: 'Pick a state and its Senate race and every House seat open by themselves.',
+        fa: { h: 'ایالت شما', p: 'یه ایالت رو انتخاب کنید تا رقابت سنا و همهٔ کرسی‌های مجلس نمایندگانش خودشون باز بشن.' },
+        covers: ['ue-st'] },
+      { k: 'find', at: ['#ue-q'], e: '🔎', h: 'Find a name',
+        p: 'Type a candidate’s name. The line under it says how many races are shown.',
+        fa: { h: 'یه اسم پیدا کنید', p: 'اسم یه نامزد رو بنویسید. خط زیرش می‌گه چند تا رقابت نشون داده شده.' },
+        covers: ['ue-q', 'ue-n'] },
+      { k: 'race', at: ['#ue-sen .ue-r:not([hidden])', '#ue .ue-r'], e: '🗳️', h: 'Read a race',
+        p: 'Each candidate shows their share of the official count, and what they do about the regime: a member of Congress their score out of 100, anyone else the lines on the record, each with its source.',
+        fa: { h: 'یه رقابت رو بخونید', p: 'کنار هر نامزد سهمش از شمارش رسمیه، و اینکه با رژیم چی کار می‌کنه: عضو کنگره نمره‌ش از ۱۰۰، بقیه حرف‌های ثبت‌شده‌شون، هر کدوم با منبعش.' },
+        covers: [] }
+    ]
+  };
+  var IL_IU = {
+    name: 'Build Israel’s next government', fa: 'دولت بعدی اسرائیل رو بسازید', root: '#il', ready: '#il.is-live', v: 1,
+    surf: ['#il-stage > *', '#il-tools > *', '#il-pres .il-pre-row > *', '#il .il-side > *', '#il-ways-box > *'],
+    skip: { '.il-sub': 'a heading', '.dim': 'the line under a heading' },
+    steps: [
+      { k: 'chamber', at: ['#il .il-chamber'], e: '🏛️', h: 'The Knesset',
+        p: function () { return 'Each dot is one seat. The number counts the seats of the government you build; the bar fills to the line it needs.'; },
+        fa: { h: 'کنست', p: 'هر نقطه یه کرسیه. عدد وسط کرسی‌های دولتی که می‌سازید رو می‌شمره؛ نوار تا خطی که لازمه پر می‌شه.' },
+        covers: ['.il-chamber', '.il-bar'] },
+      { k: 'parties', at: ['#il-list'], e: '👆', h: 'Tap parties to build it',
+        p: 'Tap a party to put it in the government. Tap Outside for a party that keeps it alive without joining it.',
+        fa: { h: 'روی حزب‌ها بزنید', p: 'روی یه حزب بزنید تا بره تو دولت. «از بیرون» برای حزبیه که دولت رو سر پا نگه می‌داره ولی واردش نمی‌شه.' },
+        covers: ['il-list'] },
+      { k: 'presets', at: ['#il-pres'], e: '⚡', h: 'Or start from a plan',
+        p: 'Each button builds a government people are talking about.',
+        fa: { h: 'یا از یه برنامه شروع کنید', p: 'هر دکمه یه دولتی رو می‌سازه که مردم دربارهٔ‌ش حرف می‌زنن.', act: 'نشونم بده' },
+        act: { label: 'Show me', run: function () { click('#il .il-pre'); } },
+        covers: ['il-pres', 'pre=*'] },
+      { k: 'say', at: ['#il-say'], e: '💬', h: 'What you built',
+        p: 'This says whether your government has a majority and who would be prime minister. A red line it breaks shows under it, with its source.',
+        fa: { h: 'چیزی که ساختید', p: 'اینجا می‌گه دولت‌تون اکثریت داره یا نه و کی نخست‌وزیر می‌شه. اگه یه خط قرمز رو بشکنه، زیرش با منبعش نشون داده می‌شه.' },
+        covers: ['il-say', 'il-warn', 'il-tools', 'il-reset'] },
+      { k: 'ways', at: ['#il-ways-box'], e: '🧮', h: 'Every way to a majority',
+        p: 'Every government that reaches the majority with no party it could do without, the fewest broken red lines first. Tap one to try it.',
+        fa: { h: 'همهٔ راه‌ها به اکثریت', p: 'همهٔ دولت‌هایی که به اکثریت می‌رسن و هیچ حزب اضافه‌ای ندارن، اونایی که کمتر خط قرمز می‌شکنن اول. روی هر کدوم بزنید تا امتحانش کنید.' },
+        covers: ['il-ways-h', 'il-ways'] },
+      { k: 'said', at: ['#il-said'], opt: true, e: '📜', h: 'Who will govern with whom',
+        p: 'Open this to read what each leader has said about the others, with the source.',
+        fa: { h: 'کی با کی دولت تشکیل می‌ده', p: 'اینو باز کنید تا ببینید هر رهبر دربارهٔ بقیه چی گفته، با منبعش.' },
+        covers: [] }
+    ]
+  };
+  var MK_IU = {
+    name: 'Beat the Markets', fa: 'از بازار جلو بزنید', root: '#mk-iu', ready: '#mk-iu.is-live', v: 1,
+    surf: ['#mk-iu .field .wrap > *', '#mk-f > *', '#mk-rec > *'],
+    skip: { '.ue-k': 'the way back to the elections page', 'h1': 'the title', '.sub': 'the line under the title', 'h2': 'a heading', '.dim': 'the line under the number' },
+    steps: [
+      { k: 'score', at: ['#mk-how'], e: '🧮', h: 'How a call scores',
+        p: 'Back a long shot and it comes in: big points. Back the favorite: small points. Miss, and you lose what the market thought it was worth.',
+        fa: { h: 'هر پیش‌بینی چطور امتیاز می‌گیره', p: 'روی یه احتمال کم بذارید و درست دربیاد: امتیاز زیاد. روی گزینهٔ محبوب بذارید: امتیاز کم. اشتباه باشه، به اندازهٔ احتمالی که بازار داده بود امتیاز از دست می‌دید.' },
+        covers: ['mk-how'] },
+      { k: 'safe', at: ['#mk-safe'], e: '🔒', h: 'Your calls stay with you',
+        p: 'Every call is kept in this browser on this device. No account, and nothing is sent to anyone.',
+        fa: { h: 'پیش‌بینی‌هاتون پیش خودتون می‌مونه', p: 'هر پیش‌بینی فقط تو همین مرورگر و رو همین دستگاه نگه داشته می‌شه. نه حسابی لازمه، نه چیزی برای کسی فرستاده می‌شه.' },
+        covers: ['mk-safe'] },
+      { k: 'tabs', at: ['#mk-f'], e: '🗂️', h: 'The regime, Washington, or yours',
+        p: 'Tap a tab to see only the regime’s markets, Washington’s, or the ones you called.',
+        fa: { h: 'رژیم، واشنگتن یا مال شما', p: 'روی یه دکمه بزنید تا فقط بازارهای رژیم، واشنگتن یا اونایی که پیش‌بینی کردید رو ببینید.' },
+        covers: ['.mk-tab'] },
+      { k: 'call', at: ['#mk-list .mk-c:not([hidden])'], e: '🎯', h: 'Make your call',
+        p: 'Tap an option to make it your call; the shaded bar is what the market says. Tap it again to take it back. The link opens the market on its own site.',
+        fa: { h: 'پیش‌بینی کنید', p: 'روی یه گزینه بزنید تا پیش‌بینی‌تون بشه؛ نوار رنگی چیزیه که بازار می‌گه. دوباره بزنید تا پسش بگیرید. لینک، بازار رو تو سایت خودش باز می‌کنه.' },
+        covers: [] },
+      { k: 'record', at: ['#mk-rec'], e: '🏆', h: 'Your record',
+        p: 'Come back after a market closes to see your points. Clear my calls wipes everything you called from this browser.',
+        fa: { h: 'کارنامهٔ شما', p: 'وقتی یه بازار بسته شد برگردید تا امتیازتون رو ببینید. «پیش‌بینی‌هام رو پاک کن» همه‌چی رو از این مرورگر پاک می‌کنه.' },
+        covers: ['mk-pts', 'mk-rec-s', 'mk-rec-l', 'mk-clear'] }
+    ]
+  };
+  var MT_LP = TOOLS.midterms, MK_LP = TOOLS.markets;
+  Object.defineProperty(TOOLS, 'midterms', { enumerable: true, configurable: true, get: function () { return D.getElementById('ue-cfg') ? UE_IU : MT_LP; } });
+  Object.defineProperty(TOOLS, 'markets', { enumerable: true, configurable: true, get: function () { return D.getElementById('mk-iu') ? MK_IU : MK_LP; } });
+  TOOLS.israel = IL_IU;
 
   /* ------------------------------------------------------------------ the words of the tour itself, in the page's language
      A Persian page (iranuncensored.com/fa/...) reads every step's fa {h, p, act} and these words; a tool with a step that

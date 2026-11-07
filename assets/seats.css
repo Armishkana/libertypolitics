@@ -133,7 +133,8 @@
 .ss-se .ss-w{color:#FFB0A8}
 .ss-onlyno .ss-sc,.ss-onlyno .ss-sr{display:none}
 
-.ss-run{display:grid;gap:2px;margin-top:var(--s5);padding:14px 16px;border-radius:var(--r2);background:var(--field);color:var(--on-field);text-decoration:none;transition:background .15s}
+.ss-run{display:grid;gap:2px;width:100%;margin-top:var(--s5);padding:14px 16px;border:0;border-radius:var(--r2);background:var(--field);color:var(--on-field);text-decoration:none;text-align:left;font:inherit;cursor:pointer;transition:background .15s}
+.ss-run[hidden]{display:none}
 .ss-run:hover{background:var(--field-hi)}
 .ss-run b{font:900 1.3rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em}
 .ss-run span{font-size:.85rem;font-weight:600}
@@ -167,6 +168,80 @@
 .ss-src{font-size:.85rem}
 .ss-src a{color:var(--dim)}
 
+/* THE ZIP SEARCH AND THE RUN GUIDE (6 November 2026; seats.js, seats_zip.py, seats_run.py). A ZIP's counties list under
+   the box with one line on top when it crosses county lines; the card names the other counties of that ZIP. A seat with
+   no race is a button: it opens two actions, how to run for it and gather people for it. The guide opens in the card,
+   in place; its one bright button is the gathering (the yellow field), everything else is quiet. */
+.ss-hits .ss-hith{display:block;color:var(--dim);font-size:.82rem;cursor:default;min-height:0;padding:8px 12px 4px}
+.ss-hits .ss-hith:hover{background:none}
+.ss-zipn{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0 0 var(--s3);padding:10px 12px;background:var(--sunk);border-radius:var(--r);font-size:.88rem}
+.ss-zipn p{flex-basis:100%;margin:0;color:var(--dim)}
+.ss-zipn b{color:var(--ink)}
+.ss-zb{font:700 .88rem/1.2 var(--body);color:var(--ink);background:var(--raise);border:1px solid var(--line);border-radius:99px;min-height:40px;padding:0 14px;cursor:pointer;text-align:left}
+.ss-zb:hover{border-color:var(--field)}
+.ss-tap{font-size:.85rem;color:var(--dim);margin:var(--s2) 0 0}
+.ss-rx{padding:0;display:block}
+.ss-rx::before{left:0;top:16px}
+.ss-ob{display:grid;gap:2px;grid-template-columns:minmax(0,1fr) auto;width:100%;min-height:44px;padding:9px 0 9px 14px;font:inherit;line-height:1.35;color:inherit;text-align:left;background:none;border:0;cursor:pointer}
+.ss-ob .ss-o,.ss-ob .ss-w{grid-column:1}
+.ss-oc{grid-column:2;grid-row:1/span 2;align-self:center;width:9px;height:9px;margin:0 6px 0 10px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);transform:rotate(-45deg);transition:transform .15s}
+.ss-ob[aria-expanded="true"] .ss-oc{transform:rotate(45deg)}
+.ss-ob:hover .ss-o{color:var(--field)}
+.ss-ob:focus-visible{outline:2px solid var(--field);outline-offset:2px;border-radius:var(--r)}
+.ss-ra{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 12px 14px}
+.ss-ra[hidden]{display:none}
+.ss-rs,.ss-rg{display:inline-flex;align-items:center;font:700 .88rem/1.1 var(--body);min-height:40px;padding:0 14px;border-radius:99px;cursor:pointer;text-decoration:none}
+.ss-rs{color:var(--on-field);background:var(--field);border:1px solid var(--field)}
+.ss-rs:hover{background:var(--field-hi)}
+.ss-rg{color:var(--ink);background:var(--raise);border:1px solid var(--line)}
+.ss-rg:hover{border-color:var(--field)}
+
+.ss-guide{margin-top:var(--s4)}
+.ss-guide[hidden]{display:none}
+.ss-gd{border-top:2px solid var(--field);padding-top:var(--s3);scroll-margin-top:80px}
+.ss-gh{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s3)}
+.ss-gh h3{font:900 1.45rem/1 var(--display);text-transform:uppercase;letter-spacing:.02em;color:var(--field);margin:4px 0 0}
+.ss-gl{margin:var(--s2) 0 0;font-size:1rem;line-height:1.45}
+.ss-gd h4{font:800 .95rem/1.1 var(--display);text-transform:uppercase;letter-spacing:.05em;color:var(--dim);margin:var(--s5) 0 var(--s2)}
+.ss-steps{list-style:none;margin:var(--s3) 0 0;padding:0;counter-reset:st}
+.ss-steps>li{counter-increment:st;position:relative;padding:12px 0 12px 40px;border-top:1px solid var(--line)}
+.ss-steps>li:first-child{border-top:0}
+.ss-steps>li::before{content:counter(st);position:absolute;left:0;top:11px;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--raise);border:1px solid var(--line);font:900 .95rem/1 var(--display);color:var(--field)}
+.ss-steps b{display:block;font-weight:800;line-height:1.3}
+.ss-steps p,.ss-steps span{display:block;margin:4px 0 0;color:var(--dim);font-size:.92rem;line-height:1.5}
+.ss-go{display:inline-block;min-height:40px;padding:9px 0;margin-top:2px;font-weight:700;font-size:.9rem;line-height:1.45;color:var(--ink);text-underline-offset:3px}
+.ss-go::after{content:'\2192';margin-left:6px;color:var(--field)}
+.ss-go:hover{color:var(--field)}
+.ss-gath{display:grid;gap:3px;margin-top:var(--s3);padding:14px 16px;border-radius:var(--r2);background:var(--field);color:var(--on-field);text-decoration:none}
+.ss-gath:hover{background:var(--field-hi)}
+.ss-gath b{font:900 1.2rem/1.05 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.ss-gath span,.ss-steps .ss-gath span{display:block;margin:0;color:var(--on-field);font-size:.85rem;font-weight:600;line-height:1.35}
+.ss-own figure{margin:0 0 var(--s3);padding:12px 14px;background:var(--sunk);border-left:3px solid var(--field);border-radius:0 var(--r) var(--r) 0}
+.ss-say2{margin:0 0 6px;font-weight:700;line-height:1.4}
+.ss-own blockquote{margin:0;font-size:.92rem;line-height:1.5;color:var(--ink)}
+.ss-fc{margin:6px 0 0;font-size:.8rem;color:var(--dim);line-height:1.5}
+.ss-fc a{color:var(--dim)}
+.ss-tr{list-style:none;margin:0;padding:0}
+.ss-tr li{display:grid;padding:6px 0 10px;border-top:1px solid var(--line)}
+.ss-tr li:first-child{border-top:0}
+.ss-tr a{display:flex;align-items:center;min-height:40px;font-weight:700;color:var(--ink);text-underline-offset:3px;line-height:1.25}
+.ss-tr a:hover{color:var(--field)}
+.ss-tr span{font-size:.88rem;color:var(--dim);line-height:1.45}
+
+/* the run guide printed on the page, under the states table */
+.ss-runall{margin-top:var(--s7);max-width:62rem}
+.ss-rl{margin:var(--s2) 0 0;max-width:62ch;line-height:1.5}
+.ss-runall .ss-steps{max-width:46rem}
+.ss-rcols{display:grid;gap:var(--s5);margin-top:var(--s5)}
+@media(min-width:900px){.ss-rcols{grid-template-columns:1fr 1fr}}
+.ss-rcols h3{margin:0 0 var(--s2)}
+.ss-rnote{font-size:.85rem;margin-top:var(--s2);line-height:1.5}
+.ss-allst{margin-top:var(--s5);border-top:1px solid var(--line)}
+.ss-allst summary{display:flex;align-items:center;min-height:48px;font-weight:700;cursor:pointer}
+.ss-allst ul{list-style:none;margin:0 0 var(--s3);padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(10rem,1fr));gap:0 var(--s3)}
+.ss-allst a{display:flex;align-items:center;min-height:40px;color:var(--dim)}
+.ss-allst a:hover{color:var(--field)}
+
 /* THE STREAM VIEW (build/stream.js, ?stream=1 or Stream view): one 1280 x 720 canvas zoomed to the screen. The headline and
    the kinds across the top, the map large on the left, the leaderboard or the open county on the right. The table and the
    method stay on the page and leave the stream. Nothing under 14px on the canvas; the share is the big number. */
@@ -194,5 +269,5 @@ html.lp-stream .ss-lead button{min-height:44px;padding:6px 2px}
 html.lp-stream .ss-ln small,html.lp-stream .ss-lp small,html.lp-stream .ss-lv small,html.lp-stream .ss-chk,html.lp-stream .ss-chairs span,
 html.lp-stream .ss-o small,html.lp-stream .ss-g summary span,html.lp-stream .ss-from,html.lp-stream .ss-nm,html.lp-stream .ss-miss,html.lp-stream .ss-part{font-size:14px}
 html.lp-stream .ss-card{height:100%;overflow:hidden;padding:14px}
-html.lp-stream .ss-card .ss-only,html.lp-stream .ss-card .ss-run,html.lp-stream .ss-card .ss-act,html.lp-stream .ss-card .ss-from{display:none}
+html.lp-stream .ss-card .ss-only,html.lp-stream .ss-card .ss-run,html.lp-stream .ss-card .ss-guide,html.lp-stream .ss-card .ss-tap,html.lp-stream .ss-card .ss-zipn,html.lp-stream .ss-runall,html.lp-stream .ss-card .ss-act,html.lp-stream .ss-card .ss-from{display:none}
 html.lp-stream .ss-card .ss-list{display:none}

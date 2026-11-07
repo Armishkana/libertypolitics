@@ -25,7 +25,7 @@ const COUNT_MAX = 1000;      // what a count of posts may see: firestore.rules, 
 
 /* ONE script for every site that carries a discussion (libertypolitics.com and iranuncensored.com). A site
    may hand in its own settings and its own words as window.LPSITE, set by a small script the build loads
-   before this one (iranuncensored.com: assets/community-en.js?v=af37e9fa53 and assets/community-fa.js?v=af37e9fa53, made by its
+   before this one (iranuncensored.com: assets/community-en.js?v=6bae3a4e76 and assets/community-fa.js?v=6bae3a4e76, made by its
    render.py from site-iu/build/community-strings.json and site-iu/firebase/shared.json). With nothing handed
    in, everything below is exactly libertypolitics.com: its English words, its name rule, its addresses.
    tt(): every word a reader sees goes through it. The English sentence is the key; a site's table may give
@@ -390,20 +390,25 @@ function faceLink(name, uid) {
    same key, only for a gathering that is on the board, and refuse an address in its words (looksLikeAddress below). */
 const KEY_OK = SITE_KINDS && SITE_PAGES
   ? new RegExp('^(?:(' + Object.keys(SITE_KINDS).concat(SITE_KINDS.quest ? [] : ['quest']).join('|') + '):([a-z0-9-]{2,60})|(\\b\\B)(x)|(page):(' + Object.keys(SITE_PAGES).join('|') + ')|(gathering):([A-Za-z0-9]{20}))$')
-  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms|markets|wargame|war-iran|war-ukraine|war-taiwan|tools|uprising|unopposed)|(gathering):([A-Za-z0-9]{20}))$/;
+  : /^(?:(race|member|vote|quest):([a-z0-9-]{2,60})|(state):([a-z]{2})|(page):(home|scorecard|races|states|votes|methodology|about|believe|build|you|act|intel|gatherings|host|safety|vote|photos|privacy|panel|job|regime|elections|results|terms|markets|wargame|war-iran|war-ukraine|war-taiwan|tools|uprising|unopposed)|(gathering):([A-Za-z0-9]{20})|(guild):([A-Za-z0-9]{2,40}-[12]))$/;
+/* 6 November 2026 (../MOBILIZE.md, "Guilds"): a guild has a discussion of its own, "guild:<its id>" (the last group of KEY_OK, on
+   Liberty Politics only: the Iran site keeps no guild thread). Its page is guilds/g/?id=<id>; the rules take the key only for a
+   guild that is there and not hidden, and refuse an address in its words. */
+const GUILD_PAGE = 'guilds/g/';
 const GATHERING_PAGE = typeof SITE.gatheringPage === 'string' ? SITE.gatheringPage : 'gatherings/g/';
 const DIR = SITE_KINDS && SITE_PAGES ? SITE_KINDS : { race: 'races/', member: 'scorecard/', state: 'states/', vote: 'votes/' };
 const QUEST_PAGE = typeof SITE.questPage === 'string' ? SITE.questPage : 'act/';
 /* 14 October 2026: a single page whose address is not its key (SITE.pageAt, used where SITE.pages is not handed in).
    On libertypolitics.com the Missions page is missions/ and its discussion is still page:act, the key the live rules know. */
 const PAGE_AT = SITE.pageAt && typeof SITE.pageAt === 'object' ? SITE.pageAt : {};
-function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] || m[7] : ''; }
+function keyKind(about) { const m = KEY_OK.exec(about || ''); return m ? m[1] || m[3] || m[5] || m[7] || m[9] : ''; }
 function pathOf(about) {
   const m = KEY_OK.exec(about || '');
   if (!m) return null;
   if (m[5]) return BASE + (SITE_KINDS && SITE_PAGES ? SITE_PAGES[m[6]] : (m[6] === 'home' ? '' : (typeof PAGE_AT[m[6]] === 'string' ? PAGE_AT[m[6]] : m[6] + '/')));
   if (m[1] === 'quest') return BASE + QUEST_PAGE;
   if (m[7]) return BASE + GATHERING_PAGE + '?id=' + m[8];
+  if (m[9]) return BASE + GUILD_PAGE + '?id=' + m[10];
   return BASE + DIR[m[1] || m[3]] + (m[2] || m[4]) + '/';
 }
 /* The address of one post, from the site root. A mission report opens its mission on the board (act/#<mission id>);
@@ -413,7 +418,7 @@ function hrefOf(about, id) {
   return root + pathOf(about) + (m && m[1] === 'quest' ? '#' + m[2] : '#p-' + id);
 }
 /* How a page is named inside a sentence when all we have is its key (the discussion page, the report menu). */
-function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : k === 'quest' ? tt('this mission') : k === 'gathering' ? tt('this gathering') : tt('this page'); }
+function whatOf(about) { const k = keyKind(about); return k === 'race' ? tt('this race') : k === 'member' ? tt('this politician') : k === 'vote' ? tt('this vote') : k === 'state' ? tt('this state') : k === 'quest' ? tt('this mission') : k === 'gathering' ? tt('this gathering') : k === 'guild' ? tt('this guild') : tt('this page'); }
 /* The words a reader puts in a gathering's discussion are public, and the place is only for the guests the host says yes
    to: the same test the rules apply (noAddress in firestore.rules) and members.js applies to the gathering itself. */
 const ADDRESS = [/[0-9]+[a-z]?[ ,.]+([a-z.]+ ){0,3}(street|st|avenue|ave|road|rd|boulevard|blvd|lane|drive|highway|hwy|parkway|pkwy|terrace|crescent)([^a-z]|$)/,
@@ -2025,6 +2030,11 @@ let T = null;
    says the gathering is not there (members.js), and nothing can be posted. */
 function gatheringKey() {
   const sec = $('talk');
+  if (sec && sec.getAttribute('data-on') === 'guild:') {      // the one guild page, the same way (6 November 2026)
+    const g = new URLSearchParams(location.search).get('id') || '';
+    sec.setAttribute('data-on', /^[A-Za-z0-9]{2,40}-[12]$/.test(g) ? 'guild:' + g : '');
+    return;
+  }
   if (!sec || sec.getAttribute('data-on') !== 'gathering:') return;
   const id = new URLSearchParams(location.search).get('id') || '';
   sec.setAttribute('data-on', /^[A-Za-z0-9]{20}$/.test(id) ? 'gathering:' + id : '');
