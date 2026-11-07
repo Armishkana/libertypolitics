@@ -127,7 +127,8 @@
     else if (p.s === 'unknown' || p.s === 'wounded') { var q = el('i', 'rg-q' + (p.s === 'wounded' ? ' rg-q-w' : ''), p.s === 'wounded' ? '+' : '?'); q.setAttribute('aria-hidden', 'true'); f.appendChild(q); }
     return f;
   }
-  function stLine(p) { var s = w['st_' + (p.s || 'alive')] || ''; return (p.dd && p.s !== 'alive' && p.s !== 'unknown') ? s + ' · ' + p.dd : s; }
+  function stLine(p) { if (p.xo) return w.left;      // alive, but the post named is one they left (regime.py out_of_post)
+    var s = w['st_' + (p.s || 'alive')] || ''; return (p.dd && p.s !== 'alive' && p.s !== 'unknown') ? s + ' · ' + p.dd : s; }
   function stSpan(p) {      // the fate line three ways (regime.py st3): CSS shows the one the timeline's day calls for
     var s = el('span', 'rg-s');
     s.appendChild(el('i', 'rg-s-now', stLine(p)));

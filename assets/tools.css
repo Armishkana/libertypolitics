@@ -30,9 +30,9 @@
 @media(min-width:640px){.tk-tools{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(min-width:1000px){.tk-tools{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .tk-tool{min-width:0}
-.tk-tool>a{display:flex;flex-direction:column;height:100%;box-sizing:border-box;overflow:hidden;border-radius:var(--r2);background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none;transition:transform .15s var(--ease,ease),border-color .15s}
-.tk-tool>a:hover{transform:translateY(-3px);border-color:var(--field)}
-.tk-tool>a:focus-visible{outline:3px solid var(--field);outline-offset:2px}
+.tk-tool>a:first-child{display:flex;flex-direction:column;height:100%;box-sizing:border-box;overflow:hidden;border-radius:var(--r2);background:var(--panel);border:1px solid var(--line);color:inherit;text-decoration:none;transition:transform .15s var(--ease,ease),border-color .15s}
+.tk-tool>a:first-child:hover{transform:translateY(-3px);border-color:var(--field)}
+.tk-tool>a:first-child:focus-visible{outline:3px solid var(--field);outline-offset:2px}
 .tk-art{position:relative;display:grid;place-items:center;height:150px;padding:var(--s3);box-sizing:border-box;border-bottom:1px solid var(--line);
   background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--field) 9%,transparent),transparent 60%),var(--sunk,#0A0A0A)}
 .tk-art svg{width:min(100%,240px);height:auto;max-height:120px}
@@ -46,12 +46,15 @@
 .tk-tl+.tk-go{margin-top:auto}
 .tk-go{align-self:flex-start;display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:var(--s2);padding:0 18px;border-radius:999px;background:var(--field);color:var(--on-field);font-weight:800}
 .tk-go::after{content:"\2192";font-weight:800}
+.tk-tool:has(>.tk-also){display:flex;flex-direction:column;gap:4px}
+.tk-tool:has(>.tk-also)>a:first-child{height:auto;flex:1}
+.tk-also{display:flex;align-items:center;min-height:44px;padding:0 4px;color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 html[dir="rtl"] .tk-go::after{content:"\2190"}
 /* the first tool leads when that fills the rows (8 tools: 2 + 7 = three rows of three; tools.py adds tk-lead): on a
    computer it takes two columns, its stage beside its words */
 @media(min-width:1000px){
   .tk-lead .tk-tool:first-child{grid-column:span 2}
-  .tk-lead .tk-tool:first-child>a{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+  .tk-lead .tk-tool:first-child>a:first-child{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
   .tk-lead .tk-tool:first-child .tk-art{height:auto;min-height:250px;border-bottom:0;border-inline-end:1px solid var(--line)}
   .tk-lead .tk-tool:first-child .tk-art svg{width:min(100%,320px);max-height:160px}
   .tk-lead .tk-tool:first-child .tk-tn{font-size:2rem}
@@ -62,7 +65,7 @@ html[dir="rtl"] .tk-go::after{content:"\2190"}
    each drawing was small in a tall dark column): the stage is a square tile beside the name, like an app's icon, and the
    kind of tool is a one-line label above the name, in the words' column. */
 @media(max-width:639px){
-  .tk-tool>a{position:relative;flex-direction:row;align-items:flex-start;gap:12px;padding:12px}
+  .tk-tool>a:first-child{position:relative;flex-direction:row;align-items:flex-start;gap:12px;padding:12px}
   .tk-art{position:static;flex:none;width:92px;height:92px;padding:8px;border:1px solid var(--line);border-radius:12px;align-content:center}
   .tk-art svg{width:100%;max-height:76px}
   .tk-kind{top:12px;inset-inline-start:116px;max-width:calc(100% - 128px);padding:3px 8px;font-size:.75rem;line-height:1.1;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}

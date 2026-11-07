@@ -70,6 +70,8 @@
   function num(sel, fb) { var el = $(sel); return el && el.textContent.trim() ? el.textContent.trim() : fb; }
 
   /* ------------------------------------------------------------------ THE REGISTER */
+  // the Gatherings board of Iran Uncensored (<lang>/gatherings/) speaks of public events outside Iran (tour "gatherings")
+  var MB_IU = /\/(en|fa)\/gatherings\/?$/.test(location.pathname);
   var TOOLS = {
     midterms: {
       // v2, 1 November 2026: the win chance row on each race (your map against the markets, and the edge), the chambers'
@@ -320,6 +322,58 @@
         { k: 'card', at: ['#ss-card'], opt: true, when: function () { return shown($('#ss-card')); }, e: '🪑', h: 'Every seat, one square each',
           p: 'Gold squares had one name, red dashed ones were left empty, outlined ones had a race. Below, every office with who ran. Tap a seat with no race to see how to run for it in your state, step by step, or to gather people to back a candidate.',
           covers: ['ss-card'] }
+      ]
+    },
+    // The Gatherings board (gatherings/, build/members.py board, members.js initBoard; 7 November 2026, when it became a
+    // tool of both sites in data/tools.json). Iran Uncensored's board is "Public events outside Iran" (MB_IU): same parts,
+    // its own words. Everything under the host button is drawn by members.js once the board is read, so those steps are opt.
+    gatherings: {
+      name: MB_IU ? 'Public events' : 'Gatherings', fa: 'برنامه‌های عمومی', root: '[data-mb="board"]', ready: '[data-mb="board"] [data-mb-body][aria-busy="false"]', v: 1,
+      surf: ['[data-mb="board"] .mb-wrap > *', '[data-mb="board"] .mb-body > *'],
+      skip: { 'h1': 'the title', '.mb-lede': 'the line under the title', '.mb-body': 'the board itself: each of its parts is a step', '.lpt-doors': 'the tour door itself' },
+      steps: [
+        { k: 'host', at: ['[data-mb="board"] .mb-go'], e: '📣',
+          h: function () { return MB_IU ? 'Post a public event' : 'Host your own'; },
+          p: function () { return MB_IU ? 'Running a rally, a vigil or a screening outside Iran that is already public? Tap the button and say what, where and when. It goes on this board.' : 'Tap Host a gathering and say what it is, where and when. It goes on this board, and I bring people to it.'; },
+          fa: { h: 'برنامهٔ خودتون رو بذارید', p: 'یه تجمع، مراسم یا نمایش فیلم عمومی بیرون از ایران برگزار می‌کنید؟ روی دکمه بزنید و بگید چیه، کجا و کی. می‌ره روی همین فهرست.' },
+          covers: ['.mb-go', '.mb-promise'] },
+        { k: 'asks', at: ['[data-mb="board"] .mb-asks'], opt: true, e: '✅',
+          h: function () { return MB_IU ? 'Did your event happen?' : 'Did yours happen?'; },
+          p: function () { return 'One you posted has passed. Say whether it happened: it moves under ' + (MB_IU ? 'Past events' : 'Past gatherings') + ', where the people who came post their photos.'; },
+          fa: { h: 'برنامه‌تون برگزار شد؟', p: 'یه برنامه گذاشته بودید که تموم شده. بگید برگزار شد یا نه: می‌ره زیر «برنامه‌های گذشته»، جایی که اونایی که اومدن عکس‌هاشون رو می‌ذارن.' },
+          covers: ['.mb-asks'] },
+        { k: 'drive', at: ['[data-mb="board"] .mb-drive'], opt: true, e: '📅', h: 'The night everyone meets',
+          p: 'One night when people meet in many places at once. The count says how many are on the board for it so far. None near you? Put one on for that night.',
+          fa: { h: 'شبی که همه دور هم جمع می‌شن', p: 'یه شب که آدم‌ها همزمان تو جاهای مختلف جمع می‌شن. عدد می‌گه تا حالا چند تا برنامه برای اون شب هست. نزدیک شما نیست؟ خودتون یکی بذارید.' },
+          covers: ['.mb-drive'] },
+        { k: 'map', at: ['[data-mb="board"] .mb-map'], opt: true, e: '🗺️',
+          h: function () { return MB_IU ? 'Where people are meeting' : 'Where we meet'; },
+          p: function () { return (MB_IU ? 'The countries with an event coming up.' : 'A state lights up when a gathering is posted there.') + ' Tap a place under the map to see only what is on there, and tap it again for everything.'; },
+          fa: { h: 'کجا آدم‌ها جمع می‌شن', p: 'کشورهایی که یه برنامه در پیش دارن. روی یه جا زیر نقشه بزنید تا فقط برنامه‌های اونجا رو ببینید، و دوباره بزنید تا همه برگردن.' },
+          covers: ['.mb-map-at'] },
+        { k: 'near', at: ['#mb-where'], opt: true, e: '📍', h: 'Near you',
+          p: 'Pick a place and the list shows only what is on there. Your pick is kept for your next visit.',
+          fa: { h: 'نزدیک شما', p: 'یه جا رو انتخاب کنید تا فهرست فقط برنامه‌های اونجا رو نشون بده. دفعهٔ بعد هم یادش می‌مونه.' },
+          covers: ['.mb-filter'] },
+        { k: 'list', at: ['[data-mb="board"] .mb-body > ul.mb-list:not(.mb-past)', '[data-mb="board"] .mb-body > .mb-empty'], opt: true, e: '🎟️',
+          h: function () { return MB_IU ? 'Every event coming up' : 'Every gathering coming up'; },
+          p: function () { return MB_IU ? 'Each card is one public event: what it is, when and where. Tap it to open it. Nothing near you? Post the first one.' : 'Each card is one gathering: what it is, when and where, and who hosts it. Tap it to open it and say you are coming. Nothing near you? Host the first one.'; },
+          fa: { h: 'همهٔ برنامه‌های پیش رو', p: 'هر کارت یه برنامهٔ عمومیه: چیه، کی و کجا. روش بزنید تا باز بشه. نزدیک شما چیزی نیست؟ اولی رو شما بذارید.' },
+          covers: ['.mb-list', '.mb-empty', '.btn'] },
+        { k: 'kits', at: ['[data-mb="board"] .mb-kits'], opt: true, e: '⏱️',
+          h: function () { return MB_IU ? 'Post one in two minutes' : 'Host one in two minutes'; },
+          p: 'Pick a card: the words, the kind and the day are filled in for you. You add the place.',
+          fa: { h: 'تو دو دقیقه یه برنامه بذارید', p: 'یه کارت انتخاب کنید: متن، نوع و روزش از قبل پر شده. شما فقط جاش رو اضافه می‌کنید.' },
+          covers: ['.mb-kits'] },
+        { k: 'past', at: ['[data-mb="board"] .mb-past'], opt: true, e: '📸',
+          h: function () { return MB_IU ? 'Past events' : 'Past gatherings'; },
+          p: 'The ones that took place, newest first. The photos and videos are from the people who were there.',
+          fa: { h: 'برنامه‌های گذشته', p: 'برنامه‌هایی که برگزار شدن، از تازه‌ترین. عکس‌ها و ویدیوها از کساییه که اونجا بودن.' },
+          covers: ['.mb-h2', '.mb-hint'] },
+        { k: 'safe', at: ['[data-mb="board"] .mb-safe'], opt: true, e: '🛡️', h: 'Stay safe',
+          p: function () { return MB_IU ? 'Only events that are already public, outside Iran. I never send invitations or files: if someone says they are from here and sends you one, do not open it.' : 'Meet somewhere public the first time, adults only. A home address goes only to the guests the host says yes to.'; },
+          fa: { h: 'امن بمونید', p: 'فقط برنامه‌هایی که از قبل عمومی‌ان، بیرون از ایران. من هیچ‌وقت دعوت‌نامه یا فایل نمی‌فرستم: اگه کسی گفت از طرف اینجاست و چیزی براتون فرستاد، بازش نکنید.' },
+          covers: ['.mb-safe'] }
       ]
     },
     you: {

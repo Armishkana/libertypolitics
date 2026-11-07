@@ -567,8 +567,12 @@
       order.sort(bySay);
       if (!order.length) order = (V.hots || []).filter(function (h) { return V.top.indexOf(h.id) >= 0; }).map(function (h) { return { id: h.id, name: h.name, n: h.n, hot: h.hot }; }).sort(function (a, b) { return inFa(b) - inFa(a); });
       if (!order.length) return '';
+      // 6 Nov 2026 (the ask gate stopped an Iran Uncensored publish: a third story the feed could only name in English): on the
+      // Persian page the card lists the stories named in Persian when there are any, and a story named only in English is quoted
+      // as a title, «...», the way the site cites a foreign headline
+      if (FA && order.some(inFa)) order = order.filter(inFa);
       return '<div class="ira-ans"><p>' + esc(T('The biggest stories right now. Tap one to see only it:')) + '</p><ol>' + order.slice(0, 3).map(function (s) {
-        return '<li><button type="button" data-ira-hot="' + esc(s.id) + '"' + (FA ? ' dir="auto"' : '') + '><b>' + esc(s.name) + '</b><small>' + esc(T('Hot {n}', { n: N(s.hot) })) + '</small></button></li>';
+        return '<li><button type="button" data-ira-hot="' + esc(s.id) + '"' + (FA ? ' dir="auto"' : '') + '><b>' + esc(FA && !inFa(s) ? '«' + s.name + '»' : s.name) + '</b><small>' + esc(T('Hot {n}', { n: N(s.hot) })) + '</small></button></li>';
       }).join('') + '</ol></div>';
     }
     if (intent === 'who') {
@@ -843,6 +847,8 @@
         o.from = T('Try fewer words, or a place or a topic.');
       }
     }
+    // the question as it was typed, so the room puts a headline that IS the question first (intel.js, headIs)
+    ns.qx = ns.q && R.headN ? R.headN(p.raw) : '';
     return { ns: ns, o: o, auto: AUTO, intent: p.intent, read: p };
   }
   R.askWith(askIt);

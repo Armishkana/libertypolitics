@@ -1,7 +1,7 @@
 /* Mobilize: XP from every tool, reputation, badges, the gathering upgrades (the door from a tool, check-in, the vouch,
    trusted members only, a guild that hosts) and guilds. ONE FILE FOR BOTH SITES; the one home is ../MOBILIZE.md.
 
-   HOW IT IS LOADED. build/members.py copies this file to assets/mobilize.js?v=6bae3a4e76 and script_tags() loads it on every page, after
+   HOW IT IS LOADED. build/members.py copies this file to assets/mobilize.js?v=b16251faaa and script_tags() loads it on every page, after
    members.js. members.js also imports it (import('./mobilize.js'), the same module, so one copy runs) and calls the parts
    that live inside its own pages: profile() on member/, formExtras() and prefill() on gatherings/new/, gathering() on
    gatherings/g/, marks() on every gathering card, drop() when an account is deleted. A part that is missing costs nothing.

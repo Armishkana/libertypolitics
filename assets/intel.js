@@ -11,7 +11,7 @@
    16 October 2026 (Armin: "It needs to look like a CIA-like intelligence hub but without violating the theme and brand ...
    Significantly improve the map ... data point in different shapes and maybe colors based on what they are ... screen
    based on social media ... how many likes each one of these has ... sort and screen them based on how hot they are, how
-   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=6bae3a4e76) that also lays flat, with
+   viral they are, the time, location, topic"): the map is a globe (d3-geo, assets/intel-geo.js?v=b16251faaa) that also lays flat, with
    the real night side; a mark's SHAPE says what it is (video, post, article, document) and its COLOUR where it was posted
    (PF below); places with few items show every item, crowded ones a count with a ring split by platform. Platform, heat,
    viral and the hours of the last 24 are filters; viral, likes and views are orders. VIRAL is measured, never guessed:
@@ -240,7 +240,7 @@
      into an empty room. FACES: the same file names each YouTube channel's picture and each outlet's web address, so every
      card shows who posted it by its own face (WHO POSTED IT, below). */
   var DEEP = null, DEEP_FRESH = false, FACE_YT = {}, FACE_DOM = {}, SHOW_MIN = 20;
-  var S = { lens: 'bank', q: '', qm: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, days: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '', ext: {} };
+  var S = { lens: 'bank', q: '', qm: '', tp: [], place: '', kind: '', top: false, edu: false, from: 0, to: 0, days: 0, sort: 'new', nowhere: false, pf: [], heat: 0, vmin: 0, within: 0, crmin: 0, fx: [], lmin: 0, hot: '', link: '', with: '', who: '', ext: {}, qx: '' };
   /* ADD-ONS (23 Oct 2026, the Forces layer, build/intel-forces.js, Liberty Politics only). An add-on loaded after the room
      is ready can draw its own marks over the map (LAYERS: draw, hit by position, hit by element, its tip, what a tap does),
      add a filter that lives in the address and has a pill like every other (EXT: key, test, label, valid), add a tab to the
@@ -1011,6 +1011,15 @@
   }
   // a word's weight; with q, its weight inside that question (a place beside other words weighs less, qWeights)
   function qwOf(w, q) { if (q != null) return qwIn(w, q); var t = qTerms(w); return t.length ? qWeight(t[0]) : 0; }
+  /* THE HEADLINE THAT IS THE QUESTION COMES FIRST (6 Nov 2026, IU ask gate). A story the wires all carry arrives as a dozen
+     copies whose headlines differ by a symbol ("US$20" and "$20", a straight or a curly apostrophe). The search reads words
+     of three letters or more, so every copy carries the same words and scores the same, and the one pasted word for word
+     came 11th of 27, after ten copies of itself. The ask box (intel-ask.js) puts the question as it was typed on S.qx, in
+     the one spelling headN gives; an item whose own headline is that question (three words or more; the question's lead-in,
+     such as "show me", before it allowed) comes before every other item the words found. It only orders: what is found
+     stays the same. S.qx is never in the address, and is cleared wherever the words are set another way. */
+  function headN(s) { return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
+  function headIs(it, qx) { var t = it._hn != null ? it._hn : (it._hn = headN(it.t)); return t.split(' ').length >= 3 && (qx === t || qx.slice(-t.length - 1) === ' ' + t) ? 1 : 0; }
   function sortList(a) {
     var by = function (x, y) { return (y.d || y.sent || '').toString().localeCompare((x.d || x.sent || '').toString()); };
     if (S.lens === 'readers') by = function (x, y) { return (y.ms || 0) - (x.ms || 0); };
@@ -1025,9 +1034,9 @@
     // searched words: an item whose own headline says them comes before one that only carries them in a note or a tag (29 Oct
     // 2026: "genocide" put general Gaza items above "In-depth debunk of the genocide allegations"), then the order picked
     // and since the same day the best match first, whatever the words asked for (SEARCHED WORDS, above)
-    var qt = !!S.q;
-    if (qt) a.forEach(function (it) { it._qt = qScore(it); });
-    return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || (qt ? y._qt - x._qt : 0) || by(x, y); });      // an unlabelled post goes last, whatever the order
+    var qt = !!S.q, qx = qt && S.qx ? S.qx : '';
+    if (qt) a.forEach(function (it) { it._qt = qScore(it); it._qx = qx ? headIs(it, qx) : 0; });
+    return a.sort(function (x, y) { return ((x.x || 0) - (y.x || 0)) || (qx ? y._qx - x._qx : 0) || (qt ? y._qt - x._qt : 0) || by(x, y); });      // an unlabelled post goes last, whatever the order
   }
 
   /* ------------------------------------------------------------ everything that redraws */
@@ -1431,7 +1440,7 @@
   }
 
   /* ------------------------------------------------------------ the map: a globe that also lays flat
-     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=6bae3a4e76): the globe is orthographic, the flat map Natural Earth,
+     One canvas draws the Earth with d3-geo (assets/intel-geo.js?v=b16251faaa): the globe is orthographic, the flat map Natural Earth,
      and both come from the same view, V: the longitude and latitude at the middle and a zoom. One SVG over it carries the
      marks, so each stays a real button with a name. The night side is the real one, from where the sun is now. */
   var G = window.d3 && window.d3.geoOrthographic ? window.d3 : null;
@@ -2235,7 +2244,7 @@
     if (t && !clear) sayT = setTimeout(function () { if (el.textContent === String(t)) el.innerHTML = ''; }, 6000);
   }
   function clearS() {          // every filter off, in place (the ask box's blankS returns a blank copy instead)
-    S.q = ''; S.qm = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
+    S.q = ''; S.qm = ''; S.qx = ''; S.tp = []; S.place = ''; S.kind = ''; S.top = false; S.edu = false; S.nowhere = false; S.pf = []; S.heat = 0; S.vmin = 0; S.crmin = 0; S.fx = []; S.lmin = 0; S.hot = ''; S.link = ''; S.with = ''; S.who = ''; S.ext = {}; S.sort = SORTS[S.lens][0][0]; S.from = 0; S.to = buckets.length - 1; S.days = 0;
     $('ir-q').value = ''; $('ir-from').value = 0; $('ir-to').value = S.to;
   }
   function clearAll() {
@@ -2386,7 +2395,7 @@
     else if (k === 'kind') S.kind = ''; else if (k === 'within') S.within = 0; else if (k === 'heat') S.heat = 0; else if (k === 'lmin') S.lmin = 0;
     else if (k === 'vmin') S.vmin = 0; else if (k === 'crmin') S.crmin = 0; else if (k === 'top') S.top = false; else if (k === 'edu') S.edu = false;
     else if (k === 'time') { S.from = 0; S.to = buckets.length - 1; S.days = 0; $('ir-from').value = 0; $('ir-to').value = S.to; }
-    else if (k === 'q') { S.q = ''; S.qm = ''; $('ir-q').value = ''; }
+    else if (k === 'q') { S.q = ''; S.qm = ''; S.qx = ''; $('ir-q').value = ''; }
     say(''); render();
     if (k === 'link' || k === 'with') frameShown();
   }
@@ -2638,7 +2647,7 @@
     S.ext = {};
     Object.keys(EXT).forEach(function (xk) { var xv = u.get(xk); if (xv && xcall(EXT[xk].valid, xv)) S.ext[xk] = xv; });
     useLens(u.get('lens') || defLens, true);
-    S.q = (u.get('q') || '').slice(0, 120); S.qm = /^(any|rank|best)$/.test(u.get('qm') || '') ? u.get('qm') : '';
+    S.q = (u.get('q') || '').slice(0, 120); S.qx = ''; S.qm = /^(any|rank|best)$/.test(u.get('qm') || '') ? u.get('qm') : '';
     S.tp = (u.get('topic') || '').split('.').filter(function (k, i, a) { return (k === 'rel' || TOPN[k]) && a.indexOf(k) === i; });
     var p = u.get('place') || '';
     S.place = ''; S.nowhere = false;
@@ -2840,7 +2849,7 @@
     var steer = /^(there|here|no|not|isnt|wasnt|arent|any|very|really|just|lies|lie|lying|liar|liars|myth|myths|debunked|debunk|best|top|strongest|hamas|genocide|genocidal|famine|starvation|starving|media|un|ngos?|propaganda|pallywood|staged|fake|data|stats|statistics|numbers|history|historical|campus|campuses|journalists?|gaza|gazans?|israel|israeli|israelis|iran|iranian|qatar|qatari|lebanon|syria|uk|us|usa|america|american|britain|british|jihad|islamist|radical|islam|claim|claims|terror|terrorists?|news|hot)$/;
     ns.q = rest.split(' ').filter(function (w) { return w.length > 2 && !steer.test(w); }).slice(0, 4).join(' ');
     if (want) ns.sort = want;
-    S.q = ns.q; S.qm = ''; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to; S.days = ns.days;
+    S.q = ns.q; S.qm = ''; S.qx = ''; S.tp = ns.tp; S.place = ns.place; S.kind = ns.kind; S.pf = ns.pf; S.heat = 0; S.vmin = 0; S.crmin = 0; S.top = false; S.nowhere = false; S.sort = ns.sort; S.from = ns.from; S.to = ns.to; S.days = ns.days;
     if (!SORTS[S.lens].some(function (s) { return s[0] === S.sort; })) S.sort = SORTS[S.lens][0][0];
     $('ir-from').value = S.from; $('ir-to').value = S.to;
     render();
@@ -3143,7 +3152,7 @@
   /* THE PLAYER (24 October 2026). Armin: "I just tried playing a video, and it played a few seconds and then it paused. The
      rest of it was playing in a glitchy way". Measured that day: every video played as ONE fixed mp4 (720p, up to 2.4
      Mbps), which cannot get lighter when the line slows, so a slower line stalls and then stutters. Now, in this order:
-     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=6bae3a4e76,
+     1. X's own stream ("hl", HLS: the stream X's own player plays, in many sizes), through hls.js (assets/hls.min.js?v=b16251faaa,
         loaded inside the frame only when a video is played; Safari on an iPhone plays the stream itself). It starts at
         the size the line can carry, moves between sizes as it plays and never asks for more than the player's size.
      2. Else, or when the stream fails or has not started in 12 seconds: the mp4, from where the stream got to. It starts
@@ -4219,14 +4228,14 @@
       actors: actorsOf, names: namesOf, showing: function (on) { SHOWING = !!on; if (!on) writeUrl(); },
       // THE ASK BOX (24 Oct 2026, build/intel-ask.js, see THE ASK BOX'S HANDS): it answers the search box, reads what the
       // room understands, counts a set of filters without drawing it, puts one on the screen, and keeps the saved views
-      askWith: function (f) { ASKX = typeof f === 'function' ? f : null; }, vocab: askVocab, state: snapS, blank: blankS, peek: peekS, rel: relOf, qw: qwOf, qw: qwOf, apply: applyS, query: query, go: goQ,
+      askWith: function (f) { ASKX = typeof f === 'function' ? f : null; }, vocab: askVocab, state: snapS, blank: blankS, peek: peekS, rel: relOf, qw: qwOf, headN: headN, apply: applyS, query: query, go: goQ,
       views: views, setViews: function (v) { store(VKEY, Array.isArray(v) ? v.slice(0, 12) : []); drawViews(); }, onViews: function (f) { VHOOK.push(f); },
       openFilters: openDrawer, say: say };
     (root.getAttribute('data-addons') || '').split(' ').filter(Boolean).forEach(function (src, i) {          // the page's add-ons (intel.py), after the room is ready
       if (document.getElementById('ir-addon-' + i)) return;
       var as = document.createElement('script'); as.id = 'ir-addon-' + i; as.src = src; document.body.appendChild(as);
     });
-    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=6bae3a4e76'; document.body.appendChild(ps); }
+    if (!document.getElementById('ir-prep-js') && CFG.prep !== false) { var ps = document.createElement('script'); ps.id = 'ir-prep-js'; ps.src = root.getAttribute('data-prep') || '../assets/intel-prep.js?v=b16251faaa'; document.body.appendChild(ps); }
     root.setAttribute('data-ready', '1');
     loadReaders();
     setupSuggest();
